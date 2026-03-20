@@ -224,7 +224,7 @@ xua-delivery/
 
 ## Documentação Adicional
 
-- [`docs/guia_tecnico_xua.md`](docs/guia_tecnico_xua.md) — Schema completo do banco, arquitetura, KPIs e estados dos pedidos
-- [`docs/fluxo_usuarios_xua.md`](docs/fluxo_usuarios_xua.md) — Fluxo de telas por perfil de usuário
-- [`docs/fluxo_telas.html`](docs/fluxo_telas.html) — Diagrama visual de navegação
-- [`.env.example`](.env.example) — Template de variáveis de ambiente
+- [`xua-delivery/docs/guia_tecnico_xua.md`](docs/guia_tecnico_xua.md) — Schema completo do banco, arquitetura, KPIs e estados dos pedidos
+- [`xua-delivery/docs/fluxo_usuarios_xua.md`](docs/fluxo_usuarios_xua.md) — Fluxo de telas por perfil de usuário
+- [`xua-delivery/docs/fluxo_telas.html`](docs/fluxo_telas.html) — Diagrama visual de navegação
+- [`xua-delivery/.env.example`](.env.example) — Template de variáveis de ambiente
