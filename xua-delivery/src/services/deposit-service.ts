@@ -1,10 +1,10 @@
-import type { Knex } from "knex";
-import db from "@/src/lib/db";
+import { Prisma, DepositStatus, OrderStatus } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
 import type { Deposit } from "@/src/types";
 
-const TABLE = "15_trn_deposits";
+type TxClient = Prisma.TransactionClient;
 
 /**
  * DepositService — Caução de vasilhame.
@@ -18,16 +18,16 @@ export const depositService = {
     orderId: string,
     consumerId: string,
     amountCents: number,
-    trx: Knex.Transaction
+    tx: TxClient
   ): Promise<Deposit> {
-    const [deposit] = await trx(TABLE)
-      .insert({
+    const deposit = await tx.deposit.create({
+      data: {
         order_id: orderId,
         consumer_id: consumerId,
         amount_cents: amountCents,
-        status: "held",
-      })
-      .returning("*");
+        status: DepositStatus.HELD,
+      },
+    });
 
     await auditRepository.emit(
       {
@@ -37,7 +37,7 @@ export const depositService = {
         sourceApp: SourceApp.BACKEND,
         payload: { amount_cents: amountCents },
       },
-      trx
+      tx
     );
 
     return deposit;
@@ -48,28 +48,32 @@ export const depositService = {
    * Chamado pelo OrderService após confirmação de entrega com troca.
    */
   async releaseDeposit(orderId: string): Promise<void> {
-    await db.transaction(async (trx) => {
+    await prisma.$transaction(async (tx) => {
       // Verifica condições da Regra A
-      const order = await trx("09_trn_orders")
-        .where({ id: orderId, status: "DELIVERED" })
-        .where("collected_empty_qty", ">=", 1)
-        .first();
+      const order = await tx.order.findFirst({
+        where: {
+          id: orderId,
+          status: OrderStatus.DELIVERED,
+          collected_empty_qty: { gte: 1 },
+        },
+      });
 
       if (!order) {
         return; // Condições não atendidas — não libera
       }
 
-      const deposit = await trx(TABLE)
-        .where({ order_id: orderId, status: "held" })
-        .first();
+      const deposit = await tx.deposit.findFirst({
+        where: { order_id: orderId, status: DepositStatus.HELD },
+      });
 
       if (!deposit) {
         return; // Sem caução retida
       }
 
-      await trx(TABLE)
-        .where({ id: deposit.id })
-        .update({ status: "refund_initiated", updated_at: new Date() });
+      await tx.deposit.update({
+        where: { id: deposit.id },
+        data: { status: DepositStatus.REFUND_INITIATED },
+      });
 
       await auditRepository.emit(
         {
@@ -79,7 +83,7 @@ export const depositService = {
           sourceApp: SourceApp.BACKEND,
           payload: { deposit_id: deposit.id },
         },
-        trx
+        tx
       );
     });
   },

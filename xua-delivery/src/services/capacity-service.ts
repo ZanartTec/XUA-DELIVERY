@@ -1,7 +1,9 @@
-import db from "@/src/lib/db";
-import type { Knex } from "knex";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import { capacityRepository } from "@/src/repositories/capacity-repository";
 import type { DeliveryCapacity, DeliveryWindow } from "@/src/types";
+
+type TxClient = Prisma.TransactionClient;
 
 /**
  * CapacityService — Anti-overbooking via SELECT FOR UPDATE (seção 2.4).
@@ -25,14 +27,14 @@ export const capacityService = {
     zoneId: string,
     date: string,
     window: DeliveryWindow,
-    externalTrx?: Knex.Transaction
+    externalTx?: TxClient
   ): Promise<void> {
-    const execute = async (trx: Knex.Transaction) => {
+    const execute = async (tx: TxClient) => {
       const slot = await capacityRepository.findSlotForUpdate(
         zoneId,
         date,
         window,
-        trx
+        tx
       );
 
       if (!slot) {
@@ -43,13 +45,13 @@ export const capacityService = {
         throw new Error("SLOT_FULL");
       }
 
-      await capacityRepository.reserve(slot.id, trx);
+      await capacityRepository.reserve(slot.id, tx);
     };
 
-    if (externalTrx) {
-      await execute(externalTrx);
+    if (externalTx) {
+      await execute(externalTx);
     } else {
-      await db.transaction(execute);
+      await prisma.$transaction(execute);
     }
   },
 };

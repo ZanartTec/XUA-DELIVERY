@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { verifyToken } from "@/src/lib/auth";
+import { DeliveryWindow, SubscriptionStatus } from "@/src/types/enums";
 import { z } from "zod";
 
 const createSubscriptionSchema = z.object({
@@ -21,9 +21,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Token inválido" }, { status: 401 });
   }
 
-  const subscriptions = await db(TABLES.SUBSCRIPTIONS)
-    .where({ consumer_id: payload.sub })
-    .orderBy("created_at", "desc");
+  const subscriptions = await prisma.subscription.findMany({
+    where: { consumer_id: payload.sub },
+    orderBy: { created_at: "desc" },
+  });
 
   return NextResponse.json(subscriptions);
 }
@@ -48,15 +49,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const [subscription] = await db(TABLES.SUBSCRIPTIONS)
-    .insert({
+  const windowEnum = parsed.data.window === "morning" ? DeliveryWindow.MORNING : DeliveryWindow.AFTERNOON;
+
+  const subscription = await prisma.subscription.create({
+    data: {
       consumer_id: payload.sub,
       qty_20l: parsed.data.qty_20l,
       weekday: parsed.data.weekday,
-      window: parsed.data.window,
-      status: "active",
-    })
-    .returning("*");
+      delivery_window: windowEnum,
+      status: SubscriptionStatus.ACTIVE,
+    },
+  });
 
   return NextResponse.json(subscription, { status: 201 });
 }

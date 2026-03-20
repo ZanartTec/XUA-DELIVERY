@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
+import { DeliveryWindow } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
@@ -84,7 +85,7 @@ export default function OrderDetailPage() {
           <CardTitle className="text-sm">Entrega</CardTitle>
         </CardHeader>
         <CardContent className="text-sm space-y-1">
-          <p>{formatDate(order.delivery_date)} — {order.delivery_window === "morning" ? "Manhã" : "Tarde"}</p>
+          <p>{formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}</p>
           {order.otp_code && (
             <p className="font-mono text-lg tracking-widest text-center py-2">
               {order.otp_code}

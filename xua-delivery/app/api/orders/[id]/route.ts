@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orderService } from "@/src/services/order-service";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 
 // SEC-05: Verifica se o usuário tem acesso ao pedido
-function canAccess(order: Record<string, string>, userId: string, role: string): boolean {
+function canAccess(order: { consumer_id: string; distributor_id: string; driver_id: string | null }, userId: string, role: string): boolean {
   if (role === "ops" || role === "support") return true;
   if (role === "consumer" && order.consumer_id === userId) return true;
   if (role === "distributor_admin" && order.distributor_id === userId) return true;
@@ -20,7 +19,7 @@ export async function GET(
   const userId = req.headers.get("x-user-id");
   const role = req.headers.get("x-user-role") ?? "";
 
-  const order = await db(TABLES.ORDERS).where({ id }).first();
+  const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
@@ -29,18 +28,35 @@ export async function GET(
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
 
-  const items = await db(TABLES.ORDER_ITEMS)
-    .join(TABLES.PRODUCTS, `${TABLES.ORDER_ITEMS}.product_id`, `${TABLES.PRODUCTS}.id`)
-    .where({ order_id: id })
-    .select(`${TABLES.PRODUCTS}.name as product_name`, `${TABLES.ORDER_ITEMS}.quantity as qty`, `${TABLES.ORDER_ITEMS}.unit_price_cents`);
+  const items = await prisma.orderItem.findMany({
+    where: { order_id: id },
+    select: {
+      quantity: true,
+      unit_price_cents: true,
+      product: { select: { name: true } },
+    },
+  });
 
-  const events = await db(TABLES.AUDIT_EVENTS)
-    .where({ order_id: id })
-    .orderBy("occurred_at", "asc")
-    .select("event_type as status", "occurred_at as timestamp", "actor_id as actor");
+  const events = await prisma.auditEvent.findMany({
+    where: { order_id: id },
+    orderBy: { occurred_at: "asc" },
+    select: { event_type: true, occurred_at: true, actor_id: true },
+  });
 
   return NextResponse.json({
-    order: { ...order, items, events },
+    order: {
+      ...order,
+      items: items.map((i) => ({
+        product_name: i.product.name,
+        qty: i.quantity,
+        unit_price_cents: i.unit_price_cents,
+      })),
+      events: events.map((e) => ({
+        status: e.event_type,
+        timestamp: e.occurred_at,
+        actor: e.actor_id,
+      })),
+    },
   });
 }
 
@@ -53,7 +69,7 @@ export async function PATCH(
   const role = req.headers.get("x-user-role") ?? "";
 
   // SEC-05: Verifica ownership antes de permitir ação
-  const existing = await db(TABLES.ORDERS).where({ id }).first();
+  const existing = await prisma.order.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
@@ -102,6 +118,6 @@ export async function PATCH(
       return NextResponse.json({ error: "Ação desconhecida" }, { status: 400 });
   }
 
-  const order = await db(TABLES.ORDERS).where({ id }).first();
+  const order = await prisma.order.findUnique({ where: { id } });
   return NextResponse.json({ order });
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loginSchema } from "@/src/schemas/auth";
 import { comparePassword, signToken } from "@/src/lib/auth";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -16,10 +15,10 @@ export async function POST(req: NextRequest) {
 
   const { email, password } = parsed.data;
 
-  const consumer = await db(TABLES.CONSUMERS)
-    .where({ email })
-    .select("id", "name", "email", "phone", "role", "password_hash")
-    .first();
+  const consumer = await prisma.consumer.findUnique({
+    where: { email },
+    select: { id: true, name: true, email: true, phone: true, role: true, password_hash: true },
+  });
 
   if (!consumer) {
     return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 });

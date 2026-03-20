@@ -1,9 +1,9 @@
-import type { Knex } from "knex";
-import db from "@/src/lib/db";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import type { AuditEvent } from "@/src/types";
 import type { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
 
-const TABLE = "18_aud_audit_events";
+type TxClient = Prisma.TransactionClient;
 
 interface EmitPayload {
   eventType: AuditEventType;
@@ -18,19 +18,18 @@ export const auditRepository = {
    * Append-only — NUNCA faz UPDATE ou DELETE (seção 2.4).
    * DEVE ser chamado dentro da mesma transação da mutação de estado.
    */
-  async emit(data: EmitPayload, trx: Knex.Transaction): Promise<AuditEvent> {
-    const [event] = await trx(TABLE)
-      .insert({
+  async emit(data: EmitPayload, tx: TxClient): Promise<AuditEvent> {
+    return tx.auditEvent.create({
+      data: {
         event_type: data.eventType,
         actor_type: data.actor.type,
         actor_id: data.actor.id,
-        order_id: data.orderId || null,
+        order_id: data.orderId ?? null,
         source_app: data.sourceApp,
-        payload: data.payload ? JSON.stringify(data.payload) : "{}",
+        payload: (data.payload ?? {}) as object,
         occurred_at: new Date(),
-      })
-      .returning("*");
-    return event;
+      },
+    });
   },
 
   /**
@@ -38,26 +37,29 @@ export const auditRepository = {
    */
   async findByOrder(
     orderId: string,
-    trx?: Knex.Transaction
+    tx?: TxClient
   ): Promise<AuditEvent[]> {
-    return (trx || db)(TABLE)
-      .where({ order_id: orderId })
-      .orderBy("occurred_at", "asc");
+    return (tx ?? prisma).auditEvent.findMany({
+      where: { order_id: orderId },
+      orderBy: { occurred_at: "asc" },
+    });
   },
 
   /**
    * Busca eventos para cálculo de KPIs (seção 1 — KPIs Operacionais).
-   * Filtro por distributor via JOIN com orders ou diretamente via payload.
    */
   async findByTypeAndPeriod(
     eventTypes: AuditEventType[],
     startDate: Date,
     endDate: Date,
-    trx?: Knex.Transaction
+    tx?: TxClient
   ): Promise<AuditEvent[]> {
-    return (trx || db)(TABLE)
-      .whereIn("event_type", eventTypes)
-      .whereBetween("occurred_at", [startDate, endDate])
-      .orderBy("occurred_at", "asc");
+    return (tx ?? prisma).auditEvent.findMany({
+      where: {
+        event_type: { in: eventTypes },
+        occurred_at: { gte: startDate, lte: endDate },
+      },
+      orderBy: { occurred_at: "asc" },
+    });
   },
 };

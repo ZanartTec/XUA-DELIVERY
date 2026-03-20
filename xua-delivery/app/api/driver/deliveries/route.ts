@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { verifyToken } from "@/src/lib/auth";
+import { OrderStatus } from "@/src/types/enums";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("xua-token")?.value;
@@ -19,23 +19,33 @@ export async function GET(req: NextRequest) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const dayStart = new Date(today + "T00:00:00Z");
+  const dayEnd = new Date(today + "T23:59:59.999Z");
 
-  const deliveries = await db(TABLES.ORDERS)
-    .where({ driver_id: payload.sub })
-    .whereIn("status", [
-      "dispatched",
-      "in_transit",
-      "arrived",
-      "delivered",
-    ])
-    .whereRaw("DATE(delivery_date) = ?", [today])
-    .leftJoin(TABLES.CONSUMERS, `${TABLES.ORDERS}.consumer_id`, `${TABLES.CONSUMERS}.id`)
-    .select(
-      `${TABLES.ORDERS}.*`,
-      `${TABLES.CONSUMERS}.name as consumer_name`,
-      `${TABLES.CONSUMERS}.phone as consumer_phone`
-    )
-    .orderBy(`${TABLES.ORDERS}.delivery_date`, "asc");
+  const deliveries = await prisma.order.findMany({
+    where: {
+      driver_id: payload.sub,
+      status: {
+        in: [
+          OrderStatus.OUT_FOR_DELIVERY,
+          OrderStatus.DELIVERED,
+        ],
+      },
+      delivery_date: { gte: dayStart, lte: dayEnd },
+    },
+    include: {
+      consumer: {
+        select: { name: true, phone: true },
+      },
+    },
+    orderBy: { delivery_date: "asc" },
+  });
 
-  return NextResponse.json(deliveries);
+  const mapped = deliveries.map(({ consumer, ...order }) => ({
+    ...order,
+    consumer_name: consumer.name,
+    consumer_phone: consumer.phone,
+  }));
+
+  return NextResponse.json(mapped);
 }

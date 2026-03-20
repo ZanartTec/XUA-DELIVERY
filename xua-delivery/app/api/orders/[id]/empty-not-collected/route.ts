@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nonCollectionSchema } from "@/src/schemas/order";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
 
@@ -21,7 +20,7 @@ export async function POST(
     );
   }
 
-  const order = await db(TABLES.ORDERS).where({ id }).first();
+  const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
@@ -31,10 +30,13 @@ export async function POST(
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
 
-  await db.transaction(async (trx) => {
-    await trx(TABLES.ORDERS).where({ id }).update({
-      empty_not_collected_reason: parsed.data.reason,
-      empty_not_collected_notes: parsed.data.notes ?? null,
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id },
+      data: {
+        empty_not_collected_reason: parsed.data.reason,
+        empty_not_collected_notes: parsed.data.notes ?? null,
+      },
     });
 
     // SEC-09: eventType corrigido para EMPTY_NOT_COLLECTED
@@ -49,7 +51,7 @@ export async function POST(
           notes: parsed.data.notes ?? null,
         },
       },
-      trx
+      tx
     );
   });
 

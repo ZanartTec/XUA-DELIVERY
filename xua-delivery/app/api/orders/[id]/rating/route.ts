@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ratingSchema } from "@/src/schemas/order";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
+import { OrderStatus } from "@/src/types/enums";
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +19,7 @@ export async function POST(
     );
   }
 
-  const order = await db(TABLES.ORDERS).where({ id }).first();
+  const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
@@ -29,13 +29,16 @@ export async function POST(
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
 
-  if (order.status !== "DELIVERED") {
+  if (order.status !== OrderStatus.DELIVERED) {
     return NextResponse.json({ error: "Avaliação permitida apenas após entrega" }, { status: 400 });
   }
 
-  await db(TABLES.ORDERS).where({ id }).update({
-    nps_score: parsed.data.rating,
-    nps_comment: parsed.data.comment ?? null,
+  await prisma.order.update({
+    where: { id },
+    data: {
+      nps_score: parsed.data.rating,
+      nps_comment: parsed.data.comment ?? null,
+    },
   });
 
   return NextResponse.json({ ok: true });

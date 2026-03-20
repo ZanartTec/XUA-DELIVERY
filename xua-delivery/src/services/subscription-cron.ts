@@ -1,7 +1,7 @@
-import db from "@/src/lib/db";
+import { SubscriptionStatus, OrderStatus, DeliveryWindow } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
-import { TABLES } from "@/src/lib/tables";
 
 // FUNC-02: Calcula próxima data evitando overflow de dia (31→28 etc.)
 function nextMonthSameDay(dateStr: string): string {
@@ -25,51 +25,58 @@ const BATCH_SIZE = 50;
  */
 export async function subscriptionCron(): Promise<void> {
   const today = new Date().toISOString().split("T")[0];
+  const todayDate = new Date(today + "T00:00:00Z");
   let processedCount = 0;
 
   try {
-    let offset = 0;
+    let skip = 0;
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const batch = await db(TABLES.SUBSCRIPTIONS)
-        .where({ status: "active", next_delivery_date: today })
-        .limit(BATCH_SIZE)
-        .offset(offset);
+      const batch = await prisma.subscription.findMany({
+        where: {
+          status: SubscriptionStatus.ACTIVE,
+          next_delivery_date: todayDate,
+        },
+        take: BATCH_SIZE,
+        skip,
+      });
 
       if (batch.length === 0) break;
 
       for (const sub of batch) {
-        await db.transaction(async (trx) => {
-          const [order] = await trx(TABLES.ORDERS)
-            .insert({
+        if (!sub.address_id || !sub.distributor_id || !sub.zone_id) continue;
+
+        await prisma.$transaction(async (tx) => {
+          const order = await tx.order.create({
+            data: {
               consumer_id: sub.consumer_id,
-              address_id: sub.address_id,
-              distributor_id: sub.distributor_id || null,
-              zone_id: sub.zone_id || null,
-              status: "CREATED",
-              delivery_date: today,
-              delivery_window: sub.delivery_window,
+              address_id: sub.address_id!,
+              distributor_id: sub.distributor_id!,
+              zone_id: sub.zone_id!,
+              status: OrderStatus.CREATED,
+              delivery_date: todayDate,
+              delivery_window: sub.delivery_window ?? DeliveryWindow.MORNING,
               subtotal_cents: 0,
               delivery_fee_cents: 0,
               deposit_cents: 0,
               total_cents: 0,
               collected_empty_qty: 0,
-            })
-            .returning("*");
+            },
+          });
 
-          await trx(TABLES.SUBSCRIPTION_ORDERS).insert({
-            subscription_id: sub.id,
-            order_id: order.id,
+          await tx.subscriptionOrder.create({
+            data: {
+              subscription_id: sub.id,
+              order_id: order.id,
+            },
           });
 
           // FUNC-02: Usa função segura para data do próximo mês
           const nextDate = nextMonthSameDay(today);
-          await trx(TABLES.SUBSCRIPTIONS)
-            .where({ id: sub.id })
-            .update({
-              next_delivery_date: nextDate,
-              updated_at: new Date(),
-            });
+          await tx.subscription.update({
+            where: { id: sub.id },
+            data: { next_delivery_date: new Date(nextDate + "T00:00:00Z") },
+          });
 
           await auditRepository.emit(
             {
@@ -79,13 +86,13 @@ export async function subscriptionCron(): Promise<void> {
               sourceApp: SourceApp.BACKEND,
               payload: { subscription_id: sub.id, auto_generated: true },
             },
-            trx
+            tx
           );
         });
       }
 
       processedCount += batch.length;
-      offset += BATCH_SIZE;
+      skip += BATCH_SIZE;
     }
 
     console.log(

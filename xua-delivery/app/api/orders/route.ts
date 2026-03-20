@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrderSchema } from "@/src/schemas/order";
 import { orderService } from "@/src/services/order-service";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
+import { DeliveryWindow } from "@/src/types/enums";
 
 export async function GET(req: NextRequest) {
   const userId = req.headers.get("x-user-id");
@@ -15,9 +15,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
     const status = req.nextUrl.searchParams.get("status");
-    const query = db(TABLES.ORDERS).where({ distributor_id: userId });
-    if (status) query.where({ status });
-    const orders = await query.orderBy("created_at", "desc");
+    const orders = await prisma.order.findMany({
+      where: {
+        distributor_id: userId!,
+        ...(status ? { status: status as never } : {}),
+      },
+      orderBy: { created_at: "desc" },
+    });
     return NextResponse.json({ orders });
   }
 
@@ -32,28 +36,38 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Busca deve ter ao menos 3 caracteres" }, { status: 400 });
     }
 
-    const orders = await db(TABLES.ORDERS)
-      .join(TABLES.CONSUMERS, `${TABLES.ORDERS}.consumer_id`, `${TABLES.CONSUMERS}.id`)
-      .where(function () {
-        this.where(`${TABLES.CONSUMERS}.phone`, "like", `%${q}%`)
-          .orWhere(`${TABLES.CONSUMERS}.email`, "like", `%${q}%`)
-          .orWhere(`${TABLES.ORDERS}.id`, q);
-      })
-      .select(
-        `${TABLES.ORDERS}.*`,
-        `${TABLES.CONSUMERS}.name as consumer_name`,
-        `${TABLES.CONSUMERS}.email as consumer_email`,
-        `${TABLES.CONSUMERS}.phone as consumer_phone`
-      )
-      .orderBy(`${TABLES.ORDERS}.created_at`, "desc")
-      .limit(50);
-    return NextResponse.json({ orders });
+    const orders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { consumer: { phone: { contains: q } } },
+          { consumer: { email: { contains: q } } },
+          { id: q },
+        ],
+      },
+      include: {
+        consumer: {
+          select: { name: true, email: true, phone: true },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 50,
+    });
+
+    // Flatten consumer data para manter compatibilidade com a resposta anterior
+    const mapped = orders.map(({ consumer, ...order }) => ({
+      ...order,
+      consumer_name: consumer.name,
+      consumer_email: consumer.email,
+      consumer_phone: consumer.phone,
+    }));
+    return NextResponse.json({ orders: mapped });
   }
 
   if (role === "consumer") {
-    const orders = await db(TABLES.ORDERS)
-      .where({ consumer_id: userId })
-      .orderBy("created_at", "desc");
+    const orders = await prisma.order.findMany({
+      where: { consumer_id: userId! },
+      orderBy: { created_at: "desc" },
+    });
     return NextResponse.json({ orders });
   }
 
@@ -76,7 +90,9 @@ export async function POST(req: NextRequest) {
   }
 
   // FUNC-03: Resolve zona e distribuidor pelo endereço
-  const address = await db(TABLES.ADDRESSES).where({ id: parsed.data.address_id, consumer_id: userId }).first();
+  const address = await prisma.address.findFirst({
+    where: { id: parsed.data.address_id, consumer_id: userId },
+  });
   if (!address) {
     return NextResponse.json({ error: "Endereço não encontrado" }, { status: 404 });
   }
@@ -84,19 +100,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Endereço sem zona de entrega configurada" }, { status: 400 });
   }
 
-  const zone = await db(TABLES.ZONES).where({ id: address.zone_id, is_active: true }).first();
+  const zone = await prisma.zone.findFirst({
+    where: { id: address.zone_id, is_active: true },
+  });
   if (!zone) {
     return NextResponse.json({ error: "Zona de entrega inativa" }, { status: 400 });
   }
 
   // Busca preços reais dos produtos
   const productIds = parsed.data.items.map((i) => i.product_id);
-  const products = await db(TABLES.PRODUCTS).whereIn("id", productIds).where({ is_active: true });
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds }, is_active: true },
+  });
   if (products.length !== productIds.length) {
     return NextResponse.json({ error: "Um ou mais produtos inválidos ou inativos" }, { status: 400 });
   }
 
-  const productMap = new Map(products.map((p: { id: string; name: string; price_cents: number }) => [p.id, p]));
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  const windowEnum = parsed.data.delivery_window === "morning" ? DeliveryWindow.MORNING : DeliveryWindow.AFTERNOON;
 
   try {
     const order = await orderService.createOrder({
@@ -105,7 +127,7 @@ export async function POST(req: NextRequest) {
       distributorId: zone.distributor_id,
       zoneId: zone.id,
       deliveryDate: parsed.data.delivery_date,
-      deliveryWindow: parsed.data.delivery_window,
+      deliveryWindow: windowEnum,
       items: parsed.data.items.map((i) => {
         const product = productMap.get(i.product_id)!;
         return {

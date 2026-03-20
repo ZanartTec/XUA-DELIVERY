@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { StatusPill } from "@/src/components/shared/status-pill";
+import { DeliveryWindow } from "@/src/types/enums";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
@@ -72,7 +73,7 @@ export default function DistributorOrderDetailPage() {
           <p>{order.consumer_name}</p>
           <p className="text-gray-500">{order.address_line}</p>
           <p className="text-gray-500">
-            {formatDate(order.delivery_date)} — {order.delivery_window === "morning" ? "Manhã" : "Tarde"}
+            {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
         </CardContent>
       </Card>

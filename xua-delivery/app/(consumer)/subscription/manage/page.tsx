@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import type { Subscription } from "@/src/types";
+import { DeliveryWindow, SubscriptionStatus } from "@/src/types/enums";
 
 export default function SubscriptionManagePage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -31,10 +32,10 @@ export default function SubscriptionManagePage() {
               ...s,
               status:
                 action === "pause"
-                  ? "paused"
+                  ? SubscriptionStatus.PAUSED
                   : action === "resume"
-                    ? "active"
-                    : "cancelled",
+                    ? SubscriptionStatus.ACTIVE
+                    : SubscriptionStatus.CANCELLED,
             }
           : s
       )
@@ -70,16 +71,16 @@ export default function SubscriptionManagePage() {
                   <span>Assinatura #{sub.id}</span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full ${
-                      sub.status === "active"
+                      sub.status === SubscriptionStatus.ACTIVE
                         ? "bg-green-100 text-green-700"
-                        : sub.status === "paused"
+                        : sub.status === SubscriptionStatus.PAUSED
                           ? "bg-yellow-100 text-yellow-700"
                           : "bg-gray-100 text-gray-500"
                     }`}
                   >
-                    {sub.status === "active"
+                    {sub.status === SubscriptionStatus.ACTIVE
                       ? "Ativa"
-                      : sub.status === "paused"
+                      : sub.status === SubscriptionStatus.PAUSED
                         ? "Pausada"
                         : "Cancelada"}
                   </span>
@@ -87,20 +88,20 @@ export default function SubscriptionManagePage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-sm text-gray-600">
-                  {sub.quantity} garrafão(ões) — {sub.delivery_window === "morning" ? "Manhã" : "Tarde"}
+                  {sub.quantity} garrafão(ões) — {sub.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
                 </p>
                 <div className="flex gap-2">
-                  {sub.status === "active" && (
+                  {sub.status === SubscriptionStatus.ACTIVE && (
                     <Button size="sm" variant="outline" onClick={() => toggleStatus(sub.id, "pause")}>
                       Pausar
                     </Button>
                   )}
-                  {sub.status === "paused" && (
+                  {sub.status === SubscriptionStatus.PAUSED && (
                     <Button size="sm" variant="outline" onClick={() => toggleStatus(sub.id, "resume")}>
                       Retomar
                     </Button>
                   )}
-                  {sub.status !== "cancelled" && (
+                  {sub.status !== SubscriptionStatus.CANCELLED && (
                     <Button size="sm" variant="destructive" onClick={() => toggleStatus(sub.id, "cancel")}>
                       Cancelar
                     </Button>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { StatusPill } from "@/src/components/shared/status-pill";
+import { DeliveryWindow } from "@/src/types/enums";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
@@ -65,7 +66,7 @@ export default function SupportOrderDetailPage() {
             <span>{formatCurrency(order.total_cents)}</span>
           </div>
           <p className="text-xs text-gray-500">
-            {formatDate(order.delivery_date)} — {order.delivery_window === "morning" ? "Manhã" : "Tarde"}
+            {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
         </CardContent>
       </Card>

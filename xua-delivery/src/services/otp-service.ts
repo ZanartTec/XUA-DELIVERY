@@ -1,5 +1,6 @@
 import { createHmac, randomInt } from "crypto";
-import db from "@/src/lib/db";
+import { OtpStatus } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import { otpRepository } from "@/src/repositories/otp-repository";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
@@ -30,15 +31,16 @@ export const otpService = {
     const hash = hmacHash(code);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-    await db.transaction(async (trx) => {
+    await prisma.$transaction(async (tx) => {
       // Invalida OTPs anteriores do mesmo pedido
-      await trx("16_sec_order_otps")
-        .where({ order_id: orderId, status: "active" })
-        .update({ status: "expired", updated_at: new Date() });
+      await tx.orderOtp.updateMany({
+        where: { order_id: orderId, status: OtpStatus.ACTIVE },
+        data: { status: OtpStatus.EXPIRED },
+      });
 
       await otpRepository.create(
         { order_id: orderId, otp_hash: hash, expires_at: expiresAt },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -48,7 +50,7 @@ export const otpService = {
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
         },
-        trx
+        tx
       );
     });
 
@@ -65,20 +67,20 @@ export const otpService = {
     driverId: string
   ): Promise<boolean> {
     // FUNC-01: Usa transação com FOR UPDATE para evitar race condition
-    return db.transaction(async (trx) => {
-      const otp = await otpRepository.findActiveForUpdate(orderId, trx);
+    return prisma.$transaction(async (tx) => {
+      const otp = await otpRepository.findActiveForUpdate(orderId, tx);
 
       if (!otp) {
         throw new Error("OTP_NOT_FOUND");
       }
 
       if (otp.expires_at < new Date()) {
-        await otpRepository.markUsed(otp.id, trx);
+        await otpRepository.markUsed(otp.id, tx);
         throw new Error("OTP_EXPIRED");
       }
 
       if (otp.attempts >= MAX_ATTEMPTS) {
-        await otpRepository.markLocked(otp.id, trx);
+        await otpRepository.markLocked(otp.id, tx);
         throw new Error("OTP_LOCKED");
       }
 
@@ -86,11 +88,11 @@ export const otpService = {
       const isValid = hash === otp.otp_hash;
 
       if (isValid) {
-        await otpRepository.markUsed(otp.id, trx);
+        await otpRepository.markUsed(otp.id, tx);
       } else {
-        const updated = await otpRepository.incrementAttempts(otp.id, trx);
+        const updated = await otpRepository.incrementAttempts(otp.id, tx);
         if (updated.attempts >= MAX_ATTEMPTS) {
-          await otpRepository.markLocked(otp.id, trx);
+          await otpRepository.markLocked(otp.id, tx);
         }
       }
 
@@ -102,7 +104,7 @@ export const otpService = {
           sourceApp: SourceApp.DRIVER_WEB,
           payload: { success: isValid, attempts: otp.attempts + 1 },
         },
-        trx
+        tx
       );
 
       return isValid;
@@ -117,11 +119,11 @@ export const otpService = {
     actorId: string,
     reason: string
   ): Promise<void> {
-    await db.transaction(async (trx) => {
+    await prisma.$transaction(async (tx) => {
       // Marca OTP como usado independente da validação
-      const otp = await otpRepository.findActive(orderId);
+      const otp = await otpRepository.findActive(orderId, tx);
       if (otp) {
-        await otpRepository.markUsed(otp.id, trx);
+        await otpRepository.markUsed(otp.id, tx);
       }
 
       await auditRepository.emit(
@@ -132,7 +134,7 @@ export const otpService = {
           sourceApp: SourceApp.OPS_CONSOLE,
           payload: { override: true, reason },
         },
-        trx
+        tx
       );
     });
   },

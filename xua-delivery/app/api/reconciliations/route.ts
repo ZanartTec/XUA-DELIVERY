@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { verifyToken } from "@/src/lib/auth";
 import { reconciliationSchema } from "@/src/schemas/order";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
+import { AuditEventType, ActorType, SourceApp, OrderStatus } from "@/src/types/enums";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("xua-token")?.value;
@@ -23,25 +22,30 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const dayStart = new Date(date + "T00:00:00Z");
+  const dayEnd = new Date(date + "T23:59:59.999Z");
 
-  const orders = await db(TABLES.ORDERS)
-    .where({ distributor_id: payload.sub })
-    .whereRaw("DATE(delivery_date) = ?", [date])
-    .whereIn("status", ["DELIVERED", "CANCELLED"])
-    .select(
-      "id",
-      "qty_20l_sent",
-      "qty_20l_returned",
-      "returned_empty_qty",
-      "deposit_amount_cents",
-      "status",
-      "delivery_date"
-    );
+  const orders = await prisma.order.findMany({
+    where: {
+      distributor_id: payload.sub,
+      delivery_date: { gte: dayStart, lte: dayEnd },
+      status: { in: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] },
+    },
+    select: {
+      id: true,
+      qty_20l_sent: true,
+      qty_20l_returned: true,
+      returned_empty_qty: true,
+      deposit_amount_cents: true,
+      status: true,
+      delivery_date: true,
+    },
+  });
 
   const summary = {
-    total_sent: orders.reduce((s: number, o: Record<string, number>) => s + (o.qty_20l_sent ?? 0), 0),
-    total_returned: orders.reduce((s: number, o: Record<string, number>) => s + (o.returned_empty_qty ?? 0), 0),
-    total_deposit_cents: orders.reduce((s: number, o: Record<string, number>) => s + (o.deposit_amount_cents ?? 0), 0),
+    total_sent: orders.reduce((s, o) => s + (o.qty_20l_sent ?? 0), 0),
+    total_returned: orders.reduce((s, o) => s + (o.returned_empty_qty ?? 0), 0),
+    total_deposit_cents: orders.reduce((s, o) => s + (o.deposit_amount_cents ?? 0), 0),
     orders_count: orders.length,
   };
 
@@ -72,10 +76,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await db.transaction(async (trx: import("knex").Knex.Transaction) => {
+  await prisma.$transaction(async (tx) => {
     for (const item of parsed.data.items) {
-      await trx(TABLES.ORDERS).where({ id: item.order_id }).update({
-        returned_empty_qty: item.returned_empty_qty,
+      await tx.order.update({
+        where: { id: item.order_id },
+        data: { returned_empty_qty: item.returned_empty_qty },
       });
     }
 
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
         sourceApp: SourceApp.DISTRIBUTOR_WEB,
         payload: { items_count: parsed.data.items.length },
       },
-      trx
+      tx
     );
   });
 

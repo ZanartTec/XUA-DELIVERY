@@ -1,77 +1,82 @@
-import type { Knex } from "knex";
-import db from "@/src/lib/db";
+import { Prisma, OtpStatus } from "@prisma/client";
+import { prisma } from "@/src/lib/prisma";
 import type { OrderOtp } from "@/src/types";
 
-const TABLE = "16_sec_order_otps";
+type TxClient = Prisma.TransactionClient;
 
 export const otpRepository = {
   async create(
     data: { order_id: string; otp_hash: string; expires_at: Date },
-    trx?: Knex.Transaction
+    tx?: TxClient
   ): Promise<OrderOtp> {
-    const [otp] = await (trx || db)(TABLE)
-      .insert({
+    return (tx ?? prisma).orderOtp.create({
+      data: {
         order_id: data.order_id,
         otp_hash: data.otp_hash,
-        status: "active",
+        status: OtpStatus.ACTIVE,
         attempts: 0,
         expires_at: data.expires_at,
-      })
-      .returning("*");
-    return otp;
+      },
+    });
   },
 
   async findActive(
     orderId: string,
-    trx?: Knex.Transaction
+    tx?: TxClient
   ): Promise<OrderOtp | null> {
-    const otp = await (trx || db)(TABLE)
-      .where({ order_id: orderId, status: "active" })
-      .first();
-    return otp || null;
+    return (tx ?? prisma).orderOtp.findFirst({
+      where: { order_id: orderId, status: OtpStatus.ACTIVE },
+    });
   },
 
   // FUNC-01: SELECT FOR UPDATE para evitar race condition em validações concorrentes
   async findActiveForUpdate(
     orderId: string,
-    trx: Knex.Transaction
+    tx: TxClient
   ): Promise<OrderOtp | null> {
-    const otp = await trx(TABLE)
-      .where({ order_id: orderId, status: "active" })
-      .forUpdate()
-      .first();
-    return otp || null;
+    const rows = await tx.$queryRaw<OrderOtp[]>`
+      SELECT * FROM "16_sec_order_otps"
+      WHERE order_id = ${orderId}::uuid
+        AND status = 'active'
+      FOR UPDATE
+      LIMIT 1
+    `;
+    return rows[0] ?? null;
   },
 
   async incrementAttempts(
     id: string,
-    trx?: Knex.Transaction
+    tx?: TxClient
   ): Promise<OrderOtp> {
-    const [otp] = await (trx || db)(TABLE)
-      .where({ id })
-      .increment("attempts", 1)
-      .update({ updated_at: new Date() })
-      .returning("*");
-    return otp;
+    return (tx ?? prisma).orderOtp.update({
+      where: { id },
+      data: { attempts: { increment: 1 } },
+    });
   },
 
-  async markUsed(id: string, trx?: Knex.Transaction): Promise<void> {
-    await (trx || db)(TABLE)
-      .where({ id })
-      .update({ status: "used", updated_at: new Date() });
+  async markUsed(id: string, tx?: TxClient): Promise<void> {
+    await (tx ?? prisma).orderOtp.update({
+      where: { id },
+      data: { status: OtpStatus.USED },
+    });
   },
 
-  async markLocked(id: string, trx?: Knex.Transaction): Promise<void> {
-    await (trx || db)(TABLE)
-      .where({ id })
-      .update({ status: "locked", updated_at: new Date() });
+  async markLocked(id: string, tx?: TxClient): Promise<void> {
+    await (tx ?? prisma).orderOtp.update({
+      where: { id },
+      data: { status: OtpStatus.LOCKED },
+    });
   },
 
   /** Expira OTPs ativos além do TTL (90 min) — chamado pelo cron a cada 15min */
-  async expireOldOtps(trx?: Knex.Transaction): Promise<number> {
-    return (trx || db)(TABLE)
-      .where({ status: "active" })
-      .where("expires_at", "<", new Date())
-      .update({ status: "expired", updated_at: new Date() });
+  async expireOldOtps(tx?: TxClient): Promise<number> {
+    const result = await (tx ?? prisma).orderOtp.updateMany({
+      where: {
+        status: OtpStatus.ACTIVE,
+        expires_at: { lt: new Date() },
+      },
+      data: { status: OtpStatus.EXPIRED },
+    });
+    return result.count;
   },
 };

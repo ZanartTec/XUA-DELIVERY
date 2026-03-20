@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
+import { AuditEventType, ActorType, SourceApp, PaymentKind } from "@/src/types/enums";
 
 const WEBHOOK_SECRET_RAW = process.env.PAYMENT_WEBHOOK_SECRET;
 if (!WEBHOOK_SECRET_RAW) {
@@ -51,36 +50,41 @@ export async function POST(req: NextRequest) {
   }
 
   // Idempotency: skip if already processed
-  const existing = await db(TABLES.PAYMENTS)
-    .where({ external_id: payment_id })
-    .first();
+  const existing = await prisma.payment.findUnique({
+    where: { external_id: payment_id },
+  });
 
   if (existing && existing.status === status) {
     return NextResponse.json({ ok: true, msg: "already processed" });
   }
 
-  await db.transaction(async (trx: import("knex").Knex.Transaction) => {
+  await prisma.$transaction(async (tx) => {
     if (existing) {
-      await trx(TABLES.PAYMENTS)
-        .where({ external_id: payment_id })
-        .update({ status, updated_at: new Date() });
+      await tx.payment.update({
+        where: { external_id: payment_id },
+        data: { status: status as never },
+      });
     } else {
-      await trx(TABLES.PAYMENTS).insert({
-        external_id: payment_id,
-        order_id,
-        status,
-        kind: "pix",
-        amount_cents: body.amount_cents ?? 0,
+      await tx.payment.create({
+        data: {
+          external_id: payment_id,
+          order_id,
+          status: status as never,
+          kind: PaymentKind.ORDER,
+          amount_cents: body.amount_cents ?? 0,
+        },
       });
     }
 
     if (status === "approved") {
-      await trx(TABLES.ORDERS).where({ id: order_id }).update({
-        payment_status: "paid",
+      await tx.order.update({
+        where: { id: order_id },
+        data: { payment_status: "paid" },
       });
     } else if (status === "refunded") {
-      await trx(TABLES.ORDERS).where({ id: order_id }).update({
-        payment_status: "refunded",
+      await tx.order.update({
+        where: { id: order_id },
+        data: { payment_status: "refunded" },
       });
     }
 
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
         sourceApp: SourceApp.BACKEND,
         payload: { event, payment_id, status },
       },
-      trx
+      tx
     );
   });
 

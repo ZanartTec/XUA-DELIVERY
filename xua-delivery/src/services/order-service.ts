@@ -1,9 +1,9 @@
-import db from "@/src/lib/db";
+import { prisma } from "@/src/lib/prisma";
 import { getIO } from "@/src/lib/socket";
 import { orderRepository } from "@/src/repositories/order-repository";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { capacityService } from "@/src/services/capacity-service";
-import { OrderStatus, AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
+import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow } from "@/src/types/enums";
 import type { Order } from "@/src/types";
 
 // ARCH-03: Máquina de estados — transições válidas
@@ -28,7 +28,7 @@ function assertTransition(currentStatus: string, newStatus: string): void {
 
 /**
  * OrderService — TODA lógica de negócio do pedido.
- * Padrão: transação Knex → mutação + audit atômico → Socket.io pós-commit (seção 3.3).
+ * Padrão: transação Prisma → mutação + audit atômico → Socket.io pós-commit (seção 3.3).
  */
 export const orderService = {
   async createOrder(data: {
@@ -37,7 +37,7 @@ export const orderService = {
     distributorId: string;
     zoneId: string;
     deliveryDate: string;
-    deliveryWindow: "morning" | "afternoon";
+    deliveryWindow: DeliveryWindow;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -52,13 +52,13 @@ export const orderService = {
     const deliveryFeeCents = 500; // R$ 5,00 padrão
     const totalCents = subtotalCents + deliveryFeeCents;
 
-    const order = await db.transaction(async (trx) => {
+    const order = await prisma.$transaction(async (tx) => {
       // ARCH-04: Reserva capacidade dentro da mesma transação
       await capacityService.reserve(
         data.zoneId,
         data.deliveryDate,
         data.deliveryWindow,
-        trx
+        tx
       );
 
       const created = await orderRepository.create(
@@ -68,7 +68,7 @@ export const orderService = {
           distributor_id: data.distributorId,
           zone_id: data.zoneId,
           status: OrderStatus.CREATED,
-          delivery_date: data.deliveryDate,
+          delivery_date: new Date(data.deliveryDate),
           delivery_window: data.deliveryWindow,
           subtotal_cents: subtotalCents,
           delivery_fee_cents: deliveryFeeCents,
@@ -76,26 +76,37 @@ export const orderService = {
           total_cents: totalCents,
           rating: null,
           rating_comment: null,
+          nps_score: null,
+          nps_comment: null,
           collected_empty_qty: 0,
+          returned_empty_qty: null,
+          bottle_condition: null,
+          empty_not_collected_reason: null,
+          empty_not_collected_notes: null,
+          payment_status: null,
           cancellation_reason: null,
           accepted_at: null,
           dispatched_at: null,
           delivered_at: null,
+          driver_id: null,
+          deposit_amount_cents: 0,
+          qty_20l_sent: null,
+          qty_20l_returned: null,
         },
-        trx
+        tx
       );
 
       // Insere items do pedido
-      await trx("10_trn_order_items").insert(
-        data.items.map((item) => ({
+      await tx.orderItem.createMany({
+        data: data.items.map((item) => ({
           order_id: created.id,
           product_id: item.product_id,
           product_name: item.product_name,
           unit_price_cents: item.unit_price_cents,
           quantity: item.quantity,
           subtotal_cents: item.unit_price_cents * item.quantity,
-        }))
-      );
+        })),
+      });
 
       // Evento de auditoria na mesma transação
       await auditRepository.emit(
@@ -105,7 +116,7 @@ export const orderService = {
           orderId: created.id,
           sourceApp: SourceApp.CONSUMER_WEB,
         },
-        trx
+        tx
       );
 
       return created;
@@ -115,8 +126,8 @@ export const orderService = {
   },
 
   async acceptOrder(orderId: string, distributorUserId: string): Promise<Order> {
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
 
@@ -124,7 +135,7 @@ export const orderService = {
         orderId,
         OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
         { accepted_at: new Date() },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -134,7 +145,7 @@ export const orderService = {
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
         },
-        trx
+        tx
       );
 
       return updated;
@@ -156,8 +167,8 @@ export const orderService = {
     reason: string,
     details?: string
   ): Promise<Order> {
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.REJECTED_BY_DISTRIBUTOR);
 
@@ -165,7 +176,7 @@ export const orderService = {
         orderId,
         OrderStatus.REJECTED_BY_DISTRIBUTOR,
         { cancellation_reason: reason },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -176,7 +187,7 @@ export const orderService = {
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
           payload: { reason, details },
         },
-        trx
+        tx
       );
 
       return updated;
@@ -192,8 +203,8 @@ export const orderService = {
   },
 
   async completeChecklist(orderId: string, distributorUserId: string): Promise<Order> {
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.READY_FOR_DISPATCH);
 
@@ -201,7 +212,7 @@ export const orderService = {
         orderId,
         OrderStatus.READY_FOR_DISPATCH,
         undefined,
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -211,7 +222,7 @@ export const orderService = {
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
         },
-        trx
+        tx
       );
 
       return updated;
@@ -221,8 +232,8 @@ export const orderService = {
   },
 
   async dispatch(orderId: string, distributorUserId: string): Promise<Order> {
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.OUT_FOR_DELIVERY);
 
@@ -230,7 +241,7 @@ export const orderService = {
         orderId,
         OrderStatus.OUT_FOR_DELIVERY,
         { dispatched_at: new Date() },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -240,7 +251,7 @@ export const orderService = {
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
         },
-        trx
+        tx
       );
 
       return updated;
@@ -256,8 +267,8 @@ export const orderService = {
   },
 
   async deliverOrder(orderId: string, driverId: string): Promise<Order> {
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.DELIVERED);
 
@@ -265,7 +276,7 @@ export const orderService = {
         orderId,
         OrderStatus.DELIVERED,
         { delivered_at: new Date() },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -275,7 +286,7 @@ export const orderService = {
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
         },
-        trx
+        tx
       );
 
       return updated;
@@ -300,8 +311,8 @@ export const orderService = {
     const sourceApp =
       actorType === "consumer" ? SourceApp.CONSUMER_WEB : SourceApp.OPS_CONSOLE;
 
-    const order = await db.transaction(async (trx) => {
-      const current = await orderRepository.findById(orderId, trx);
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new Error("ORDER_NOT_FOUND");
       assertTransition(current.status, OrderStatus.CANCELLED);
 
@@ -309,7 +320,7 @@ export const orderService = {
         orderId,
         OrderStatus.CANCELLED,
         { cancellation_reason: reason },
-        trx
+        tx
       );
 
       await auditRepository.emit(
@@ -320,7 +331,7 @@ export const orderService = {
           sourceApp,
           payload: { reason },
         },
-        trx
+        tx
       );
 
       return updated;

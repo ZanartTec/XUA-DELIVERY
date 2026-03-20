@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/src/lib/db";
-import { TABLES } from "@/src/lib/tables";
+import { prisma } from "@/src/lib/prisma";
 import { fetchCep } from "@/src/lib/cep";
 
 export async function GET(
@@ -29,10 +28,10 @@ export async function GET(
     return NextResponse.json(data);
   }
 
-  const addresses = await db(TABLES.ADDRESSES)
-    .where({ consumer_id: id })
-    .orderBy("is_default", "desc")
-    .orderBy("created_at", "desc");
+  const addresses = await prisma.address.findMany({
+    where: { consumer_id: id },
+    orderBy: [{ is_default: "desc" }, { created_at: "desc" }],
+  });
 
   return NextResponse.json({ addresses });
 }
@@ -56,8 +55,8 @@ export async function POST(
     return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
   }
 
-  const [address] = await db(TABLES.ADDRESSES)
-    .insert({
+  const address = await prisma.address.create({
+    data: {
       consumer_id: id,
       zip_code,
       street,
@@ -67,8 +66,8 @@ export async function POST(
       city,
       state,
       is_default: false,
-    })
-    .returning("*");
+    },
+  });
 
   return NextResponse.json({ address }, { status: 201 });
 }

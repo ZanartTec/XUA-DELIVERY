@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
+import { DeliveryWindow } from "@/src/types/enums";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -44,7 +45,7 @@ export default function OrdersPage() {
                   <div className="space-y-1">
                     <p className="font-medium text-sm">Pedido #{order.id}</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(order.delivery_date)} — {order.delivery_window === "morning" ? "Manhã" : "Tarde"}
+                      {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
                     </p>
                     <StatusPill status={order.status} />
                   </div>
