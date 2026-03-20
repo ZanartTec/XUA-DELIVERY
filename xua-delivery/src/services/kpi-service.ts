@@ -59,27 +59,31 @@ export const kpiService = {
     startDate: Date,
     endDate: Date
   ): Promise<{ rate: number; accepted: number; total: number }> {
-    const receivedResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(id) as count FROM "18_aud_audit_events"
-      WHERE event_type = ${AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR}::"audit_event_type"
+    // PERF-02: CTE única em vez de 2 queries separadas
+    const result = await prisma.$queryRaw<
+      Array<{ total: number; accepted: number }>
+    >`
+      WITH dist_orders AS (
+        SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid
+      )
+      SELECT
+        COUNT(CASE WHEN event_type = ${AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR}::"audit_event_type" THEN 1 END)::int AS total,
+        COUNT(CASE WHEN event_type = ${AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR}::"audit_event_type" THEN 1 END)::int AS accepted
+      FROM "18_aud_audit_events"
+      WHERE event_type IN (
+        ${AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR}::"audit_event_type",
+        ${AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR}::"audit_event_type"
+      )
       AND occurred_at BETWEEN ${startDate} AND ${endDate}
-      AND order_id IN (SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid)
+      AND order_id IN (SELECT id FROM dist_orders)
     `;
 
-    const acceptedResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(id) as count FROM "18_aud_audit_events"
-      WHERE event_type = ${AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR}::"audit_event_type"
-      AND occurred_at BETWEEN ${startDate} AND ${endDate}
-      AND order_id IN (SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid)
-    `;
-
-    const totalCount = Number(receivedResult[0]?.count ?? 0);
-    const acceptedCount = Number(acceptedResult[0]?.count ?? 0);
+    const { total, accepted } = result[0] ?? { total: 0, accepted: 0 };
 
     return {
-      rate: totalCount > 0 ? (acceptedCount / totalCount) * 100 : 0,
-      accepted: acceptedCount,
-      total: totalCount,
+      rate: total > 0 ? (accepted / total) * 100 : 0,
+      accepted,
+      total,
     };
   },
 
@@ -92,27 +96,31 @@ export const kpiService = {
     startDate: Date,
     endDate: Date
   ): Promise<{ rate: number; redeliveries: number; delivered: number }> {
-    const deliveredResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(id) as count FROM "18_aud_audit_events"
-      WHERE event_type = ${AuditEventType.ORDER_DELIVERED}::"audit_event_type"
+    // PERF-03: CTE única em vez de 2 queries separadas
+    const result = await prisma.$queryRaw<
+      Array<{ delivered: number; redeliveries: number }>
+    >`
+      WITH dist_orders AS (
+        SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid
+      )
+      SELECT
+        COUNT(CASE WHEN event_type = ${AuditEventType.ORDER_DELIVERED}::"audit_event_type" THEN 1 END)::int AS delivered,
+        COUNT(CASE WHEN event_type = ${AuditEventType.REDELIVERY_REQUIRED}::"audit_event_type" THEN 1 END)::int AS redeliveries
+      FROM "18_aud_audit_events"
+      WHERE event_type IN (
+        ${AuditEventType.ORDER_DELIVERED}::"audit_event_type",
+        ${AuditEventType.REDELIVERY_REQUIRED}::"audit_event_type"
+      )
       AND occurred_at BETWEEN ${startDate} AND ${endDate}
-      AND order_id IN (SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid)
+      AND order_id IN (SELECT id FROM dist_orders)
     `;
 
-    const redeliveryResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(id) as count FROM "18_aud_audit_events"
-      WHERE event_type = ${AuditEventType.REDELIVERY_REQUIRED}::"audit_event_type"
-      AND occurred_at BETWEEN ${startDate} AND ${endDate}
-      AND order_id IN (SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid)
-    `;
-
-    const deliveredCount = Number(deliveredResult[0]?.count ?? 0);
-    const redeliveryCount = Number(redeliveryResult[0]?.count ?? 0);
+    const { delivered, redeliveries } = result[0] ?? { delivered: 0, redeliveries: 0 };
 
     return {
-      rate: deliveredCount > 0 ? (redeliveryCount / deliveredCount) * 100 : 0,
-      redeliveries: redeliveryCount,
-      delivered: deliveredCount,
+      rate: delivered > 0 ? (redeliveries / delivered) * 100 : 0,
+      redeliveries,
+      delivered,
     };
   },
 };

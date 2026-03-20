@@ -11,12 +11,12 @@ const SAFE_SELECT = {
 } as const;
 
 export const consumerRepository = {
-  async findById(id: string, tx?: TxClient): Promise<Consumer | null> {
-    return (tx ?? prisma).consumer.findUnique({ where: { id } });
+  async findById(id: string, tx?: TxClient) {
+    return (tx ?? prisma).consumer.findUnique({ where: { id }, select: SAFE_SELECT });
   },
 
-  async findByEmail(email: string, tx?: TxClient): Promise<Consumer | null> {
-    return (tx ?? prisma).consumer.findUnique({ where: { email } });
+  async findByEmail(email: string, tx?: TxClient) {
+    return (tx ?? prisma).consumer.findUnique({ where: { email }, select: SAFE_SELECT });
   },
 
   async create(

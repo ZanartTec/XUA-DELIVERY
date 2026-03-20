@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { AuditEventType, ActorType, SourceApp, PaymentKind } from "@/src/types/enums";
+import { AuditEventType, ActorType, SourceApp, PaymentKind, PaymentStatus } from "@/src/types/enums";
 
 const WEBHOOK_SECRET_RAW = process.env.PAYMENT_WEBHOOK_SECRET;
 if (!WEBHOOK_SECRET_RAW) {
@@ -38,12 +38,14 @@ export async function POST(req: NextRequest) {
 
   const body = JSON.parse(rawBody);
 
-  const { event, payment_id, order_id, status } = body as {
+  const { event, payment_id, order_id, status: rawStatus } = body as {
     event: string;
     payment_id: string;
     order_id: string;
     status: string;
   };
+
+  const paymentStatus = rawStatus as PaymentStatus;
 
   if (!event || !payment_id || !order_id) {
     return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
     where: { external_id: payment_id },
   });
 
-  if (existing && existing.status === status) {
+  if (existing && existing.status === paymentStatus) {
     return NextResponse.json({ ok: true, msg: "already processed" });
   }
 
@@ -62,26 +64,26 @@ export async function POST(req: NextRequest) {
     if (existing) {
       await tx.payment.update({
         where: { external_id: payment_id },
-        data: { status: status as never },
+        data: { status: paymentStatus },
       });
     } else {
       await tx.payment.create({
         data: {
           external_id: payment_id,
           order_id,
-          status: status as never,
+          status: paymentStatus,
           kind: PaymentKind.ORDER,
           amount_cents: body.amount_cents ?? 0,
         },
       });
     }
 
-    if (status === "approved") {
+    if (rawStatus === "approved") {
       await tx.order.update({
         where: { id: order_id },
         data: { payment_status: "paid" },
       });
-    } else if (status === "refunded") {
+    } else if (rawStatus === "refunded") {
       await tx.order.update({
         where: { id: order_id },
         data: { payment_status: "refunded" },
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
         actor: { type: ActorType.SYSTEM, id: "gateway" },
         orderId: order_id,
         sourceApp: SourceApp.BACKEND,
-        payload: { event, payment_id, status },
+        payload: { event, payment_id, status: rawStatus },
       },
       tx
     );

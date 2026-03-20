@@ -1,5 +1,7 @@
 # 🔒 Auditoria de Segurança & Arquitetura — Xuá Delivery v3.0
 
+> ⚠️ **Nota (Julho 2025):** Esta auditoria foi realizada antes da migração Knex.js → Prisma ORM. Todas as referências a `Knex`, `Knex.Config` e `Knex.Transaction` neste documento refletem o estado anterior do código. A base de código atual utiliza **Prisma 7.x** com transações interativas (`prisma.$transaction`).
+
 **Auditor**: Engenheiro de Segurança Sênior / Arquiteto de Software  
 **Data**: Junho 2025  
 **Escopo**: Codebase completo (41 arquivos `.ts` + `.tsx`)  

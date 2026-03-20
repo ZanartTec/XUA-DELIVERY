@@ -171,7 +171,7 @@ xua-delivery/
 └── src/
     ├── lib/
     │   ├── auth.ts             # signToken / verifyToken (jose HS256)
-    │   ├── db.ts               # Knex.js (PostgreSQL)
+    │   ├── prisma.ts            # Prisma ORM (PostgreSQL)
     │   ├── redis.ts            # ioredis
     │   ├── tables.ts           # Constantes com nomes de tabelas
     │   ├── api-handler.ts      # Wrapper de error handling para Route Handlers
@@ -184,7 +184,7 @@ xua-delivery/
     │   ├── kpi-service.ts      # KPIs via audit_events
     │   ├── subscription-cron.ts # Cron 06h: gera pedidos de assinatura
     │   └── otp-cleanup.ts      # Cron 15min: expira OTPs vencidos
-    ├── repositories/           # Queries SQL (Knex)
+    ├── repositories/           # Queries SQL (Prisma)
     ├── schemas/                # Validação Zod
     ├── components/             # Componentes React reutilizáveis
     ├── store/                  # Estado global Zustand
@@ -214,7 +214,7 @@ xua-delivery/
 | UI | Tailwind CSS 4, shadcn/ui |
 | Estado cliente | Zustand 5 |
 | Validação | Zod 4 |
-| Banco de dados | PostgreSQL 16 via Knex.js 3 |
+| Banco de dados | PostgreSQL 16 via Prisma 7 |
 | Cache / sessões | Redis 7 via ioredis |
 | Auth | JWT (jose) + bcryptjs |
 | Real-time | Socket.io 4 |

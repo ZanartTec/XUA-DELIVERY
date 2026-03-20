@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createOrderSchema } from "@/src/schemas/order";
 import { orderService } from "@/src/services/order-service";
 import { prisma } from "@/src/lib/prisma";
-import { DeliveryWindow } from "@/src/types/enums";
+import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 
 export async function GET(req: NextRequest) {
   const userId = req.headers.get("x-user-id");
@@ -14,11 +14,12 @@ export async function GET(req: NextRequest) {
     if (role !== "distributor_admin") {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
-    const status = req.nextUrl.searchParams.get("status");
+    const statusParam = req.nextUrl.searchParams.get("status");
+    const statusEnum = statusParam ? (statusParam as OrderStatus) : undefined;
     const orders = await prisma.order.findMany({
       where: {
         distributor_id: userId!,
-        ...(status ? { status: status as never } : {}),
+        ...(statusEnum ? { status: statusEnum } : {}),
       },
       orderBy: { created_at: "desc" },
     });

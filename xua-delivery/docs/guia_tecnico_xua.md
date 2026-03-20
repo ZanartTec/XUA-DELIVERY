@@ -19,7 +19,7 @@
 
 ## 1. Visão Geral do Sistema
 
-O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão retornável 20L. Na versão 3.0, todo o sistema roda em um único projeto **Next.js 15**: o frontend (React Server Components + Client Components), a API (Route Handlers), a lógica de negócio (Services), o banco de dados (PostgreSQL via Knex.js), o real-time (Socket.io embutido via custom server) e os cron jobs (node-cron). Não existe servidor Node.js separado — tudo é um deploy só.
+O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão retornável 20L. Na versão 3.0, todo o sistema roda em um único projeto **Next.js 15**: o frontend (React Server Components + Client Components), a API (Route Handlers), a lógica de negócio (Services), o banco de dados (PostgreSQL via Prisma ORM), o real-time (Socket.io embutido via custom server) e os cron jobs (node-cron). Não existe servidor Node.js separado — tudo é um deploy só.
 
 O banco de dados permanece **100% idêntico** ao schema original: 19 tabelas, 9 enums, 26 índices, trigger de proteção contra regressão de estado. A única alteração é no enum `source_app`, que agora registra `consumer_web`, `distributor_web` e `driver_web` ao invés das versões mobile.
 
@@ -42,7 +42,7 @@ Navegador (Consumidor / Distribuidor / Motorista / Ops)
          Next.js 15 — Servidor Único
   Route Handlers (API) + Server Actions (mutações)
         + Socket.io Server + Cron Jobs
-    ↓ Knex.js (transações) / ioredis / SDK gateway
+    ↓ Prisma ORM (transações) / ioredis / SDK gateway
 
   ┌─────────────────┬──────────────────┬──────────────────────┐
   │  PostgreSQL 16  │    Redis 7       │  Gateway Pagamento   │
@@ -147,7 +147,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 **Exemplo — Anti-overbooking com SELECT FOR UPDATE:**
 
 ```sql
--- CapacityService.reserve() — dentro de transação Knex
+-- CapacityService.reserve() — dentro de transação Prisma
 BEGIN;
 SELECT id, capacity_total, capacity_reserved
   FROM 07_cfg_delivery_capacity
@@ -182,7 +182,7 @@ COMMIT;
 | **Server Actions** | Next.js (`use server`) | Mutações simples: aceitar pedido, marcar checklist, submit rating. Elimina fetch manual pro Route Handler. |
 | **Middleware** | Next.js `middleware.ts` | Auth JWT via cookie httpOnly. RBAC por role. Redirect automático: consumer→/catalog, driver→/deliveries. |
 | **Services** | TypeScript puro | TODA lógica de negócio: máquina de estados, caução (Regra A), OTP HMAC, KPIs, assinaturas, `emitEvent()` atômico. |
-| **Repositories** | Knex.js 3.x | Queries SQL via query builder. Transações explícitas passadas pelo Service. Sem regra de negócio. |
+| **Repositories** | Prisma 7.x | Queries via Prisma Client. Transações interativas (`prisma.$transaction`). Sem regra de negócio. |
 | **Infra** | fetch + SDKs | Gateway pagamento (interface desacoplada), Web Push API, SMS fallback. Troca de provider sem alterar Services. |
 | **Real-time** | Socket.io 4.x (embutido) | Custom server Next.js: mesmo processo, mesmo port. Salas `consumer:{id}`, `distributor:{id}`. Reconnect automático. |
 | **Cron** | node-cron 3.x | Roda no mesmo processo: assinaturas 06h (São Paulo), OTP cleanup cada 15min. Sem worker separado. |
@@ -403,7 +403,7 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 | State Server | TanStack Query v5 | Cache, revalidação, optimistic updates, dedup de requests |
 | State Client | Zustand v5 | 1KB, sem boilerplate, persist middleware, zero context hell |
 | Forms | React Hook Form + Zod | Performance + validação tipada + schemas compartilhados client/server |
-| DB Access | Knex.js 3.x | Query builder com migrations, transações explícitas, sem ORM magic |
+| DB Access | Prisma 7.x | ORM type-safe com migrations, transações interativas, schema declarativo |
 | Banco | PostgreSQL 16 | 19 tabelas, 9 enums, 26 índices, trigger proteção. Schema idêntico. |
 | Cache | Redis 7 + ioredis | JWT blacklist, cache catálogo 5min, OTP TTL 90min |
 | Real-time | Socket.io 4.x (embutido) | Mesmo processo Next.js. Salas por usuário. Reconnect automático. |
