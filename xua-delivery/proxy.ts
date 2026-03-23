@@ -42,7 +42,7 @@ const API_ROLE_ROUTES: Record<string, string[]> = {
 
 /**
  * Verifica blacklist de JWT via fetch interno ao Route Handler.
- * Necessário porque middleware Next.js roda no Edge e não pode usar Redis diretamente.
+ * Necessário porque proxy Next.js roda no Edge e não pode usar Redis diretamente.
  */
 async function checkBlacklist(jti: string, request: NextRequest): Promise<boolean> {
   try {
@@ -60,7 +60,7 @@ async function checkBlacklist(jti: string, request: NextRequest): Promise<boolea
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Rotas públicas passam direto
