@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums PostgreSQL (seção 2.3) ──────────────────────────────
+
+enum DeliveryWindow {
+  MORNING    @map("morning")
+  AFTERNOON  @map("afternoon")
+
+  @@map("delivery_window")
+}
+
+enum OrderStatus {
+  DRAFT
+  CREATED
+  PAYMENT_PENDING
+  CONFIRMED
+  SENT_TO_DISTRIBUTOR
+  ACCEPTED_BY_DISTRIBUTOR
+  REJECTED_BY_DISTRIBUTOR
+  PICKING
+  READY_FOR_DISPATCH
+  OUT_FOR_DELIVERY
+  DELIVERED
+  DELIVERY_FAILED
+  REDELIVERY_SCHEDULED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum OtpStatus {
+  ACTIVE   @map("active")
+  USED     @map("used")
+  EXPIRED  @map("expired")
+  LOCKED   @map("locked")
+
+  @@map("otp_status")
+}
+
+enum SubscriptionStatus {
+  ACTIVE     @map("active")
+  PAUSED     @map("paused")
+  CANCELLED  @map("cancelled")
+
+  @@map("subscription_status")
+}
+
+enum PaymentKind {
+  ORDER         @map("order")
+  SUBSCRIPTION  @map("subscription")
+  DEPOSIT       @map("deposit")
+
+  @@map("payment_kind")
+}
+
+enum PaymentStatus {
+  CREATED     @map("created")
+  AUTHORIZED  @map("authorized")
+  CAPTURED    @map("captured")
+  FAILED      @map("failed")
+  REFUNDED    @map("refunded")
+
+  @@map("payment_status")
+}
+
+enum DepositStatus {
+  HELD              @map("held")
+  REFUND_INITIATED  @map("refund_initiated")
+  REFUNDED          @map("refunded")
+  FORFEITED         @map("forfeited")
+
+  @@map("deposit_status")
+}
+
+enum ActorType {
+  CONSUMER          @map("consumer")
+  DISTRIBUTOR_USER  @map("distributor_user")
+  DRIVER            @map("driver")
+  SUPPORT           @map("support")
+  OPS               @map("ops")
+  SYSTEM            @map("system")
+
+  @@map("actor_type")
+}
+
+enum SourceApp {
+  CONSUMER_WEB     @map("consumer_web")
+  DISTRIBUTOR_WEB  @map("distributor_web")
+  DRIVER_WEB       @map("driver_web")
+  OPS_CONSOLE      @map("ops_console")
+  BACKEND          @map("backend")
+
+  @@map("source_app")
+}
+
+enum AuditEventType {
+  ORDER_CREATED
+  ORDER_PRICING_FINALIZED
+  ORDER_CONFIRMED
+  ORDER_CANCELLED
+  ORDER_RECEIVED_BY_DISTRIBUTOR
+  ORDER_ACCEPTED_BY_DISTRIBUTOR
+  ORDER_REJECTED_BY_DISTRIBUTOR
+  DISPATCH_CHECKLIST_COMPLETED
+  ORDER_DISPATCHED
+  OTP_GENERATED
+  OTP_SENT
+  OTP_VALIDATION_ATTEMPTED
+  ORDER_DELIVERED
+  BOTTLE_EXCHANGE_RECORDED
+  EMPTY_NOT_COLLECTED
+  REDELIVERY_REQUIRED
+  REDELIVERY_SCHEDULED
+  PAYMENT_CREATED
+  PAYMENT_CAPTURED
+  PAYMENT_FAILED
+  DEPOSIT_HELD
+  DEPOSIT_REFUND_INITIATED
+  DEPOSIT_REFUNDED
+  DAILY_RECONCILIATION_CLOSED
+
+  @@map("audit_event_type")
+}
+
+// ─── Models (19 tabelas — seção 2.1) ───────────────────────────
+
+model Consumer {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  email         String   @unique
+  phone         String?
+  password_hash String
+  role          String   @default("consumer")
+  is_b2b        Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  addresses     Address[]
+  orders        Order[]          @relation("ConsumerOrders")
+  push_tokens   ConsumerPushToken[]
+  subscriptions Subscription[]
+  deposits      Deposit[]
+
+  @@map("01_mst_consumers")
+}
+
+model Address {
+  id           String   @id @default(uuid()) @db.Uuid
+  consumer_id  String   @db.Uuid
+  label        String?
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  zip_code     String
+  zone_id      String?  @db.Uuid
+  is_default   Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  consumer Consumer  @relation(fields: [consumer_id], references: [id])
+  zone     Zone?     @relation(fields: [zone_id], references: [id])
+  orders   Order[]
+
+  @@map("02_mst_addresses")
+}
+
+model Distributor {
+  id                      String   @id @default(uuid()) @db.Uuid
+  name                    String
+  cnpj                    String   @unique
+  phone                   String
+  email                   String
+  acceptance_sla_seconds  Int      @default(180)
+  is_active               Boolean  @default(true)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  zones           Zone[]
+  orders          Order[]
+  reconciliations Reconciliation[]
+
+  @@map("03_mst_distributors")
+}
+
+model Zone {
+  id              String   @id @default(uuid()) @db.Uuid
+  distributor_id  String   @db.Uuid
+  name            String
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  distributor     Distributor        @relation(fields: [distributor_id], references: [id])
+  coverage        ZoneCoverage[]
+  capacity_slots  DeliveryCapacity[]
+  addresses       Address[]
+  orders          Order[]
+
+  @@map("04_mst_zones")
+}
+
+model ZoneCoverage {
+  id           String   @id @default(uuid()) @db.Uuid
+  zone_id      String   @db.Uuid
+  neighborhood String?
+  zip_code     String?
+  created_at   DateTime @default(now())
+
+  zone Zone @relation(fields: [zone_id], references: [id])
+
+  @@map("05_mst_zone_coverage")
+}
+
+model Product {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  description   String?
+  price_cents   Int
+  deposit_cents Int      @default(0)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  order_items OrderItem[]
+
+  @@map("06_mst_products")
+}
+
+model DeliveryCapacity {
+  id                String         @id @default(uuid()) @db.Uuid
+  zone_id           String         @db.Uuid
+  delivery_date     DateTime       @db.Date
+  window            DeliveryWindow
+  capacity_total    Int
+  capacity_reserved Int            @default(0)
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+
+  zone Zone @relation(fields: [zone_id], references: [id])
+
+  @@unique([zone_id, delivery_date, window])
+  @@map("07_cfg_delivery_capacity")
+}
+
+model ConsumerPushToken {
+  id          String   @id @default(uuid()) @db.Uuid
+  consumer_id String   @db.Uuid
+  endpoint    String
+  p256dh      String
+  auth_key    String
+  created_at  DateTime @default(now())
+
+  consumer Consumer @relation(fields: [consumer_id], references: [id])
+
+  @@map("08_sec_consumer_push_tokens")
+}
+
+model Order {
+  id                         String         @id @default(uuid()) @db.Uuid
+  consumer_id                String         @db.Uuid
+  address_id                 String         @db.Uuid
+  distributor_id             String         @db.Uuid
+  zone_id                    String         @db.Uuid
+  driver_id                  String?        @db.Uuid
+  status                     OrderStatus    @default(CREATED)
+  delivery_date              DateTime       @db.Date
+  delivery_window            DeliveryWindow
+  subtotal_cents             Int            @default(0)
+  delivery_fee_cents         Int            @default(0)
+  deposit_cents              Int            @default(0)
+  deposit_amount_cents       Int            @default(0)
+  total_cents                Int            @default(0)
+  qty_20l_sent               Int?
+  qty_20l_returned           Int?
+  rating                     Int?
+  rating_comment             String?
+  nps_score                  Int?
+  nps_comment                String?
+  collected_empty_qty        Int            @default(0)
+  returned_empty_qty         Int?
+  bottle_condition           String?
+  empty_not_collected_reason String?
+  empty_not_collected_notes  String?
+  payment_status             String?
+  cancellation_reason        String?
+  accepted_at                DateTime?
+  dispatched_at              DateTime?
+  delivered_at               DateTime?
+  created_at                 DateTime       @default(now())
+  updated_at                 DateTime       @updatedAt
+
+  consumer    Consumer      @relation("ConsumerOrders", fields: [consumer_id], references: [id])
+  address     Address       @relation(fields: [address_id], references: [id])
+  distributor Distributor   @relation(fields: [distributor_id], references: [id])
+  zone        Zone          @relation(fields: [zone_id], references: [id])
+  items       OrderItem[]
+  payments    Payment[]
+  deposits    Deposit[]
+  otps        OrderOtp[]
+  audit_events AuditEvent[]
+  subscription_orders SubscriptionOrder[]
+
+  @@map("09_trn_orders")
+}
+
+model OrderItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  order_id         String   @db.Uuid
+  product_id       String   @db.Uuid
+  product_name     String
+  unit_price_cents Int
+  quantity         Int
+  subtotal_cents   Int
+  created_at       DateTime @default(now())
+
+  order   Order   @relation(fields: [order_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id])
+
+  @@map("10_trn_order_items")
+}
+
+model Subscription {
+  id                    String             @id @default(uuid()) @db.Uuid
+  consumer_id           String             @db.Uuid
+  address_id            String?            @db.Uuid
+  product_id            String?            @db.Uuid
+  distributor_id        String?            @db.Uuid
+  zone_id               String?            @db.Uuid
+  quantity              Int                @default(1)
+  delivery_window       DeliveryWindow     @default(MORNING)
+  delivery_day_of_month Int?
+  status                SubscriptionStatus @default(ACTIVE)
+  next_delivery_date    DateTime?          @db.Date
+  qty_20l               Int?
+  weekday               Int?
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+
+  consumer            Consumer            @relation(fields: [consumer_id], references: [id])
+  subscription_orders SubscriptionOrder[]
+
+  @@map("11_trn_subscriptions")
+}
+
+model SubscriptionOrder {
+  subscription_id String   @db.Uuid
+  order_id        String   @db.Uuid
+  created_at      DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscription_id], references: [id])
+  order        Order        @relation(fields: [order_id], references: [id])
+
+  @@id([subscription_id, order_id])
+  @@map("12_piv_subscription_orders")
+}
+
+model Payment {
+  id                   String        @id @default(uuid()) @db.Uuid
+  order_id             String        @db.Uuid
+  kind                 PaymentKind   @default(ORDER)
+  status               PaymentStatus @default(CREATED)
+  amount_cents         Int           @default(0)
+  provider             String?
+  provider_payment_ref String?
+  external_id          String?       @unique
+  paid_at              DateTime?
+  created_at           DateTime      @default(now())
+  updated_at           DateTime      @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@map("13_trn_payments")
+}
+
+model PaymentWebhookEvent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  provider           String
+  provider_event_ref String
+  event_type         String
+  payload            Json     @default("{}")
+  created_at         DateTime @default(now())
+
+  @@unique([provider, provider_event_ref])
+  @@map("14_cfg_payment_webhook_events")
+}
+
+model Deposit {
+  id          String       @id @default(uuid()) @db.Uuid
+  order_id    String       @db.Uuid
+  consumer_id String       @db.Uuid
+  amount_cents Int
+  status      DepositStatus @default(HELD)
+  refunded_at DateTime?
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+
+  order    Order    @relation(fields: [order_id], references: [id])
+  consumer Consumer @relation(fields: [consumer_id], references: [id])
+
+  @@map("15_trn_deposits")
+}
+
+model OrderOtp {
+  id         String    @id @default(uuid()) @db.Uuid
+  order_id   String    @db.Uuid
+  otp_hash   String
+  status     OtpStatus @default(ACTIVE)
+  attempts   Int       @default(0)
+  expires_at DateTime
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@map("16_sec_order_otps")
+}
+
+model Reconciliation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  distributor_id      String   @db.Uuid
+  reconciliation_date DateTime @db.Date
+  full_out            Int
+  empty_returned      Int
+  delta               Int
+  justification       String?
+  closed_by           String
+  created_at          DateTime @default(now())
+
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
+
+  @@map("17_trn_reconciliations")
+}
+
+model AuditEvent {
+  id          String         @id @default(uuid()) @db.Uuid
+  event_type  AuditEventType
+  actor_type  ActorType
+  actor_id    String
+  order_id    String?        @db.Uuid
+  source_app  SourceApp
+  payload     Json           @default("{}")
+  occurred_at DateTime       @default(now())
+
+  order Order? @relation(fields: [order_id], references: [id])
+
+  @@map("18_aud_audit_events")
+}
