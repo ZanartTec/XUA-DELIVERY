@@ -3,12 +3,17 @@ import { getIO } from "@/src/lib/socket";
 import { orderRepository } from "@/src/repositories/order-repository";
 import { auditRepository } from "@/src/repositories/audit-repository";
 import { capacityService } from "@/src/services/capacity-service";
+import { otpService } from "@/src/services/otp-service";
+import { notificationService } from "@/src/services/notification-service";
 import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow } from "@/src/types/enums";
 import type { Order } from "@/src/types";
 
-// ARCH-03: Máquina de estados — transições válidas
+// ARCH-03: Máquina de estados — transições válidas (com estados intermediários)
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  [OrderStatus.CREATED]: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.REJECTED_BY_DISTRIBUTOR, OrderStatus.CANCELLED],
+  [OrderStatus.CREATED]: [OrderStatus.PAYMENT_PENDING, OrderStatus.CANCELLED],
+  [OrderStatus.PAYMENT_PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+  [OrderStatus.CONFIRMED]: [OrderStatus.SENT_TO_DISTRIBUTOR, OrderStatus.CANCELLED],
+  [OrderStatus.SENT_TO_DISTRIBUTOR]: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.REJECTED_BY_DISTRIBUTOR, OrderStatus.CANCELLED],
   [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: [OrderStatus.READY_FOR_DISPATCH, OrderStatus.CANCELLED],
   [OrderStatus.REJECTED_BY_DISTRIBUTOR]: [],
   [OrderStatus.READY_FOR_DISPATCH]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CANCELLED],
@@ -120,6 +125,99 @@ export const orderService = {
       );
 
       return created;
+    });
+
+    return order;
+  },
+
+  /**
+   * Submete pedido para pagamento: CREATED → PAYMENT_PENDING
+   */
+  async submitForPayment(orderId: string): Promise<Order> {
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new Error("ORDER_NOT_FOUND");
+      assertTransition(current.status, OrderStatus.PAYMENT_PENDING);
+
+      const updated = await orderRepository.updateStatus(
+        orderId,
+        OrderStatus.PAYMENT_PENDING,
+        undefined,
+        tx
+      );
+
+      return updated;
+    });
+
+    return order;
+  },
+
+  /**
+   * Confirma pedido após pagamento: PAYMENT_PENDING → CONFIRMED
+   */
+  async confirmOrder(orderId: string): Promise<Order> {
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new Error("ORDER_NOT_FOUND");
+      assertTransition(current.status, OrderStatus.CONFIRMED);
+
+      const updated = await orderRepository.updateStatus(
+        orderId,
+        OrderStatus.CONFIRMED,
+        undefined,
+        tx
+      );
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.ORDER_CONFIRMED,
+          actor: { type: ActorType.SYSTEM, id: "payment-gateway" },
+          orderId,
+          sourceApp: SourceApp.BACKEND,
+        },
+        tx
+      );
+
+      return updated;
+    });
+
+    return order;
+  },
+
+  /**
+   * Envia pedido ao distribuidor: CONFIRMED → SENT_TO_DISTRIBUTOR
+   */
+  async sendToDistributor(orderId: string): Promise<Order> {
+    const order = await prisma.$transaction(async (tx) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new Error("ORDER_NOT_FOUND");
+      assertTransition(current.status, OrderStatus.SENT_TO_DISTRIBUTOR);
+
+      const updated = await orderRepository.updateStatus(
+        orderId,
+        OrderStatus.SENT_TO_DISTRIBUTOR,
+        undefined,
+        tx
+      );
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR,
+          actor: { type: ActorType.SYSTEM, id: "system" },
+          orderId,
+          sourceApp: SourceApp.BACKEND,
+        },
+        tx
+      );
+
+      return updated;
+    });
+
+    // Notifica distribuidor via Socket.io
+    const io = getIO();
+    io.to(`distributor_admin:${order.distributor_id}`).emit("new_order", {
+      orderId,
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
     });
 
     return order;
@@ -263,6 +361,22 @@ export const orderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
+    // Gera OTP após commit da transação (seção 2.4)
+    const otpCode = await otpService.generate(orderId, distributorUserId);
+
+    // Envia OTP ao consumidor via Socket.io
+    io.to(`consumer:${order.consumer_id}`).emit("otp_generated", {
+      orderId,
+      code: otpCode,
+    });
+
+    // Push notification
+    notificationService.send(
+      order.consumer_id,
+      "Pedido saiu para entrega!",
+      `Seu código de confirmação é ${otpCode}`
+    ).catch(() => {});
+
     return order;
   },
 
@@ -297,6 +411,13 @@ export const orderService = {
       orderId,
       status: OrderStatus.DELIVERED,
     });
+
+    // Push notification
+    notificationService.send(
+      order.consumer_id,
+      "Pedido entregue!",
+      "Seu pedido foi entregue com sucesso."
+    ).catch(() => {});
 
     return order;
   },

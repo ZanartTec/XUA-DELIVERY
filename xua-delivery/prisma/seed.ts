@@ -145,9 +145,9 @@ async function main() {
   });
   console.log("✅ Endereço: Rua das Flores, 123 - Centro/SP");
 
-  // ── 7. Capacidade de entrega (hoje + 7 dias) ──────────────────
+  // ── 7. Capacidade de entrega (hoje + 30 dias) ─────────────────
   const windows = [DeliveryWindow.MORNING, DeliveryWindow.AFTERNOON];
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= 30; i++) {
     const date = nextDeliveryDate(i);
     for (const window of windows) {
       await prisma.deliveryCapacity.upsert({
@@ -163,7 +163,7 @@ async function main() {
       });
     }
   }
-  console.log("✅ Capacidade de entrega: próximos 7 dias (manhã + tarde, 20 slots cada)");
+  console.log("✅ Capacidade de entrega: próximos 30 dias (manhã + tarde, 20 slots cada)");
 
   // ── 8. Pedido de exemplo ──────────────────────────────────────
   const deliveryDate = nextDeliveryDate(1);

@@ -11,13 +11,13 @@ const STATUS_MAP: Record<string, number> = {
   ACCESS_DENIED: 403,
 };
 
-type RouteContext = { params: Promise<{ id: string }> };
+type RouteContext = { params: Promise<Record<string, string>> };
 
 type HandlerFn =
   | ((req: NextRequest) => Promise<NextResponse>)
   | ((req: NextRequest, ctx: RouteContext) => Promise<NextResponse>);
 
-export function withErrorHandling(handler: HandlerFn): HandlerFn {
+export function withErrorHandling(handler: HandlerFn) {
   return async (req: NextRequest, ctx?: RouteContext) => {
     try {
       return await (handler as (req: NextRequest, ctx?: RouteContext) => Promise<NextResponse>)(req, ctx);

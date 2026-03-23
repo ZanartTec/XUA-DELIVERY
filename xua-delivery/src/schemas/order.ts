@@ -62,3 +62,15 @@ export const reconciliationSchema = z.object({
   ).min(1),
 });
 export type ReconciliationInput = z.infer<typeof reconciliationSchema>;
+
+export const rescheduleSchema = z.object({
+  new_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
+  new_delivery_window: z.enum(["morning", "afternoon"]),
+  reason: z.string().min(5, "Motivo deve ter ao menos 5 caracteres"),
+});
+export type RescheduleInput = z.infer<typeof rescheduleSchema>;
+
+export const subscriptionUpdateSchema = z.object({
+  action: z.enum(["pause", "resume", "cancel"]),
+});
+export type SubscriptionUpdateInput = z.infer<typeof subscriptionUpdateSchema>;

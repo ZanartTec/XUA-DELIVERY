@@ -8,7 +8,7 @@ if (!JWT_SECRET_RAW) {
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 // Rotas públicas que não requerem autenticação
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/payments/webhook"];
+const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/check-blacklist", "/api/payments/webhook"];
 
 // Mapa de redirecionamento por role (seção 3.2 do guia técnico)
 const ROLE_REDIRECTS: Record<string, string> = {
@@ -32,13 +32,33 @@ const ROLE_ROUTES: Record<string, string[]> = {
 
 // Rotas de API permitidas por role (RBAC — SEC-02)
 const API_ROLE_ROUTES: Record<string, string[]> = {
-  consumer: ["/api/orders", "/api/consumers", "/api/subscriptions", "/api/zones"],
+  consumer: ["/api/orders", "/api/consumers", "/api/subscriptions", "/api/zones", "/api/notifications"],
   distributor_admin: ["/api/orders", "/api/reconciliations", "/api/zones"],
   operator: ["/api/driver", "/api/orders"],
   driver: ["/api/driver", "/api/orders"],
   support: ["/api/orders", "/api/ops"],
-  ops: ["/api/orders", "/api/ops", "/api/reconciliations"],
+  ops: ["/api/orders", "/api/ops", "/api/reconciliations", "/api/zones", "/api/audit"],
 };
+
+/**
+ * Verifica blacklist de JWT via fetch interno ao Route Handler.
+ * Necessário porque middleware Next.js roda no Edge e não pode usar Redis diretamente.
+ */
+async function checkBlacklist(jti: string, request: NextRequest): Promise<boolean> {
+  try {
+    const url = new URL("/api/auth/check-blacklist", request.url);
+    url.searchParams.set("jti", jti);
+    const res = await fetch(url, {
+      headers: { "x-internal-secret": process.env.INTERNAL_SECRET || "" },
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return body.blacklisted === true;
+  } catch {
+    // Se falhar, permite o request para não bloquear em caso de Redis down
+    return false;
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -61,6 +81,19 @@ export async function middleware(request: NextRequest) {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = payload.role as string;
+
+    // SEC-01: Verifica se o JWT foi invalidado (logout)
+    if (payload.jti) {
+      const blacklisted = await checkBlacklist(payload.jti as string, request);
+      if (blacklisted) {
+        if (pathname.startsWith("/api")) {
+          return NextResponse.json({ error: "Token revogado" }, { status: 401 });
+        }
+        const response = NextResponse.redirect(new URL("/login", request.url));
+        response.cookies.delete("xua-token");
+        return response;
+      }
+    }
 
     // Se acessando a raiz, redireciona para a home da role
     if (pathname === "/") {
@@ -108,7 +141,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Protege tudo exceto assets estáticos e _next
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Protege tudo exceto assets estáticos, _next e arquivos PWA (sw.js, manifest.json)
+    "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

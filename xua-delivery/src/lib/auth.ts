@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { hash, compare } from "bcryptjs";
+import { randomUUID } from "crypto";
 import type { JwtPayload } from "@/src/types";
 
 const JWT_SECRET_RAW = process.env.JWT_SECRET;
@@ -19,6 +20,7 @@ export async function signToken(payload: {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(JWT_ISSUER)
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(JWT_EXPIRATION)
     .sign(JWT_SECRET);

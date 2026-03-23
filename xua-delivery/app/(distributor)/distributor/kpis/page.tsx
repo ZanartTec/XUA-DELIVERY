@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { KpiChart } from "@/src/components/shared/kpi-chart";
+import { PeriodSelector } from "@/src/components/shared/period-selector";
+import { api } from "@/src/lib/api-client";
 
 interface KpiData {
   sla_acceptance_pct: number;
@@ -10,97 +14,107 @@ interface KpiData {
 }
 
 export default function KpisPage() {
-  const [kpis, setKpis] = useState<KpiData | null>(null);
   const [period, setPeriod] = useState("7d");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/orders?scope=kpis&period=${period}`)
-      .then((r) => r.json())
-      .then((data) => setKpis(data.kpis ?? null))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data: kpis, isLoading } = useQuery<KpiData>({
+    queryKey: ["kpis", period],
+    queryFn: () => api.get<{ kpis: KpiData }>(`/api/kpis?period=${period}`).then((r) => r.kpis),
+  });
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">KPIs</h1>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          className="border rounded-md px-3 py-1.5 text-sm"
-        >
-          <option value="1d">Hoje</option>
-          <option value="7d">7 dias</option>
-          <option value="30d">30 dias</option>
-        </select>
+        <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <p className="text-gray-500">Carregando...</p>
       ) : !kpis ? (
         <p className="text-gray-500">Sem dados disponíveis.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm text-gray-500">SLA Aceite (≤15min)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{kpis.sla_acceptance_pct.toFixed(1)}%</p>
-              <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-500 h-2 rounded-full"
-                  style={{ width: `${Math.min(100, kpis.sla_acceptance_pct)}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-gray-500">SLA Aceite (≤15min)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{kpis.sla_acceptance_pct.toFixed(1)}%</p>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-500 h-2 rounded-full"
+                    style={{ width: `${Math.min(100, kpis.sla_acceptance_pct)}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm text-gray-500">Taxa de Aceite</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{kpis.acceptance_rate_pct.toFixed(1)}%</p>
-              <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-2 rounded-full"
-                  style={{ width: `${Math.min(100, kpis.acceptance_rate_pct)}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-gray-500">Taxa de Aceite</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{kpis.acceptance_rate_pct.toFixed(1)}%</p>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full"
+                    style={{ width: `${Math.min(100, kpis.acceptance_rate_pct)}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm text-gray-500">Taxa de Reentrega</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{kpis.redelivery_rate_pct.toFixed(1)}%</p>
-              <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-amber-500 h-2 rounded-full"
-                  style={{ width: `${Math.min(100, kpis.redelivery_rate_pct)}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Gráficos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="w-full h-48 bg-gray-50 rounded-md flex items-center justify-center text-gray-400 text-sm">
-            Integração Recharts (placeholder)
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm text-gray-500">Taxa de Reentrega</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{kpis.redelivery_rate_pct.toFixed(1)}%</p>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-amber-500 h-2 rounded-full"
+                    style={{ width: `${Math.min(100, kpis.redelivery_rate_pct)}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <KpiChart
+                  data={[{ date: "Atual", value: kpis.sla_acceptance_pct }]}
+                  target={98}
+                  label="SLA Aceite"
+                  color="#22c55e"
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <KpiChart
+                  data={[{ date: "Atual", value: kpis.acceptance_rate_pct }]}
+                  target={95}
+                  label="Taxa de Aceite"
+                  color="#2563eb"
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <KpiChart
+                  data={[{ date: "Atual", value: kpis.redelivery_rate_pct }]}
+                  target={3}
+                  label="Taxa de Reentrega"
+                  color="#f59e0b"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
