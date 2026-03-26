@@ -45,9 +45,15 @@ export default function OpsKpisPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Carregando...</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="py-6"><div className="h-8 w-16 rounded bg-muted" /></CardContent>
+            </Card>
+          ))}
+        </div>
       ) : !allKpis || allKpis.length === 0 ? (
-        <p className="text-gray-500">Sem dados disponíveis.</p>
+        <p className="text-muted-foreground">Sem dados disponíveis.</p>
       ) : (
         <>
           <Card>

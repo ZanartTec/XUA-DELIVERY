@@ -45,13 +45,13 @@ export default function ChecklistPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Checklist — Pedido #{id}</h1>
 
-      <div className="w-full bg-gray-200 rounded-full h-2">
+      <div className="w-full bg-muted rounded-full h-2">
         <div
-          className="bg-blue-600 h-2 rounded-full transition-all"
+          className="bg-accent h-2 rounded-full transition-all"
           style={{ width: `${(progress / CHECKLIST_ITEMS.length) * 100}%` }}
         />
       </div>
-      <p className="text-xs text-gray-500 text-right">
+      <p className="text-xs text-muted-foreground text-right">
         {progress}/{CHECKLIST_ITEMS.length} itens
       </p>
 
@@ -68,7 +68,7 @@ export default function ChecklistPage() {
                 "w-full flex items-center gap-3 rounded-md border p-3 text-sm text-left transition-colors",
                 checks[item.key]
                   ? "border-green-500 bg-green-50"
-                  : "border-gray-200 hover:bg-gray-50"
+                  : "border-border hover:bg-muted/50"
               )}
             >
               <span
@@ -76,7 +76,7 @@ export default function ChecklistPage() {
                   "flex h-5 w-5 items-center justify-center rounded border text-xs font-bold",
                   checks[item.key]
                     ? "bg-green-600 text-white border-green-600"
-                    : "border-gray-300"
+                    : "border-muted-foreground/30"
                 )}
               >
                 {checks[item.key] ? "✓" : ""}

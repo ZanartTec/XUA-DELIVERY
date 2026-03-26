@@ -47,17 +47,17 @@ export default function OtpVerifyPage() {
           <CardTitle className="text-center">Verificar OTP</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Peça o código de 6 dígitos ao consumidor para confirmar a entrega do pedido #{id}.
           </p>
           <div className={cn(shake && "animate-shake")}>
             <OtpInput onComplete={handleComplete} disabled={loading} />
           </div>
           {error && (
-            <p className="text-sm text-red-600 text-center">{error}</p>
+            <p className="text-sm text-destructive text-center">{error}</p>
           )}
           {loading && (
-            <p className="text-sm text-gray-500 text-center">Verificando...</p>
+            <p className="text-sm text-muted-foreground text-center">Verificando...</p>
           )}
           <Button
             variant="outline"

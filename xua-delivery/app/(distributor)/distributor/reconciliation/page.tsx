@@ -51,16 +51,20 @@ export default function ReconciliationPage() {
 
   if (loading) {
     return (
-      <div>
-        <h1 className="text-xl font-bold mb-4">Conciliação</h1>
-        <p className="text-gray-500">Carregando...</p>
+      <div className="space-y-3">
+        <h1 className="text-xl font-bold text-foreground">Conciliação de Estoque</h1>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="py-3"><div className="h-4 w-48 rounded bg-muted" /></CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Conciliação de Estoque</h1>
+      <h1 className="text-xl font-bold text-foreground">Conciliação de Estoque</h1>
 
       <Card>
         <CardHeader>

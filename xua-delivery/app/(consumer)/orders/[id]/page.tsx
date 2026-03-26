@@ -44,11 +44,11 @@ export default function OrderDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-4 text-gray-500">Carregando...</div>;
+    return <div className="p-4 text-muted-foreground">Carregando...</div>;
   }
 
   if (!order) {
-    return <div className="p-4 text-red-500">Pedido não encontrado.</div>;
+    return <div className="p-4 text-destructive">Pedido não encontrado.</div>;
   }
 
   const isDelivered = order.status === "DELIVERED";
@@ -116,10 +116,10 @@ export default function OrderDetailPage() {
                 <button
                   key={score}
                   onClick={() => setNps(score)}
-                  className={`w-10 h-10 rounded-full border text-sm font-medium ${
+                  className={`w-10 h-10 rounded-full border text-sm font-medium transition-colors ${
                     nps === score
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      ? "bg-accent text-white border-accent"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   {score}

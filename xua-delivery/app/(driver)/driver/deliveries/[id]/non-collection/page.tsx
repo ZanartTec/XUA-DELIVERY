@@ -54,7 +54,7 @@ export default function NonCollectionPage() {
           <CardTitle className="text-center">Não coleta</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Pedido #{id} — Registre o motivo da não coleta de vasilhames.
           </p>
 
@@ -84,7 +84,7 @@ export default function NonCollectionPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
           <Button className="w-full" disabled={loading || !reason} onClick={handleSubmit}>
             {loading ? "Registrando..." : "Registrar não coleta"}

@@ -49,9 +49,13 @@ export default function ZonesPage() {
 
   if (loading) {
     return (
-      <div>
-        <h1 className="text-xl font-bold mb-4">Zonas de Cobertura</h1>
-        <p className="text-gray-500">Carregando...</p>
+      <div className="space-y-3">
+        <h1 className="text-xl font-bold text-foreground">Zonas de Cobertura</h1>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="py-4"><div className="h-4 w-48 rounded bg-muted" /></CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
@@ -71,7 +75,7 @@ export default function ZonesPage() {
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-500">Cap. Manhã</label>
+                  <label className="text-xs text-muted-foreground">Cap. Manhã</label>
                   <Input
                     type="number"
                     min={0}
@@ -82,7 +86,7 @@ export default function ZonesPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-500">Cap. Tarde</label>
+                  <label className="text-xs text-muted-foreground">Cap. Tarde</label>
                   <Input
                     type="number"
                     min={0}

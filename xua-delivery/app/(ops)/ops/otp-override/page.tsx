@@ -50,7 +50,7 @@ export default function OtpOverridePage() {
           <CardTitle className="text-sm">Override manual de OTP</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Use esta função em casos excepcionais onde o consumidor não consegue
             fornecer o código OTP. Todas as ações são registradas na auditoria.
           </p>
@@ -74,8 +74,8 @@ export default function OtpOverridePage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {result && <p className="text-sm text-green-600">{result}</p>}
+          {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+          {result && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{result}</div>}
 
           <Button
             className="w-full"

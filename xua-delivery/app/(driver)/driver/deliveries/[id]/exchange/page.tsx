@@ -46,7 +46,7 @@ export default function BottleExchangePage() {
           <CardTitle className="text-center">Troca de Vasilhame</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Pedido #{id} — Registre os garrafões coletados.
           </p>
 
@@ -99,7 +99,7 @@ export default function BottleExchangePage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
           <Button className="w-full" disabled={loading} onClick={handleSubmit}>
             {loading ? "Registrando..." : "Confirmar troca"}

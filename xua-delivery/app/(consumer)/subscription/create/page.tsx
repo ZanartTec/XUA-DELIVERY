@@ -103,8 +103,8 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "flex-1 rounded-lg border px-4 py-2 text-sm",
                 window === w.value
-                  ? "border-blue-600 bg-blue-50 text-blue-700 font-medium"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "border-accent bg-accent/10 text-accent font-medium"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {w.label}
@@ -125,8 +125,8 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "rounded-full w-12 h-12 text-sm border",
                 selectedDays.includes(d.value)
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-500 hover:bg-gray-50"
+                  ? "bg-accent text-white border-accent"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {d.label}
@@ -135,7 +135,7 @@ export default function SubscriptionCreatePage() {
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
       <Button className="w-full" disabled={loading} onClick={handleCreate}>
         {loading ? "Criando..." : "Criar assinatura"}

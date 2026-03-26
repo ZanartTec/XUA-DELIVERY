@@ -53,8 +53,8 @@ export default function DistributorOrderDetailPage() {
     }
   }
 
-  if (loading) return <p className="text-gray-500">Carregando...</p>;
-  if (!order) return <p className="text-red-500">Pedido não encontrado.</p>;
+  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="py-4"><div className="h-4 w-40 rounded bg-muted" /></CardContent></Card>)}</div>;
+  if (!order) return <p className="text-destructive">Pedido não encontrado.</p>;
 
   const canAccept = order.status === "SENT_TO_DISTRIBUTOR";
   const canReject = order.status === "SENT_TO_DISTRIBUTOR";
@@ -71,8 +71,8 @@ export default function DistributorOrderDetailPage() {
         <CardHeader><CardTitle className="text-sm">Cliente</CardTitle></CardHeader>
         <CardContent className="text-sm space-y-1">
           <p>{order.consumer_name}</p>
-          <p className="text-gray-500">{order.address_line}</p>
-          <p className="text-gray-500">
+          <p className="text-muted-foreground">{order.address_line}</p>
+          <p className="text-muted-foreground">
             {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
         </CardContent>

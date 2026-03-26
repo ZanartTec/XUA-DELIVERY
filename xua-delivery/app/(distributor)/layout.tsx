@@ -1,38 +1,82 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/src/lib/utils";
+import { Droplets, ClipboardList, ArrowLeftRight, BarChart3, Menu, MapPin, Gauge } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/src/components/ui/sheet";
 
 const SIDEBAR_ITEMS = [
-  { href: "/distributor/queue", label: "Fila de Pedidos" },
-  { href: "/distributor/reconciliation", label: "Conciliação" },
-  { href: "/distributor/kpis", label: "KPIs" },
+  { href: "/distributor/queue", label: "Fila de Pedidos", icon: ClipboardList },
+  { href: "/distributor/reconciliation", label: "Conciliação", icon: ArrowLeftRight },
+  { href: "/distributor/zones", label: "Zonas", icon: MapPin },
+  { href: "/distributor/capacity", label: "Capacidade", icon: Gauge },
 ];
 
-export default function DistributorLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-
+function SidebarContent({ pathname }: { pathname: string }) {
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden md:flex w-60 flex-col border-r bg-white p-4 gap-1">
-        <h2 className="text-lg font-bold mb-4">Distribuidor</h2>
-        {SIDEBAR_ITEMS.map((item) => (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 px-3 mb-6">
+        <Droplets className="h-7 w-7 text-accent" />
+        <span className="text-xl font-bold text-primary">Xuá</span>
+      </div>
+      <p className="px-3 mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Distribuidor</p>
+      {SIDEBAR_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const isActive = pathname.startsWith(item.href);
+        return (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              "rounded-md px-3 py-2 text-sm",
-              pathname.startsWith(item.href)
-                ? "bg-blue-50 text-blue-700 font-medium"
-                : "text-gray-600 hover:bg-gray-50"
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+              isActive
+                ? "bg-accent/10 text-accent font-medium"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
+            <Icon className="h-4 w-4" />
             {item.label}
           </Link>
-        ))}
+        );
+      })}
+    </div>
+  );
+}
+
+export default function DistributorLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-64 flex-col border-r bg-card p-4">
+        <SidebarContent pathname={pathname} />
       </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <div className="flex-1 flex flex-col">
+        {/* Mobile header */}
+        <header className="sticky top-0 z-50 flex items-center gap-3 border-b bg-white/95 backdrop-blur px-4 h-14 md:hidden">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-4">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <SidebarContent pathname={pathname} />
+            </SheetContent>
+          </Sheet>
+          <div className="flex items-center gap-2">
+            <Droplets className="h-5 w-5 text-accent" />
+            <span className="font-bold text-primary">Xuá Distribuidor</span>
+          </div>
+        </header>
+        <main className="flex-1 p-4 md:p-6">{children}</main>
+      </div>
     </div>
   );
 }

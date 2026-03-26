@@ -55,8 +55,8 @@ export default function CheckoutSchedulePage() {
                   className={cn(
                     "flex-shrink-0 rounded-lg border px-4 py-2 text-sm",
                     selectedDate === iso
-                      ? "border-blue-600 bg-blue-50 text-blue-700 font-medium"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      ? "border-accent bg-accent/10 text-accent font-medium"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   )}
                 >
                   {label}
@@ -79,8 +79,8 @@ export default function CheckoutSchedulePage() {
               className={cn(
                 "flex-1 rounded-lg border px-4 py-3 text-sm",
                 selectedWindow === w.value
-                  ? "border-blue-600 bg-blue-50 text-blue-700 font-medium"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "border-accent bg-accent/10 text-accent font-medium"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {w.label}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCartStore } from "@/src/store/cart";
 import { formatCurrency } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
-export default function CheckoutPaymentPage() {
+function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const date = searchParams.get("date");
@@ -62,7 +62,7 @@ export default function CheckoutPaymentPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold">Pagamento</h1>
+      <h1 className="text-xl font-bold text-foreground">Pagamento</h1>
 
       <Card>
         <CardHeader>
@@ -85,9 +85,9 @@ export default function CheckoutPaymentPage() {
           )}
           <div className="flex justify-between font-bold pt-2 border-t">
             <span>Total</span>
-            <span>{formatCurrency(totalCents)}</span>
+            <span className="text-accent">{formatCurrency(totalCents)}</span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Entrega: {date} — {window === "morning" ? "Manhã" : "Tarde"}
           </p>
         </CardContent>
@@ -98,17 +98,29 @@ export default function CheckoutPaymentPage() {
           <CardTitle className="text-sm">Forma de pagamento</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Integração com gateway de pagamento (placeholder).
           </p>
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
+          {error}
+        </div>
+      )}
 
-      <Button className="w-full" disabled={loading} onClick={handleConfirm}>
+      <Button className="w-full h-12 text-base font-semibold" disabled={loading} onClick={handleConfirm}>
         {loading ? "Processando..." : `Pagar ${formatCurrency(totalCents)}`}
       </Button>
     </div>
+  );
+}
+
+export default function CheckoutPaymentPage() {
+  return (
+    <Suspense fallback={<div className="p-4 flex items-center justify-center min-h-[40vh]"><p className="text-muted-foreground">Carregando...</p></div>}>
+      <PaymentContent />
+    </Suspense>
   );
 }
