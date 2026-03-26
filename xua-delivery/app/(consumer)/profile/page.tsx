@@ -5,17 +5,21 @@ import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { User, MapPin, Pencil, ChevronRight } from "lucide-react";
+import { useAuthStore } from "@/src/store/auth";
 import type { Consumer, Address } from "@/src/types";
 
 export default function ProfilePage() {
+  const user = useAuthStore((s) => s.user);
   const [consumer, setConsumer] = useState<Consumer | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user?.id) return;
+
     Promise.all([
       fetch("/api/auth/me").then((r) => r.json()),
-      fetch("/api/consumers/me/addresses").then((r) => r.json()),
+      fetch(`/api/consumers/${user.id}/addresses`).then((r) => r.json()),
     ])
       .then(([userData, addrData]) => {
         setConsumer(userData.consumer ?? null);
@@ -23,7 +27,7 @@ export default function ProfilePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id]);
 
   if (loading) {
     return (
