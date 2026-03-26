@@ -1,10 +1,10 @@
 import { prisma } from "@/src/lib/prisma";
 import { getIO } from "@/src/lib/socket";
-import { orderRepository } from "@/src/repositories/order-repository";
+import { orderRepository } from "@/src/repositories/ops/order-repository";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { capacityService } from "@/src/services/capacity-service";
-import { otpService } from "@/src/services/otp-service";
-import { notificationService } from "@/src/services/notification-service";
+import { capacityService } from "@/src/services/distributor/capacity-service";
+import { otpService } from "@/src/services/driver/otp-service";
+import { notificationService } from "@/src/services/consumer/notification-service";
 import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow } from "@/src/types/enums";
 import type { Order } from "@/src/types";
 

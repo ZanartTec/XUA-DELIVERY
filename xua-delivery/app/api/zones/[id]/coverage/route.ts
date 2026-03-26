@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { coverageSchema } from "@/src/schemas/zone";
+import { coverageSchema } from "@/src/schemas/distributor/zone";
 import { withErrorHandling } from "@/src/lib/api-handler";
 
 export const POST = withErrorHandling(async (req: NextRequest, ctx) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { subscriptionService } from "@/src/services/subscription-service";
+import { subscriptionService } from "@/src/services/consumer/subscription-service";
 import { subscriptionUpdateSchema } from "@/src/schemas/order";
 import { withErrorHandling } from "@/src/lib/api-handler";
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notificationService } from "@/src/services/notification-service";
+import { notificationService } from "@/src/services/consumer/notification-service";
 import { withErrorHandling } from "@/src/lib/api-handler";
 import { z } from "zod";
 

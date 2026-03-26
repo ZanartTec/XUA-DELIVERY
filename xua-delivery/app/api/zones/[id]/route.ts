@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { zoneSchema } from "@/src/schemas/zone";
+import { zoneSchema } from "@/src/schemas/distributor/zone";
 import { withErrorHandling } from "@/src/lib/api-handler";
 
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx) => {

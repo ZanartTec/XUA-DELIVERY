@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { orderService } from "@/src/services/order-service";
+import { orderService } from "@/src/services/ops/order-service";
 import { prisma } from "@/src/lib/prisma";
 
 // SEC-05: Verifica se o usuário tem acesso ao pedido
@@ -97,7 +97,7 @@ export async function PATCH(
       await orderService.cancelOrder(id, userId, payload.actor_type ?? "consumer", payload.reason ?? "Cancelado pelo usuário");
       break;
     case "verify_otp": {
-      const { otpService } = await import("@/src/services/otp-service");
+      const { otpService } = await import("@/src/services/driver/otp-service");
       const valid = await otpService.validate(id, payload.code, userId);
       if (!valid) {
         return NextResponse.json({ error: "Código inválido ou expirado" }, { status: 400 });
@@ -106,7 +106,7 @@ export async function PATCH(
       break;
     }
     case "otp_override": {
-      const { otpService: otpSvc } = await import("@/src/services/otp-service");
+      const { otpService: otpSvc } = await import("@/src/services/driver/otp-service");
       await otpSvc.override(id, userId, payload.reason);
       await orderService.deliverOrder(id, userId);
       break;

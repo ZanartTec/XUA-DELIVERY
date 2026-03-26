@@ -4,8 +4,8 @@ import next from "next";
 import { Server as SocketServer } from "socket.io";
 import cron from "node-cron";
 import { verifyToken } from "./src/lib/auth";
-import { subscriptionCron } from "./src/services/subscription-cron";
-import { otpCleanupCron } from "./src/services/otp-cleanup";
+import { subscriptionCron } from "./src/services/ops/subscription-cron";
+import { otpCleanupCron } from "./src/services/ops/otp-cleanup";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";

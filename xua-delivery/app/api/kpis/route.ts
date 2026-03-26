@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kpiService } from "@/src/services/kpi-service";
+import { kpiService } from "@/src/services/distributor/kpi-service";
 import { withErrorHandling } from "@/src/lib/api-handler";
 
 function parsePeriodDates(period: string): { start: Date; end: Date } {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { OtpInput } from "@/src/components/shared/otp-input";
+import { OtpInput } from "@/src/components/shared/driver/otp-input";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { cn } from "@/src/lib/utils";

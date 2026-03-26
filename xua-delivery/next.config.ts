@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Reduz drasticamente o número de módulos processados pelo Turbopack em dev
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "date-fns", "@radix-ui/react-icons"],
+  },
+
+  // Evita que o Next.js trace arquivos desnecessários no build
+  outputFileTracingExcludes: {
+    "*": ["node_modules/@swc/**", "node_modules/@esbuild/**", "node_modules/prisma/**"],
+  },
+
   async headers() {
     return [
       {

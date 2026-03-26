@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { SlaCountdown } from "@/src/components/shared/sla-countdown";
+import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { formatCurrency } from "@/src/lib/utils";
 import { ClipboardList, ChevronRight } from "lucide-react";

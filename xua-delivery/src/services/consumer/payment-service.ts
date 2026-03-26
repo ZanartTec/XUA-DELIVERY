@@ -1,6 +1,6 @@
 import { prisma } from "@/src/lib/prisma";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { getPaymentGateway } from "@/src/services/payment-gateway";
+import { getPaymentGateway } from "@/src/services/consumer/payment-gateway";
 import { AuditEventType, ActorType, SourceApp, PaymentStatus, PaymentKind } from "@/src/types/enums";
 
 export const paymentService = {
