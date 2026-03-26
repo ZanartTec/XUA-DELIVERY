@@ -27,7 +27,7 @@ export default function CatalogPage() {
   const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
-    fetch("/api/orders?type=products")
+    fetch("/api/products")
       .then((r) => r.json())
       .then((data) => setProducts(data.products ?? []))
       .catch(() => {})

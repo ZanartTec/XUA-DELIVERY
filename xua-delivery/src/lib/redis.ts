@@ -17,6 +17,10 @@ redis.on("error", (err: Error) => {
 // ioredis conecta automaticamente; esta função garante compatibilidade com código legado
 export async function ensureConnected(): Promise<void> {
   if (redis.status === "ready") return;
+  if (redis.status === "connecting" || redis.status === "connect") {
+    await new Promise<void>((resolve) => redis.once("ready", resolve));
+    return;
+  }
   await redis.connect();
   console.log("[Redis] Conectado com sucesso");
 }
