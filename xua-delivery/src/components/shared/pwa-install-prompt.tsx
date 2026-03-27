@@ -133,7 +133,7 @@ export function PwaInstallPrompt() {
                 3
               </span>
               <div>
-                <p className="text-sm font-semibold">Confirme tocando em "Adicionar"</p>
+                <p className="text-sm font-semibold">Confirme tocando em &quot;Adicionar&quot;</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   O ícone do Xuá aparecerá na sua tela inicial.
                 </p>

@@ -4,6 +4,8 @@
  * Implementações concretas: MockPaymentAdapter (dev), futuramente PIX/Stripe.
  */
 
+import { MockPaymentAdapter } from "./adapters/mock-payment-adapter";
+
 export interface PaymentResult {
   externalId: string;
   status: "authorized" | "captured" | "failed";
@@ -28,8 +30,6 @@ export function getPaymentGateway(): IPaymentGateway {
 
   switch (provider) {
     case "mock": {
-      // Lazy import para evitar carregar o mock em produção quando outro provider é usado
-      const { MockPaymentAdapter } = require("./adapters/mock-payment-adapter");
       return new MockPaymentAdapter();
     }
     default:

@@ -21,31 +21,31 @@ interface BeforeInstallPromptEvent extends Event {
  */
 export type PwaStatus = "unsupported" | "installed" | "ios" | "available" | "dismissed";
 
+function getInitialPwaStatus(): PwaStatus {
+  if (typeof window === "undefined") return "unsupported";
+
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+  if (isStandalone) return "installed";
+
+  const ua = navigator.userAgent;
+  const isIos = /iphone|ipad|ipod/i.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  if (isIos && isSafari) return "ios";
+
+  return "unsupported";
+}
+
 export function usePwa() {
-  const [status, setStatus] = useState<PwaStatus>("unsupported");
+  const [status, setStatus] = useState<PwaStatus>(getInitialPwaStatus);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [justInstalled, setJustInstalled] = useState(false);
 
   useEffect(() => {
-    // Já está rodando como PWA instalado (standalone mode)
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as Navigator & { standalone?: boolean }).standalone === true;
-
-    if (isStandalone) {
-      setStatus("installed");
-      return;
-    }
-
-    // Detecta iOS Safari (não tem beforeinstallprompt)
-    const ua = navigator.userAgent;
-    const isIos = /iphone|ipad|ipod/i.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream;
-    const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
-
-    if (isIos && isSafari) {
-      setStatus("ios");
-      return;
-    }
+    if (status === "installed" || status === "ios") return;
 
     // Android / Chrome — escuta o evento nativo de instalação
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -69,7 +69,7 @@ export function usePwa() {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
-  }, []);
+  }, [status]);
 
   /** Dispara o prompt nativo de instalação (Android/Chrome) */
   const promptInstall = useCallback(async () => {

@@ -46,5 +46,7 @@ export function useSocket() {
     []
   );
 
-  return { socket: socketRef.current, isConnected, on, off };
+  const socket = useCallback(() => socketRef.current, []);
+
+  return { socket, isConnected, on, off };
 }
