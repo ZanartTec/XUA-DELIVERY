@@ -98,5 +98,34 @@ export function useOfflineSync() {
     }
   }, [isOnline, pendingCount, sync]);
 
-  return { isOnline, pendingCount, syncing, enqueue, sync, refreshCount };
+  // Escuta mensagem do Service Worker para disparar sync
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "SYNC_QUEUE" && navigator.onLine) {
+        sync();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+  }, [sync]);
+
+  // Registra Background Sync quando há itens na fila
+  const registerBackgroundSync = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || !("SyncManager" in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    if ("sync" in reg) {
+      await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register("xua-sync-queue");
+    }
+  }, []);
+
+  const enqueueWithSync = useCallback(
+    async (action: Omit<OfflineAction, "id" | "createdAt">) => {
+      await enqueue(action);
+      await registerBackgroundSync();
+    },
+    [enqueue, registerBackgroundSync]
+  );
+
+  return { isOnline, pendingCount, syncing, enqueue: enqueueWithSync, sync, refreshCount };
 }
