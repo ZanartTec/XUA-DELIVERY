@@ -26,19 +26,13 @@ export default function SubscriptionCreatePage() {
   const router = useRouter();
   const [qty, setQty] = useState(1);
   const [window, setWindow] = useState<string>(DeliveryWindow.MORNING);
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggleDay(day: number) {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
-  }
-
   async function handleCreate() {
-    if (selectedDays.length === 0) {
-      setError("Selecione pelo menos um dia da semana.");
+    if (selectedDay === null) {
+      setError("Selecione um dia da semana.");
       return;
     }
     setLoading(true);
@@ -48,9 +42,9 @@ export default function SubscriptionCreatePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          qty_per_delivery: qty,
-          delivery_window: window,
-          weekdays: selectedDays,
+          qty_20l: qty,
+          window: window,
+          weekday: selectedDay,
         }),
       });
       if (!res.ok) {
@@ -121,10 +115,10 @@ export default function SubscriptionCreatePage() {
           {WEEKDAYS.map((d) => (
             <button
               key={d.value}
-              onClick={() => toggleDay(d.value)}
+              onClick={() => setSelectedDay(d.value)}
               className={cn(
                 "rounded-full w-12 h-12 text-sm border",
-                selectedDays.includes(d.value)
+                selectedDay === d.value
                   ? "bg-accent text-white border-accent"
                   : "border-border text-muted-foreground hover:bg-muted"
               )}

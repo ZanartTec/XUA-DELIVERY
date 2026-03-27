@@ -5,6 +5,7 @@ import { AuditEventType, ActorType, SourceApp } from "@/src/types/enums";
 import type { Deposit } from "@/src/types";
 
 type TxClient = Prisma.TransactionClient;
+const DEPOSIT_AMOUNT_CENTS = 3000;
 
 /**
  * DepositService — Caução de vasilhame.
@@ -13,12 +14,34 @@ type TxClient = Prisma.TransactionClient;
  * Validação NUNCA no frontend.
  */
 export const depositService = {
+  getDepositAmountCents(): number {
+    return DEPOSIT_AMOUNT_CENTS;
+  },
+
+  async getPreview(
+    consumerId: string,
+    tx?: TxClient
+  ): Promise<{ isFirstPurchase: boolean; depositAmountCents: number }> {
+    const previousOrdersCount = await (tx ?? prisma).order.count({
+      where: {
+        consumer_id: consumerId,
+        status: { not: OrderStatus.CANCELLED },
+      },
+    });
+
+    return {
+      isFirstPurchase: previousOrdersCount === 0,
+      depositAmountCents: DEPOSIT_AMOUNT_CENTS,
+    };
+  },
+
   /** Retém caução na 1ª compra do consumidor */
   async holdDeposit(
-    orderId: string,
     consumerId: string,
+    orderId: string,
     amountCents: number,
-    tx: TxClient
+    tx: TxClient,
+    options?: { isFirstPurchase?: boolean }
   ): Promise<Deposit> {
     const deposit = await tx.deposit.create({
       data: {
@@ -35,7 +58,10 @@ export const depositService = {
         actor: { type: ActorType.SYSTEM, id: "system" },
         orderId,
         sourceApp: SourceApp.BACKEND,
-        payload: { amount_cents: amountCents },
+        payload: {
+          amount_cents: amountCents,
+          is_first_purchase: options?.isFirstPurchase ?? false,
+        },
       },
       tx
     );

@@ -9,6 +9,7 @@ const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 // Rotas públicas que não requerem autenticação
 const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/check-blacklist", "/api/payments/webhook"];
+const AUTHENTICATED_API_PATHS = ["/api/auth/me", "/api/auth/logout"];
 
 // Mapa de redirecionamento por role (seção 3.2 do guia técnico)
 const ROLE_REDIRECTS: Record<string, string> = {
@@ -32,7 +33,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
 
 // Rotas de API permitidas por role (RBAC — SEC-02)
 const API_ROLE_ROUTES: Record<string, string[]> = {
-  consumer: ["/api/orders", "/api/consumers", "/api/subscriptions", "/api/zones", "/api/notifications"],
+  consumer: ["/api/orders", "/api/consumers", "/api/subscriptions", "/api/zones", "/api/notifications", "/api/products"],
   distributor_admin: ["/api/orders", "/api/reconciliations", "/api/zones"],
   operator: ["/api/driver", "/api/orders"],
   driver: ["/api/driver", "/api/orders"],
@@ -103,6 +104,16 @@ export async function proxy(request: NextRequest) {
 
     // RBAC para API routes (SEC-02)
     if (pathname.startsWith("/api")) {
+      if (AUTHENTICATED_API_PATHS.some((route) => pathname.startsWith(route))) {
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-user-id", payload.sub as string);
+        requestHeaders.set("x-user-role", role);
+
+        return NextResponse.next({
+          request: { headers: requestHeaders },
+        });
+      }
+
       const apiRoutes = API_ROLE_ROUTES[role];
       const apiAccess = apiRoutes?.some((route) => pathname.startsWith(route));
       if (!apiAccess) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { toast } from "sonner";
 import type { Address } from "@/src/types";
 
 export default function AddressesPage() {
@@ -79,6 +80,9 @@ export default function AddressesPage() {
       });
       if (!res.ok) {
         const body = await res.json();
+        if (body.code === "NO_COVERAGE") {
+          toast.error("Ainda não atendemos sua região");
+        }
         setError(body.error || "Erro ao salvar endereço");
         return;
       }

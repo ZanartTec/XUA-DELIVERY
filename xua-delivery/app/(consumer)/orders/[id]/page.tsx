@@ -24,6 +24,8 @@ export default function OrderDetailPage() {
   const [nps, setNps] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
   const [npsSubmitted, setNpsSubmitted] = useState(false);
+  const [npsSubmitting, setNpsSubmitting] = useState(false);
+  const [npsMessage, setNpsMessage] = useState("");
 
   useEffect(() => {
     fetch(`/api/orders/${id}`)
@@ -34,13 +36,22 @@ export default function OrderDetailPage() {
   }, [id]);
 
   async function submitNps() {
-    if (nps === null) return;
+    if (nps === null || npsSubmitting) return;
+    setNpsSubmitting(true);
+    const payload: { rating: number; comment?: string } = { rating: nps };
+    if (npsComment.trim()) payload.comment = npsComment.trim();
     await fetch(`/api/orders/${id}/rating`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ score: nps, comment: npsComment }),
+      body: JSON.stringify(payload),
     });
+    setNpsMessage(
+      nps <= 2
+        ? "Sentimos muito! Abrimos um chamado de suporte."
+        : "Obrigado pela avaliação!"
+    );
     setNpsSubmitted(true);
+    setNpsSubmitting(false);
   }
 
   if (loading) {
@@ -115,12 +126,13 @@ export default function OrderDetailPage() {
               {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
                 <button
                   key={score}
-                  onClick={() => setNps(score)}
+                  onClick={() => !npsSubmitting && setNps(score)}
+                  disabled={npsSubmitting}
                   className={`w-10 h-10 rounded-full border text-sm font-medium transition-colors ${
                     nps === score
                       ? "bg-accent text-white border-accent"
                       : "border-border text-muted-foreground hover:bg-muted"
-                  }`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {score}
                 </button>
@@ -130,16 +142,19 @@ export default function OrderDetailPage() {
               placeholder="Comentário (opcional)"
               value={npsComment}
               onChange={(e) => setNpsComment(e.target.value)}
+              disabled={npsSubmitting}
             />
-            <Button className="w-full" onClick={submitNps} disabled={nps === null}>
-              Enviar avaliação
+            <Button className="w-full" onClick={submitNps} disabled={nps === null || npsSubmitting}>
+              {npsSubmitting ? "Enviando..." : "Enviar avaliação"}
             </Button>
           </CardContent>
         </Card>
       )}
 
       {npsSubmitted && (
-        <p className="text-sm text-green-600 text-center">Obrigado pela avaliação!</p>
+        <p className={`text-sm text-center ${
+          nps !== null && nps <= 2 ? "text-destructive" : "text-green-600"
+        }`}>{npsMessage}</p>
       )}
     </div>
   );

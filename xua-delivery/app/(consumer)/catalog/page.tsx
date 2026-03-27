@@ -24,14 +24,32 @@ function ProductSkeleton() {
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
-    fetch("/api/products")
-      .then((r) => r.json())
-      .then((data) => setProducts(data.products ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    async function loadProducts() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch("/api/products");
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Não foi possível carregar o catálogo.");
+        }
+
+        setProducts(data.products ?? []);
+      } catch (err) {
+        setProducts([]);
+        setError(err instanceof Error ? err.message : "Não foi possível carregar o catálogo.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void loadProducts();
   }, []);
 
   function handleAdd(product: Product) {
@@ -49,6 +67,14 @@ export default function CatalogPage() {
         <h1 className="text-xl font-bold text-foreground">Catálogo</h1>
         <span className="text-xs text-muted-foreground">{products.length} produtos</span>
       </div>
+
+      {error && (
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-sm text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

@@ -9,25 +9,65 @@ import { useAuthStore } from "@/src/store/auth";
 import type { Consumer, Address } from "@/src/types";
 
 export default function ProfilePage() {
-  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const [consumer, setConsumer] = useState<Consumer | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.id) return;
+    let cancelled = false;
 
-    Promise.all([
-      fetch("/api/auth/me").then((r) => r.json()),
-      fetch(`/api/consumers/${user.id}/addresses`).then((r) => r.json()),
-    ])
-      .then(([userData, addrData]) => {
-        setConsumer(userData.consumer ?? null);
-        setAddresses(addrData.addresses ?? []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [user?.id]);
+    async function loadProfile() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const meRes = await fetch("/api/auth/me");
+        const meData = await meRes.json();
+
+        if (!meRes.ok || !meData.consumer) {
+          throw new Error(meData.error || "Não foi possível carregar seu perfil.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setConsumer(meData.consumer);
+        setUser({
+          id: meData.consumer.id,
+          name: meData.consumer.name,
+          role: meData.consumer.role,
+        });
+
+        const addrRes = await fetch(`/api/consumers/${meData.consumer.id}/addresses`);
+        const addrData = await addrRes.json();
+
+        if (!addrRes.ok) {
+          throw new Error(addrData.error || "Não foi possível carregar seus endereços.");
+        }
+
+        if (!cancelled) {
+          setAddresses(addrData.addresses ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Não foi possível carregar seu perfil.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setUser]);
 
   if (loading) {
     return (
@@ -51,6 +91,14 @@ export default function ProfilePage() {
           </Button>
         </Link>
       </div>
+
+      {error && (
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-sm text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {consumer && (
         <Card>
