@@ -60,7 +60,7 @@ export default function SupportPage() {
                     <p className="font-medium text-sm">Pedido #{order.id}</p>
                     <StatusPill status={order.status} />
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {order.consumer_name} — {order.consumer_email} — {order.consumer_phone}
                   </p>
                 </CardContent>
@@ -71,7 +71,7 @@ export default function SupportPage() {
       )}
 
       {!loading && results.length === 0 && query && (
-        <p className="text-gray-500 text-sm">Nenhum resultado encontrado.</p>
+        <p className="text-muted-foreground text-sm">Nenhum resultado encontrado.</p>
       )}
     </div>
   );

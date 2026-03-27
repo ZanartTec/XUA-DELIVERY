@@ -30,7 +30,7 @@ export default function RouteDetailPage() {
     return (
       <div>
         <h1 className="text-xl font-bold mb-4">Rota #{id}</h1>
-        <p className="text-gray-500">Carregando...</p>
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     );
   }
@@ -44,7 +44,7 @@ export default function RouteDetailPage() {
           <CardTitle className="text-sm">Mapa</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="w-full h-64 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 text-sm">
+          <div className="w-full h-64 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-sm">
             Integração Google Maps (placeholder)
           </div>
         </CardContent>
@@ -56,10 +56,10 @@ export default function RouteDetailPage() {
             <CardContent className="py-3 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  <span className="text-gray-400 mr-2">#{stop.sequence}</span>
+                  <span className="text-muted-foreground/60 mr-2">#{stop.sequence}</span>
                   {stop.consumer_name}
                 </p>
-                <p className="text-xs text-gray-500">{stop.address_line}</p>
+                <p className="text-xs text-muted-foreground">{stop.address_line}</p>
               </div>
               <StatusPill status={stop.status} />
             </CardContent>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { auditExportSchema } from "@/src/schemas/audit";
+import { auditExportSchema } from "@/src/schemas/ops/audit";
 import { withErrorHandling } from "@/src/lib/api-handler";
 
 export const GET = withErrorHandling(async (req: NextRequest) => {

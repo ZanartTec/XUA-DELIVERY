@@ -9,7 +9,7 @@ const BLACKLIST_PREFIX = "jwt:bl:";
 export async function blacklistToken(jti: string, expiresAt: number): Promise<void> {
   await ensureConnected();
   const ttlSeconds = Math.max(expiresAt - Math.floor(Date.now() / 1000), 1);
-  await redis.set(`${BLACKLIST_PREFIX}${jti}`, "1", { EX: ttlSeconds });
+  await redis.set(`${BLACKLIST_PREFIX}${jti}`, "1", "EX", ttlSeconds);
 }
 
 /**

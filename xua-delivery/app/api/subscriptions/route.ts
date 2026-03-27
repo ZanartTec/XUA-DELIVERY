@@ -7,7 +7,7 @@ import { z } from "zod";
 const createSubscriptionSchema = z.object({
   qty_20l: z.number().int().min(1),
   weekday: z.number().int().min(0).max(6),
-  window: z.enum(["morning", "afternoon"]),
+  window: z.nativeEnum(DeliveryWindow),
 });
 
 export async function GET(req: NextRequest) {
@@ -49,14 +49,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const windowEnum = parsed.data.window === "morning" ? DeliveryWindow.MORNING : DeliveryWindow.AFTERNOON;
-
   const subscription = await prisma.subscription.create({
     data: {
       consumer_id: payload.sub,
       qty_20l: parsed.data.qty_20l,
       weekday: parsed.data.weekday,
-      delivery_window: windowEnum,
+      delivery_window: parsed.data.window,
       status: SubscriptionStatus.ACTIVE,
     },
   });

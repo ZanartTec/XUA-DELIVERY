@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { fetchCep } from "@/src/lib/cep";
+import { z } from "zod";
+
+const createAddressSchema = z.object({
+  zip_code: z.string().trim().min(1, "CEP é obrigatório"),
+  street: z.string().trim().min(1, "Rua é obrigatória"),
+  number: z.string().trim().min(1, "Número é obrigatório"),
+  complement: z.string().trim().optional(),
+  neighborhood: z.string().trim().min(1, "Bairro é obrigatório"),
+  city: z.string().trim().min(1, "Cidade é obrigatória"),
+  state: z.string().trim().min(1, "Estado é obrigatório"),
+  is_default: z.boolean().optional().default(false),
+});
+
+function formatZipCode(zipCode: string) {
+  const clean = zipCode.replace(/\D/g, "");
+  return clean.length === 8 ? `${clean.slice(0, 5)}-${clean.slice(5)}` : clean;
+}
 
 export async function GET(
   req: NextRequest,
@@ -49,25 +66,66 @@ export async function POST(
   }
 
   const body = await req.json();
+  const parsed = createAddressSchema.safeParse(body);
 
-  const { zip_code, street, number, complement, neighborhood, city, state } = body;
-  if (!zip_code || !street || !number || !neighborhood || !city || !state) {
-    return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Dados inválidos" },
+      { status: 400 }
+    );
   }
 
-  const address = await prisma.address.create({
-    data: {
-      consumer_id: id,
-      zip_code,
-      street,
-      number,
-      complement: complement || null,
-      neighborhood,
-      city,
-      state,
-      is_default: false,
-    },
+  const cleanZipCode = parsed.data.zip_code.replace(/\D/g, "");
+  if (cleanZipCode.length !== 8) {
+    return NextResponse.json({ error: "CEP inválido" }, { status: 400 });
+  }
+
+  const formattedZipCode = formatZipCode(cleanZipCode);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const coverage = await tx.zoneCoverage.findFirst({
+      where: {
+        zip_code: { in: [cleanZipCode, formattedZipCode] },
+        zone: { is_active: true },
+      },
+      select: { zone_id: true },
+    });
+
+    if (!coverage) {
+      return { code: "NO_COVERAGE" as const };
+    }
+
+    if (parsed.data.is_default) {
+      await tx.address.updateMany({
+        where: { consumer_id: id, is_default: true },
+        data: { is_default: false },
+      });
+    }
+
+    const address = await tx.address.create({
+      data: {
+        consumer_id: id,
+        zip_code: formattedZipCode,
+        street: parsed.data.street,
+        number: parsed.data.number,
+        complement: parsed.data.complement || null,
+        neighborhood: parsed.data.neighborhood,
+        city: parsed.data.city,
+        state: parsed.data.state,
+        zone_id: coverage.zone_id,
+        is_default: parsed.data.is_default,
+      },
+    });
+
+    return { address };
   });
 
-  return NextResponse.json({ address }, { status: 201 });
+  if ("code" in result) {
+    return NextResponse.json(
+      { error: "Ainda não atendemos sua região", code: "NO_COVERAGE" },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({ address: result.address }, { status: 201 });
 }

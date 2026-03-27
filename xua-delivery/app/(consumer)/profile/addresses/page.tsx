@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { toast } from "sonner";
 import type { Address } from "@/src/types";
 
 export default function AddressesPage() {
@@ -79,6 +80,9 @@ export default function AddressesPage() {
       });
       if (!res.ok) {
         const body = await res.json();
+        if (body.code === "NO_COVERAGE") {
+          toast.error("Ainda não atendemos sua região");
+        }
         setError(body.error || "Erro ao salvar endereço");
         return;
       }
@@ -118,7 +122,7 @@ export default function AddressesPage() {
 
           {cepData && (
             <>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 {cepData.street}, {cepData.neighborhood} — {cepData.city}/{cepData.state}
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -140,7 +144,7 @@ export default function AddressesPage() {
             </>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
         </CardContent>
       </Card>
 
@@ -150,9 +154,9 @@ export default function AddressesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-gray-500">Carregando...</p>
+            <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : addresses.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhum endereço cadastrado.</p>
+            <p className="text-sm text-muted-foreground">Nenhum endereço cadastrado.</p>
           ) : (
             <ul className="space-y-2">
               {addresses.map((addr) => (
@@ -161,11 +165,11 @@ export default function AddressesPage() {
                     {addr.street}, {addr.number}
                     {addr.complement ? ` — ${addr.complement}` : ""}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {addr.neighborhood} — {addr.city}/{addr.state} — CEP {addr.zip_code}
                   </p>
                   {addr.is_default && (
-                    <span className="text-xs text-blue-600 font-medium">Principal</span>
+                    <span className="text-xs text-accent font-medium">Principal</span>
                   )}
                 </li>
               ))}

@@ -9,7 +9,8 @@ import { loginSchema, type LoginInput } from "@/src/schemas/auth";
 import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/src/components/ui/card";
+import { Card, CardHeader, CardContent, CardFooter } from "@/src/components/ui/card";
+import { Droplets, Mail, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,51 +49,63 @@ export default function LoginPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-center text-2xl">Xuá Delivery</CardTitle>
+    <Card className="shadow-xl border-0 bg-white/95 backdrop-blur">
+      <CardHeader className="items-center pb-2">
+        <Droplets className="h-12 w-12 text-accent mb-2" />
+        <h1 className="text-2xl font-bold text-primary">Xuá Delivery</h1>
+        <p className="text-sm text-muted-foreground">Entre na sua conta</p>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
           {serverError && (
-            <p className="text-sm text-red-600 text-center">{serverError}</p>
+            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
+              {serverError}
+            </div>
           )}
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">
               E-mail
             </label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="seu@email.com"
-              {...register("email")}
-            />
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                className="pl-10"
+                {...register("email")}
+              />
+            </div>
             {errors.email && (
-              <p className="text-sm text-red-600">{errors.email.message}</p>
+              <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
           </div>
           <div className="space-y-2">
             <label htmlFor="password" className="text-sm font-medium">
               Senha
             </label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              {...register("password")}
-            />
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                className="pl-10"
+                {...register("password")}
+              />
+            </div>
             {errors.password && (
-              <p className="text-sm text-red-600">{errors.password.message}</p>
+              <p className="text-sm text-destructive">{errors.password.message}</p>
             )}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isSubmitting}>
             {isSubmitting ? "Entrando..." : "Entrar"}
           </Button>
-          <p className="text-sm text-center text-gray-500">
+          <p className="text-sm text-center text-muted-foreground">
             Não tem conta?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline">
+            <Link href="/register" className="text-accent font-medium hover:underline">
               Cadastre-se
             </Link>
           </p>

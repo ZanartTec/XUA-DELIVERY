@@ -46,7 +46,7 @@ export default function SubscriptionManagePage() {
     return (
       <div className="p-4">
         <h1 className="text-xl font-bold mb-4">Minhas assinaturas</h1>
-        <p className="text-gray-500">Carregando...</p>
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function SubscriptionManagePage() {
       </div>
 
       {subscriptions.length === 0 ? (
-        <p className="text-gray-500">Nenhuma assinatura ativa.</p>
+        <p className="text-muted-foreground">Nenhuma assinatura ativa.</p>
       ) : (
         <div className="space-y-3">
           {subscriptions.map((sub) => (
@@ -75,7 +75,7 @@ export default function SubscriptionManagePage() {
                         ? "bg-green-100 text-green-700"
                         : sub.status === SubscriptionStatus.PAUSED
                           ? "bg-yellow-100 text-yellow-700"
-                          : "bg-gray-100 text-gray-500"
+                          : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {sub.status === SubscriptionStatus.ACTIVE
@@ -87,7 +87,7 @@ export default function SubscriptionManagePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   {sub.quantity} garrafão(ões) — {sub.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
                 </p>
                 <div className="flex gap-2">

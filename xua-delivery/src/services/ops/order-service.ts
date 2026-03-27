@@ -1,10 +1,11 @@
 import { prisma } from "@/src/lib/prisma";
 import { getIO } from "@/src/lib/socket";
-import { orderRepository } from "@/src/repositories/order-repository";
+import { orderRepository } from "@/src/repositories/ops/order-repository";
 import { auditRepository } from "@/src/repositories/audit-repository";
-import { capacityService } from "@/src/services/capacity-service";
-import { otpService } from "@/src/services/otp-service";
-import { notificationService } from "@/src/services/notification-service";
+import { capacityService } from "@/src/services/distributor/capacity-service";
+import { depositService } from "@/src/services/consumer/deposit-service";
+import { otpService } from "@/src/services/driver/otp-service";
+import { notificationService } from "@/src/services/consumer/notification-service";
 import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow } from "@/src/types/enums";
 import type { Order } from "@/src/types";
 
@@ -55,9 +56,20 @@ export const orderService = {
       0
     );
     const deliveryFeeCents = 500; // R$ 5,00 padrão
-    const totalCents = subtotalCents + deliveryFeeCents;
 
     const order = await prisma.$transaction(async (tx) => {
+      const previousOrdersCount = await tx.order.count({
+        where: {
+          consumer_id: data.consumerId,
+          status: { not: OrderStatus.CANCELLED },
+        },
+      });
+      const isFirstPurchase = previousOrdersCount === 0;
+      const depositAmountCents = isFirstPurchase
+        ? depositService.getDepositAmountCents()
+        : 0;
+      const totalCents = subtotalCents + deliveryFeeCents + depositAmountCents;
+
       // ARCH-04: Reserva capacidade dentro da mesma transação
       await capacityService.reserve(
         data.zoneId,
@@ -77,7 +89,7 @@ export const orderService = {
           delivery_window: data.deliveryWindow,
           subtotal_cents: subtotalCents,
           delivery_fee_cents: deliveryFeeCents,
-          deposit_cents: 0,
+          deposit_cents: depositAmountCents,
           total_cents: totalCents,
           rating: null,
           rating_comment: null,
@@ -94,7 +106,7 @@ export const orderService = {
           dispatched_at: null,
           delivered_at: null,
           driver_id: null,
-          deposit_amount_cents: 0,
+          deposit_amount_cents: depositAmountCents,
           qty_20l_sent: null,
           qty_20l_returned: null,
         },
@@ -123,6 +135,16 @@ export const orderService = {
         },
         tx
       );
+
+      if (isFirstPurchase) {
+        await depositService.holdDeposit(
+          data.consumerId,
+          created.id,
+          depositAmountCents,
+          tx,
+          { isFirstPurchase: true }
+        );
+      }
 
       return created;
     });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOrderSchema } from "@/src/schemas/order";
-import { orderService } from "@/src/services/order-service";
+import { orderService } from "@/src/services/ops/order-service";
 import { prisma } from "@/src/lib/prisma";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 

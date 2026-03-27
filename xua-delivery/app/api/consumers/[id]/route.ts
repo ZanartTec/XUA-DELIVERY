@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { profileUpdateSchema } from "@/src/schemas/consumer";
+import { profileUpdateSchema } from "@/src/schemas/consumer/consumer";
 import { withErrorHandling } from "@/src/lib/api-handler";
 
 export const PATCH = withErrorHandling(async (req: NextRequest, ctx) => {

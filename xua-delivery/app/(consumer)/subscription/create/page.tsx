@@ -26,19 +26,13 @@ export default function SubscriptionCreatePage() {
   const router = useRouter();
   const [qty, setQty] = useState(1);
   const [window, setWindow] = useState<string>(DeliveryWindow.MORNING);
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggleDay(day: number) {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
-  }
-
   async function handleCreate() {
-    if (selectedDays.length === 0) {
-      setError("Selecione pelo menos um dia da semana.");
+    if (selectedDay === null) {
+      setError("Selecione um dia da semana.");
       return;
     }
     setLoading(true);
@@ -48,9 +42,9 @@ export default function SubscriptionCreatePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          qty_per_delivery: qty,
-          delivery_window: window,
-          weekdays: selectedDays,
+          qty_20l: qty,
+          window: window,
+          weekday: selectedDay,
         }),
       });
       if (!res.ok) {
@@ -103,8 +97,8 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "flex-1 rounded-lg border px-4 py-2 text-sm",
                 window === w.value
-                  ? "border-blue-600 bg-blue-50 text-blue-700 font-medium"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "border-accent bg-accent/10 text-accent font-medium"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {w.label}
@@ -121,12 +115,12 @@ export default function SubscriptionCreatePage() {
           {WEEKDAYS.map((d) => (
             <button
               key={d.value}
-              onClick={() => toggleDay(d.value)}
+              onClick={() => setSelectedDay(d.value)}
               className={cn(
                 "rounded-full w-12 h-12 text-sm border",
-                selectedDays.includes(d.value)
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-500 hover:bg-gray-50"
+                selectedDay === d.value
+                  ? "bg-accent text-white border-accent"
+                  : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
               {d.label}
@@ -135,7 +129,7 @@ export default function SubscriptionCreatePage() {
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
       <Button className="w-full" disabled={loading} onClick={handleCreate}>
         {loading ? "Criando..." : "Criar assinatura"}

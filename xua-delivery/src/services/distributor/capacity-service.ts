@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/src/lib/prisma";
-import { capacityRepository } from "@/src/repositories/capacity-repository";
+import { capacityRepository } from "@/src/repositories/distributor/capacity-repository";
 import type { DeliveryCapacity, DeliveryWindow } from "@/src/types";
 
 type TxClient = Prisma.TransactionClient;

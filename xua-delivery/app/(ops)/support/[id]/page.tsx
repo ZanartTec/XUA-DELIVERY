@@ -32,8 +32,8 @@ export default function SupportOrderDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <p className="text-gray-500">Carregando...</p>;
-  if (!order) return <p className="text-red-500">Pedido não encontrado.</p>;
+  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="py-4"><div className="h-4 w-40 rounded bg-muted" /></CardContent></Card>)}</div>;
+  if (!order) return <p className="text-destructive">Pedido não encontrado.</p>;
 
   return (
     <div className="space-y-4">
@@ -65,7 +65,7 @@ export default function SupportOrderDetailPage() {
             <span>Total</span>
             <span>{formatCurrency(order.total_cents)}</span>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
         </CardContent>
@@ -89,11 +89,11 @@ export default function SupportOrderDetailPage() {
                 <div key={evt.id} className="border rounded p-2">
                   <div className="flex justify-between">
                     <span className="font-medium">{evt.event_type}</span>
-                    <span className="text-gray-400">
+                    <span className="text-muted-foreground/60">
                       {new Date(evt.occurred_at).toLocaleString("pt-BR")}
                     </span>
                   </div>
-                  <p className="text-gray-500">
+                  <p className="text-muted-foreground">
                     {evt.actor_type}:{evt.actor_id} — {evt.source_app}
                   </p>
                 </div>

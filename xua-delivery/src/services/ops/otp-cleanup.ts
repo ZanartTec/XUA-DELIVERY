@@ -1,4 +1,4 @@
-import { otpRepository } from "@/src/repositories/otp-repository";
+import { otpRepository } from "@/src/repositories/driver/otp-repository";
 
 /**
  * Cron job: expira OTPs ativos além do TTL (90 min).

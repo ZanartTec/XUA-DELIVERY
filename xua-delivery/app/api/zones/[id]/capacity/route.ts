@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { capacityService } from "@/src/services/capacity-service";
+import { capacityService } from "@/src/services/distributor/capacity-service";
 
 export async function GET(
   req: NextRequest,
