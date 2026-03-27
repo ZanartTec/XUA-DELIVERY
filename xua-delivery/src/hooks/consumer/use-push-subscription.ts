@@ -4,17 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/src/lib/api-client";
 
 export function usePushSubscription() {
-  const [isSupported, setIsSupported] = useState(false);
+  const [isSupported] = useState(
+    typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window
+  );
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission>("default");
-
-  useEffect(() => {
-    const supported = "serviceWorker" in navigator && "PushManager" in window;
-    setIsSupported(supported);
-    if (supported) {
-      setPermission(Notification.permission);
-    }
-  }, []);
+  const [permission, setPermission] = useState<NotificationPermission>(
+    typeof window !== "undefined" ? Notification.permission : "default"
+  );
 
   useEffect(() => {
     if (!isSupported) return;

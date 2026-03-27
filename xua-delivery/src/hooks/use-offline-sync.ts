@@ -36,8 +36,18 @@ export function useOfflineSync() {
   }, []);
 
   useEffect(() => {
-    refreshCount();
-  }, [refreshCount]);
+    let active = true;
+    void (async () => {
+      const count = await offlineQueue.count();
+      if (active) {
+        setPendingCount(count);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Enfileira ação offline
   const enqueue = useCallback(
@@ -93,9 +103,11 @@ export function useOfflineSync() {
 
   // Auto-sync ao reconectar
   useEffect(() => {
-    if (isOnline && pendingCount > 0) {
-      sync();
-    }
+    if (!(isOnline && pendingCount > 0)) return;
+    const timer = window.setTimeout(() => {
+      void sync();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isOnline, pendingCount, sync]);
 
   // Escuta mensagem do Service Worker para disparar sync
