@@ -2,9 +2,13 @@
 
 import { cn } from "@/src/lib/utils";
 import { useOfflineSync } from "@/src/hooks/use-offline-sync";
+import { useIsClient } from "@/src/hooks/use-is-client";
 
 export function OfflineBanner({ className }: { className?: string }) {
   const { isOnline, pendingCount, syncing } = useOfflineSync();
+  const isClient = useIsClient();
+
+  if (!isClient) return null;
 
   if (isOnline && !syncing) return null;
 

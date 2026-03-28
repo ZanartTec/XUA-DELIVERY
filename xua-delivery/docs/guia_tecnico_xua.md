@@ -236,8 +236,8 @@ app.prepare().then(() => {
 | `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. Não pode ver dados de outros consumidores. |
 | `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis` | Aceitar/rejeitar pedidos da sua zona, checklist, despacho, conciliação, KPIs da própria operação. |
 | `operator` | `/driver/deliveries`, `/driver/deliveries/[id]/*`, `/driver/sync` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
-| `support` | `/ops/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline, reagendar entregas, override de OTP com motivo obrigatório. |
-| `ops` | `/ops/*` (todas as rotas) | Tudo do support + configurar zonas, dashboard KPIs global (Recharts), exportar auditoria CSV. |
+| `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline, reagendar entregas, override de OTP com motivo obrigatório. |
+| `ops` | `/ops/*` + `/support/*` | Tudo do support + configurar zonas, dashboard KPIs global (Recharts), exportar auditoria CSV. |
 
 ### 3.3 emitEvent() Atômico + Socket.io Pós-commit
 
