@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Download, Share2, X, Plus } from "lucide-react";
 
 import { usePwa } from "@/src/hooks/use-pwa";
+import { useIsClient } from "@/src/hooks/use-is-client";
 import { Button } from "@/src/components/ui/button";
 import {
   Sheet,
@@ -16,6 +17,7 @@ import {
 
 export function PwaInstallPrompt() {
   const { status, justInstalled, promptInstall } = usePwa();
+  const isClient = useIsClient();
   const [isIosSheetOpen, setIsIosSheetOpen] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -27,6 +29,10 @@ export function PwaInstallPrompt() {
       });
     }
   }, [justInstalled]);
+
+  if (!isClient) {
+    return null;
+  }
 
   // Oculta o banner se já instalado, sem suporte, recusado ou manualmente dispensado
   if (isDismissed || status === "installed" || status === "unsupported" || status === "dismissed") {

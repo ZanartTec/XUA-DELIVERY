@@ -18,7 +18,7 @@ const ROLE_REDIRECTS: Record<string, string> = {
   operator: "/driver/deliveries",
   driver: "/driver/deliveries",
   ops: "/ops/kpis",
-  support: "/ops/support",
+  support: "/support",
 };
 
 // Rotas de páginas permitidas por role (RBAC)
@@ -27,8 +27,8 @@ const ROLE_ROUTES: Record<string, string[]> = {
   distributor_admin: ["/distributor"],
   operator: ["/driver"],
   driver: ["/driver"],
-  support: ["/ops/support", "/ops/otp-override"],
-  ops: ["/ops"],
+  support: ["/support", "/ops/otp-override"],
+  ops: ["/ops", "/support"],
 };
 
 // Rotas de API permitidas por role (RBAC — SEC-02)
@@ -82,6 +82,7 @@ export async function proxy(request: NextRequest) {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = payload.role as string;
+    const userName = typeof payload.name === "string" ? payload.name : "";
 
     // SEC-01: Verifica se o JWT foi invalidado (logout)
     if (payload.jti) {
@@ -108,6 +109,7 @@ export async function proxy(request: NextRequest) {
         const requestHeaders = new Headers(request.headers);
         requestHeaders.set("x-user-id", payload.sub as string);
         requestHeaders.set("x-user-role", role);
+        requestHeaders.set("x-user-name", userName);
 
         return NextResponse.next({
           request: { headers: requestHeaders },
@@ -135,6 +137,7 @@ export async function proxy(request: NextRequest) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-user-id", payload.sub as string);
     requestHeaders.set("x-user-role", role);
+    requestHeaders.set("x-user-name", userName);
 
     return NextResponse.next({
       request: { headers: requestHeaders },

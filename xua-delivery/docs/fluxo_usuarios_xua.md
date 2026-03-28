@@ -14,7 +14,7 @@ O sistema tem **4 usuários** com jornadas distintas. O fluxo abaixo descreve ca
 | Consumidor | Web mobile-first | `consumer` | `/catalog` |
 | Distribuidor | Web responsivo | `distributor_admin` | `/distributor/queue` |
 | Motorista | Web PWA (offline) | `operator` | `/driver/deliveries` |
-| Operações / Suporte | Web desktop | `ops` / `support` | `/ops/kpis` ou `/ops/support` |
+| Operações / Suporte | Web desktop | `ops` / `support` | `/ops/kpis` ou `/support` |
 
 ---
 
@@ -286,7 +286,7 @@ Offline sync (Service Worker + IndexedDB)
 ```
 Login (role: ops ou support) -> middleware redirect por role
 ├── ops     -> /ops/kpis
-└── support -> /ops/support
+└── support -> /support
 
 [ops] Configurar zonas (/ops/zones)
 ├── Lista de zonas existentes com distribuidor vinculado
@@ -305,10 +305,10 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Cards resumo: melhor distribuidor, pior distribuidor, média geral
 └── Calculado via KpiService com filtro por distributor_id
 
-[ops + support] Console de suporte (/ops/support)
+[ops + support] Console de suporte (/support)
 ├── Barra de busca: telefone, e-mail ou order_id
 ├── Resultado: dados do cliente + lista de todos os pedidos
-└── Clique no pedido -> /ops/support/[id]
+└── Clique no pedido -> /support/[id]
     ├── Detalhe completo: cliente, endereço, itens, valores, distribuidor
     ├── Timeline de TODOS os audit_events do pedido (cronológica)
     │   └── Cada evento: tipo, ator, timestamp, metadata expansível
@@ -330,7 +330,7 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Evento: OTP_VALIDATION_ATTEMPTED com metadata.manual_override=true
 └── Evento: ORDER_DELIVERED com actor=support/ops
 
-[ops] Exportar auditoria (/ops/audit)
+[ops] Exportar auditoria (/ops/audit-export)
 ├── Filtros:
 │   ├── Período: data início + data fim (Calendar shadcn)
 │   ├── Distribuidor: select (todos ou específico)
@@ -406,10 +406,10 @@ Todos os eventos de notificação passam pelo **Socket.io** embutido no custom s
 | `/ops/zones/create` | (ops) | ops | Nova zona: nome + distribuidor + bairros/CEPs + capacidade. |
 | `/ops/zones/[id]` | (ops) | ops | Editar zona existente. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
-| `/ops/support` | (ops) | ops/support | Console: busca telefone/email/order_id + lista pedidos. |
-| `/ops/support/[id]` | (ops) | ops/support | Detalhe: timeline audit_events + reagendar (Dialog). |
+| `/support` | (ops) | ops/support | Console: busca telefone/email/order_id + lista pedidos. |
+| `/support/[id]` | (ops) | ops/support | Detalhe: timeline audit_events + reagendar (Dialog). |
 | `/ops/otp-override` | (ops) | ops/support | Override OTP: confirmar sem código + motivo obrigatório. |
-| `/ops/audit` | (ops) | ops | Exportar: filtros período/distribuidor/tipo + download CSV. |
+| `/ops/audit-export` | (ops) | ops | Exportar: filtros período/distribuidor/tipo + download CSV. |
 
 ---
 

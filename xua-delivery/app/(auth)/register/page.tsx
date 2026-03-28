@@ -42,7 +42,7 @@ export default function RegisterPage() {
 
       const { user } = await res.json();
       setUser(user);
-      router.push("/catalog");
+      router.push("/");
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     }
