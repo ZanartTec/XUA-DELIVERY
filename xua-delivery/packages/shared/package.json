@@ -1,0 +1,21 @@
+{
+  "name": "@xua/shared",
+  "version": "0.1.0",
+  "private": true,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./enums": "./src/enums/index.ts",
+    "./schemas/auth": "./src/schemas/auth.ts",
+    "./schemas/order": "./src/schemas/order.ts",
+    "./schemas/consumer": "./src/schemas/consumer.ts",
+    "./schemas/zone": "./src/schemas/zone.ts",
+    "./schemas/audit": "./src/schemas/audit.ts",
+    "./constants/roles": "./src/constants/roles.ts",
+    "./contracts/api": "./src/contracts/api.ts"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
