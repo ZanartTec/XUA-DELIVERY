@@ -6,13 +6,16 @@ import { consumersRoutes } from "../modules/consumers/index.js";
 import { subscriptionsRoutes } from "../modules/subscriptions/index.js";
 import { productsRoutes } from "../modules/products/index.js";
 import { paymentsRoutes } from "../modules/payments/index.js";
+import { zonesRoutes } from "../modules/zones/index.js";
+import { opsRoutes } from "../modules/ops/index.js";
+import { notificationsRoutes } from "../modules/notifications/index.js";
 
 // Rotas de negócio registradas progressivamente nos PRs seguintes:
 // PR 05 → auth ✓
 // PR 06 → orders, driver (OTP) ✓
 // PR 07 → consumers, subscriptions, products, payments ✓
-// PR 08 → zones, distributor, audit
-// PR 09 → notifications
+// PR 08 → zones, ops (kpis, reconciliations, audit) ✓
+// PR 09 → notifications ✓
 export function registerRoutes(app: Application): void {
   app.use("/api/auth", authRoutes);
   app.use("/api/orders", ordersRoutes);
@@ -21,4 +24,7 @@ export function registerRoutes(app: Application): void {
   app.use("/api/subscriptions", subscriptionsRoutes);
   app.use("/api/products", productsRoutes);
   app.use("/api/payments", paymentsRoutes);
+  app.use("/api/zones", zonesRoutes);
+  app.use("/api/ops", opsRoutes);
+  app.use("/api/notifications", notificationsRoutes);
 }

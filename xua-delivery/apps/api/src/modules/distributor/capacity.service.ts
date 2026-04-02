@@ -1,49 +1,95 @@
 import type { Prisma, DeliveryWindow } from "@prisma/client";
+import { capacityRepository } from "./capacity.repository.js";
 import { logger } from "../../infra/logger/index.js";
 
 type TxClient = Prisma.TransactionClient;
 
-/**
- * CapacityService — Stub para PR 08 (Serviços Distribuidor).
- * Por agora: não lança erro, permite criar pedidos em dev.
- * Em produção, precisa do PR 08 para validar slots disponíveis.
- */
 export const capacityService = {
-  /**
-   * Reserva slot de entrega.
-   * @throws Error se não houver slots disponíveis (implementado no PR 08).
-   */
-  async reserve(
-    _zoneId: string,
-    _deliveryDate: string,
-    _deliveryWindow: DeliveryWindow,
-    _tx: TxClient
-  ): Promise<void> {
-    // Stub: loga mas não valida (permite criar pedidos em dev)
-    logger.warn(
-      { _zoneId, _deliveryDate, _deliveryWindow },
-      "[STUB] capacityService.reserve() — implementação completa no PR 08"
-    );
-    // Em produção, esta função deve:
-    // 1. Buscar slot com FOR UPDATE
-    // 2. Verificar slots_available > 0
-    // 3. Decrementar slots_available
-    // 4. Lançar erro se não houver slots
+  /** Verifica disponibilidade de slots em uma janela de datas. */
+  async checkAvailability(
+    zoneId: string,
+    startDate: string,
+    endDate: string,
+    tx?: TxClient
+  ) {
+    return capacityRepository.findAvailable(zoneId, startDate, endDate, tx);
   },
 
   /**
-   * Libera slot de entrega.
-   * Chamado quando pedido é cancelado.
+   * Reserva slot de entrega — SELECT FOR UPDATE anti-overbooking (ARCH-04).
+   * DEVE ser chamado dentro de uma transação.
+   * @throws Error se não houver slots disponíveis.
    */
-  async release(
-    _zoneId: string,
-    _deliveryDate: string,
-    _deliveryWindow: DeliveryWindow,
-    _tx: TxClient
+  async reserve(
+    zoneId: string,
+    deliveryDate: string,
+    deliveryWindow: DeliveryWindow,
+    tx: TxClient
   ): Promise<void> {
-    logger.warn(
-      { _zoneId, _deliveryDate, _deliveryWindow },
-      "[STUB] capacityService.release() — implementação completa no PR 08"
+    const slot = await capacityRepository.findSlotForUpdate(
+      zoneId,
+      deliveryDate,
+      deliveryWindow,
+      tx
     );
+
+    if (!slot) {
+      throw Object.assign(
+        new Error(
+          `Sem configuração de capacidade para zone=${zoneId} date=${deliveryDate} window=${deliveryWindow}`
+        ),
+        { status: 422 }
+      );
+    }
+
+    const available = slot.capacity_total - slot.capacity_reserved;
+    if (available <= 0) {
+      throw Object.assign(
+        new Error(
+          `Sem slots disponíveis para zone=${zoneId} date=${deliveryDate} window=${deliveryWindow}`
+        ),
+        { status: 422 }
+      );
+    }
+
+    await capacityRepository.reserve(slot.id, tx);
+    logger.info(
+      { zoneId, deliveryDate, deliveryWindow, remaining: available - 1 },
+      "Slot reservado"
+    );
+  },
+
+  /** Libera slot de entrega — chamado em cancelamentos. */
+  async release(
+    zoneId: string,
+    deliveryDate: string,
+    deliveryWindow: DeliveryWindow,
+    tx: TxClient
+  ): Promise<void> {
+    const slot = await capacityRepository.findSlotForUpdate(
+      zoneId,
+      deliveryDate,
+      deliveryWindow,
+      tx
+    );
+
+    if (!slot) {
+      logger.warn(
+        { zoneId, deliveryDate, deliveryWindow },
+        "Slot não encontrado para release — ignorando"
+      );
+      return;
+    }
+
+    if (slot.capacity_reserved <= 0) {
+      logger.warn(
+        { zoneId, deliveryDate, deliveryWindow },
+        "capacity_reserved já é 0 — ignorando release"
+      );
+      return;
+    }
+
+    await capacityRepository.release(slot.id, tx);
+    logger.info({ zoneId, deliveryDate, deliveryWindow }, "Slot liberado");
   },
 };

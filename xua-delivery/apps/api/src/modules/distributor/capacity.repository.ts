@@ -4,32 +4,59 @@ import { getPrisma } from "../../infra/prisma/client.js";
 type TxClient = Prisma.TransactionClient;
 
 /**
- * CapacityRepository — Stub para PR 08.
- * SELECT FOR UPDATE para evitar overbooking (ARCH-04).
+ * CapacityRepository — SELECT FOR UPDATE para evitar overbooking (ARCH-04).
  */
 export const capacityRepository = {
-  async findForUpdate(
+  /**
+   * SELECT FOR UPDATE — anti-overbooking (seção 2.4).
+   * DEVE ser chamado dentro de uma transação Prisma.
+   */
+  async findSlotForUpdate(
     zoneId: string,
-    date: Date,
+    date: string,
     window: DeliveryWindow,
     tx: TxClient
   ): Promise<DeliveryCapacity | null> {
     const rows = await tx.$queryRaw<DeliveryCapacity[]>`
-      SELECT * FROM "09_cap_delivery_capacity"
+      SELECT * FROM "07_cfg_delivery_capacity"
       WHERE zone_id = ${zoneId}::uuid
-        AND date = ${date}::date
-        AND window = ${window}::"DeliveryWindow"
+        AND delivery_date = ${date}::date
+        AND window = ${window}::"delivery_window"
       FOR UPDATE
       LIMIT 1
     `;
     return rows[0] ?? null;
   },
 
-  async decrementSlots(id: string, tx: TxClient): Promise<DeliveryCapacity> {
+  async findAvailable(
+    zoneId: string,
+    startDate: string,
+    endDate: string,
+    tx?: TxClient
+  ): Promise<DeliveryCapacity[]> {
     const prisma = getPrisma();
-    return (tx ?? prisma).deliveryCapacity.update({
+    return (tx ?? prisma).$queryRaw<DeliveryCapacity[]>`
+      SELECT * FROM "07_cfg_delivery_capacity"
+      WHERE zone_id = ${zoneId}::uuid
+        AND delivery_date BETWEEN ${startDate}::date AND ${endDate}::date
+        AND capacity_reserved < capacity_total
+      ORDER BY delivery_date ASC
+    `;
+  },
+
+  /** Incrementa reserva do slot — dentro da mesma transação do findSlotForUpdate. */
+  async reserve(id: string, tx: TxClient): Promise<void> {
+    await tx.deliveryCapacity.update({
       where: { id },
       data: { capacity_reserved: { increment: 1 } },
+    });
+  },
+
+  /** Decrementa reserva — chamado em cancelamentos. */
+  async release(id: string, tx: TxClient): Promise<void> {
+    await tx.deliveryCapacity.update({
+      where: { id },
+      data: { capacity_reserved: { decrement: 1 } },
     });
   },
 };
