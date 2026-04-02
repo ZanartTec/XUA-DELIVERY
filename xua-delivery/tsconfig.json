@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@xua/shared": ["./packages/shared/src/index.ts"],
+      "@xua/shared/*": ["./packages/shared/src/*"]
     }
   },
   "include": [
@@ -32,6 +34,8 @@
   ],
   "exclude": [
     "node_modules",
+    "packages",
+    "apps",
     "vitest.config.ts",
     "src/**/__tests__/**",
     "**/*.test.ts",

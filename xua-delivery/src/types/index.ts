@@ -33,12 +33,5 @@ export type {
   AuditEventType,
 } from "./enums";
 
-// ─── JWT Payload (manual — não é modelo do banco) ──────────────
-export interface JwtPayload {
-  sub: string;
-  role: "consumer" | "distributor_admin" | "operator" | "driver" | "ops" | "support";
-  name: string;
-  jti: string;
-  iat: number;
-  exp: number;
-}
+// ─── JWT Payload — importado do shared (fonte de verdade) ──────────
+export type { JwtPayload } from "@xua/shared/types";

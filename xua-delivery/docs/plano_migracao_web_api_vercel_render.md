@@ -168,6 +168,102 @@ A API deve ser responsável por:
 - Execução de jobs
 - Observabilidade operacional
 
+## 4.3.1 Framework HTTP da API: Express
+
+O framework escolhido para a API nova é o **Express** (v5), pelos seguintes motivos:
+
+1. **Integração nativa com Socket.IO** — O Socket.IO foi projetado para funcionar com o servidor HTTP do Express sem adaptadores extras. Isso simplifica o bootstrap em `server/index.ts`, onde o mesmo `httpServer` serve tanto rotas REST quanto conexões WebSocket.
+2. **Ecossistema maduro de middleware** — O padrão `(req, res, next)` do Express permite reaproveitar a lógica atual de auth, RBAC, rate-limit e error-handler com adaptações mínimas.
+3. **Curva de adoção zero** — O time já conhece o padrão request/response do Node.js HTTP. Express não introduz abstrações novas como schemas de rota (Fastify) ou bindings (Hono).
+4. **Compatibilidade com Render** — O Render suporta qualquer servidor HTTP Node. Express não requer configuração especial de deploy.
+
+O que NÃO fazer com Express nesta migração:
+
+- Não usar view engines ou templates — a renderização é responsabilidade exclusiva da Web
+- Não usar `express.static` para servir assets — isso é responsabilidade da Vercel/CDN
+- Não usar `express-session` — a sessão continua baseada em JWT via cookie, gerenciada pelo código atual de `auth.ts`
+- Não instalar ORMs alternativos — Prisma continua sendo o ORM único
+
+### Dependências da API nova
+
+```json
+{
+  "dependencies": {
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3",
+    "@prisma/client": "^7.5.0",
+    "@prisma/adapter-pg": "^7.5.0",
+    "pg": "^8.20.0",
+    "ioredis": "^5.10.1",
+    "jose": "^6.2.2",
+    "bcryptjs": "^3.0.3",
+    "zod": "^4.3.6",
+    "pino": "^10.3.1",
+    "web-push": "^3.6.7",
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "tsx": "^4.19.4",
+    "vitest": "^3.2.1",
+    "@types/express": "^5.0.0"
+  }
+}
+```
+
+### Estrutura do bootstrap Express
+
+O arquivo `apps/api/src/http/app.ts` deve configurar o Express da seguinte forma:
+
+```typescript
+// apps/api/src/http/app.ts
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import { registerRoutes } from "./routes";
+import { errorHandler } from "../middleware/error-handler";
+
+export function createApp() {
+  const app = express();
+
+  app.use(helmet());
+  app.use(cors({
+    origin: process.env.APP_ORIGIN,
+    credentials: true,
+  }));
+  app.use(cookieParser());
+  app.use(express.json());
+
+  registerRoutes(app);
+
+  app.use(errorHandler);
+
+  return app;
+}
+```
+
+O arquivo `apps/api/src/server/index.ts` deve integrar Express + Socket.IO:
+
+```typescript
+// apps/api/src/server/index.ts
+import http from "node:http";
+import { createApp } from "../http/app";
+import { createSocketGateway } from "../infra/socket/gateway";
+
+const app = createApp();
+const server = http.createServer(app);
+
+createSocketGateway(server);
+
+const PORT = Number(process.env.PORT) || 4000;
+server.listen(PORT, () => {
+  console.log(`API running on port ${PORT}`);
+});
+```
+
 ## 4.4 Responsabilidade do pacote shared
 
 O pacote shared deve conter somente:
@@ -259,13 +355,17 @@ xua-delivery/
           support/
             page.tsx
             [id]/page.tsx
+      components.json
+      vitest.config.ts
       src/
         components/
           ui/
           shared/
+            role-app-shell.tsx
             distributor/
             driver/
         hooks/
+          use-is-client.ts
           consumer/
         store/
         lib/
@@ -284,6 +384,7 @@ xua-delivery/
     api/
       package.json
       tsconfig.json
+      vitest.config.ts
       prisma.config.ts
       prisma/
         schema.prisma
@@ -335,6 +436,9 @@ xua-delivery/
             capacity.service.ts
             capacity.repository.ts
             kpi.service.ts
+          products/
+            products.routes.ts
+            products.controller.ts
           ops/
             ops.routes.ts
             ops.controller.ts
@@ -389,6 +493,8 @@ xua-delivery/
           consumer.ts
           zone.ts
           audit.ts
+        constants/
+          roles.ts
         contracts/
           api.ts
 ```
@@ -504,10 +610,12 @@ O corte seguro é:
 | `src/components/shared/kpi-chart.tsx` | `apps/web/src/components/shared/kpi-chart.tsx` |
 | `src/components/shared/status-pill.tsx` | `apps/web/src/components/shared/status-pill.tsx` |
 | `src/components/shared/distributor/sla-countdown.tsx` | `apps/web/src/components/shared/distributor/sla-countdown.tsx` |
+| `src/components/shared/role-app-shell.tsx` | `apps/web/src/components/shared/role-app-shell.tsx` |
 | `src/components/shared/driver/otp-input.tsx` | `apps/web/src/components/shared/driver/otp-input.tsx` |
 | `src/hooks/use-socket.ts` | `apps/web/src/hooks/use-socket.ts` |
 | `src/hooks/use-pwa.ts` | `apps/web/src/hooks/use-pwa.ts` |
 | `src/hooks/use-offline-sync.ts` | `apps/web/src/hooks/use-offline-sync.ts` |
+| `src/hooks/use-is-client.ts` | `apps/web/src/hooks/use-is-client.ts` |
 | `src/hooks/consumer/use-push-subscription.ts` | `apps/web/src/hooks/consumer/use-push-subscription.ts` |
 | `src/store/auth.ts` | `apps/web/src/store/auth.ts` |
 | `src/store/cart.ts` | `apps/web/src/store/cart.ts` |
@@ -517,6 +625,19 @@ O corte seguro é:
 | `next.config.ts` | `apps/web/next.config.ts` |
 | `proxy.ts` | `apps/web/proxy.ts` |
 | `postcss.config.mjs` | `apps/web/postcss.config.mjs` |
+| `components.json` | `apps/web/components.json` |
+| `vitest.config.ts` | `apps/web/vitest.config.ts` |
+
+**Observação sobre `proxy.ts` na Web nova**
+
+No desenho atual, `proxy.ts` faz JWT verification, RBAC enforcement e header injection. No desenho novo, a responsabilidade muda:
+
+- A Web nova NÃO faz verificação de JWT nem RBAC real — isso é responsabilidade exclusiva da API
+- O `proxy.ts` da Web nova deve apenas:
+  1. Redirecionar usuários não autenticados (sem cookie) para `/login`
+  2. Fazer redirecionamento de role para a home correta (UX, não segurança)
+  3. Passar o cookie transparente para a API via rewrite
+- Toda autorização real, blacklist check e header injection ficam em `apps/api/src/middleware/auth.ts` e `apps/api/src/middleware/rbac.ts`
 
 ## 7.4 API — rotas e módulos
 
@@ -533,7 +654,7 @@ O corte seguro é:
 | `app/api/orders/[id]/rating/route.ts` | `apps/api/src/modules/orders/orders.routes.ts` + `orders.controller.ts` |
 | `app/api/orders/[id]/bottle-exchange/route.ts` | `apps/api/src/modules/orders/orders.routes.ts` + `orders.controller.ts` |
 | `app/api/orders/[id]/empty-not-collected/route.ts` | `apps/api/src/modules/orders/orders.routes.ts` + `orders.controller.ts` |
-| `app/api/products/route.ts` | `apps/api/src/modules/orders/orders.routes.ts` ou módulo `products` |
+| `app/api/products/route.ts` | `apps/api/src/modules/products/products.routes.ts` + `products.controller.ts` |
 | `app/api/consumers/[id]/route.ts` | `apps/api/src/modules/consumers/consumers.routes.ts` + `consumers.controller.ts` |
 | `app/api/consumers/[id]/addresses/route.ts` | `apps/api/src/modules/consumers/consumers.routes.ts` + `consumers.controller.ts` |
 | `app/api/consumers/[id]/deposit-preview/route.ts` | `apps/api/src/modules/consumers/consumers.routes.ts` + `consumers.controller.ts` |
@@ -580,10 +701,13 @@ O corte seguro é:
 | `src/lib/logger.ts` | `apps/api/src/infra/logger/index.ts` |
 | `src/lib/cep.ts` | `apps/api/src/infra/cep/viacep.ts` |
 | `src/lib/api-handler.ts` | `apps/api/src/middleware/error-handler.ts` |
+| `prisma.config.ts` | `apps/api/prisma.config.ts` |
+| `prisma/seed.ts` | `apps/api/prisma/seed.ts` |
+| `vitest.config.ts` | `apps/api/vitest.config.ts` + `apps/web/vitest.config.ts` |
 | `src/services/__tests__/order-state-machine.test.ts` | `apps/api/src/tests/order-state-machine.test.ts` |
 | `src/lib/__tests__/rate-limit.test.ts` | `apps/api/src/tests/rate-limit.test.ts` |
 
-## 7.6 Shared — tipos, enums e schemas
+## 7.6 Shared — tipos, enums, schemas e constantes
 
 | Atual | Futuro |
 |---|---|
@@ -594,6 +718,11 @@ O corte seguro é:
 | `src/schemas/consumer/consumer.ts` | `packages/shared/src/schemas/consumer.ts` |
 | `src/schemas/distributor/zone.ts` | `packages/shared/src/schemas/zone.ts` |
 | `src/schemas/ops/audit.ts` | `packages/shared/src/schemas/audit.ts` |
+| `src/lib/role-utils.ts` | `packages/shared/src/constants/roles.ts` |
+
+**Observação sobre `role-utils.ts`**
+
+O arquivo `role-utils.ts` contém `UserRole`, `isUserRole()` e `normalizeUserRole()`. Essa lógica é usada tanto pelo frontend (componente `role-app-shell.tsx`) quanto pelo backend (middleware de RBAC). Por isso, o destino correto é `packages/shared/`, garantindo que ambos os lados consumam a mesma definição de roles sem duplicação.
 
 ## 7.7 Legado a remover somente após estabilização
 
@@ -953,59 +1082,141 @@ Apontar novamente rotas de orders para o backend antigo.
 
 ---
 
-## PR 07 — Módulos Restantes da API
+## PR 07 — Módulos Consumer na API Nova
 
 **Branch sugerida**
 
-`feat/api-domain-modules-rest`
+`feat/api-consumer-modules`
 
 **Objetivo**
 
-Migrar o restante do domínio funcional.
+Migrar os módulos voltados ao consumidor: consumers, subscriptions, products e payments.
 
 **Onde mexer**
 
 - `app/api/consumers/**`
 - `app/api/subscriptions/**`
+- `app/api/products/route.ts`
+- `app/api/payments/webhook/route.ts`
+- `src/services/consumer/**`
+- `src/repositories/consumer/**`
+
+**O que fazer**
+
+1. Criar módulo `consumers` com profile, addresses e deposit-preview
+2. Criar módulo `subscriptions` com CRUD e pause/resume/cancel
+3. Criar módulo `products` com listagem
+4. Criar módulo `payments` com webhook e payment-service
+5. Mover `deposit-service` para dentro de `consumers`
+6. Mover `mock-payment-adapter` para `payments/adapters/`
+
+**Como fazer sem quebrar**
+
+- Não alterar contratos de request/response
+- Não fazer cleanup do legado ainda
+- Validar cada módulo em staging antes de declarar pronto
+
+**Validação obrigatória**
+
+- GET/PATCH consumer profile
+- CRUD addresses
+- Deposit preview
+- Fluxos de subscriptions (criar, pausar, retomar, cancelar)
+- Listagem de products
+- Webhook de pagamento com validação HMAC e idempotência
+
+**Rollback**
+
+Reencaminhar tráfego desses módulos para o runtime anterior.
+
+---
+
+## PR 08 — Módulos Distributor e Ops na API Nova
+
+**Branch sugerida**
+
+`feat/api-distributor-ops-modules`
+
+**Objetivo**
+
+Migrar os módulos voltados ao distribuidor e operações: zones, driver, distributor, KPIs, reconciliation e audit.
+
+**Onde mexer**
+
 - `app/api/zones/**`
 - `app/api/driver/deliveries/route.ts`
 - `app/api/reconciliations/route.ts`
 - `app/api/kpis/route.ts`
-- `app/api/notifications/subscribe/route.ts`
-- `app/api/payments/webhook/route.ts`
 - `app/api/audit/export/route.ts`
-- `src/services/consumer/**`
 - `src/services/distributor/**`
-- `src/repositories/consumer/**`
 - `src/repositories/distributor/**`
 
 **O que fazer**
 
-1. Fechar cobertura de domínio da API nova
-2. Ligar webhooks, notificações, subscriptions, zones, KPIs e reconciliations
+1. Criar módulo `zones` com CRUD, capacity e coverage
+2. Criar módulo `driver` com listagem de deliveries (a parte de OTP já foi migrada no PR 06)
+3. Criar módulo `distributor` com KPIs, capacity-service e reconciliation
+4. Criar módulo `audit` com export
 
 **Como fazer sem quebrar**
 
-- Separar os módulos internamente
+- Não alterar contratos de request/response
 - Não fazer cleanup do legado ainda
 - Validar cada módulo em staging antes de declarar pronto
 
 **Validação obrigatória**
 
 - CRUD e listagens de zones
-- Fluxos de subscriptions
+- Capacity slots e coverage
+- Listagem de deliveries do driver
 - KPIs
 - Reconciliation
-- Push subscription
-- Webhook de pagamento
+- Audit export
 
 **Rollback**
 
-Reencaminhar tráfego específico para o runtime anterior.
+Reencaminhar tráfego desses módulos para o runtime anterior.
 
 ---
 
-## PR 08 — Jobs Externos e Fim do Cron em Processo
+## PR 09 — Módulo Notifications na API Nova
+
+**Branch sugerida**
+
+`feat/api-notifications-module`
+
+**Objetivo**
+
+Migrar o módulo de notificações push.
+
+**Onde mexer**
+
+- `app/api/notifications/subscribe/route.ts`
+- `src/services/consumer/notification-service.ts`
+
+**O que fazer**
+
+1. Criar módulo `notifications` com push subscription e envio
+2. Garantir que as VAPID keys estejam configuradas na API nova
+
+**Como fazer sem quebrar**
+
+- Validar push subscription e recebimento em dispositivo real ou emulador
+- Não alterar formato do payload de notificação
+
+**Validação obrigatória**
+
+- Push subscription funciona
+- Notificação é recebida pelo service worker
+- sendBatch processa múltiplas notificações
+
+**Rollback**
+
+Reencaminhar tráfego de notificações para o runtime anterior.
+
+---
+
+## PR 10 — Jobs Externos e Fim do Cron em Processo
 
 **Branch sugerida**
 
@@ -1046,7 +1257,7 @@ Reativar temporariamente o scheduler antigo, se necessário.
 
 ---
 
-## PR 09 — Web Nova em Paralelo
+## PR 11 — Web Nova em Paralelo
 
 **Branch sugerida**
 
@@ -1091,7 +1302,7 @@ Reverter apenas `apps/web`.
 
 ---
 
-## PR 10 — Rewrite de API na Web
+## PR 12 — Rewrite de API na Web
 
 **Branch sugerida**
 
@@ -1130,7 +1341,7 @@ Desabilitar rewrite e retornar tráfego ao backend antigo.
 
 ---
 
-## PR 11 — Realtime na Arquitetura Nova
+## PR 13 — Realtime na Arquitetura Nova
 
 **Branch sugerida**
 
@@ -1169,7 +1380,7 @@ Desabilitar realtime novo e operar temporariamente sem socket, se necessário.
 
 ---
 
-## PR 12 — Cutover de Produção
+## PR 14 — Cutover de Produção
 
 **Branch sugerida**
 
@@ -1215,7 +1426,7 @@ Reapontar o tráfego e o DNS para o desenho anterior.
 
 ---
 
-## PR 13 — Limpeza Pós-Go-Live
+## PR 15 — Limpeza Pós-Go-Live
 
 **Branch sugerida**
 
@@ -1323,21 +1534,23 @@ Rollback precisa ser possível sem migration destrutiva adicional.
 
 ## 13. Matriz de Validação por Fase
 
-| Fase | Validação mínima | Bloqueia avanço? |
-|---|---|---|
-| Workspace | Build local e lint | Sim |
-| Shared | Typecheck e contratos intactos | Sim |
-| API bootstrap | Health e readiness | Sim |
-| Infra core | Prisma, Redis, JWT, socket bootstrap | Sim |
-| Auth | login, logout, me, cookie | Sim |
-| Orders core | ciclo crítico do pedido | Sim |
-| Demais módulos | subscriptions, zones, kpis, notifications, webhook | Sim |
-| Jobs | execução manual e cron externo | Sim |
-| Web nova | navegação, PWA, build | Sim |
-| Rewrite | `/api` estável | Sim |
-| Realtime | eventos recebidos | Sim |
-| Cutover | smoke test de produção | Sim |
-| Cleanup | build limpa e documentação atualizada | Não para produção já estabilizada |
+| PR | Fase | Validação mínima | Bloqueia avanço? |
+|---|---|---|---|
+| 01 | Workspace | Build local e lint | Sim |
+| 02 | Shared | Typecheck e contratos intactos | Sim |
+| 03 | API bootstrap (Express) | Health e readiness | Sim |
+| 04 | Infra core | Prisma, Redis, JWT, socket bootstrap | Sim |
+| 05 | Auth | login, logout, me, cookie | Sim |
+| 06 | Orders core | ciclo crítico do pedido + OTP + audit | Sim |
+| 07 | Módulos consumer | consumers, subscriptions, products, webhook | Sim |
+| 08 | Módulos distributor/ops | zones, driver, KPIs, reconciliation, audit export | Sim |
+| 09 | Notifications | push subscription e recebimento | Sim |
+| 10 | Jobs | execução manual e cron externo | Sim |
+| 11 | Web nova | navegação, PWA, build | Sim |
+| 12 | Rewrite | `/api` estável | Sim |
+| 13 | Realtime | eventos recebidos | Sim |
+| 14 | Cutover | smoke test de produção | Sim |
+| 15 | Cleanup | build limpa e documentação atualizada | Não para produção já estabilizada |
 
 ---
 
@@ -1381,12 +1594,14 @@ O job antigo e o job novo executarem ao mesmo tempo.
 
 **Risco**
 
-O service worker atual assume `/api` na mesma origem.
+O service worker atual assume `/api` na mesma origem. Com o rewrite, as respostas vindas da API nova podem ter headers CORS diferentes, o que pode afetar o cache do service worker e o background sync.
 
 **Mitigação**
 
 - Preservar `/api` na Web via rewrite
 - Validar o comportamento do cache no ambiente novo
+- Revisar a lógica de cache do `sw.js` para garantir que respostas com headers CORS distintos sejam tratadas corretamente
+- Testar o background sync com a URL de destino real da API nova
 
 ## 14.5 Ícones da PWA
 
@@ -1398,6 +1613,31 @@ Há referências a ícones PNG na metadata e no manifest que precisam ser confer
 
 - Validar a pasta `public/icons` antes do go-live
 - Não considerar o PWA pronto sem essa checagem
+
+## 14.6 Sessões existentes durante o cutover
+
+**Risco**
+
+Usuários logados no sistema antigo terão cookies emitidos com o domínio e path do deploy atual. Ao trocar para o novo deploy (subdomínios diferentes), esses cookies podem não ser reconhecidos pela API nova, causando logout inesperado.
+
+**Mitigação**
+
+- Definir `COOKIE_DOMAIN` como `.seudominio.com` (com ponto no início) para que o cookie seja compartilhável entre subdomínios
+- Aceitar que um re-login forçado pode ser necessário no momento do cutover — comunicar isso previamente aos usuários ativos
+- No smoke test do cutover, validar especificamente o cenário: "usuário já logado antes do corte → acessa o novo domínio → sessão continua válida?"
+- Se o re-login forçado for inevitável, programar o cutover para um horário de baixo uso (madrugada, horário de Brasília)
+
+## 14.7 Cookie domain durante a fase de transição
+
+**Risco**
+
+Durante a transição, dois ambientes coexistem (monólito antigo e Web+API novos). Se ambos emitirem cookies com escopos diferentes, o navegador pode ficar com dois cookies conflitantes.
+
+**Mitigação**
+
+- Garantir que apenas um dos sistemas emita cookie de autenticação por vez
+- No staging, testar com o mesmo domínio e subdomínio que serão usados em produção
+- Se necessário, o monólito antigo deve parar de emitir cookies novos assim que o tráfego for redirecionado
 
 ---
 
@@ -1419,17 +1659,19 @@ Resumo objetivo:
 
 1. PR 01 — Workspace
 2. PR 02 — Shared
-3. PR 03 — API bootstrap
+3. PR 03 — API bootstrap (Express)
 4. PR 04 — Infra core
 5. PR 05 — Auth
 6. PR 06 — Orders core
-7. PR 07 — Demais módulos
-8. PR 08 — Jobs externos
-9. PR 09 — Web nova
-10. PR 10 — Rewrite `/api`
-11. PR 11 — Realtime
-12. PR 12 — Cutover
-13. PR 13 — Cleanup
+7. PR 07 — Módulos consumer (consumers, subscriptions, products, payments)
+8. PR 08 — Módulos distributor e ops (zones, driver, distributor, audit)
+9. PR 09 — Notifications
+10. PR 10 — Jobs externos
+11. PR 11 — Web nova
+12. PR 12 — Rewrite `/api`
+13. PR 13 — Realtime
+14. PR 14 — Cutover
+15. PR 15 — Cleanup
 
 ---
 
