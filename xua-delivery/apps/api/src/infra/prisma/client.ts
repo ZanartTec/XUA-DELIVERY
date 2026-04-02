@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { logger } from "../logger";
+import { logger } from "../logger/index.js";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -13,6 +13,14 @@ export const prisma = new PrismaClient({
       ? ["warn", "error"]
       : ["error"],
 });
+
+/**
+ * Returns the Prisma client instance.
+ * Wrapper function for better testability and future connection pooling.
+ */
+export function getPrisma(): PrismaClient {
+  return prisma;
+}
 
 export async function disconnectPrisma(): Promise<void> {
   try {
