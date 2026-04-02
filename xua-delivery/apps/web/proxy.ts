@@ -8,8 +8,7 @@ if (!JWT_SECRET_RAW) {
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 // Rotas públicas que não requerem autenticação
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/check-blacklist", "/api/payments/webhook"];
-const AUTHENTICATED_API_PATHS = ["/api/auth/me", "/api/auth/logout"];
+const PUBLIC_PATHS = ["/login", "/register"];
 
 // Mapa de redirecionamento por role (seção 3.2 do guia técnico)
 const ROLE_REDIRECTS: Record<string, string> = {
@@ -31,23 +30,13 @@ const ROLE_ROUTES: Record<string, string[]> = {
   ops: ["/ops", "/support"],
 };
 
-// Rotas de API permitidas por role (RBAC — SEC-02)
-const API_ROLE_ROUTES: Record<string, string[]> = {
-  consumer: ["/api/orders", "/api/consumers", "/api/subscriptions", "/api/zones", "/api/notifications", "/api/products"],
-  distributor_admin: ["/api/orders", "/api/reconciliations", "/api/zones"],
-  operator: ["/api/driver", "/api/orders"],
-  driver: ["/api/driver", "/api/orders"],
-  support: ["/api/orders", "/api/ops"],
-  ops: ["/api/orders", "/api/ops", "/api/reconciliations", "/api/zones", "/api/audit"],
-};
-
 /**
- * Verifica blacklist de JWT via fetch interno ao Route Handler.
- * Necessário porque proxy Next.js roda no Edge e não pode usar Redis diretamente.
+ * Verifica blacklist de JWT chamando a API externa diretamente.
  */
-async function checkBlacklist(jti: string, request: NextRequest): Promise<boolean> {
+async function checkBlacklist(jti: string): Promise<boolean> {
   try {
-    const url = new URL("/api/auth/check-blacklist", request.url);
+    const apiUrl = process.env.API_URL || "http://localhost:4000";
+    const url = new URL("/api/auth/check-blacklist", apiUrl);
     url.searchParams.set("jti", jti);
     const res = await fetch(url, {
       headers: { "x-internal-secret": process.env.INTERNAL_SECRET || "" },
@@ -56,13 +45,17 @@ async function checkBlacklist(jti: string, request: NextRequest): Promise<boolea
     const body = await res.json();
     return body.blacklisted === true;
   } catch {
-    // Se falhar, permite o request para não bloquear em caso de Redis down
     return false;
   }
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // API requests passam direto — auth/RBAC são tratados pela API Express
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
 
   // Rotas públicas passam direto
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -73,24 +66,17 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("xua-token")?.value;
 
   if (!token) {
-    if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = payload.role as string;
-    const userName = typeof payload.name === "string" ? payload.name : "";
 
     // SEC-01: Verifica se o JWT foi invalidado (logout)
     if (payload.jti) {
-      const blacklisted = await checkBlacklist(payload.jti as string, request);
+      const blacklisted = await checkBlacklist(payload.jti as string);
       if (blacklisted) {
-        if (pathname.startsWith("/api")) {
-          return NextResponse.json({ error: "Token revogado" }, { status: 401 });
-        }
         const response = NextResponse.redirect(new URL("/login", request.url));
         response.cookies.delete("xua-token");
         return response;
@@ -103,50 +89,27 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(redirectPath, request.url));
     }
 
-    // RBAC para API routes (SEC-02)
-    if (pathname.startsWith("/api")) {
-      if (AUTHENTICATED_API_PATHS.some((route) => pathname.startsWith(route))) {
-        const requestHeaders = new Headers(request.headers);
-        requestHeaders.set("x-user-id", payload.sub as string);
-        requestHeaders.set("x-user-role", role);
-        requestHeaders.set("x-user-name", userName);
-
-        return NextResponse.next({
-          request: { headers: requestHeaders },
-        });
-      }
-
-      const apiRoutes = API_ROLE_ROUTES[role];
-      const apiAccess = apiRoutes?.some((route) => pathname.startsWith(route));
-      if (!apiAccess) {
-        return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
-      }
-    } else {
-      // RBAC para páginas
-      const allowedRoutes = ROLE_ROUTES[role];
-      if (allowedRoutes) {
-        const hasAccess = allowedRoutes.some((route) => pathname.startsWith(route));
-        if (!hasAccess) {
-          const redirectPath = ROLE_REDIRECTS[role] || "/login";
-          return NextResponse.redirect(new URL(redirectPath, request.url));
-        }
+    // RBAC para páginas
+    const allowedRoutes = ROLE_ROUTES[role];
+    if (allowedRoutes) {
+      const hasAccess = allowedRoutes.some((route) => pathname.startsWith(route));
+      if (!hasAccess) {
+        const redirectPath = ROLE_REDIRECTS[role] || "/login";
+        return NextResponse.redirect(new URL(redirectPath, request.url));
       }
     }
 
-    // Injeta dados do token nos headers para os Route Handlers
+    // Injeta dados do token nos headers para Server Components
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-user-id", payload.sub as string);
     requestHeaders.set("x-user-role", role);
-    requestHeaders.set("x-user-name", userName);
+    requestHeaders.set("x-user-name", typeof payload.name === "string" ? payload.name : "");
 
     return NextResponse.next({
       request: { headers: requestHeaders },
     });
   } catch {
     // Token inválido ou expirado
-    if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
-    }
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("xua-token");
     return response;

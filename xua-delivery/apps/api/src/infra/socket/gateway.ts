@@ -16,12 +16,21 @@ export function createSocketGateway(httpServer: HttpServer): Server {
     cors: {
       origin: allowedOrigin,
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
   io.on("connection", async (socket) => {
     try {
-      const token = socket.handshake.auth?.token as string | undefined;
+      // Tenta extrair o token do handshake auth ou do cookie httpOnly
+      let token = socket.handshake.auth?.token as string | undefined;
+      if (!token) {
+        const cookies = socket.handshake.headers?.cookie;
+        if (cookies) {
+          const match = cookies.match(/(?:^|;\s*)xua-token=([^;]*)/);
+          if (match) token = match[1];
+        }
+      }
       if (!token) {
         socket.disconnect(true);
         return;

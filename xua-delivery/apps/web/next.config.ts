@@ -11,7 +11,20 @@ const nextConfig: NextConfig = {
     "*": ["node_modules/@swc/**", "node_modules/@esbuild/**", "node_modules/prisma/**"],
   },
 
+  async rewrites() {
+    const apiUrl = process.env.API_URL || "http://localhost:4000";
+    return {
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${apiUrl}/api/:path*`,
+        },
+      ],
+    };
+  },
+
   async headers() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
     return [
       {
         source: "/(.*)",
@@ -31,7 +44,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self'",
-              "connect-src 'self' ws: wss:",
+              `connect-src 'self' ${apiUrl} ws: wss:`,
               "frame-ancestors 'none'",
             ].join("; "),
           },

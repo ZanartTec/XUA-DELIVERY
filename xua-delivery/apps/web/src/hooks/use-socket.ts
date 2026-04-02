@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuthStore } from "@/src/store/auth";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -12,8 +14,9 @@ export function useSocket() {
   useEffect(() => {
     if (!user) return;
 
-    const socket = io({
-      auth: { token: document.cookie.replace(/(?:(?:^|.*;\s*)xua-token\s*=\s*([^;]*).*$)|^.*$/, "$1") },
+    const socket = io(API_URL, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
