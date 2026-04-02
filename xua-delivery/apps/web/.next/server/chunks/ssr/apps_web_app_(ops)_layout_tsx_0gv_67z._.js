@@ -1,0 +1,3 @@
+module.exports=[67700,a=>{"use strict";var b=a.i(7997),c=a.i(5246),d=a.i(41138),e=a.i(60085);async function f({children:a}){let g=await (0,c.headers)(),h=(0,e.normalizeUserRole)(g.get("x-user-role"),"ops");return(0,b.jsx)(d.RoleAppShell,{role:h,userName:g.get("x-user-name"),contentClassName:"p-4 pb-24 md:p-6 md:pb-28",children:a})}a.s(["default",0,f])},48530,a=>{a.n(a.i(67700))}];
+
+//# sourceMappingURL=apps_web_app_%28ops%29_layout_tsx_0gv_67z._.js.map

@@ -1,0 +1,3 @@
+module.exports=[84793,a=>{"use strict";var b=a.i(7997),c=a.i(5246),d=a.i(41138),e=a.i(60085);async function f({children:a}){let g=await (0,c.headers)(),h=(0,e.normalizeUserRole)(g.get("x-user-role"),"consumer");return(0,b.jsx)(d.RoleAppShell,{role:h,userName:g.get("x-user-name"),children:a})}a.s(["default",0,f])},60627,a=>{a.n(a.i(84793))}];
+
+//# sourceMappingURL=apps_web_app_%28consumer%29_layout_tsx_0p2e0y0._.js.map

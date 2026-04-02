@@ -1,0 +1,3 @@
+module.exports=[5091,a=>{"use strict";var b=a.i(7997),c=a.i(5246),d=a.i(41138),e=a.i(60085);async function f({children:a}){let g=await (0,c.headers)(),h=(0,e.normalizeUserRole)(g.get("x-user-role"),"distributor_admin");return(0,b.jsx)(d.RoleAppShell,{role:h,userName:g.get("x-user-name"),contentClassName:"p-4 pb-24 md:p-6 md:pb-28",children:a})}a.s(["default",0,f])},86493,a=>{a.n(a.i(5091))}];
+
+//# sourceMappingURL=apps_web_app_%28distributor%29_layout_tsx_09p2-5v._.js.map
