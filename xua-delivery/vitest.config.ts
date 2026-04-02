@@ -5,15 +5,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["**/*.test.ts"],
+    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/services/**", "src/lib/**"],
+      include: ["apps/api/src/**", "packages/shared/src/**"],
     },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname),
+      "@xua/shared": path.resolve(__dirname, "packages/shared/src"),
     },
   },
 });

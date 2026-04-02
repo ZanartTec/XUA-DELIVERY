@@ -3,9 +3,11 @@ services:
     name: xua-api
     runtime: node
     plan: starter
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx tsx apps/api/src/server/index.ts
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: INTERNAL_JOB_SECRET
         generateValue: true
       - key: DATABASE_URL
@@ -13,6 +15,12 @@ services:
       - key: REDIS_URL
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
         sync: false
 
   - type: cron
