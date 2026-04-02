@@ -9,6 +9,7 @@ import { paymentsRoutes } from "../modules/payments/index.js";
 import { zonesRoutes } from "../modules/zones/index.js";
 import { opsRoutes } from "../modules/ops/index.js";
 import { notificationsRoutes } from "../modules/notifications/index.js";
+import { jobsRoutes } from "../jobs/index.js";
 
 // Rotas de negócio registradas progressivamente nos PRs seguintes:
 // PR 05 → auth ✓
@@ -16,7 +17,11 @@ import { notificationsRoutes } from "../modules/notifications/index.js";
 // PR 07 → consumers, subscriptions, products, payments ✓
 // PR 08 → zones, ops (kpis, reconciliations, audit) ✓
 // PR 09 → notifications ✓
+// PR 10 → internal jobs ✓
 export function registerRoutes(app: Application): void {
+  // Jobs internos (protegidos por INTERNAL_JOB_SECRET, não por JWT)
+  app.use("/api/internal/jobs", jobsRoutes);
+
   app.use("/api/auth", authRoutes);
   app.use("/api/orders", ordersRoutes);
   app.use("/api/driver", driverRoutes);

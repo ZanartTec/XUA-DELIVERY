@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: xua-api
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: INTERNAL_JOB_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  - type: cron
+    name: subscription-cron
+    runtime: node
+    schedule: "0 9 * * *" # 06h São Paulo = 09h UTC
+    buildCommand: ""
+    startCommand: >-
+      node --input-type=module -e "
+        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
+        if (!r.ok) { console.error(await r.text()); process.exit(1); }
+        console.log(JSON.stringify(await r.json()));
+      "
+    envVars:
+      - key: INTERNAL_JOB_SECRET
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: INTERNAL_JOB_SECRET
+      - key: API_URL
+        sync: false
+
+  - type: cron
+    name: otp-cleanup
+    runtime: node
+    schedule: "*/15 * * * *"
+    buildCommand: ""
+    startCommand: >-
+      node --input-type=module -e "
+        const r = await fetch(process.env.API_URL + '/api/internal/jobs/otp-cleanup', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
+        if (!r.ok) { console.error(await r.text()); process.exit(1); }
+        console.log(JSON.stringify(await r.json()));
+      "
+    envVars:
+      - key: INTERNAL_JOB_SECRET
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: INTERNAL_JOB_SECRET
+      - key: API_URL
+        sync: false
