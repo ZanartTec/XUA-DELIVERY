@@ -40,9 +40,14 @@ function getInitialPwaStatus(): PwaStatus {
 }
 
 export function usePwa() {
-  const [status, setStatus] = useState<PwaStatus>(getInitialPwaStatus);
+  const [status, setStatus] = useState<PwaStatus>("unsupported");
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [justInstalled, setJustInstalled] = useState(false);
+
+  // Calcula status real apenas no cliente, após hydration
+  useEffect(() => {
+    setStatus(getInitialPwaStatus());
+  }, []);
 
   useEffect(() => {
     if (status === "installed" || status === "ios") return;
