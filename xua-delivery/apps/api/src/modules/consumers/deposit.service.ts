@@ -1,64 +1,110 @@
-import type { Prisma } from "@prisma/client";
-import { logger } from "../../infra/logger/index.js";
+import type { Prisma, Deposit } from "@prisma/client";
+import { DepositStatus, OrderStatus, AuditEventType, ActorType, SourceApp } from "@prisma/client";
+import { getPrisma } from "../../infra/prisma/client.js";
+import { auditRepository } from "../audit/index.js";
 
 type TxClient = Prisma.TransactionClient;
+const DEPOSIT_AMOUNT_CENTS = 3000;
 
 /**
- * DepositService — Stub para PR 07 (Serviços Consumer).
- * Funcionalidade de cauções/depósitos para primeira compra.
+ * DepositService — Caução de vasilhame.
+ * Regra A (seção 2.4): held → refund_initiated somente quando
+ * status = DELIVERED AND collected_empty_qty ≥ 1.
  */
 export const depositService = {
-  /**
-   * Retorna valor padrão de depósito em centavos.
-   * No monólito: R$ 30,00 = 3000 centavos.
-   */
   getDepositAmountCents(): number {
-    return 3000; // R$ 30,00
+    return DEPOSIT_AMOUNT_CENTS;
   },
 
-  /**
-   * Retorna preview do depósito para UI.
-   */
-  getPreview(): { amountCents: number; description: string } {
+  async getPreview(
+    consumerId: string,
+    tx?: TxClient
+  ): Promise<{ isFirstPurchase: boolean; depositAmountCents: number }> {
+    const prisma = getPrisma();
+    const previousOrdersCount = await (tx ?? prisma).order.count({
+      where: {
+        consumer_id: consumerId,
+        status: { not: OrderStatus.CANCELLED },
+      },
+    });
+
     return {
-      amountCents: 3000,
-      description: "Caução do vasilhame (devolvida ao término)",
+      isFirstPurchase: previousOrdersCount === 0,
+      depositAmountCents: DEPOSIT_AMOUNT_CENTS,
     };
   },
 
-  /**
-   * Registra hold de depósito na primeira compra.
-   * @param consumerId ID do consumidor
-   * @param orderId ID do pedido
-   * @param amountCents Valor em centavos
-   * @param tx Transaction client
-   * @param options Opções adicionais
-   */
+  /** Retém caução na 1ª compra do consumidor */
   async holdDeposit(
-    _consumerId: string,
-    _orderId: string,
-    _amountCents: number,
-    _tx: TxClient,
-    _options?: { isFirstPurchase?: boolean }
-  ): Promise<void> {
-    logger.warn(
-      { _consumerId, _orderId, _amountCents },
-      "[STUB] depositService.holdDeposit() — implementação completa no PR 07"
+    consumerId: string,
+    orderId: string,
+    amountCents: number,
+    tx: TxClient,
+    options?: { isFirstPurchase?: boolean }
+  ): Promise<Deposit> {
+    const deposit = await tx.deposit.create({
+      data: {
+        order_id: orderId,
+        consumer_id: consumerId,
+        amount_cents: amountCents,
+        status: DepositStatus.HELD,
+      },
+    });
+
+    await auditRepository.emit(
+      {
+        eventType: AuditEventType.DEPOSIT_HELD,
+        actor: { type: ActorType.SYSTEM, id: "system" },
+        orderId,
+        sourceApp: SourceApp.BACKEND,
+        payload: {
+          amount_cents: amountCents,
+          is_first_purchase: options?.isFirstPurchase ?? false,
+        },
+      },
+      tx
     );
-    // Em produção, deve criar registro na tabela 15_fin_deposits
+
+    return deposit;
   },
 
   /**
-   * Libera depósito quando consumidor devolve todos os vasilhames.
+   * Regra A: libera caução quando DELIVERED + collected_empty_qty ≥ 1.
    */
-  async releaseDeposit(
-    _consumerId: string,
-    _orderId: string,
-    _tx: TxClient
-  ): Promise<void> {
-    logger.warn(
-      { _consumerId, _orderId },
-      "[STUB] depositService.releaseDeposit() — implementação completa no PR 07"
-    );
+  async releaseDeposit(orderId: string): Promise<void> {
+    const prisma = getPrisma();
+    await prisma.$transaction(async (tx: TxClient) => {
+      const order = await tx.order.findFirst({
+        where: {
+          id: orderId,
+          status: OrderStatus.DELIVERED,
+          collected_empty_qty: { gte: 1 },
+        },
+      });
+
+      if (!order) return;
+
+      const deposit = await tx.deposit.findFirst({
+        where: { order_id: orderId, status: DepositStatus.HELD },
+      });
+
+      if (!deposit) return;
+
+      await tx.deposit.update({
+        where: { id: deposit.id },
+        data: { status: DepositStatus.REFUND_INITIATED },
+      });
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DEPOSIT_REFUND_INITIATED,
+          actor: { type: ActorType.SYSTEM, id: "system" },
+          orderId,
+          sourceApp: SourceApp.BACKEND,
+          payload: { deposit_id: deposit.id },
+        },
+        tx
+      );
+    });
   },
 };
