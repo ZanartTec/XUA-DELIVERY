@@ -1,5 +1,5 @@
 import type { Application } from "express";
-import authRoutes from "../modules/auth/auth.routes.js";
+import authRoutes from "../modules/auth/routes/auth.routes.js";
 import { ordersRoutes } from "../modules/orders/index.js";
 import { driverRoutes } from "../modules/driver/index.js";
 import { consumersRoutes } from "../modules/consumers/index.js";

@@ -1,4 +1,4 @@
-import type { IPaymentGateway, PaymentResult, RefundResult } from "../payments.gateway.js";
+import type { IPaymentGateway, PaymentResult, RefundResult } from "../gateway/payments.gateway.js";
 import { randomUUID } from "crypto";
 
 /**

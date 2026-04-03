@@ -1,4 +1,4 @@
-import { otpRepository } from "../modules/driver/otp.repository.js";
+import { otpRepository } from "../modules/driver/repository/otp.repository.js";
 import { logger } from "../infra/logger/index.js";
 
 /**

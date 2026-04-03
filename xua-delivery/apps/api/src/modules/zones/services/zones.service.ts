@@ -1,5 +1,5 @@
 import { zonesRepository } from "../repository/zones.repository.js";
-import { capacityService } from "../../distributor/capacity.service.js";
+import { capacityService } from "../../distributor/services/capacity.service.js";
 
 export const zonesService = {
   async list() {
