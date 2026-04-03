@@ -3,6 +3,7 @@ import { getPrisma } from "../../infra/prisma/client.js";
 import { logger } from "../../infra/logger/index.js";
 import { auditExportSchema } from "@xua/shared/schemas/audit";
 import type { AuditEventType } from "@prisma/client";
+import { buildCsv } from "../../utils/csv.js";
 
 export const auditController = {
   /** GET /api/audit/export — exporta eventos de auditoria como CSV */
@@ -47,22 +48,28 @@ export const auditController = {
         orderBy: { occurred_at: "asc" },
       });
 
-      const header =
-        "id,event_type,actor_type,actor_id,order_id,source_app,occurred_at,payload\n";
-      const rows = events.map((e) =>
-        [
-          e.id,
-          e.event_type,
-          e.actor_type,
-          e.actor_id,
-          e.order_id || "",
-          e.source_app,
-          e.occurred_at.toISOString(),
-          JSON.stringify(e.payload || {}),
-        ].join(",")
-      );
+      const CSV_HEADERS = [
+        "id",
+        "event_type",
+        "actor_type",
+        "actor_id",
+        "order_id",
+        "source_app",
+        "occurred_at",
+        "payload",
+      ];
+      const rows = events.map((e) => [
+        e.id,
+        e.event_type,
+        e.actor_type,
+        e.actor_id,
+        e.order_id || "",
+        e.source_app,
+        e.occurred_at.toISOString(),
+        JSON.stringify(e.payload || {}),
+      ]);
 
-      const csv = header + rows.join("\n");
+      const csv = buildCsv(CSV_HEADERS, rows);
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader(

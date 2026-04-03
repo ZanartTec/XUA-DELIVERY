@@ -1,4 +1,5 @@
-import { signToken, hashPassword, comparePassword } from "../../infra/auth/jwt";
+import { signToken } from "../../infra/auth/jwt";
+import { hashPassword, comparePassword } from "../../infra/auth/password";
 import { blacklistToken } from "../../infra/auth/blacklist";
 import { authRepository } from "./auth.repository";
 import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";

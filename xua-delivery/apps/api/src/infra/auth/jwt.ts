@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from "jose";
-import { hash, compare } from "bcryptjs";
 import { randomUUID } from "crypto";
 import type { JwtPayload } from "@xua/shared/types";
 
@@ -35,15 +34,4 @@ export async function verifyToken(token: string): Promise<JwtPayload> {
   return payload as unknown as JwtPayload;
 }
 
-const SALT_ROUNDS = 12;
 
-export async function hashPassword(password: string): Promise<string> {
-  return hash(password, SALT_ROUNDS);
-}
-
-export async function comparePassword(
-  password: string,
-  passwordHash: string
-): Promise<boolean> {
-  return compare(password, passwordHash);
-}
