@@ -36,7 +36,6 @@ export const API_ROLE_ROUTES: Record<UserRole, string[]> = {
     "/api/products",
   ],
   distributor_admin: ["/api/orders", "/api/reconciliations", "/api/zones"],
-  operator: ["/api/driver", "/api/orders"],
   driver: ["/api/driver", "/api/orders"],
   support: ["/api/orders", "/api/ops"],
   ops: [

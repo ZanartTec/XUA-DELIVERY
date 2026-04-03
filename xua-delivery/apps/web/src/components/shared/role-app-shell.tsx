@@ -73,12 +73,6 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
     ],
   },
-  operator: {
-    badgeLabel: "Operador",
-    navItems: [
-      { href: "/driver/deliveries", label: "Entregas", icon: Truck },
-    ],
-  },
   driver: {
     badgeLabel: "Motorista",
     navItems: [

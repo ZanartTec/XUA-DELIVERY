@@ -33,7 +33,7 @@ export const authService = {
 
     const token = await signToken({
       sub: consumer.id,
-      role: consumer.role ?? "consumer",
+      role: consumer.role === "operator" ? "driver" : (consumer.role ?? "consumer"),
       name: consumer.name,
     });
 
@@ -64,7 +64,7 @@ export const authService = {
 
     const token = await signToken({
       sub: consumer.id,
-      role: consumer.role ?? "consumer",
+      role: consumer.role === "operator" ? "driver" : (consumer.role ?? "consumer"),
       name: consumer.name,
     });
 

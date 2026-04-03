@@ -347,7 +347,9 @@ export const ordersController = {
               ? "consumer"
               : user.role === "distributor_admin"
                 ? "distributor"
-                : "ops";
+                : user.role === "driver"
+                  ? "driver"
+                  : "ops";
           updatedOrder = await orderService.cancelOrder(
             id,
             user.sub,

@@ -573,18 +573,20 @@ export const orderService = {
   async cancelOrder(
     orderId: string,
     actorId: string,
-    actorType: "consumer" | "ops" | "distributor",
+    actorType: "consumer" | "ops" | "distributor" | "driver",
     reason: string
   ): Promise<Order> {
     const actorMap: Record<string, ActorType> = {
       consumer: ActorType.CONSUMER,
       ops: ActorType.OPS,
       distributor: ActorType.DISTRIBUTOR_USER,
+      driver: ActorType.DRIVER,
     };
     const sourceAppMap: Record<string, SourceApp> = {
       consumer: SourceApp.CONSUMER_WEB,
       ops: SourceApp.OPS_CONSOLE,
       distributor: SourceApp.DISTRIBUTOR_WEB,
+      driver: SourceApp.DRIVER_WEB,
     };
     const actor = actorMap[actorType];
     const sourceApp = sourceAppMap[actorType];

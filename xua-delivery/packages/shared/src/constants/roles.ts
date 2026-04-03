@@ -5,7 +5,6 @@ export type UserRole = JwtPayload["role"];
 const USER_ROLES = new Set<UserRole>([
   "consumer",
   "distributor_admin",
-  "operator",
   "driver",
   "ops",
   "support",
