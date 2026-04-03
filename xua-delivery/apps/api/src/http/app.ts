@@ -2,9 +2,9 @@ import express, { type Application } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { healthHandler } from "../server/health";
-import { readinessHandler } from "../server/readiness";
-import { registerRoutes } from "./routes";
+import { healthHandler } from "./handlers/health";
+import { readinessHandler } from "./handlers/readiness";
+import { registerRoutes } from "./routs";
 import { errorHandler } from "../middleware/error-handler";
 
 export function createApp(): Application {

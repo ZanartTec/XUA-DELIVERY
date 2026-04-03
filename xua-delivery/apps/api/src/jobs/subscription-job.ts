@@ -9,21 +9,7 @@ import {
 import { getPrisma } from "../infra/prisma/client.js";
 import { auditRepository } from "../modules/audit/audit.repository.js";
 import { logger } from "../infra/logger/index.js";
-
-// FUNC-02: Calcula próxima data evitando overflow de dia (31→28 etc.)
-function nextMonthSameDay(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00Z");
-  const targetMonth = d.getUTCMonth() + 1;
-  const targetYear =
-    targetMonth > 11 ? d.getUTCFullYear() + 1 : d.getUTCFullYear();
-  const normalizedMonth = targetMonth > 11 ? 0 : targetMonth;
-  const lastDayOfTarget = new Date(
-    Date.UTC(targetYear, normalizedMonth + 1, 0)
-  ).getUTCDate();
-  const day = Math.min(d.getUTCDate(), lastDayOfTarget);
-  const result = new Date(Date.UTC(targetYear, normalizedMonth, day));
-  return result.toISOString().split("T")[0];
-}
+import { nextMonthSameDay } from "../utils/date.js";
 
 const BATCH_SIZE = 50;
 

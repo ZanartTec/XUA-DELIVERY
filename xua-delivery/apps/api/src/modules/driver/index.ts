@@ -1,4 +1,6 @@
-export { driverRoutes } from "./driver.routes.js";
-export { driverController } from "./driver.controller.js";
-export { otpService, OtpServiceError } from "./otp.service.js";
-export { otpRepository } from "./otp.repository.js";
+export { driverRoutes } from "./routes/driver.routes.js";
+export { driverController } from "./controllers/driver.controller.js";
+export { driverRepository } from "./repository/driver.repository.js";
+export { driverService } from "./services/driver.service.js";
+export { otpService, OtpServiceError } from "./services/otp.service.js";
+export { otpRepository } from "./repository/otp.repository.js";

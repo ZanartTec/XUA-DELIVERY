@@ -1,4 +1,4 @@
-export { default as authRoutes } from "./auth.routes";
-export { authController } from "./auth.controller";
-export { authService, AuthServiceError } from "./auth.service";
-export { authRepository } from "./auth.repository";
+export { default as authRoutes } from "./routes/auth.routes.js";
+export { authController } from "./controllers/auth.controller.js";
+export { authService, AuthServiceError } from "./services/auth.service.js";
+export { authRepository } from "./repository/auth.repository.js";
