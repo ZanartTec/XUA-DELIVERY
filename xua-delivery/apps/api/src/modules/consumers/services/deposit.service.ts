@@ -2,6 +2,9 @@ import type { Prisma, Deposit } from "@prisma/client";
 import { DepositStatus, OrderStatus, AuditEventType, ActorType, SourceApp } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("deposit");
 
 type TxClient = Prisma.TransactionClient;
 const DEPOSIT_AMOUNT_CENTS = 3000;
@@ -65,6 +68,7 @@ export const depositService = {
       tx
     );
 
+    log.info({ orderId, consumerId, amountCents }, "Deposit held");
     return deposit;
   },
 
@@ -105,6 +109,8 @@ export const depositService = {
         },
         tx
       );
+
+      log.info({ orderId, depositId: deposit.id }, "Deposit refund initiated");
     });
   },
 };

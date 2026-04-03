@@ -8,6 +8,9 @@ import {
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { reconciliationRepository } from "../repository/reconciliation.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("reconciliation");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -65,5 +68,7 @@ export const reconciliationService = {
         tx
       );
     });
+
+    log.info({ userId, itemsCount: items.length }, "Reconciliation closed");
   },
 };

@@ -1,5 +1,8 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { AuditEventType } from "@prisma/client";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("kpi");
 
 /**
  * KpiService — Cálculos EXCLUSIVAMENTE via audit_events (seção 1 — KPIs Operacionais).

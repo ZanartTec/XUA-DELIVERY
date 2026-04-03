@@ -1,5 +1,8 @@
 import { zonesRepository } from "../repository/zones.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("zones");
 
 export const zonesService = {
   async list() {
@@ -7,15 +10,20 @@ export const zonesService = {
   },
 
   async create(data: Record<string, unknown>) {
-    return zonesRepository.create(data);
+    const zone = await zonesRepository.create(data);
+    log.info({ zoneId: zone.id }, "Zone created");
+    return zone;
   },
 
   async update(id: string, data: Record<string, unknown>) {
-    return zonesRepository.update(id, data);
+    const zone = await zonesRepository.update(id, data);
+    log.info({ zoneId: id }, "Zone updated");
+    return zone;
   },
 
   async remove(id: string) {
-    return zonesRepository.softDelete(id);
+    await zonesRepository.softDelete(id);
+    log.info({ zoneId: id }, "Zone removed");
   },
 
   async getCapacity(zoneId: string, startDate: string, endDate: string) {

@@ -3,9 +3,13 @@ import type {
   OrderWithConsumer,
   OrderWithConsumerAndAddress,
 } from "../repository/driver.repository.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("driver");
 
 export const driverService = {
   async listDeliveries(driverId: string) {
+    log.debug({ driverId }, "Listing today deliveries");
     const deliveries = await driverRepository.findTodayDeliveries(driverId);
     return deliveries.map((d: OrderWithConsumer) => ({
       ...d,

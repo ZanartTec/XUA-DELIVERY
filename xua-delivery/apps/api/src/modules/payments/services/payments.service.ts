@@ -3,6 +3,9 @@ import { PaymentStatus, PaymentKind, AuditEventType, ActorType, SourceApp } from
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { getPaymentGateway } from "../gateway/payments.gateway.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("payments");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -52,6 +55,7 @@ export const paymentService = {
       return created;
     });
 
+    log.info({ orderId, amountCents, kind, externalId: result.externalId, status: result.status }, "Payment charged");
     return { payment, gatewayResult: result };
   },
 
@@ -81,6 +85,7 @@ export const paymentService = {
         tx
       );
 
+      log.info({ orderId, externalId, paymentId: updated.id }, "Payment confirmed");
       return updated;
     });
   },
@@ -103,6 +108,7 @@ export const paymentService = {
         where: { id: payment.id },
         data: { status: PaymentStatus.REFUNDED },
       });
+      log.info({ orderId, paymentId: payment.id }, "Payment refunded");
     }
 
     return result;

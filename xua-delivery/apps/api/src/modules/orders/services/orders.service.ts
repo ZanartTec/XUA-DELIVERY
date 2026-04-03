@@ -7,7 +7,9 @@ import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
-import { logger } from "../../../infra/logger/index.js";
+import { createLogger } from "../../../infra/logger/index.js";
+
+const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -173,7 +175,7 @@ export const orderService = {
       return created;
     });
 
-    logger.info({ orderId: order.id }, "Order created");
+    log.info({ orderId: order.id }, "Order created");
     return order;
   },
 
