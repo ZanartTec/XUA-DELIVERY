@@ -27,26 +27,3 @@ export function requireRole(...allowedRoles: UserRole[]) {
     next();
   };
 }
-
-// Rotas de API permitidas por role (SEC-02)
-// Usado internamente para validação granular se necessário
-export const API_ROLE_ROUTES: Record<UserRole, string[]> = {
-  consumer: [
-    "/api/orders",
-    "/api/consumers",
-    "/api/subscriptions",
-    "/api/zones",
-    "/api/notifications",
-    "/api/products",
-  ],
-  distributor_admin: ["/api/orders", "/api/reconciliations", "/api/zones"],
-  driver: ["/api/driver", "/api/orders"],
-  support: ["/api/orders", "/api/ops"],
-  ops: [
-    "/api/orders",
-    "/api/ops",
-    "/api/reconciliations",
-    "/api/zones",
-    "/api/audit",
-  ],
-};

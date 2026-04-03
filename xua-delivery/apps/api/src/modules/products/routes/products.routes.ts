@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(authMiddleware);
 
-router.get("/", productsController.list);
+router.get("/", requireRole("consumer", "ops", "distributor_admin"), productsController.list);
 router.get("/all", requireRole("ops"), productsController.listAll);
 router.patch("/:id", requireRole("ops"), productsController.update);
 
