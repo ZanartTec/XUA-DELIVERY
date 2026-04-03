@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { cn } from "@/src/lib/utils";
-import { DeliveryWindow } from "@/src/types/enums";
 
 const WINDOWS = [
-  { value: DeliveryWindow.MORNING, label: "Manhã (8h–12h)" },
-  { value: DeliveryWindow.AFTERNOON, label: "Tarde (13h–18h)" },
+  { value: "morning", label: "Manhã (8h–12h)" },
+  { value: "afternoon", label: "Tarde (13h–18h)" },
 ];
 
 function getNext7Days(): Date[] {

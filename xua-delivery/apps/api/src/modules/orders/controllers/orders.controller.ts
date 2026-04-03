@@ -1,12 +1,34 @@
 import type { Request, Response } from "express";
 import type { Order, Consumer, OrderItem, Product, AuditEvent } from "@prisma/client";
-import { DeliveryWindow, OrderStatus } from "@prisma/client";
+import { DeliveryWindow, OrderStatus, PaymentKind } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
+import { paymentService } from "../../payments/services/payments.service.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
 import { createOrderSchema, ratingSchema, bottleExchangeSchema, nonCollectionSchema } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
+
+/**
+ * Simula o fluxo completo de pagamento quando PAYMENT_PROVIDER=mock (ambiente de teste).
+ * CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR
+ */
+async function autoSimulateMockPayment(orderId: string, totalCents: number): Promise<void> {
+  const provider = process.env.PAYMENT_PROVIDER ?? "mock";
+  if (provider !== "mock") return;
+
+  try {
+    await orderService.submitForPayment(orderId);
+    const { payment } = await paymentService.charge(orderId, totalCents, PaymentKind.ORDER);
+    if (payment.status === "CAPTURED") {
+      await orderService.confirmOrder(orderId);
+      await orderService.sendToDistributor(orderId);
+    }
+    logger.info({ orderId }, "[MOCK] Pagamento simulado — pedido enviado ao distribuidor");
+  } catch (err) {
+    logger.warn({ orderId, err }, "[MOCK] Falha na simulação de pagamento, pedido permanece em CREATED");
+  }
+}
 
 // SEC-05: Verifica se o usuário tem acesso ao pedido
 function canAccess(
@@ -183,6 +205,9 @@ export const ordersController = {
           };
         }),
       });
+
+      // Simula pagamento automático quando PAYMENT_PROVIDER=mock (padrão de desenvolvimento)
+      void autoSimulateMockPayment(order.id, order.total_cents);
 
       res.status(201).json({ order });
     } catch (error) {
