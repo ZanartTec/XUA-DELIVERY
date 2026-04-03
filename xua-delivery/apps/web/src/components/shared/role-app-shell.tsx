@@ -12,6 +12,7 @@ import {
   Headphones,
   KeyRound,
   MapPin,
+  Package,
   RefreshCw,
   ShoppingCart,
   Truck,
@@ -84,6 +85,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     navItems: [
       { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
       { href: "/ops/zones", label: "Zonas", icon: MapPin },
+      { href: "/ops/products", label: "Produtos", icon: Package },
       { href: "/support", label: "Suporte", icon: Headphones },
       { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
       { href: "/ops/audit-export", label: "Auditoria", icon: FileText },

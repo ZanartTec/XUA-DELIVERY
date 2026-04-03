@@ -22,4 +22,25 @@ export const productsService = {
       .catch(() => {});
     return products;
   },
+
+  async listAll() {
+    return productsRepository.findAll();
+  },
+
+  async update(
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      image_url?: string | null;
+      price_cents?: number;
+      deposit_cents?: number;
+      is_active?: boolean;
+    }
+  ) {
+    const product = await productsRepository.update(id, data);
+    // Invalida cache do catálogo ativo
+    redis.del(CACHE_KEY).catch(() => {});
+    return product;
+  },
 };
