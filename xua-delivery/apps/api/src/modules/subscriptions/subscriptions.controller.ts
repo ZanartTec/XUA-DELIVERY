@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { DeliveryWindow, SubscriptionStatus } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
+import { DeliveryWindow } from "@prisma/client";
 import { logger } from "../../infra/logger/index.js";
 import { subscriptionService } from "./subscriptions.service.js";
 import { subscriptionUpdateSchema } from "@xua/shared/schemas/order";
@@ -16,13 +15,9 @@ export const subscriptionsController = {
   /** GET /api/subscriptions */
   async list(req: Request, res: Response): Promise<void> {
     const user = req.user!;
-    const prisma = getPrisma();
 
     try {
-      const subscriptions = await prisma.subscription.findMany({
-        where: { consumer_id: user.sub },
-        orderBy: { created_at: "desc" },
-      });
+      const subscriptions = await subscriptionService.list(user.sub);
       res.json(subscriptions);
     } catch (error) {
       logger.error({ error }, "Error listing subscriptions");
@@ -33,7 +28,6 @@ export const subscriptionsController = {
   /** POST /api/subscriptions */
   async create(req: Request, res: Response): Promise<void> {
     const user = req.user!;
-    const prisma = getPrisma();
 
     const parsed = createSubscriptionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -42,14 +36,10 @@ export const subscriptionsController = {
     }
 
     try {
-      const subscription = await prisma.subscription.create({
-        data: {
-          consumer_id: user.sub,
-          qty_20l: parsed.data.qty_20l,
-          weekday: parsed.data.weekday,
-          delivery_window: parsed.data.window,
-          status: SubscriptionStatus.ACTIVE,
-        },
+      const subscription = await subscriptionService.create(user.sub, {
+        qty_20l: parsed.data.qty_20l,
+        weekday: parsed.data.weekday,
+        delivery_window: parsed.data.window,
       });
       res.status(201).json(subscription);
     } catch (error) {

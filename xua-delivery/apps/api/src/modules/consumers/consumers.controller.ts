@@ -1,14 +1,8 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { fetchCep } from "../../infra/cep/viacep.js";
 import { logger } from "../../infra/logger/index.js";
-import { consumerRepository } from "./consumers.repository.js";
-import { depositService } from "./deposit.service.js";
+import { consumersService } from "./consumers.service.js";
 import { profileUpdateSchema } from "@xua/shared/schemas/consumer";
-import type { Prisma } from "@prisma/client";
-
-type TxClient = Prisma.TransactionClient;
 
 const createAddressSchema = z.object({
   zip_code: z.string().trim().min(1, "CEP é obrigatório"),
@@ -20,11 +14,6 @@ const createAddressSchema = z.object({
   state: z.string().trim().min(1, "Estado é obrigatório"),
   is_default: z.boolean().optional().default(false),
 });
-
-function formatZipCode(zipCode: string): string {
-  const clean = zipCode.replace(/\D/g, "");
-  return clean.length === 8 ? `${clean.slice(0, 5)}-${clean.slice(5)}` : clean;
-}
 
 export const consumersController = {
   // ─── Profile ──────────────────────────────────────────────
@@ -41,7 +30,7 @@ export const consumersController = {
     }
 
     try {
-      const consumer = await consumerRepository.findById(id);
+      const consumer = await consumersService.getProfile(id);
       if (!consumer) {
         res.status(404).json({ error: "Consumidor não encontrado" });
         return;
@@ -70,7 +59,7 @@ export const consumersController = {
     }
 
     try {
-      const updated = await consumerRepository.update(id, parsed.data);
+      const updated = await consumersService.updateProfile(id, parsed.data);
       res.json(updated);
     } catch (error) {
       logger.error({ error }, "Error updating consumer profile");
@@ -91,7 +80,7 @@ export const consumersController = {
     }
 
     try {
-      const preview = await depositService.getPreview(id);
+      const preview = await consumersService.getDepositPreview(id);
       res.json(preview);
     } catch (error) {
       logger.error({ error }, "Error getting deposit preview");
@@ -112,11 +101,7 @@ export const consumersController = {
     }
 
     try {
-      const prisma = getPrisma();
-      const addresses = await prisma.address.findMany({
-        where: { consumer_id: id },
-        orderBy: [{ is_default: "desc" }, { created_at: "desc" }],
-      });
+      const addresses = await consumersService.listAddresses(id);
       res.json({ addresses });
     } catch (error) {
       logger.error({ error }, "Error listing addresses");
@@ -146,47 +131,8 @@ export const consumersController = {
       return;
     }
 
-    const formattedZipCode = formatZipCode(cleanZipCode);
-
     try {
-      const prisma = getPrisma();
-      const result = await prisma.$transaction(async (tx: TxClient) => {
-        const coverage = await tx.zoneCoverage.findFirst({
-          where: {
-            zip_code: { in: [cleanZipCode, formattedZipCode] },
-            zone: { is_active: true },
-          },
-          select: { zone_id: true },
-        });
-
-        if (!coverage) {
-          return { code: "NO_COVERAGE" as const };
-        }
-
-        if (parsed.data.is_default) {
-          await tx.address.updateMany({
-            where: { consumer_id: id, is_default: true },
-            data: { is_default: false },
-          });
-        }
-
-        const address = await tx.address.create({
-          data: {
-            consumer_id: id,
-            zip_code: formattedZipCode,
-            street: parsed.data.street,
-            number: parsed.data.number,
-            complement: parsed.data.complement || null,
-            neighborhood: parsed.data.neighborhood,
-            city: parsed.data.city,
-            state: parsed.data.state,
-            zone_id: coverage.zone_id,
-            is_default: parsed.data.is_default,
-          },
-        });
-
-        return { address };
-      });
+      const result = await consumersService.createAddress(id, parsed.data);
 
       if ("code" in result) {
         res.status(400).json({ error: "Ainda não atendemos sua região", code: "NO_COVERAGE" });
@@ -213,7 +159,7 @@ export const consumersController = {
     }
 
     try {
-      const data = await fetchCep(clean);
+      const data = await consumersService.lookupCep(clean);
       if (!data) {
         res.status(404).json({ error: "CEP não encontrado" });
         return;

@@ -44,4 +44,52 @@ export const consumerRepository = {
       select: SAFE_SELECT,
     });
   },
+
+  // ─── Address methods ──────────────────────────────────────
+
+  async findAddresses(consumerId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.findMany({
+      where: { consumer_id: consumerId },
+      orderBy: [{ is_default: "desc" }, { created_at: "desc" }],
+    });
+  },
+
+  async createAddress(
+    data: {
+      consumer_id: string;
+      zip_code: string;
+      street: string;
+      number: string;
+      complement: string | null;
+      neighborhood: string;
+      city: string;
+      state: string;
+      zone_id: string;
+      is_default: boolean;
+    },
+    tx?: TxClient
+  ) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.create({ data });
+  },
+
+  async clearDefaultAddresses(consumerId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.updateMany({
+      where: { consumer_id: consumerId, is_default: true },
+      data: { is_default: false },
+    });
+  },
+
+  async findZoneCoverage(zipCodes: string[], tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).zoneCoverage.findFirst({
+      where: {
+        zip_code: { in: zipCodes },
+        zone: { is_active: true },
+      },
+      select: { zone_id: true },
+    });
+  },
 };

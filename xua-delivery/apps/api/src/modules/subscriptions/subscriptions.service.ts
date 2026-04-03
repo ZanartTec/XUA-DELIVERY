@@ -1,11 +1,29 @@
 import type { Prisma, Subscription } from "@prisma/client";
-import { SubscriptionStatus, AuditEventType, ActorType, SourceApp } from "@prisma/client";
+import { SubscriptionStatus, DeliveryWindow, AuditEventType, ActorType, SourceApp } from "@prisma/client";
 import { getPrisma } from "../../infra/prisma/client.js";
 import { auditRepository } from "../audit/index.js";
+import { subscriptionRepository } from "./subscriptions.repository.js";
 
 type TxClient = Prisma.TransactionClient;
 
 export const subscriptionService = {
+  async list(consumerId: string) {
+    return subscriptionRepository.findByConsumer(consumerId);
+  },
+
+  async create(
+    consumerId: string,
+    data: { qty_20l: number; weekday: number; delivery_window: DeliveryWindow }
+  ) {
+    return subscriptionRepository.create({
+      consumer_id: consumerId,
+      qty_20l: data.qty_20l,
+      weekday: data.weekday,
+      delivery_window: data.delivery_window,
+      status: SubscriptionStatus.ACTIVE,
+    });
+  },
+
   async pause(subscriptionId: string, consumerId: string): Promise<Subscription> {
     const prisma = getPrisma();
     return prisma.$transaction(async (tx: TxClient) => {

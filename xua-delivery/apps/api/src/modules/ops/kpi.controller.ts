@@ -1,16 +1,8 @@
 import type { Request, Response } from "express";
-import { getPrisma } from "../../infra/prisma/client.js";
 import { logger } from "../../infra/logger/index.js";
 import { kpiService } from "../distributor/kpi.service.js";
-
-function parsePeriodDates(period: string): { start: Date; end: Date } {
-  const end = new Date();
-  const start = new Date();
-  const days =
-    period === "1d" ? 1 : period === "30d" ? 30 : period === "90d" ? 90 : 7;
-  start.setDate(start.getDate() - days);
-  return { start, end };
-}
+import { distributorRepository } from "../distributor/distributor.repository.js";
+import { parsePeriodDates } from "../../utils/date.js";
 
 export const kpiController = {
   /** GET /api/kpis */
@@ -59,11 +51,7 @@ export const kpiController = {
         }
 
         // Sem distributorId: retorna KPIs de todos os distribuidores ativos
-        const prisma = getPrisma();
-        const distributors = await prisma.distributor.findMany({
-          where: { is_active: true },
-          select: { id: true, name: true },
-        });
+        const distributors = await distributorRepository.findAllActive();
 
         const kpis = await Promise.all(
           distributors.map(async (d) => {

@@ -1,11 +1,7 @@
 import type { Request, Response } from "express";
-import type { Prisma } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { logger } from "../../infra/logger/index.js";
+import { logger } from "../../../infra/logger/index.js";
 import { zoneSchema, coverageSchema } from "@xua/shared/schemas/zone";
-import { capacityService } from "../distributor/capacity.service.js";
-
-type TxClient = Prisma.TransactionClient;
+import { zonesService } from "../services/zones.service.js";
 
 export const zonesController = {
   // ─── Zone CRUD ────────────────────────────────────────────
@@ -13,12 +9,7 @@ export const zonesController = {
   /** GET /api/zones */
   async list(_req: Request, res: Response): Promise<void> {
     try {
-      const prisma = getPrisma();
-      const zones = await prisma.zone.findMany({
-        where: { is_active: true },
-        include: { coverage: true },
-        orderBy: { name: "asc" },
-      });
+      const zones = await zonesService.list();
       res.json(zones);
     } catch (error) {
       logger.error({ error }, "Error listing zones");
@@ -35,8 +26,7 @@ export const zonesController = {
     }
 
     try {
-      const prisma = getPrisma();
-      const zone = await prisma.zone.create({ data: parsed.data });
+      const zone = await zonesService.create(parsed.data);
       res.status(201).json(zone);
     } catch (error) {
       logger.error({ error }, "Error creating zone");
@@ -55,11 +45,7 @@ export const zonesController = {
     }
 
     try {
-      const prisma = getPrisma();
-      const zone = await prisma.zone.update({
-        where: { id },
-        data: parsed.data,
-      });
+      const zone = await zonesService.update(id, parsed.data);
       res.json(zone);
     } catch (error) {
       logger.error({ error }, "Error updating zone");
@@ -72,11 +58,7 @@ export const zonesController = {
     const id = req.params.id as string;
 
     try {
-      const prisma = getPrisma();
-      await prisma.zone.update({
-        where: { id },
-        data: { is_active: false },
-      });
+      await zonesService.remove(id);
       res.status(204).end();
     } catch (error) {
       logger.error({ error }, "Error deleting zone");
@@ -101,7 +83,7 @@ export const zonesController = {
         .toISOString()
         .slice(0, 10);
 
-      const slots = await capacityService.checkAvailability(zoneId, date, endDate);
+      const slots = await zonesService.getCapacity(zoneId, date, endDate);
       res.json({ slots });
     } catch (error) {
       logger.error({ error }, "Error getting capacity");
@@ -122,14 +104,7 @@ export const zonesController = {
     }
 
     try {
-      const prisma = getPrisma();
-      const coverage = await prisma.zoneCoverage.create({
-        data: {
-          zone_id: zoneId,
-          neighborhood: parsed.data.neighborhood,
-          zip_code: parsed.data.zip_code,
-        },
-      });
+      const coverage = await zonesService.addCoverage(zoneId, parsed.data);
       res.status(201).json(coverage);
     } catch (error) {
       logger.error({ error }, "Error adding coverage");
@@ -148,10 +123,7 @@ export const zonesController = {
     }
 
     try {
-      const prisma = getPrisma();
-      await prisma.zoneCoverage.delete({
-        where: { id: coverageId, zone_id: zoneId },
-      });
+      await zonesService.removeCoverage(coverageId, zoneId);
       res.status(204).end();
     } catch (error) {
       logger.error({ error }, "Error removing coverage");

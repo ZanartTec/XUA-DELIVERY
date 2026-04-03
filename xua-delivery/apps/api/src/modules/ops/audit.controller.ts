@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
-import { getPrisma } from "../../infra/prisma/client.js";
 import { logger } from "../../infra/logger/index.js";
 import { auditExportSchema } from "@xua/shared/schemas/audit";
 import type { AuditEventType } from "@prisma/client";
 import { buildCsv } from "../../utils/csv.js";
+import { auditExportService } from "./audit.service.js";
 
 export const auditController = {
   /** GET /api/audit/export — exporta eventos de auditoria como CSV */
@@ -28,24 +28,11 @@ export const auditController = {
     const { startDate, endDate, distributorId, eventTypes } = parsed.data;
 
     try {
-      const prisma = getPrisma();
-      const events = await prisma.auditEvent.findMany({
-        where: {
-          occurred_at: {
-            gte: new Date(startDate),
-            lte: new Date(`${endDate}T23:59:59.999Z`),
-          },
-          ...(eventTypes?.length
-            ? { event_type: { in: eventTypes as AuditEventType[] } }
-            : {}),
-          ...(distributorId
-            ? { order: { distributor_id: distributorId } }
-            : {}),
-        },
-        include: {
-          order: { select: { id: true, distributor_id: true } },
-        },
-        orderBy: { occurred_at: "asc" },
+      const events = await auditExportService.findEvents({
+        startDate,
+        endDate,
+        eventTypes: eventTypes as AuditEventType[] | undefined,
+        distributorId,
       });
 
       const CSV_HEADERS = [

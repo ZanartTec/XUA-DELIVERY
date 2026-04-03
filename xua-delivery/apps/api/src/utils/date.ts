@@ -16,3 +16,16 @@ export function nextMonthSameDay(dateStr: string): string {
   const result = new Date(Date.UTC(targetYear, normalizedMonth, day));
   return result.toISOString().split("T")[0];
 }
+
+/**
+ * Converte um período abreviado ("1d", "7d", "30d", "90d") em datas de início/fim.
+ * Usado em dashboards de KPI.
+ */
+export function parsePeriodDates(period: string): { start: Date; end: Date } {
+  const end = new Date();
+  const start = new Date();
+  const days =
+    period === "1d" ? 1 : period === "30d" ? 30 : period === "90d" ? 90 : 7;
+  start.setDate(start.getDate() - days);
+  return { start, end };
+}
