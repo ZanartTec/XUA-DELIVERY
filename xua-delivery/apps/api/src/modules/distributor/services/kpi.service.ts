@@ -1,4 +1,4 @@
-import { getPrisma } from "../../infra/prisma/client.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
 import { AuditEventType } from "@prisma/client";
 
 /**

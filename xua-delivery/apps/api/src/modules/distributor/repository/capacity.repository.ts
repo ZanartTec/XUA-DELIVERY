@@ -1,5 +1,5 @@
 import type { Prisma, DeliveryCapacity, DeliveryWindow } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
 

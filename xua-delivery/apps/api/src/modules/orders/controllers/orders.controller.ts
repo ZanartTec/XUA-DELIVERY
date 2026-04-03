@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import type { Order, Consumer, OrderItem, Product, AuditEvent } from "@prisma/client";
 import { DeliveryWindow, OrderStatus } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { orderService, OrderServiceError } from "./orders.service.js";
-import { orderRepository } from "./orders.repository.js";
-import { otpService } from "../driver/otp.service.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { orderService, OrderServiceError } from "../services/orders.service.js";
+import { orderRepository } from "../repository/orders.repository.js";
+import { otpService } from "../../driver/services/otp.service.js";
 import { createOrderSchema, ratingSchema, bottleExchangeSchema, nonCollectionSchema } from "@xua/shared/schemas/order";
-import { logger } from "../../infra/logger/index.js";
+import { logger } from "../../../infra/logger/index.js";
 
 // SEC-05: Verifica se o usuário tem acesso ao pedido
 function canAccess(

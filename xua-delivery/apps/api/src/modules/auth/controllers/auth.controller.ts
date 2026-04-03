@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { loginSchema, registerSchema } from "@xua/shared/schemas/auth";
-import { verifyToken } from "../../infra/auth/jwt";
-import { isBlacklisted } from "../../infra/auth/blacklist";
-import { authService } from "./auth.service";
+import { verifyToken } from "../../../infra/auth/jwt.js";
+import { isBlacklisted } from "../../../infra/auth/blacklist.js";
+import { authService } from "../services/auth.service.js";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,

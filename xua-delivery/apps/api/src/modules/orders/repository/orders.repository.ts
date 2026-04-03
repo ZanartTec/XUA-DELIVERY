@@ -1,5 +1,5 @@
 import type { Prisma, Order, OrderStatus } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
 

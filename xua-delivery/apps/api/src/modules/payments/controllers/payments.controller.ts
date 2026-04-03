@@ -2,9 +2,9 @@ import type { Request, Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Prisma } from "@prisma/client";
 import { AuditEventType, ActorType, SourceApp, PaymentKind, PaymentStatus } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { auditRepository } from "../audit/index.js";
-import { logger } from "../../infra/logger/index.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { auditRepository } from "../../audit/index.js";
+import { logger } from "../../../infra/logger/index.js";
 
 type TxClient = Prisma.TransactionClient;
 

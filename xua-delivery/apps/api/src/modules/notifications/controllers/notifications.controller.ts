@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { notificationService } from "./notification.service.js";
-import { logger } from "../../infra/logger/index.js";
+import { notificationService } from "../services/notification.service.js";
+import { logger } from "../../../infra/logger/index.js";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),

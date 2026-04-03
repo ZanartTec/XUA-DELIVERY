@@ -1,9 +1,9 @@
 import { createHmac, randomInt } from "crypto";
 import { OtpStatus, AuditEventType, ActorType, SourceApp, Prisma } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { otpRepository } from "./otp.repository.js";
-import { auditRepository } from "../audit/audit.repository.js";
-import { logger } from "../../infra/logger/index.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { otpRepository } from "../repository/otp.repository.js";
+import { auditRepository } from "../../audit/audit.repository.js";
+import { logger } from "../../../infra/logger/index.js";
 
 type TxClient = Prisma.TransactionClient;
 

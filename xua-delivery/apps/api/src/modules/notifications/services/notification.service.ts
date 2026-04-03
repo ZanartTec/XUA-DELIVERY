@@ -1,6 +1,6 @@
 import webPush from "web-push";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { logger } from "../../infra/logger/index.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { logger } from "../../../infra/logger/index.js";
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY ?? "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";

@@ -1,7 +1,7 @@
 import { signToken } from "../../../infra/auth/jwt";
 import { hashPassword, comparePassword } from "../../../infra/auth/password";
 import { blacklistToken } from "../../../infra/auth/blacklist";
-import { authRepository } from "./auth.repository";
+import { authRepository } from "../repository/auth.repository.js";
 import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";
 
 export class AuthServiceError extends Error {

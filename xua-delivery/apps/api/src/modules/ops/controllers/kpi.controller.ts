@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
-import { kpiService } from "../../distributor/kpi.service.js";
+import { kpiService } from "../../distributor/services/kpi.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 

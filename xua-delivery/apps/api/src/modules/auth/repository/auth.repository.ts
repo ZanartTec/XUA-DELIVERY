@@ -1,4 +1,4 @@
-import { prisma } from "../../infra/prisma/client";
+import { prisma } from "../../../infra/prisma/client.js";
 
 // SEC-07: Colunas seguras para retorno (NUNCA incluir password_hash)
 const SAFE_SELECT = {

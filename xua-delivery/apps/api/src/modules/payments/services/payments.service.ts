@@ -1,8 +1,8 @@
 import type { Prisma, Payment } from "@prisma/client";
 import { PaymentStatus, PaymentKind, AuditEventType, ActorType, SourceApp } from "@prisma/client";
-import { getPrisma } from "../../infra/prisma/client.js";
-import { auditRepository } from "../audit/index.js";
-import { getPaymentGateway } from "./payments.gateway.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { auditRepository } from "../../audit/index.js";
+import { getPaymentGateway } from "../gateway/payments.gateway.js";
 
 type TxClient = Prisma.TransactionClient;
 
