@@ -57,12 +57,12 @@ router.post("/:id/rating", requireRole("consumer"), ordersController.submitRatin
  * POST /api/orders/:id/bottle-exchange
  * Motorista registra troca de vasilhame.
  */
-router.post("/:id/bottle-exchange", requireRole("driver", "operator"), ordersController.recordBottleExchange);
+router.post("/:id/bottle-exchange", requireRole("driver"), ordersController.recordBottleExchange);
 
 /**
  * POST /api/orders/:id/empty-not-collected
  * Motorista registra vasilhame não coletado.
  */
-router.post("/:id/empty-not-collected", requireRole("driver", "operator"), ordersController.recordEmptyNotCollected);
+router.post("/:id/empty-not-collected", requireRole("driver"), ordersController.recordEmptyNotCollected);
 
 export { router as ordersRoutes };

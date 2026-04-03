@@ -3,6 +3,9 @@ import { SubscriptionStatus, DeliveryWindow, AuditEventType, ActorType, SourceAp
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { subscriptionRepository } from "../repository/subscriptions.repository.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("subscriptions");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -15,13 +18,15 @@ export const subscriptionService = {
     consumerId: string,
     data: { qty_20l: number; weekday: number; delivery_window: DeliveryWindow }
   ) {
-    return subscriptionRepository.create({
+    const sub = await subscriptionRepository.create({
       consumer_id: consumerId,
       qty_20l: data.qty_20l,
       weekday: data.weekday,
       delivery_window: data.delivery_window,
       status: SubscriptionStatus.ACTIVE,
     });
+    log.info({ subscriptionId: sub.id, consumerId }, "Subscription created");
+    return sub;
   },
 
   async pause(subscriptionId: string, consumerId: string): Promise<Subscription> {
@@ -48,6 +53,7 @@ export const subscriptionService = {
         tx
       );
 
+      log.info({ subscriptionId, consumerId }, "Subscription paused");
       return updated;
     });
   },
@@ -65,6 +71,7 @@ export const subscriptionService = {
         data: { status: SubscriptionStatus.ACTIVE },
       });
 
+      log.info({ subscriptionId, consumerId }, "Subscription resumed");
       return updated;
     });
   },
@@ -82,6 +89,7 @@ export const subscriptionService = {
         data: { status: SubscriptionStatus.CANCELLED },
       });
 
+      log.info({ subscriptionId, consumerId }, "Subscription cancelled");
       return updated;
     });
   },

@@ -27,13 +27,13 @@ export default function OpsKpisPage() {
 
   const { data: allKpis, isLoading } = useQuery<DistributorKpi[]>({
     queryKey: ["ops-kpis", period],
-    queryFn: () => api.get<{ kpis: DistributorKpi[] }>(`/api/kpis?period=${period}`).then((r) => r.kpis),
+    queryFn: () => api.get<{ kpis: DistributorKpi[] }>(`/api/ops/kpis?period=${period}`).then((r) => r.kpis),
   });
 
   const { data: detailKpi } = useQuery<SingleKpi>({
     queryKey: ["ops-kpi-detail", period, selectedDistributor],
     queryFn: () =>
-      api.get<{ kpis: SingleKpi }>(`/api/kpis?period=${period}&distributorId=${selectedDistributor}`).then((r) => r.kpis),
+      api.get<{ kpis: SingleKpi }>(`/api/ops/kpis?period=${period}&distributorId=${selectedDistributor}`).then((r) => r.kpis),
     enabled: !!selectedDistributor,
   });
 

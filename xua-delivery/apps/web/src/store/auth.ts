@@ -3,8 +3,7 @@ import { create } from "zustand";
 interface User {
   id: string;
   name: string;
-  // SEC-11: Adicionado role driver
-  role: "consumer" | "distributor_admin" | "operator" | "driver" | "ops" | "support";
+  role: "consumer" | "distributor_admin" | "driver" | "ops" | "support";
 }
 
 interface AuthState {

@@ -20,10 +20,10 @@ export default function SubscriptionManagePage() {
   }, []);
 
   async function toggleStatus(id: string, action: "pause" | "resume" | "cancel") {
-    await fetch(`/api/subscriptions`, {
+    await fetch(`/api/subscriptions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action }),
+      body: JSON.stringify({ action }),
     });
     setSubscriptions((prev) =>
       prev.map((s) =>

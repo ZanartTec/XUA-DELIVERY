@@ -28,6 +28,8 @@ function PaymentContent() {
     isFirstPurchase: false,
     depositAmountCents: 0,
   });
+  const [addresses, setAddresses] = useState<{ id: string; street: string; number: string; is_default?: boolean }[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const subtotal = getSubtotalCents();
   const depositCents = depositPreview.isFirstPurchase ? depositPreview.depositAmountCents : 0;
@@ -57,18 +59,27 @@ function PaymentContent() {
           throw new Error("AUTH_REQUIRED");
         }
 
-        const res = await fetch(`/api/consumers/${consumerId}/deposit-preview`);
-        const body = await res.json();
+        const [depositRes, addrRes] = await Promise.all([
+          fetch(`/api/consumers/${consumerId}/deposit-preview`),
+          fetch(`/api/consumers/${consumerId}/addresses`),
+        ]);
+        const depositBody = await depositRes.json();
+        const addrBody = await addrRes.json();
 
-        if (!res.ok) {
-          throw new Error(body.error || "Erro ao carregar caução");
+        if (!depositRes.ok) {
+          throw new Error(depositBody.error || "Erro ao carregar caução");
         }
 
         if (!cancelled) {
           setDepositPreview({
-            isFirstPurchase: Boolean(body.isFirstPurchase),
-            depositAmountCents: Number(body.depositAmountCents ?? 0),
+            isFirstPurchase: Boolean(depositBody.isFirstPurchase),
+            depositAmountCents: Number(depositBody.depositAmountCents ?? 0),
           });
+
+          const addrList = addrBody.addresses ?? [];
+          setAddresses(addrList);
+          const defaultAddr = addrList.find((a: { is_default?: boolean }) => a.is_default) ?? addrList[0];
+          if (defaultAddr) setSelectedAddressId(defaultAddr.id);
         }
       } catch {
         if (!cancelled) {
@@ -89,6 +100,10 @@ function PaymentContent() {
   }, [user?.id]);
 
   async function handleConfirm() {
+    if (!selectedAddressId) {
+      setError("Selecione um endereço de entrega.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -96,6 +111,7 @@ function PaymentContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          address_id: selectedAddressId,
           items: items.map((i) => ({
             product_id: i.product_id,
             quantity: i.quantity,
@@ -158,6 +174,31 @@ function PaymentContent() {
           <p className="text-xs text-muted-foreground mt-1">
             Entrega: {date} — {window === "morning" ? "Manhã" : "Tarde"}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Endereço de entrega</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {addresses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum endereço cadastrado. Adicione um em Perfil &gt; Endereços.
+            </p>
+          ) : (
+            <select
+              value={selectedAddressId ?? ""}
+              onChange={(e) => setSelectedAddressId(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 text-sm"
+            >
+              {addresses.map((addr) => (
+                <option key={addr.id} value={addr.id}>
+                  {addr.street}, {addr.number}{addr.is_default ? " (Principal)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
         </CardContent>
       </Card>
 

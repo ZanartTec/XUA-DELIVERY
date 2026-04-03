@@ -7,7 +7,9 @@ import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
-import { logger } from "../../../infra/logger/index.js";
+import { createLogger } from "../../../infra/logger/index.js";
+
+const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -173,7 +175,7 @@ export const orderService = {
       return created;
     });
 
-    logger.info({ orderId: order.id }, "Order created");
+    log.info({ orderId: order.id }, "Order created");
     return order;
   },
 
@@ -573,18 +575,20 @@ export const orderService = {
   async cancelOrder(
     orderId: string,
     actorId: string,
-    actorType: "consumer" | "ops" | "distributor",
+    actorType: "consumer" | "ops" | "distributor" | "driver",
     reason: string
   ): Promise<Order> {
     const actorMap: Record<string, ActorType> = {
       consumer: ActorType.CONSUMER,
       ops: ActorType.OPS,
       distributor: ActorType.DISTRIBUTOR_USER,
+      driver: ActorType.DRIVER,
     };
     const sourceAppMap: Record<string, SourceApp> = {
       consumer: SourceApp.CONSUMER_WEB,
       ops: SourceApp.OPS_CONSOLE,
       distributor: SourceApp.DISTRIBUTOR_WEB,
+      driver: SourceApp.DRIVER_WEB,
     };
     const actor = actorMap[actorType];
     const sourceApp = sourceAppMap[actorType];

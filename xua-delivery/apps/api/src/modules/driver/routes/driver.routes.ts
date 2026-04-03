@@ -5,9 +5,9 @@ import { driverController } from "../controllers/driver.controller.js";
 
 const router = Router();
 
-// Todas as rotas de driver requerem autenticação + role driver ou operator
+// Todas as rotas de driver requerem autenticação + role driver
 router.use(authMiddleware);
-router.use(requireRole("driver", "operator"));
+router.use(requireRole("driver"));
 
 /**
  * GET /api/driver/deliveries

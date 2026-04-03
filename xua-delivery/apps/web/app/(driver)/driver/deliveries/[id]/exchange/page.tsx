@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
@@ -9,12 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/ca
 export default function BottleExchangePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [collectedQty, setCollectedQty] = useState(0);
-  const [condition, setCondition] = useState<"good" | "damaged">("good");
+  const user = useAuthStore((s) => s.user);
+  const [returnedQty, setReturnedQty] = useState(0);
+  const [condition, setCondition] = useState<"ok" | "damaged" | "dirty">("ok");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
+    if (!user?.id) {
+      setError("Usuário não identificado.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -22,8 +28,9 @@ export default function BottleExchangePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          collected_qty: collectedQty,
-          condition,
+          driver_id: user.id,
+          returned_empty_qty: returnedQty,
+          bottle_condition: condition,
         }),
       });
       if (!res.ok) {
@@ -56,21 +63,21 @@ export default function BottleExchangePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCollectedQty(Math.max(0, collectedQty - 1))}
+                onClick={() => setReturnedQty(Math.max(0, returnedQty - 1))}
               >
                 −
               </Button>
               <Input
                 type="number"
                 min={0}
-                value={collectedQty}
-                onChange={(e) => setCollectedQty(Math.max(0, parseInt(e.target.value) || 0))}
+                value={returnedQty}
+                onChange={(e) => setReturnedQty(Math.max(0, parseInt(e.target.value) || 0))}
                 className="w-20 text-center"
               />
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCollectedQty(collectedQty + 1)}
+                onClick={() => setReturnedQty(returnedQty + 1)}
               >
                 +
               </Button>
@@ -81,10 +88,10 @@ export default function BottleExchangePage() {
             <label className="text-sm font-medium">Condição</label>
             <div className="flex gap-2">
               <Button
-                variant={condition === "good" ? "default" : "outline"}
+                variant={condition === "ok" ? "default" : "outline"}
                 size="sm"
                 className="flex-1"
-                onClick={() => setCondition("good")}
+                onClick={() => setCondition("ok")}
               >
                 Bom estado
               </Button>
@@ -95,6 +102,14 @@ export default function BottleExchangePage() {
                 onClick={() => setCondition("damaged")}
               >
                 Danificado
+              </Button>
+              <Button
+                variant={condition === "dirty" ? "default" : "outline"}
+                size="sm"
+                className="flex-1"
+                onClick={() => setCondition("dirty")}
+              >
+                Sujo
               </Button>
             </div>
           </div>

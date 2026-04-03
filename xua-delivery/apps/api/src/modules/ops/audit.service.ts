@@ -1,5 +1,8 @@
 import { getPrisma } from "../../infra/prisma/client.js";
 import type { AuditEventType } from "@prisma/client";
+import { createLogger } from "../../infra/logger";
+
+const log = createLogger("audit-export");
 
 export const auditExportService = {
   async findEvents(params: {
@@ -9,7 +12,7 @@ export const auditExportService = {
     distributorId?: string;
   }) {
     const prisma = getPrisma();
-    return prisma.auditEvent.findMany({
+    const events = await prisma.auditEvent.findMany({
       where: {
         occurred_at: {
           gte: new Date(params.startDate),
@@ -27,5 +30,8 @@ export const auditExportService = {
       },
       orderBy: { occurred_at: "asc" },
     });
+
+    log.info({ startDate: params.startDate, endDate: params.endDate, count: events.length }, "Audit events exported");
+    return events;
   },
 };

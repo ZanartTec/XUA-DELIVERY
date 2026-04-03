@@ -3,7 +3,9 @@ import { OtpStatus, AuditEventType, ActorType, SourceApp, Prisma } from "@prisma
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { otpRepository } from "../repository/otp.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
-import { logger } from "../../../infra/logger/index.js";
+import { createLogger } from "../../../infra/logger/index.js";
+
+const logger = createLogger("otp");
 
 type TxClient = Prisma.TransactionClient;
 

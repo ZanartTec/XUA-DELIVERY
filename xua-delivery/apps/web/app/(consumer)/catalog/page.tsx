@@ -5,9 +5,18 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { useCartStore } from "@/src/store/cart";
 import { formatCurrency } from "@/src/lib/utils";
-import { Droplets, Plus, ShoppingCart, PackageOpen } from "lucide-react";
+import { Droplets, Plus, PackageOpen } from "lucide-react";
 import { toast } from "sonner";
-import type { Product } from "@/src/types";
+
+interface ProductItem {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  price_cents: number;
+  deposit_cents: number;
+  is_active: boolean;
+}
 
 function ProductSkeleton() {
   return (
@@ -22,7 +31,7 @@ function ProductSkeleton() {
 }
 
 export default function CatalogPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const addItem = useCartStore((s) => s.addItem);
@@ -52,7 +61,7 @@ export default function CatalogPage() {
     void loadProducts();
   }, []);
 
-  function handleAdd(product: Product) {
+  function handleAdd(product: ProductItem) {
     addItem({
       product_id: product.id,
       product_name: product.name,
@@ -90,9 +99,18 @@ export default function CatalogPage() {
           {products.map((product) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-0">
-                {/* Placeholder de imagem */}
-                <div className="h-28 bg-gradient-to-br from-accent/10 to-primary/5 flex items-center justify-center">
-                  <Droplets className="h-10 w-10 text-accent/40" />
+                {/* Imagem do produto */}
+                <div className="h-28 bg-gradient-to-br from-accent/10 to-primary/5 flex items-center justify-center overflow-hidden">
+                  {product.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Droplets className="h-10 w-10 text-accent/40" />
+                  )}
                 </div>
                 <div className="p-3 space-y-1.5">
                   <h3 className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</h3>

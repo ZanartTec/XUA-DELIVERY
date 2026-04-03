@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
@@ -8,6 +9,8 @@ import { toast } from "sonner";
 import type { Address } from "@/src/types";
 
 export default function AddressesPage() {
+  const user = useAuthStore((s) => s.user);
+  const [consumerId, setConsumerId] = useState<string | null>(user?.id ?? null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [cep, setCep] = useState("");
@@ -24,12 +27,27 @@ export default function AddressesPage() {
   const [cepLoading, setCepLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/consumers/me/addresses")
-      .then((r) => r.json())
-      .then((data) => setAddresses(data.addresses ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    async function load() {
+      try {
+        let uid = consumerId;
+        if (!uid) {
+          const meRes = await fetch("/api/auth/me");
+          const meData = await meRes.json();
+          uid = meData.consumer?.id ?? null;
+          if (uid) setConsumerId(uid);
+        }
+        if (!uid) return;
+        const res = await fetch(`/api/consumers/${uid}/addresses`);
+        const data = await res.json();
+        setAddresses(data.addresses ?? []);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
+  }, [consumerId]);
 
   async function lookupCep() {
     const clean = cep.replace(/\D/g, "");
@@ -40,7 +58,7 @@ export default function AddressesPage() {
     setCepLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/consumers/me/addresses?action=cep&cep=${clean}`);
+      const res = await fetch(`/api/consumers/cep/${clean}`);
       const data = await res.json();
       if (data.error) {
         setError(data.error);
@@ -61,11 +79,11 @@ export default function AddressesPage() {
   }
 
   async function handleAdd() {
-    if (!cepData || !number) return;
+    if (!cepData || !number || !consumerId) return;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/consumers/me/addresses", {
+      const res = await fetch(`/api/consumers/${consumerId}/addresses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

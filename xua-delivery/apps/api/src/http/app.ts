@@ -6,6 +6,7 @@ import { healthHandler } from "./handlers/health";
 import { readinessHandler } from "./handlers/readiness";
 import { registerRoutes } from "./routs";
 import { errorHandler } from "../middleware/error-handler";
+import { httpLogger } from "../middleware/http-logger";
 
 export function createApp(): Application {
   const app = express();
@@ -20,6 +21,9 @@ export function createApp(): Application {
   );
   app.use(cookieParser());
   app.use(express.json());
+
+  // ── Logging HTTP automático ─────────────────────────────────────
+  app.use(httpLogger);
 
   // ── Probes de infraestrutura (não passam pelo RBAC) ─────────────
   app.get("/health", healthHandler);

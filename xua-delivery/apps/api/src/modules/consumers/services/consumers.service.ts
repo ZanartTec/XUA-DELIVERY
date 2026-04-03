@@ -4,6 +4,9 @@ import { consumerRepository } from "../repository/consumers.repository.js";
 import { depositService } from "./deposit.service.js";
 import { fetchCep } from "../../../infra/cep/viacep.js";
 import { formatZipCode } from "../../../utils/format.js";
+import { createLogger } from "../../../infra/logger";
+
+const log = createLogger("consumers");
 
 type TxClient = Prisma.TransactionClient;
 
@@ -16,6 +19,7 @@ export const consumersService = {
     id: string,
     data: Parameters<typeof consumerRepository.update>[1]
   ) {
+    log.info({ consumerId: id }, "Profile updated");
     return consumerRepository.update(id, data);
   },
 
@@ -74,6 +78,7 @@ export const consumersService = {
         tx
       );
 
+      log.info({ consumerId, addressId: address.id, zipCode: formattedZipCode }, "Address created");
       return { address };
     });
   },

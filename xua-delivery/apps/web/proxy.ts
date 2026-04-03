@@ -14,7 +14,6 @@ const PUBLIC_PATHS = ["/login", "/register"];
 const ROLE_REDIRECTS: Record<string, string> = {
   consumer: "/catalog",
   distributor_admin: "/distributor/queue",
-  operator: "/driver/deliveries",
   driver: "/driver/deliveries",
   ops: "/ops/kpis",
   support: "/support",
@@ -24,7 +23,6 @@ const ROLE_REDIRECTS: Record<string, string> = {
 const ROLE_ROUTES: Record<string, string[]> = {
   consumer: ["/catalog", "/cart", "/checkout", "/orders", "/subscription", "/profile"],
   distributor_admin: ["/distributor"],
-  operator: ["/driver"],
   driver: ["/driver"],
   support: ["/support", "/ops/otp-override"],
   ops: ["/ops", "/support"],

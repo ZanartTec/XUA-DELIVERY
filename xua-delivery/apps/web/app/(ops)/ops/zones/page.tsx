@@ -37,7 +37,7 @@ export default function ZonesPage() {
   }
 
   async function saveZone(zone: Zone) {
-    await fetch(`/api/zones/${zone.id}/capacity`, {
+    await fetch(`/api/zones/${zone.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

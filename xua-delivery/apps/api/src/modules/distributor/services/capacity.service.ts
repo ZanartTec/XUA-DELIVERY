@@ -1,6 +1,8 @@
 import type { Prisma, DeliveryWindow } from "@prisma/client";
 import { capacityRepository } from "../repository/capacity.repository.js";
-import { logger } from "../../../infra/logger/index.js";
+import { createLogger } from "../../../infra/logger/index.js";
+
+const logger = createLogger("capacity");
 
 type TxClient = Prisma.TransactionClient;
 
