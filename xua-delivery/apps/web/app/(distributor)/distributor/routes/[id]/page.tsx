@@ -1,39 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { StatusPill } from "@/src/components/shared/status-pill";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
-
-interface RouteStop {
-  order_id: string;
-  consumer_name: string;
-  address_line: string;
-  status: string;
-  sequence: number;
-}
 
 export default function RouteDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [stops, setStops] = useState<RouteStop[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/orders?scope=route&route_id=${id}`)
-      .then((r) => r.json())
-      .then((data) => setStops(data.stops ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  if (loading) {
-    return (
-      <div>
-        <h1 className="text-xl font-bold mb-4">Rota #{id}</h1>
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -50,22 +21,13 @@ export default function RouteDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-2">
-        {stops.map((stop) => (
-          <Card key={stop.order_id}>
-            <CardContent className="py-3 flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">
-                  <span className="text-muted-foreground/60 mr-2">#{stop.sequence}</span>
-                  {stop.consumer_name}
-                </p>
-                <p className="text-xs text-muted-foreground">{stop.address_line}</p>
-              </div>
-              <StatusPill status={stop.status} />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardContent className="py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Funcionalidade de rotas de entrega em desenvolvimento.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

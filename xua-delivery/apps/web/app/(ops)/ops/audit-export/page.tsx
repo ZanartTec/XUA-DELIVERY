@@ -18,12 +18,11 @@ export default function AuditExportPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (startDate) params.set("start", startDate);
-      if (endDate) params.set("end", endDate);
-      if (eventType) params.set("type", eventType);
-      params.set("format", "csv");
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (eventType) params.append("eventTypes[]", eventType);
 
-      const res = await fetch(`/api/orders?scope=audit_export&${params.toString()}`);
+      const res = await fetch(`/api/ops/audit/export?${params.toString()}`);
       if (!res.ok) return;
 
       const blob = await res.blob();

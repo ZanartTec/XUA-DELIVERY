@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
 export default function ProfileEditPage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const [consumerId, setConsumerId] = useState<string | null>(user?.id ?? null);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +20,7 @@ export default function ProfileEditPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.consumer) {
+          setConsumerId(data.consumer.id);
           setForm({
             name: data.consumer.name,
             email: data.consumer.email,
@@ -33,10 +37,14 @@ export default function ProfileEditPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!consumerId) {
+      setError("Usuário não identificado. Recarregue a página.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await fetch(`/api/consumers/${consumerId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

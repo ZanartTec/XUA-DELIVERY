@@ -17,7 +17,7 @@ export default function ReconciliationPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch("/api/reconciliations")
+    fetch("/api/ops/reconciliations")
       .then((r) => r.json())
       .then((data) => setRows(data.rows ?? []))
       .catch(() => {})
@@ -27,7 +27,7 @@ export default function ReconciliationPage() {
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      await fetch("/api/reconciliations", {
+      await fetch("/api/ops/reconciliations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),

@@ -18,7 +18,7 @@ export default function KpisPage() {
 
   const { data: kpis, isLoading } = useQuery<KpiData>({
     queryKey: ["kpis", period],
-    queryFn: () => api.get<{ kpis: KpiData }>(`/api/kpis?period=${period}`).then((r) => r.kpis),
+    queryFn: () => api.get<{ kpis: KpiData }>(`/api/ops/kpis?period=${period}`).then((r) => r.kpis),
   });
 
   return (
