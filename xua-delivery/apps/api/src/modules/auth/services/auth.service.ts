@@ -3,6 +3,8 @@ import { hashPassword, comparePassword } from "../../../infra/auth/password";
 import { blacklistToken } from "../../../infra/auth/blacklist";
 import { authRepository } from "../repository/auth.repository.js";
 import { createLogger } from "../../../infra/logger";
+import { isUserRole } from "@xua/shared/constants/roles";
+import type { UserRole } from "@xua/shared/constants/roles";
 import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";
 
 const log = createLogger("auth");
@@ -36,9 +38,16 @@ export const authService = {
       throw new AuthServiceError("Credenciais inválidas", 401);
     }
 
+    const rawRole = consumer.role ?? "consumer";
+    if (!isUserRole(rawRole)) {
+      log.error({ userId: consumer.id, role: rawRole }, "Role inválida no DB");
+      throw new AuthServiceError("Conta com role inválida. Contate o suporte.", 403);
+    }
+    const role: UserRole = rawRole;
+
     const token = await signToken({
       sub: consumer.id,
-      role: consumer.role === "operator" ? "driver" : (consumer.role ?? "consumer"),
+      role,
       name: consumer.name,
     });
 
@@ -68,12 +77,20 @@ export const authService = {
       password_hash,
     });
 
+    const rawRole = consumer.role ?? "consumer";
+    if (!isUserRole(rawRole)) {
+      log.error({ userId: consumer.id, role: rawRole }, "Role inválida no DB");
+      throw new AuthServiceError("Conta com role inválida. Contate o suporte.", 403);
+    }
+    const role: UserRole = rawRole;
+
     const token = await signToken({
       sub: consumer.id,
-      role: consumer.role === "operator" ? "driver" : (consumer.role ?? "consumer"),
+      role,
       name: consumer.name,
     });
 
+    // authRepository.create já usa SAFE_SELECT — password_hash nunca é retornado
     log.info({ userId: consumer.id }, "User registered");
     return { token, user: consumer };
   },

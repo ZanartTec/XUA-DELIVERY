@@ -9,10 +9,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-// KPIs — distributor_admin vê os próprios, ops vê todos
+// KPIs — distributor_admin vê os próprios, ops vê todos, support visualiza
 router.get(
   "/kpis",
-  requireRole("distributor_admin", "ops"),
+  requireRole("distributor_admin", "ops", "support"),
   kpiController.get
 );
 

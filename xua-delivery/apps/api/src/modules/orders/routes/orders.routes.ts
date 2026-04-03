@@ -15,7 +15,11 @@ router.use(authMiddleware);
  * - distributor_admin: scope=distributor lista pedidos do distribuidor
  * - ops/support: scope=support busca por telefone/email/id
  */
-router.get("/", ordersController.list);
+router.get(
+  "/",
+  requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersController.list
+);
 
 /**
  * POST /api/orders
@@ -29,7 +33,11 @@ router.post("/", requireRole("consumer"), ordersController.create);
  * Busca detalhes de um pedido com timeline.
  * Acesso baseado em ownership (SEC-05).
  */
-router.get("/:id", ordersController.getById);
+router.get(
+  "/:id",
+  requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersController.getById
+);
 
 /**
  * PATCH /api/orders/:id
@@ -45,7 +53,11 @@ router.get("/:id", ordersController.getById);
  * - delivery_failed: motorista marca falha na entrega
  * - schedule_redelivery: ops agenda reentrega
  */
-router.patch("/:id", ordersController.action);
+router.patch(
+  "/:id",
+  requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersController.action
+);
 
 /**
  * POST /api/orders/:id/rating

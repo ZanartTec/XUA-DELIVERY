@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { RoleAppShell } from "@/src/components/shared/role-app-shell";
 import { normalizeUserRole } from "@/src/lib/role-utils";
 
@@ -8,7 +9,17 @@ export default async function DriverLayout({
   children: React.ReactNode;
 }) {
   const requestHeaders = await headers();
-  const role = normalizeUserRole(requestHeaders.get("x-user-role"), "driver");
+  const rawRole = requestHeaders.get("x-user-role");
+
+  if (!rawRole) {
+    redirect("/login");
+  }
+
+  const role = normalizeUserRole(rawRole, "driver");
+
+  if (role !== "driver") {
+    redirect("/");
+  }
 
   return (
     <RoleAppShell

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { RoleAppShell } from "@/src/components/shared/role-app-shell";
 import { normalizeUserRole } from "@/src/lib/role-utils";
 
@@ -8,7 +9,18 @@ export default async function OpsLayout({
   children: React.ReactNode;
 }) {
   const requestHeaders = await headers();
-  const role = normalizeUserRole(requestHeaders.get("x-user-role"), "ops");
+  const rawRole = requestHeaders.get("x-user-role");
+
+  if (!rawRole) {
+    redirect("/login");
+  }
+
+  const role = normalizeUserRole(rawRole, "ops");
+
+  // Apenas ops e support têm acesso a esta área
+  if (role !== "ops" && role !== "support") {
+    redirect("/");
+  }
 
   return (
     <RoleAppShell

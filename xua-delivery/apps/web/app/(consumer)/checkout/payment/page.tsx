@@ -7,19 +7,23 @@ import { useAuthStore } from "@/src/store/auth";
 import { formatCurrency } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { FlaskConical } from "lucide-react";
 
 function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const date = searchParams.get("date");
-  const window = searchParams.get("window");
+  // Normaliza para minúsculo — suporta URLs antigas com "MORNING"/"AFTERNOON"
+  const deliveryWindow = (searchParams.get("window") ?? "morning").toLowerCase() as "morning" | "afternoon";
 
   const items = useCartStore((s) => s.items);
   const emptyBottlesQty = useCartStore((s) => s.emptyBottlesQty);
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
   const clearCart = useCartStore((s) => s.clearCart);
 
+  // mounted evita hydration mismatch: Zustand persist lê localStorage só no client
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -31,7 +35,9 @@ function PaymentContent() {
   const [addresses, setAddresses] = useState<{ id: string; street: string; number: string; is_default?: boolean }[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
-  const subtotal = getSubtotalCents();
+  useEffect(() => { setMounted(true); }, []);
+
+  const subtotal = mounted ? getSubtotalCents() : 0;
   const depositCents = depositPreview.isFirstPurchase ? depositPreview.depositAmountCents : 0;
   const totalCents = subtotal + depositCents;
 
@@ -118,7 +124,7 @@ function PaymentContent() {
           })),
           empty_bottles_qty: emptyBottlesQty,
           delivery_date: date,
-          delivery_window: window,
+          delivery_window: deliveryWindow,
         }),
       });
 
@@ -147,7 +153,7 @@ function PaymentContent() {
           <CardTitle className="text-sm">Resumo do pedido</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {items.map((item) => (
+          {mounted && items.map((item) => (
             <div key={item.product_id} className="flex justify-between">
               <span>
                 {item.product_name} x{item.quantity}
@@ -172,7 +178,7 @@ function PaymentContent() {
             <span className="text-accent">{formatCurrency(totalCents)}</span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Entrega: {date} — {window === "morning" ? "Manhã" : "Tarde"}
+            Entrega: {date} — {deliveryWindow === "morning" ? "Manhã" : "Tarde"}
           </p>
         </CardContent>
       </Card>
@@ -202,16 +208,17 @@ function PaymentContent() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Forma de pagamento</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Integração com gateway de pagamento (placeholder).
+      {/* Banner de modo de teste */}
+      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+        <FlaskConical className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+        <div>
+          <p className="font-semibold">Modo de teste — pagamento simulado</p>
+          <p className="text-xs mt-0.5 text-amber-700">
+            Nenhuma cobrança real será efetuada. O pedido será criado e confirmado automaticamente
+            simulando a aprovação do gateway PIX.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
@@ -225,8 +232,12 @@ function PaymentContent() {
         </div>
       )}
 
-      <Button className="w-full h-12 text-base font-semibold" disabled={loading || previewLoading || !!previewError} onClick={handleConfirm}>
-        {loading ? "Processando..." : `Pagar ${formatCurrency(totalCents)}`}
+      <Button
+        className="w-full h-12 text-base font-semibold"
+        disabled={!mounted || loading || previewLoading || !!previewError}
+        onClick={handleConfirm}
+      >
+        {loading ? "Processando..." : mounted ? `Simular pagamento de ${formatCurrency(totalCents)}` : "Carregando..."}
       </Button>
     </div>
   );

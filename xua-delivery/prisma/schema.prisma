@@ -89,6 +89,16 @@ enum ActorType {
   @@map("actor_type")
 }
 
+enum ConsumerRole {
+  CONSUMER          @map("consumer")
+  DISTRIBUTOR_ADMIN @map("distributor_admin")
+  DRIVER            @map("driver")
+  SUPPORT           @map("support")
+  OPS               @map("ops")
+
+  @@map("consumer_role")
+}
+
 enum SourceApp {
   CONSUMER_WEB     @map("consumer_web")
   DISTRIBUTOR_WEB  @map("distributor_web")
@@ -131,15 +141,15 @@ enum AuditEventType {
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String       @id @default(uuid()) @db.Uuid
   name          String
-  email         String   @unique
+  email         String       @unique
   phone         String?
   password_hash String
-  role          String   @default("consumer")
-  is_b2b        Boolean  @default(false)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  role          ConsumerRole @default(CONSUMER)
+  is_b2b        Boolean      @default(false)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
 
   addresses     Address[]
   orders        Order[]          @relation("ConsumerOrders")

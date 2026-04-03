@@ -1,6 +1,11 @@
 # Xuá Delivery
 
-Plataforma fullstack de delivery de água mineral em garrafão retornável 20L. Todo o sistema roda em um único projeto Next.js: frontend React, API Route Handlers, Socket.io (real-time), cron jobs e integração com PostgreSQL e Redis.
+Plataforma fullstack de delivery de água mineral em garrafão retornável 20L.
+
+Organizado como **monorepo npm workspaces** com dois apps independentes:
+- **`apps/api`** — API REST + Socket.io (Express 5, porta 4000)
+- **`apps/web`** — Frontend PWA (Next.js 16.2 App Router, porta 3001)
+- **`packages/shared`** — Tipos, enums, schemas e constantes compartilhados
 
 ---
 
@@ -9,9 +14,8 @@ Plataforma fullstack de delivery de água mineral em garrafão retornável 20L. 
 | Ferramenta | Versão mínima | Notas |
 |---|---|---|
 | **Node.js** | 20 LTS | Recomendado via [nvm](https://github.com/nvm-sh/nvm) |
-| **PostgreSQL** | 16 | Schema criado manualmente (ver seção abaixo) |
-| **Redis** | 7 | Usado para JWT blacklist e cache de OTP |
 | **npm** | 10+ | Incluído no Node.js 20 |
+| **Docker** | 24+ | Para subir PostgreSQL e Redis localmente |
 
 ---
 
@@ -20,124 +24,134 @@ Plataforma fullstack de delivery de água mineral em garrafão retornável 20L. 
 ```bash
 # 1. Clone o repositório
 git clone <url-do-repositorio>
-cd xua-delivery
+cd xua-delivery/xua-delivery
 
-# 2. Instale as dependências
+# 2. Instale as dependências (todos os workspaces)
 npm install
+
+# 3. Suba o banco de dados e o Redis
+docker compose up -d
+
+# 4. Gere o cliente Prisma e aplique as migrations
+npx prisma migrate deploy
 ```
 
 ---
 
 ## Variáveis de Ambiente
 
-Copie o arquivo de exemplo e preencha os valores reais:
+Cada app possui seu próprio arquivo `.env`. Crie-os a partir dos exemplos:
 
 ```bash
-cp .env.example .env.local
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
 ```
 
-Edite o `.env.local` com seus dados:
+### `apps/api/.env`
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `NODE_ENV` | Não | `development` ou `production` (default: `development`) |
-| `PORT` | Não | Porta do servidor (default: `3000`) |
-| `HOSTNAME` | Não | Hostname do servidor (default: `localhost`) |
+| `PORT` | Não | Porta da API (default: `4000`) |
+| `HOSTNAME` | Não | Hostname (default: `0.0.0.0`) |
 | `DATABASE_URL` | **Sim** | String de conexão PostgreSQL |
 | `REDIS_URL` | **Sim** | String de conexão Redis |
 | `JWT_SECRET` | **Sim** | Chave HMAC-SHA256 para JWT (mínimo 32 caracteres) |
-| `OTP_SECRET` | **Sim** | Chave HMAC para geração de OTPs de entrega |
-| `PAYMENT_WEBHOOK_SECRET` | **Sim** | Segredo do gateway de pagamento para HMAC dos webhooks |
+| `OTP_SECRET` | **Sim** | Chave HMAC para OTPs de entrega |
+| `PAYMENT_WEBHOOK_SECRET` | **Sim** | Segredo HMAC para validar webhooks do gateway |
+| `INTERNAL_JOB_SECRET` | **Sim** | Segredo para rotas de jobs internos |
 | `ALLOWED_ORIGIN` | Em produção | Origem permitida no CORS (ex: `https://seudominio.com`) |
 
-> **Atenção:** O servidor falha na inicialização com erro `FATAL:` se qualquer variável obrigatória estiver ausente.
+### `apps/web/.env`
+
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | **Sim** | URL base da API (ex: `http://localhost:4000`) |
+| `NEXT_PUBLIC_WS_URL` | **Sim** | URL do Socket.io (ex: `http://localhost:4000`) |
+
+> **Atenção:** A API falha na inicialização com erro `FATAL:` se qualquer variável obrigatória estiver ausente.
 
 ---
 
 ## Banco de Dados
 
-O projeto **não possui migrations automáticas**. O schema PostgreSQL deve ser criado manualmente antes de iniciar o servidor.
-
-O schema completo (19 tabelas, 9 enums, 26 índices e trigger de proteção de estado) está documentado em [`docs/guia_tecnico_xua.md`](docs/guia_tecnico_xua.md).
+O schema é gerenciado via **Prisma Migrate**. O arquivo de schema principal fica em `prisma/schema.prisma` (raiz do monorepo).
 
 **Tabelas criadas:**
 
 ```
-01_mst_consumers         — Consumidores
-02_mst_addresses         — Endereços de entrega
-03_mst_distributors      — Distribuidores parceiros
-04_mst_zones             — Zonas de cobertura
-05_mst_zone_coverage     — Bairros/CEPs por zona
-06_mst_products          — Catálogo de produtos
-07_cfg_delivery_capacity — Slots de capacidade (anti-overbooking)
-08_sec_consumer_push_tokens
-09_trn_orders            — Pedidos (máquina de estados com 13 estados)
-10_trn_order_items
-11_trn_subscriptions     — Assinaturas mensais
-12_piv_subscription_orders
-13_trn_payments
-14_cfg_payment_webhook_events — Idempotência de webhooks
-15_trn_deposits          — Caução de vasilhame
-16_sec_order_otps        — OTPs de entrega (TTL 90min, max 5 tentativas)
-17_trn_reconciliations   — Conciliação diária de vasilhames
-18_aud_audit_events      — Auditoria append-only (fonte dos KPIs)
+mst_consumers            — Consumidores
+mst_addresses            — Endereços de entrega
+mst_distributors         — Distribuidores parceiros
+mst_zones                — Zonas de cobertura
+mst_zone_coverage        — Bairros/CEPs por zona
+mst_products             — Catálogo de produtos
+cfg_delivery_capacity    — Slots de capacidade (anti-overbooking)
+sec_consumer_push_tokens — Tokens de notificação push
+trn_orders               — Pedidos (máquina de estados com 13 estados)
+trn_order_items          — Itens do pedido
+trn_subscriptions        — Assinaturas mensais
+piv_subscription_orders  — Relação assinatura ↔ pedido
+trn_payments             — Pagamentos
+cfg_payment_webhook_events — Idempotência de webhooks
+trn_deposits             — Caução de vasilhame
+sec_order_otps           — OTPs de entrega (TTL 90min, max 5 tentativas)
+trn_reconciliations      — Conciliação diária de vasilhames
+aud_audit_events         — Auditoria append-only (fonte dos KPIs)
 ```
 
 ---
 
 ## Como Rodar
 
+### Infraestrutura (PostgreSQL + Redis)
+
+```bash
+docker compose up -d
+```
+
 ### Desenvolvimento
 
 ```bash
+# Roda API (porta 4000) e Web (porta 3001) simultaneamente
 npm run dev
+
+# Ou separadamente:
+npm run dev:api
+npm run dev:web
 ```
 
-Inicia o servidor Next.js com hot-reload em `http://localhost:3000`.
-
-> **Nota:** O comando `dev` usa o servidor padrão do Next.js (`next dev`). Para testar funcionalidades de **Socket.io** e **cron jobs**, use o servidor customizado (ver abaixo).
-
-### Desenvolvimento com Socket.io e Cron Jobs
-
-O Socket.io e os cron jobs só estão disponíveis ao rodar via `server.ts`. Compile e execute:
-
-```bash
-# Compile o servidor customizado
-npx tsc server.ts --outDir dist-server --esModuleInterop --module commonjs --target es2017 --moduleResolution node --skipLibCheck
-
-# Execute
-node dist-server/server.js
-```
-
-Ou adicione um script ao `package.json` para facilitar (ver seção Scripts).
+A API usa `tsx --watch` com hot-reload nativo. O frontend usa `next dev`.
 
 ### Produção
 
 ```bash
-# 1. Gere o build de produção
-npm run build
+# Build do frontend
+npm run build:web
 
-# 2. Inicie o servidor
-npm start
-```
+# Inicia API
+npm run start:api
 
-Para produção com Socket.io, o servidor deve ser iniciado via `server.ts` compilado (ou via `ts-node`):
-
-```bash
-npx ts-node --project tsconfig.json server.ts
+# Inicia Web
+npm run start:web
 ```
 
 ---
 
-## Scripts Disponíveis
+## Scripts Disponíveis (raiz do monorepo)
 
 | Comando | Descrição |
 |---|---|
-| `npm run dev` | Servidor Next.js com hot-reload (sem Socket.io/cron) |
-| `npm run build` | Gera o build otimizado de produção |
-| `npm start` | Inicia o build de produção (sem Socket.io/cron) |
-| `npm run lint` | Executa o ESLint no projeto |
-| `npx tsc --noEmit` | Verifica erros de TypeScript sem gerar arquivos |
+| `npm run dev` | Inicia API e Web em paralelo (desenvolvimento) |
+| `npm run dev:api` | Inicia apenas a API com hot-reload |
+| `npm run dev:web` | Inicia apenas o frontend com hot-reload |
+| `npm run build:web` | Gera o build de produção do frontend |
+| `npm run start:api` | Inicia a API em produção |
+| `npm run start:web` | Inicia o frontend em produção |
+| `npm run lint` | ESLint no workspace `@xua/web` |
+| `npm run typecheck:api` | Verificação de tipos do `@xua/api` |
+| `npm run shared:check` | Verificação de tipos do `@xua/shared` |
+| `npm test` | Executa a suíte de testes com Vitest |
+| `npm run test:coverage` | Testes com relatório de cobertura |
 
 ---
 
@@ -145,50 +159,42 @@ npx ts-node --project tsconfig.json server.ts
 
 ```
 xua-delivery/
-├── server.ts                  # Servidor customizado: Next.js + Socket.io + cron jobs
-├── middleware.ts               # RBAC: autenticação JWT e controle de acesso por rota
-├── next.config.ts
-├── .env.example                # Template de variáveis de ambiente
+├── prisma/
+│   ├── schema.prisma          # Schema principal do banco de dados
+│   ├── seed.ts                # Script de seed
+│   └── migrations/            # Histórico de migrations
 │
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── (auth)/                 # Rotas públicas: login, cadastro
-│   ├── (consumer)/             # Área do consumidor (role: consumer)
-│   ├── (distributor)/          # Área do distribuidor (role: distributor_admin, operator)
-│   ├── (driver)/               # Módulo motorista (role: driver)
-│   ├── (ops)/                  # Painel de operações (role: ops, support)
-│   └── api/                    # Route Handlers (REST API)
-│       ├── auth/               # login, logout, register
-│       ├── consumers/          # perfil, endereços
-│       ├── driver/             # rotas do motorista
-│       ├── orders/             # pedidos, itens, OTP
-│       ├── payments/           # webhook do gateway
-│       ├── reconciliations/    # conciliação diária
-│       ├── subscriptions/      # assinaturas mensais
-│       └── zones/              # zonas e capacidade
+├── apps/
+│   ├── api/                   # @xua/api — Express 5 (porta 4000)
+│   │   └── src/
+│   │       ├── server/        # Entrypoint HTTP + Socket.io + graceful shutdown
+│   │       ├── http/          # App Express, registro de rotas
+│   │       ├── modules/       # Módulos de negócio (routes → controller → service → repository)
+│   │       │   ├── auth/
+│   │       │   ├── orders/
+│   │       │   ├── driver/
+│   │       │   ├── consumers/
+│   │       │   ├── subscriptions/
+│   │       │   ├── products/
+│   │       │   ├── payments/
+│   │       │   ├── zones/
+│   │       │   ├── ops/
+│   │       │   └── notifications/
+│   │       ├── infra/         # Clientes externos (Prisma, Redis, Socket.io, logger, CEP)
+│   │       ├── jobs/          # Cron jobs (OTP cleanup, subscription renewal)
+│   │       ├── middleware/    # Auth JWT, RBAC, rate-limit, error handler
+│   │       └── utils/         # Helpers puros (date, pagination, csv, format)
+│   │
+│   └── web/                   # @xua/web — Next.js 16.2 App Router (porta 3001)
+│       └── app/
+│           ├── (auth)/        # Rotas públicas: login, cadastro
+│           ├── (consumer)/    # Área do consumidor (role: consumer)
+│           ├── (distributor)/ # Área do distribuidor (role: distributor_admin, operator)
+│           ├── (driver)/      # Módulo motorista (role: driver)
+│           └── (ops)/         # Painel de operações (role: ops, support)
 │
-└── src/
-    ├── lib/
-    │   ├── auth.ts             # signToken / verifyToken (jose HS256)
-    │   ├── prisma.ts            # Prisma ORM (PostgreSQL)
-    │   ├── redis.ts            # ioredis
-    │   ├── tables.ts           # Constantes com nomes de tabelas
-    │   ├── api-handler.ts      # Wrapper de error handling para Route Handlers
-    │   └── socket.ts           # Helper para emitir eventos Socket.io
-    ├── services/               # Lógica de negócio
-    │   ├── order-service.ts    # Máquina de estados de pedidos
-    │   ├── capacity-service.ts # Anti-overbooking (SELECT FOR UPDATE)
-    │   ├── otp-service.ts      # Geração/verificação de OTP
-    │   ├── deposit-service.ts  # Caução de vasilhame
-    │   ├── kpi-service.ts      # KPIs via audit_events
-    │   ├── subscription-cron.ts # Cron 06h: gera pedidos de assinatura
-    │   └── otp-cleanup.ts      # Cron 15min: expira OTPs vencidos
-    ├── repositories/           # Queries SQL (Prisma)
-    ├── schemas/                # Validação Zod
-    ├── components/             # Componentes React reutilizáveis
-    ├── store/                  # Estado global Zustand
-    └── types/                  # Tipos TypeScript
+└── packages/
+    └── shared/                # @xua/shared — tipos, enums, schemas, constantes
 ```
 
 ---
@@ -197,12 +203,12 @@ xua-delivery/
 
 | Role JWT | Área | Permissões principais |
 |---|---|---|
-| `consumer` | `/app` | Realizar pedidos, acompanhar status, gerenciar assinatura |
-| `distributor_admin` | `/distributor` | Aceitar/recusar pedidos, despachar, dashboard KPIs |
-| `operator` | `/distributor` | Operações do dia a dia do distribuidor |
-| `driver` | `/driver` | Confirmar entregas via OTP, registrar troca de vasilhame |
-| `ops` | `/ops` | Configurar zonas/capacidade, KPIs globais, override de OTP |
-| `support` | `/ops` | Console de suporte, timeline de eventos, exportar auditoria |
+| `consumer` | `(consumer)` | Realizar pedidos, acompanhar status, gerenciar assinatura |
+| `distributor_admin` | `(distributor)` | Aceitar/recusar pedidos, despachar, dashboard KPIs |
+| `operator` | `(distributor)` | Operações do dia a dia do distribuidor |
+| `driver` | `(driver)` | Confirmar entregas via OTP, registrar troca de vasilhame |
+| `ops` | `(ops)` | Configurar zonas/capacidade, KPIs globais, override de OTP |
+| `support` | `(ops)` | Console de suporte, timeline de eventos, exportar auditoria |
 
 ---
 
@@ -210,21 +216,24 @@ xua-delivery/
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | Next.js 16.2 (App Router) |
-| UI | Tailwind CSS 4, shadcn/ui |
-| Estado cliente | Zustand 5 |
-| Validação | Zod 4 |
+| API | Express 5 |
+| Frontend | Next.js 16.2 (App Router), React 19 |
+| UI | Tailwind CSS 4, shadcn/ui, Radix UI |
+| Estado cliente | Zustand 5, TanStack Query 5 |
+| Formulários | React Hook Form + Zod 4 |
 | Banco de dados | PostgreSQL 16 via Prisma 7 |
 | Cache / sessões | Redis 7 via ioredis |
 | Auth | JWT (jose) + bcryptjs |
 | Real-time | Socket.io 4 |
-| Cron jobs | node-cron 4 |
+| Logger | Pino 10 |
+| Testes | Vitest 4 |
+| Monorepo | npm workspaces |
 
 ---
 
 ## Documentação Adicional
 
-- [`xua-delivery/docs/guia_tecnico_xua.md`](docs/guia_tecnico_xua.md) — Schema completo do banco, arquitetura, KPIs e estados dos pedidos
-- [`xua-delivery/docs/fluxo_usuarios_xua.md`](docs/fluxo_usuarios_xua.md) — Fluxo de telas por perfil de usuário
-- [`xua-delivery/docs/fluxo_telas.html`](docs/fluxo_telas.html) — Diagrama visual de navegação
-- [`xua-delivery/.env.example`](.env.example) — Template de variáveis de ambiente
+- [`docs/guia_tecnico_xua.md`](xua-delivery/docs/guia_tecnico_xua.md) — Schema completo do banco, arquitetura, KPIs e estados dos pedidos
+- [`docs/fluxo_usuarios_xua.md`](xua-delivery/docs/fluxo_usuarios_xua.md) — Fluxo de telas por perfil de usuário
+- [`docs/fluxo_telas.html`](xua-delivery/docs/fluxo_telas.html) — Diagrama visual de navegação
+- [`docs/contracts/api-routes.md`](xua-delivery/docs/contracts/api-routes.md) — Contrato das rotas da API
