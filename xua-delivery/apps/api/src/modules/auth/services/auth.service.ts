@@ -38,7 +38,7 @@ export const authService = {
       throw new AuthServiceError("Credenciais inválidas", 401);
     }
 
-    const rawRole = consumer.role ?? "consumer";
+    const rawRole = (consumer.role ?? "consumer").toLowerCase();
     if (!isUserRole(rawRole)) {
       log.error({ userId: consumer.id, role: rawRole }, "Role inválida no DB");
       throw new AuthServiceError("Conta com role inválida. Contate o suporte.", 403);
@@ -77,7 +77,7 @@ export const authService = {
       password_hash,
     });
 
-    const rawRole = consumer.role ?? "consumer";
+    const rawRole = (consumer.role ?? "consumer").toLowerCase();
     if (!isUserRole(rawRole)) {
       log.error({ userId: consumer.id, role: rawRole }, "Role inválida no DB");
       throw new AuthServiceError("Conta com role inválida. Contate o suporte.", 403);
