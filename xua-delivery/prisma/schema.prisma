@@ -465,3 +465,35 @@ model AuditEvent {
 
   @@map("18_aud_audit_events")
 }
+
+// ─── Banners promocionais configuráveis (admin) ────────────────
+
+enum BannerType {
+  CAROUSEL @map("carousel")
+  FEATURED @map("featured")
+
+  @@map("banner_type")
+}
+
+model Banner {
+  id               String     @id @default(uuid()) @db.Uuid
+  type             BannerType
+  title            String
+  subtitle         String?
+  tag              String?
+  highlight        String?
+  cta_text         String?
+  cta_url          String?
+  bg_color         String?
+  bg_gradient_from String?
+  bg_gradient_to   String?
+  bg_image_url     String?
+  text_color       String?
+  image_url        String?
+  is_active        Boolean    @default(true)
+  sort_order       Int        @default(0)
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+
+  @@map("19_cfg_banners")
+}

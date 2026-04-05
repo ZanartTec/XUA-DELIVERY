@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
 export default function OtpOverridePage() {
   const [orderId, setOrderId] = useState("");
@@ -43,49 +42,32 @@ export default function OtpOverridePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">OTP Override</h1>
+      <h1 className="text-lg font-bold font-heading">OTP Override</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Override manual de OTP</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Use esta função em casos excepcionais onde o consumidor não consegue
-            fornecer o código OTP. Todas as ações são registradas na auditoria.
-          </p>
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
+        <p className="text-sm font-semibold font-heading">Override manual de OTP</p>
+        <p className="text-sm text-muted-foreground">
+          Use esta função em casos excepcionais onde o consumidor não consegue
+          fornecer o código OTP. Todas as ações são registradas na auditoria.
+        </p>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">ID do pedido *</label>
-            <Input
-              placeholder="Ex: abc-123"
-              value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
-            />
-          </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ID do pedido *</label>
+          <Input placeholder="Ex: abc-123" value={orderId} onChange={(e) => setOrderId(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+        </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Motivo *</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm h-24 resize-none"
-              placeholder="Descreva o motivo do override..."
-            />
-          </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo *</label>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm h-24 resize-none" placeholder="Descreva o motivo do override..." />
+        </div>
 
-          {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-          {result && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{result}</div>}
+        {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+        {result && <div className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700">{result}</div>}
 
-          <Button
-            className="w-full"
-            disabled={loading || !orderId || !reason}
-            onClick={handleOverride}
-          >
-            {loading ? "Processando..." : "Confirmar Override"}
-          </Button>
-        </CardContent>
-      </Card>
+        <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading || !orderId || !reason} onClick={handleOverride}>
+          {loading ? "Processando..." : "Confirmar Override"}
+        </Button>
+      </div>
     </div>
   );
 }

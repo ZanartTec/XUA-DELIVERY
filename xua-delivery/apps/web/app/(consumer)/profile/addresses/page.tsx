@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { toast } from "sonner";
+import { MapPin } from "lucide-react";
 import type { Address } from "@/src/types";
 
 export default function AddressesPage() {
@@ -118,83 +118,84 @@ export default function AddressesPage() {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold">Endereços</h1>
+    <div className="space-y-4 pb-4">
+      <div className="px-4 pt-4">
+        <h1 className="text-lg font-bold font-heading">Endereços</h1>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Novo endereço</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Input
-              placeholder="CEP (ex: 01001-000)"
-              value={cep}
-              onChange={(e) => setCep(e.target.value)}
-              className="flex-1"
-            />
-            <Button variant="outline" onClick={lookupCep} disabled={cepLoading}>
-              {cepLoading ? "..." : "Buscar"}
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
+        <p className="text-sm font-semibold font-heading">Novo endereço</p>
+        <div className="flex gap-2">
+          <Input
+            placeholder="CEP (ex: 01001-000)"
+            value={cep}
+            onChange={(e) => setCep(e.target.value)}
+            className="flex-1 rounded-xl border-0 bg-[#e1e3e4]"
+          />
+          <Button variant="outline" onClick={lookupCep} disabled={cepLoading} className="rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]">
+            {cepLoading ? "..." : "Buscar"}
+          </Button>
+        </div>
+
+        {cepData && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {cepData.street}, {cepData.neighborhood} — {cepData.city}/{cepData.state}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Número"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                required
+                className="rounded-xl border-0 bg-[#e1e3e4]"
+              />
+              <Input
+                placeholder="Complemento"
+                value={complement}
+                onChange={(e) => setComplement(e.target.value)}
+                className="rounded-xl border-0 bg-[#e1e3e4]"
+              />
+            </div>
+            <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" onClick={handleAdd} disabled={saving || !number}>
+              {saving ? "Salvando..." : "Adicionar endereço"}
             </Button>
-          </div>
+          </>
+        )}
 
-          {cepData && (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {cepData.street}, {cepData.neighborhood} — {cepData.city}/{cepData.state}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Número"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  required
-                />
-                <Input
-                  placeholder="Complemento"
-                  value={complement}
-                  onChange={(e) => setComplement(e.target.value)}
-                />
-              </div>
-              <Button className="w-full" onClick={handleAdd} disabled={saving || !number}>
-                {saving ? "Salvando..." : "Adicionar endereço"}
-              </Button>
-            </>
-          )}
+        {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+      </div>
 
-          {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Meus endereços</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
-          ) : addresses.length === 0 ? (
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-3 text-sm font-semibold font-heading">Meus endereços</p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : addresses.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0041c8]/10">
+              <MapPin className="h-8 w-8 text-[#0041c8]/40" />
+            </div>
             <p className="text-sm text-muted-foreground">Nenhum endereço cadastrado.</p>
-          ) : (
-            <ul className="space-y-2">
-              {addresses.map((addr) => (
-                <li key={addr.id} className="border rounded-md p-3 text-sm">
-                  <p>
-                    {addr.street}, {addr.number}
-                    {addr.complement ? ` — ${addr.complement}` : ""}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {addr.neighborhood} — {addr.city}/{addr.state} — CEP {addr.zip_code}
-                  </p>
-                  {addr.is_default && (
-                    <span className="text-xs text-accent font-medium">Principal</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {addresses.map((addr) => (
+              <li key={addr.id} className="rounded-xl bg-[#e1e3e4]/50 p-3 text-sm">
+                <p>
+                  {addr.street}, {addr.number}
+                  {addr.complement ? ` — ${addr.complement}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {addr.neighborhood} — {addr.city}/{addr.state} — CEP {addr.zip_code}
+                </p>
+                {addr.is_default && (
+                  <span className="text-xs font-medium text-[#0041c8]">Principal</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { Repeat, Plus } from "lucide-react";
 import type { Subscription } from "@/src/types";
 import { DeliveryWindow, SubscriptionStatus } from "@/src/types/enums";
 
@@ -44,71 +44,86 @@ export default function SubscriptionManagePage() {
 
   if (loading) {
     return (
-      <div className="p-4">
-        <h1 className="text-xl font-bold mb-4">Minhas assinaturas</h1>
-        <p className="text-muted-foreground">Carregando...</p>
+      <div className="space-y-4 pb-4">
+        <div className="px-4 pt-4">
+          <h1 className="text-lg font-bold font-heading">Minhas assinaturas</h1>
+        </div>
+        <div className="mx-4 rounded-2xl bg-white/80 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
+          <div className="space-y-3">
+            <div className="h-4 w-48 rounded-lg bg-[#e1e3e4] animate-pulse" />
+            <div className="h-4 w-32 rounded-lg bg-[#e1e3e4] animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Minhas assinaturas</h1>
+    <div className="space-y-4 pb-4">
+      <div className="px-4 pt-4 flex items-center justify-between">
+        <h1 className="text-lg font-bold font-heading">Minhas assinaturas</h1>
         <Link href="/subscription/create">
-          <Button size="sm">Nova</Button>
+          <Button size="sm" className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]">
+            <Plus className="mr-1 h-4 w-4" /> Nova
+          </Button>
         </Link>
       </div>
 
       {subscriptions.length === 0 ? (
-        <p className="text-muted-foreground">Nenhuma assinatura ativa.</p>
+        <div className="mx-4 flex flex-col items-center gap-3 py-10">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#0041c8]/10">
+            <Repeat className="h-10 w-10 text-[#0041c8]/40" />
+          </div>
+          <p className="text-sm text-muted-foreground">Nenhuma assinatura ativa.</p>
+          <Link href="/subscription/create">
+            <Button className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]">
+              Criar assinatura
+            </Button>
+          </Link>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 mx-4">
           {subscriptions.map((sub) => (
-            <Card key={sub.id}>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>Assinatura #{sub.id}</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      sub.status === SubscriptionStatus.ACTIVE
-                        ? "bg-green-100 text-green-700"
-                        : sub.status === SubscriptionStatus.PAUSED
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {sub.status === SubscriptionStatus.ACTIVE
-                      ? "Ativa"
+            <div key={sub.id} className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold font-heading">Assinatura #{sub.id}</p>
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                    sub.status === SubscriptionStatus.ACTIVE
+                      ? "bg-green-100 text-green-700"
                       : sub.status === SubscriptionStatus.PAUSED
-                        ? "Pausada"
-                        : "Cancelada"}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {sub.quantity} garrafão(ões) — {sub.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
-                </p>
-                <div className="flex gap-2">
-                  {sub.status === SubscriptionStatus.ACTIVE && (
-                    <Button size="sm" variant="outline" onClick={() => toggleStatus(sub.id, "pause")}>
-                      Pausar
-                    </Button>
-                  )}
-                  {sub.status === SubscriptionStatus.PAUSED && (
-                    <Button size="sm" variant="outline" onClick={() => toggleStatus(sub.id, "resume")}>
-                      Retomar
-                    </Button>
-                  )}
-                  {sub.status !== SubscriptionStatus.CANCELLED && (
-                    <Button size="sm" variant="destructive" onClick={() => toggleStatus(sub.id, "cancel")}>
-                      Cancelar
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-[#e1e3e4] text-muted-foreground"
+                  }`}
+                >
+                  {sub.status === SubscriptionStatus.ACTIVE
+                    ? "Ativa"
+                    : sub.status === SubscriptionStatus.PAUSED
+                      ? "Pausada"
+                      : "Cancelada"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {sub.quantity} garrafão(ões) — {sub.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
+              </p>
+              <div className="mt-3 flex gap-2">
+                {sub.status === SubscriptionStatus.ACTIVE && (
+                  <Button size="sm" onClick={() => toggleStatus(sub.id, "pause")} className="rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]">
+                    Pausar
+                  </Button>
+                )}
+                {sub.status === SubscriptionStatus.PAUSED && (
+                  <Button size="sm" onClick={() => toggleStatus(sub.id, "resume")} className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white font-semibold shadow-none hover:opacity-90">
+                    Retomar
+                  </Button>
+                )}
+                {sub.status !== SubscriptionStatus.CANCELLED && (
+                  <Button size="sm" variant="destructive" onClick={() => toggleStatus(sub.id, "cancel")} className="rounded-xl shadow-none">
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}

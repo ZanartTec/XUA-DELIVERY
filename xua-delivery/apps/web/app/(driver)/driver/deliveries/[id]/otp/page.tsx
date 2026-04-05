@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { OtpInput } from "@/src/components/shared/driver/otp-input";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { cn } from "@/src/lib/utils";
 
 export default function OtpVerifyPage() {
@@ -42,32 +41,27 @@ export default function OtpVerifyPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-center">Verificar OTP</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground text-center">
-            Peça o código de 6 dígitos ao consumidor para confirmar a entrega do pedido #{id}.
-          </p>
-          <div className={cn(shake && "animate-shake")}>
-            <OtpInput onComplete={handleComplete} disabled={loading} />
-          </div>
-          {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
-          )}
-          {loading && (
-            <p className="text-sm text-muted-foreground text-center">Verificando...</p>
-          )}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => router.back()}
-          >
-            Voltar
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="w-full max-w-sm rounded-2xl bg-white/95 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
+        <h2 className="text-center text-lg font-bold font-heading">Verificar OTP</h2>
+        <p className="text-sm text-muted-foreground text-center">
+          Peça o código de 6 dígitos ao consumidor para confirmar a entrega do pedido #{id}.
+        </p>
+        <div className={cn(shake && "animate-shake")}>
+          <OtpInput onComplete={handleComplete} disabled={loading} />
+        </div>
+        {error && (
+          <p className="text-sm text-destructive text-center">{error}</p>
+        )}
+        {loading && (
+          <p className="text-sm text-muted-foreground text-center">Verificando...</p>
+        )}
+        <Button
+          className="w-full rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"
+          onClick={() => router.back()}
+        >
+          Voltar
+        </Button>
+      </div>
     </div>
   );
 }

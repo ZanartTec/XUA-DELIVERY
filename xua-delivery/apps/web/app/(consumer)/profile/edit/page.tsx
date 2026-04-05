@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -63,33 +62,31 @@ export default function ProfileEditPage() {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold">Editar perfil</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Dados pessoais</CardTitle>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-      {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-            <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium">Nome</label>
-              <Input id="name" value={form.name} onChange={(e) => update("name", e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">E-mail</label>
-              <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="phone" className="text-sm font-medium">Telefone</label>
-              <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar alterações"}
-            </Button>
-          </CardContent>
+    <div className="space-y-4 pb-4">
+      <div className="px-4 pt-4">
+        <h1 className="text-lg font-bold font-heading">Editar perfil</h1>
+      </div>
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-3 text-sm font-semibold font-heading">Dados pessoais</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+          <div className="space-y-1.5">
+            <label htmlFor="name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</label>
+            <Input id="name" value={form.name} onChange={(e) => update("name", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">E-mail</label>
+            <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</label>
+            <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
+          </div>
+          <Button type="submit" className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading}>
+            {loading ? "Salvando..." : "Salvar alterações"}
+          </Button>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }

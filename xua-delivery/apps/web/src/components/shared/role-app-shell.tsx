@@ -6,6 +6,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
   BarChart3,
+  CalendarDays,
+  ChevronDown,
   ClipboardList,
   Droplets,
   FileText,
@@ -13,10 +15,12 @@ import {
   KeyRound,
   MapPin,
   Package,
-  RefreshCw,
+  ReceiptText,
+  ShoppingBag,
   ShoppingCart,
   Truck,
   User,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import type { UserRole } from "@/src/lib/role-utils";
@@ -40,18 +44,18 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
   consumer: {
     badgeLabel: "Consumidor",
     navItems: [
-      { href: "/catalog", label: "Catalogo", icon: Droplets },
+      { href: "/catalog", label: "Catálogo", icon: ShoppingBag },
       {
         href: "/cart",
         label: "Carrinho",
         icon: ShoppingCart,
         match: ["/cart", "/checkout"],
       },
-      { href: "/orders", label: "Pedidos", icon: ClipboardList },
+      { href: "/orders", label: "Pedidos", icon: ReceiptText },
       {
         href: "/subscription/manage",
         label: "Assinatura",
-        icon: RefreshCw,
+        icon: CalendarDays,
         match: ["/subscription"],
       },
       { href: "/profile", label: "Perfil", icon: User },
@@ -126,32 +130,62 @@ export function RoleAppShell({
     <div className="flex min-h-screen flex-col bg-background">
       <OfflineBanner />
 
-      <header className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80">
-        <div className="flex h-14 items-center justify-between gap-3 px-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Droplets className="h-6 w-6 text-accent" />
-              <span className="text-lg font-bold text-primary">Xua</span>
-            </div>
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-              {config.badgeLabel}
-            </span>
-          </div>
+      {role === "consumer" ? (
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
+          <div className="flex h-14 items-center justify-between gap-2 px-4">
+            {/* Endereço de entrega */}
+            <button className="flex min-w-0 items-center gap-1.5 text-left">
+              <MapPin className="h-4 w-4 shrink-0 text-[#0041c8]" />
+              <div className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
+                  Entregar em
+                </span>
+                <span className="flex items-center gap-0.5 text-sm font-medium text-[#191c1d] truncate">
+                  Rua das Águas, 123
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#737688]" />
+                </span>
+              </div>
+            </button>
 
-          <div className="flex items-center gap-2">
-            {firstName ? (
-              <span className="hidden max-w-28 truncate text-sm text-muted-foreground sm:block">
-                Ola, {firstName}
-              </span>
-            ) : null}
-            <LogoutButton />
+            {/* Logo centralizado */}
+            <span className="text-xl font-bold font-heading text-[#001a40]">Xuá</span>
+
+            {/* Ícone ação */}
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0041c8]/10">
+              <Zap className="h-4 w-4 text-[#0041c8]" />
+            </button>
           </div>
-        </div>
-      </header>
+        </header>
+      ) : (
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
+          <div className="flex h-14 items-center justify-between gap-3 px-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-[#0041c8] to-[#0055ff]">
+                  <Droplets className="h-4 w-4 text-white" />
+                </div>
+                <span className="text-lg font-bold font-heading text-[#0041c8]">Xua</span>
+              </div>
+              <span className="rounded-full bg-[#0041c8]/10 px-2 py-0.5 text-xs font-semibold text-[#0041c8]">
+                {config.badgeLabel}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {firstName ? (
+                <span className="hidden max-w-28 truncate text-sm text-muted-foreground sm:block">
+                  Ola, {firstName}
+                </span>
+              ) : null}
+              <LogoutButton />
+            </div>
+          </div>
+        </header>
+      )}
 
       <main className={cn("flex-1 pb-24 md:pb-28", contentClassName)}>{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-backdrop-filter:bg-white/80">
+      <nav className="fixed inset-x-0 bottom-0 z-40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur shadow-[0_-1px_8px_rgba(0,26,64,0.04)] supports-backdrop-filter:bg-white/80">
         <ul className="mx-auto flex w-full max-w-3xl items-stretch justify-around gap-1 px-2 py-1.5">
           {config.navItems.map((item) => {
             const Icon = item.icon;
@@ -164,10 +198,10 @@ export function RoleAppShell({
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-center transition-colors",
-                    active ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                    active ? "text-[#0041c8]" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", active && "fill-accent/15")} />
+                  <Icon className={cn("h-5 w-5", active && "fill-[#0041c8]/15")} />
                   <span className={cn("text-[10px] leading-tight", active && "font-semibold")}>
                     {item.label}
                   </span>

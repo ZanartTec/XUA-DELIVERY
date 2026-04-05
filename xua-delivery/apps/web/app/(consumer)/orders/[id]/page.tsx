@@ -8,7 +8,6 @@ import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import type { Order } from "@/src/types";
 
 interface OrderDetail extends Order {
@@ -55,84 +54,76 @@ export default function OrderDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-4 text-muted-foreground">Carregando...</div>;
+    return <div className="px-4 pt-4 text-muted-foreground">Carregando...</div>;
   }
 
   if (!order) {
-    return <div className="p-4 text-destructive">Pedido não encontrado.</div>;
+    return <div className="px-4 pt-4 text-destructive">Pedido não encontrado.</div>;
   }
 
   const isDelivered = order.status === "DELIVERED";
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Pedido #{order.id}</h1>
+    <div className="space-y-4 pb-4">
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h1 className="text-lg font-bold font-heading">Pedido #{order.id}</h1>
         <StatusPill status={order.status} />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Itens</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      {/* Itens */}
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-3 text-sm font-semibold font-heading">Itens</p>
+        <div className="space-y-2 text-sm">
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between">
-              <span>
-                {item.product_name} x{item.qty}
-              </span>
+              <span>{item.product_name} x{item.qty}</span>
               <span>{formatCurrency(item.unit_price_cents * item.qty)}</span>
             </div>
           ))}
-          <div className="flex justify-between font-bold pt-2 border-t">
+          <div className="flex justify-between pt-2 font-bold" style={{ borderTop: "1px solid #e1e3e4" }}>
             <span>Total</span>
-            <span>{formatCurrency(order.total_cents)}</span>
+            <span className="text-[#0041c8]">{formatCurrency(order.total_cents)}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Entrega</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-1">
+      {/* Entrega */}
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-2 text-sm font-semibold font-heading">Entrega</p>
+        <div className="space-y-1 text-sm">
           <p>{formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}</p>
           {order.otp_code && (
-            <p className="font-mono text-lg tracking-widest text-center py-2">
+            <p className="py-2 text-center font-mono text-lg tracking-widest">
               {order.otp_code}
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
+      {/* Timeline */}
       {order.events.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <OrderTimeline events={order.events} />
-          </CardContent>
-        </Card>
+        <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+          <p className="mb-3 text-sm font-semibold font-heading">Timeline</p>
+          <OrderTimeline events={order.events} />
+        </div>
       )}
 
+      {/* NPS */}
       {isDelivered && !npsSubmitted && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Avalie sua entrega</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-1 justify-center">
+        <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+          <p className="mb-3 text-sm font-semibold font-heading">Avalie sua entrega</p>
+          <div className="space-y-3">
+            <div className="flex justify-center gap-1">
               {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
                 <button
                   key={score}
                   onClick={() => !npsSubmitting && setNps(score)}
                   disabled={npsSubmitting}
-                  className={`w-10 h-10 rounded-full border text-sm font-medium transition-colors ${
+                  className={`h-10 w-10 rounded-full text-sm font-medium transition-all active:scale-95 ${
                     nps === score
-                      ? "bg-accent text-white border-accent"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      ? "bg-[#0041c8] text-white shadow-[0_2px_8px_rgba(0,65,200,0.3)]"
+                      : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   {score}
                 </button>
@@ -143,16 +134,21 @@ export default function OrderDetailPage() {
               value={npsComment}
               onChange={(e) => setNpsComment(e.target.value)}
               disabled={npsSubmitting}
+              className="rounded-xl border-0 bg-[#e1e3e4]"
             />
-            <Button className="w-full" onClick={submitNps} disabled={nps === null || npsSubmitting}>
+            <Button
+              className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
+              onClick={submitNps}
+              disabled={nps === null || npsSubmitting}
+            >
               {npsSubmitting ? "Enviando..." : "Enviar avaliação"}
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {npsSubmitted && (
-        <p className={`text-sm text-center ${
+        <p className={`text-center text-sm ${
           nps !== null && nps <= 2 ? "text-destructive" : "text-green-600"
         }`}>{npsMessage}</p>
       )}

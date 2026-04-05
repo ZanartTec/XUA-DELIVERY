@@ -8,7 +8,6 @@ import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import type { Order } from "@/src/types";
 
 interface OrderDetail extends Order {
@@ -53,7 +52,7 @@ export default function DistributorOrderDetailPage() {
     }
   }
 
-  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="py-4"><div className="h-4 w-40 rounded bg-muted" /></CardContent></Card>)}</div>;
+  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)]"><div className="h-4 w-40 rounded-lg bg-[#e1e3e4]" /></div>)}</div>;
   if (!order) return <p className="text-destructive">Pedido não encontrado.</p>;
 
   const canAccept = order.status === "SENT_TO_DISTRIBUTOR";
@@ -63,50 +62,48 @@ export default function DistributorOrderDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Pedido #{order.id}</h1>
+        <h1 className="text-lg font-bold font-heading">Pedido #{order.id}</h1>
         <StatusPill status={order.status} />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Cliente</CardTitle></CardHeader>
-        <CardContent className="text-sm space-y-1">
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-2 text-sm font-semibold font-heading">Cliente</p>
+        <div className="text-sm space-y-1">
           <p>{order.consumer_name}</p>
           <p className="text-muted-foreground">{order.address_line}</p>
           <p className="text-muted-foreground">
             {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Itens</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-2 text-sm font-semibold font-heading">Itens</p>
+        <div className="space-y-2 text-sm">
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between">
               <span>{item.product_name} x{item.qty}</span>
               <span>{formatCurrency(item.unit_price_cents * item.qty)}</span>
             </div>
           ))}
-          <div className="flex justify-between font-bold pt-2 border-t">
+          <div className="flex justify-between font-bold pt-2" style={{ borderTop: "1px solid #e1e3e4" }}>
             <span>Total</span>
-            <span>{formatCurrency(order.total_cents)}</span>
+            <span className="text-[#0041c8]">{formatCurrency(order.total_cents)}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {order.events.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Timeline</CardTitle></CardHeader>
-          <CardContent>
-            <OrderTimeline events={order.events} />
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+          <p className="mb-2 text-sm font-semibold font-heading">Timeline</p>
+          <OrderTimeline events={order.events} />
+        </div>
       )}
 
       <div className="flex gap-2">
         {canAccept && (
           <Button
-            className="flex-1"
+            className="flex-1 rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
             disabled={actionLoading}
             onClick={() => handleAction("accept")}
           >
@@ -119,10 +116,11 @@ export default function DistributorOrderDetailPage() {
               placeholder="Motivo da recusa"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
+              className="rounded-xl border-0 bg-[#e1e3e4]"
             />
             <Button
               variant="destructive"
-              className="w-full"
+              className="w-full rounded-xl shadow-none"
               disabled={actionLoading || !rejectReason}
               onClick={() => handleAction("reject", { reason: rejectReason })}
             >
@@ -132,7 +130,7 @@ export default function DistributorOrderDetailPage() {
         )}
         {canProceedToChecklist && (
           <Button
-            className="flex-1"
+            className="flex-1 rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
             onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
           >
             Ir para Checklist

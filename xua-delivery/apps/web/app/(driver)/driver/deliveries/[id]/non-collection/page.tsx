@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
 const REASONS = [
   { value: "absent", label: "Consumidor ausente" },
@@ -49,52 +48,48 @@ export default function NonCollectionPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-center">Não coleta</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground text-center">
-            Pedido #{id} — Registre o motivo da não coleta de vasilhames.
-          </p>
+      <div className="w-full max-w-sm rounded-2xl bg-white/95 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
+        <h2 className="text-center text-lg font-bold font-heading">Não coleta</h2>
+        <p className="text-sm text-muted-foreground text-center">
+          Pedido #{id} — Registre o motivo da não coleta de vasilhames.
+        </p>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Motivo *</label>
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">Selecione...</option>
-              {REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo *</label>
+          <select
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm"
+          >
+            <option value="">Selecione...</option>
+            {REASONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Observações</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm h-20 resize-none"
-              placeholder="Detalhes adicionais..."
-            />
-          </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observações</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm h-20 resize-none"
+            placeholder="Detalhes adicionais..."
+          />
+        </div>
 
-          {error && <p className="text-sm text-destructive text-center">{error}</p>}
+        {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-          <Button className="w-full" disabled={loading || !reason} onClick={handleSubmit}>
-            {loading ? "Registrando..." : "Registrar não coleta"}
-          </Button>
+        <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading || !reason} onClick={handleSubmit}>
+          {loading ? "Registrando..." : "Registrar não coleta"}
+        </Button>
 
-          <Button variant="outline" className="w-full" onClick={() => router.back()}>
-            Voltar
-          </Button>
-        </CardContent>
-      </Card>
+        <Button className="w-full rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" onClick={() => router.back()}>
+          Voltar
+        </Button>
+      </div>
     </div>
   );
 }

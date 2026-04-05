@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Droplets, ImageIcon, Save } from "lucide-react";
 import { formatCurrency } from "@/src/lib/utils";
@@ -84,13 +83,11 @@ export default function OpsProductsPage() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <h1 className="text-xl font-bold text-foreground">Produtos</h1>
+        <h1 className="text-lg font-bold font-heading text-foreground">Produtos</h1>
         {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="py-4">
-              <div className="h-4 w-48 rounded bg-muted" />
-            </CardContent>
-          </Card>
+          <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+            <div className="h-4 w-48 rounded-lg bg-[#e1e3e4]" />
+          </div>
         ))}
       </div>
     );
@@ -98,76 +95,72 @@ export default function OpsProductsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-foreground">Produtos</h1>
+      <h1 className="text-lg font-bold font-heading text-foreground">Produtos</h1>
 
       <div className="space-y-3">
         {products.map((product) => (
-          <Card key={product.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-sm leading-tight">{product.name}</CardTitle>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={product.is_active ? "default" : "secondary"}>
-                    {product.is_active ? "Ativo" : "Inativo"}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => toggleActive(product)}
-                  >
-                    {product.is_active ? "Desativar" : "Ativar"}
-                  </Button>
-                </div>
+          <div key={product.id} className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold font-heading leading-tight">{product.name}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge variant={product.is_active ? "default" : "secondary"} className={product.is_active ? "bg-[#0041c8] text-white" : ""}>
+                  {product.is_active ? "Ativo" : "Inativo"}
+                </Badge>
+                <Button
+                  size="sm"
+                  className={product.is_active ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" : "h-7 text-xs rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white shadow-none hover:opacity-90"}
+                  onClick={() => toggleActive(product)}
+                >
+                  {product.is_active ? "Desativar" : "Ativar"}
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency(product.price_cents)}
-                {product.deposit_cents > 0 && ` + depósito ${formatCurrency(product.deposit_cents)}`}
-              </p>
-            </CardHeader>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(product.price_cents)}
+              {product.deposit_cents > 0 && ` + depósito ${formatCurrency(product.deposit_cents)}`}
+            </p>
 
-            <CardContent className="space-y-3">
-              {/* Preview da imagem */}
-              <div className="h-28 w-28 rounded-lg border overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                {product.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Droplets className="h-8 w-8 text-muted-foreground/40" />
-                )}
-              </div>
+            {/* Preview da imagem */}
+            <div className="h-28 w-28 rounded-xl overflow-hidden bg-[#e1e3e4] flex items-center justify-center shrink-0">
+              {product.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <Droplets className="h-8 w-8 text-muted-foreground/40" />
+              )}
+            </div>
 
-              {/* Campo de URL da imagem */}
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ImageIcon className="h-3 w-3" />
-                  URL da imagem
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    type="url"
-                    placeholder="https://exemplo.com/imagem.jpg"
-                    value={drafts[product.id] ?? ""}
-                    onChange={(e) =>
-                      setDrafts((prev) => ({ ...prev, [product.id]: e.target.value }))
-                    }
-                    className="text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={saving[product.id]}
-                    onClick={() => saveImageUrl(product)}
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+            {/* Campo de URL da imagem */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="h-3 w-3" />
+                URL da imagem
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://exemplo.com/imagem.jpg"
+                  value={drafts[product.id] ?? ""}
+                  onChange={(e) =>
+                    setDrafts((prev) => ({ ...prev, [product.id]: e.target.value }))
+                  }
+                  className="text-xs rounded-xl border-0 bg-[#e1e3e4]"
+                />
+                <Button
+                  size="sm"
+                  disabled={saving[product.id]}
+                  onClick={() => saveImageUrl(product)}
+                  className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] shadow-none hover:opacity-90 active:scale-[0.98]"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
     </div>

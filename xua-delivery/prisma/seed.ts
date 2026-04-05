@@ -14,6 +14,8 @@ import {
   ActorType,
   SourceApp,
   AuditEventType,
+  BannerType,
+  ConsumerRole,
 } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -102,6 +104,12 @@ const ID = {
   audit08:           "00000000-0000-0000-0000-000000001008",
   audit09:           "00000000-0000-0000-0000-000000001009",
   audit10:           "00000000-0000-0000-0000-000000001010",
+
+  // Banners
+  bannerCarousel1:   "00000000-0000-0000-0000-000000001101",
+  bannerCarousel2:   "00000000-0000-0000-0000-000000001102",
+  bannerCarousel3:   "00000000-0000-0000-0000-000000001103",
+  bannerFeatured:    "00000000-0000-0000-0000-000000001104",
 };
 
 /** Retorna uma data futura zerando o horário */
@@ -129,12 +137,12 @@ async function main() {
   // TABELA 1 — 01_mst_consumers
   // ═══════════════════════════════════════════════════════════════
   const users = [
-    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: "consumer",          phone: "(11) 99001-1001" },
-    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: "consumer",          phone: "(11) 99001-1006" },
-    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: "distributor_admin", phone: "(11) 99001-1002" },
-    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: "driver",            phone: "(11) 99001-1003" },
-    { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: "ops",               phone: "(11) 99001-1004" },
-    { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: "support",           phone: "(11) 99001-1005" },
+    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
+    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
+    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002" },
+    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003" },
+    { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
+    { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },
   ];
   for (const u of users) {
     await prisma.consumer.upsert({
@@ -886,6 +894,65 @@ async function main() {
   }
   console.log("✅ [18] Auditoria: 10 eventos — ciclo completo do pedido DELIVERED");
 
+  // ─── 19. Banners promocionais ────────────────────────────────
+  const banners = [
+    {
+      id: ID.bannerCarousel1,
+      type: BannerType.CAROUSEL,
+      title: "Primeira compra?\nR$ 10 OFF!",
+      subtitle: "Use o cupom:",
+      tag: "OFERTA DE BOAS-VINDAS",
+      highlight: "XUAFRESH",
+      bg_gradient_from: "#0041c8",
+      bg_gradient_to: "#0055ff",
+      bg_image_url: "/images/banner-welcome.webp",
+      sort_order: 0,
+    },
+    {
+      id: ID.bannerCarousel2,
+      type: BannerType.CAROUSEL,
+      title: "Pedidos acima\nde R$ 50",
+      subtitle: "Aproveite agora!",
+      tag: "FRETE GRÁTIS",
+      bg_gradient_from: "#0041c8",
+      bg_gradient_to: "#0055ff",
+      sort_order: 1,
+    },
+    {
+      id: ID.bannerCarousel3,
+      type: BannerType.CAROUSEL,
+      title: "Economize até\n15% todo mês",
+      subtitle: "Água sem preocupação",
+      tag: "ASSINATURA",
+      bg_gradient_from: "#0041c8",
+      bg_gradient_to: "#0055ff",
+      cta_text: "Assinar",
+      cta_url: "/subscription/manage",
+      sort_order: 2,
+    },
+    {
+      id: ID.bannerFeatured,
+      type: BannerType.FEATURED,
+      title: "Bomba Elétrica USB",
+      subtitle: "Praticidade para o seu galão sem esforço.",
+      tag: "Novo",
+      cta_text: "Conferir agora",
+      cta_url: "/catalog",
+      bg_color: "#f3f4f5",
+      text_color: "#191c1d",
+      sort_order: 0,
+    },
+  ];
+
+  for (const banner of banners) {
+    await prisma.banner.upsert({
+      where: { id: banner.id },
+      update: {},
+      create: banner,
+    });
+  }
+  console.log("✅ [19] Banners: 3 carousel + 1 featured");
+
   // ─── Resumo final ──────────────────────────────────────────────
   console.log("\n🎉 Seed completo! Todas as 19 tabelas populadas.");
   console.log("──────────────────────────────────────────────────");
@@ -899,6 +966,7 @@ async function main() {
   console.log("  Assinaturas : ACTIVE · PAUSED · CANCELLED");
   console.log("  Reconciliação: delta 0 (ontem)");
   console.log("  Auditoria   : 10 eventos do ciclo de vida do pedido entregue");
+  console.log("  Banners     : 3 carousel + 1 featured");
   console.log("──────────────────────────────────────────────────");
 }
 

@@ -6,7 +6,6 @@ import { StatusPill } from "@/src/components/shared/status-pill";
 import { DeliveryWindow } from "@/src/types/enums";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import type { Order, AuditEvent } from "@/src/types";
 
 interface SupportOrderDetail extends Order {
@@ -32,75 +31,71 @@ export default function SupportOrderDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="py-4"><div className="h-4 w-40 rounded bg-muted" /></CardContent></Card>)}</div>;
+  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"><div className="h-4 w-40 rounded-lg bg-[#e1e3e4]" /></div>)}</div>;
   if (!order) return <p className="text-destructive">Pedido não encontrado.</p>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Pedido #{order.id}</h1>
+        <h1 className="text-lg font-bold font-heading text-foreground">Pedido #{order.id}</h1>
         <StatusPill status={order.status} />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Consumidor</CardTitle></CardHeader>
-        <CardContent className="text-sm space-y-1">
-          <p><span className="font-medium">Nome:</span> {order.consumer_name}</p>
-          <p><span className="font-medium">E-mail:</span> {order.consumer_email}</p>
-          <p><span className="font-medium">Telefone:</span> {order.consumer_phone}</p>
-          <p><span className="font-medium">Endereço:</span> {order.address_line}</p>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-1.5">
+        <p className="text-sm font-semibold font-heading">Consumidor</p>
+        <div className="text-sm space-y-1">
+          <p><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome:</span> {order.consumer_name}</p>
+          <p><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">E-mail:</span> {order.consumer_email}</p>
+          <p><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone:</span> {order.consumer_phone}</p>
+          <p><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Endereço:</span> {order.address_line}</p>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Itens</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-2">
+        <p className="text-sm font-semibold font-heading">Itens</p>
+        <div className="space-y-2 text-sm">
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between">
               <span>{item.product_name} x{item.qty}</span>
-              <span>{formatCurrency(item.unit_price_cents * item.qty)}</span>
+              <span className="font-medium text-[#0041c8]">{formatCurrency(item.unit_price_cents * item.qty)}</span>
             </div>
           ))}
-          <div className="flex justify-between font-bold pt-2 border-t">
+          <div className="flex justify-between font-bold pt-2" style={{ borderTop: "1px solid #e1e3e4" }}>
             <span>Total</span>
-            <span>{formatCurrency(order.total_cents)}</span>
+            <span className="text-[#0041c8]">{formatCurrency(order.total_cents)}</span>
           </div>
           <p className="text-xs text-muted-foreground">
             {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {order.events.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Timeline</CardTitle></CardHeader>
-          <CardContent>
-            <OrderTimeline events={order.events} />
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-2">
+          <p className="text-sm font-semibold font-heading">Timeline</p>
+          <OrderTimeline events={order.events} />
+        </div>
       )}
 
       {order.audit_events.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Audit Trail</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-xs">
-              {order.audit_events.map((evt) => (
-                <div key={evt.id} className="border rounded p-2">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{evt.event_type}</span>
-                    <span className="text-muted-foreground/60">
-                      {new Date(evt.occurred_at).toLocaleString("pt-BR")}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    {evt.actor_type}:{evt.actor_id} — {evt.source_app}
-                  </p>
+        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-2">
+          <p className="text-sm font-semibold font-heading">Audit Trail</p>
+          <div className="space-y-2 text-xs">
+            {order.audit_events.map((evt) => (
+              <div key={evt.id} className="rounded-xl bg-[#e1e3e4]/50 p-2.5">
+                <div className="flex justify-between">
+                  <span className="font-semibold">{evt.event_type}</span>
+                  <span className="text-muted-foreground/60">
+                    {new Date(evt.occurred_at).toLocaleString("pt-BR")}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <p className="text-muted-foreground">
+                  {evt.actor_type}:{evt.actor_id} — {evt.source_app}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

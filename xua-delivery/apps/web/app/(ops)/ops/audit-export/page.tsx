@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { AuditEventType } from "@/src/types/enums";
 
 const EVENT_TYPES = Object.values(AuditEventType);
@@ -41,53 +40,35 @@ export default function AuditExportPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Exportar Auditoria</h1>
+      <h1 className="text-lg font-bold font-heading">Exportar Auditoria</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data início</label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data fim</label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
+        <p className="text-sm font-semibold font-heading">Filtros</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data início</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tipo de evento</label>
-            <select
-              value={eventType}
-              onChange={(e) => setEventType(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">Todos</option>
-              {EVENT_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data fim</label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
           </div>
+        </div>
 
-          <Button className="w-full" disabled={loading} onClick={handleExport}>
-            {loading ? "Exportando..." : "Baixar CSV"}
-          </Button>
-        </CardContent>
-      </Card>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de evento</label>
+          <select value={eventType} onChange={(e) => setEventType(e.target.value)} className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm">
+            <option value="">Todos</option>
+            {EVENT_TYPES.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
+        <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading} onClick={handleExport}>
+          {loading ? "Exportando..." : "Baixar CSV"}
+        </Button>
+      </div>
     </div>
   );
 }

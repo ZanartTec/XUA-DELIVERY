@@ -6,7 +6,6 @@ import { useCartStore } from "@/src/store/cart";
 import { useAuthStore } from "@/src/store/auth";
 import { formatCurrency } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { FlaskConical } from "lucide-react";
 
 function PaymentContent() {
@@ -145,14 +144,15 @@ function PaymentContent() {
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-foreground">Pagamento</h1>
+    <div className="space-y-4 pb-4">
+      <div className="px-4 pt-4">
+        <h1 className="text-lg font-bold font-heading text-foreground">Pagamento</h1>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Resumo do pedido</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+      {/* Resumo do pedido */}
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-3 text-sm font-semibold font-heading">Resumo do pedido</p>
+        <div className="space-y-2 text-sm">
           {mounted && items.map((item) => (
             <div key={item.product_id} className="flex justify-between">
               <span>
@@ -173,47 +173,44 @@ function PaymentContent() {
               <span>{formatCurrency(depositCents)}</span>
             </div>
           )}
-          <div className="flex justify-between font-bold pt-2 border-t">
+          <div className="flex justify-between pt-2 font-bold" style={{ borderTop: "1px solid #e1e3e4" }}>
             <span>Total</span>
-            <span className="text-accent">{formatCurrency(totalCents)}</span>
+            <span className="text-[#0041c8]">{formatCurrency(totalCents)}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             Entrega: {date} — {deliveryWindow === "morning" ? "Manhã" : "Tarde"}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Endereço de entrega</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {addresses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhum endereço cadastrado. Adicione um em Perfil &gt; Endereços.
-            </p>
-          ) : (
-            <select
-              value={selectedAddressId ?? ""}
-              onChange={(e) => setSelectedAddressId(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            >
-              {addresses.map((addr) => (
-                <option key={addr.id} value={addr.id}>
-                  {addr.street}, {addr.number}{addr.is_default ? " (Principal)" : ""}
-                </option>
-              ))}
-            </select>
-          )}
-        </CardContent>
-      </Card>
+      {/* Endereço de entrega */}
+      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+        <p className="mb-3 text-sm font-semibold font-heading">Endereço de entrega</p>
+        {addresses.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum endereço cadastrado. Adicione um em Perfil &gt; Endereços.
+          </p>
+        ) : (
+          <select
+            value={selectedAddressId ?? ""}
+            onChange={(e) => setSelectedAddressId(e.target.value)}
+            className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2.5 text-sm outline-none"
+          >
+            {addresses.map((addr) => (
+              <option key={addr.id} value={addr.id}>
+                {addr.street}, {addr.number}{addr.is_default ? " (Principal)" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
 
       {/* Banner de modo de teste */}
-      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-        <FlaskConical className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+      <div className="mx-4 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
         <div>
           <p className="font-semibold">Modo de teste — pagamento simulado</p>
-          <p className="text-xs mt-0.5 text-amber-700">
+          <p className="mt-0.5 text-xs text-amber-700">
             Nenhuma cobrança real será efetuada. O pedido será criado e confirmado automaticamente
             simulando a aprovação do gateway PIX.
           </p>
@@ -221,24 +218,26 @@ function PaymentContent() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
+        <div className="mx-4 rounded-2xl bg-destructive/10 px-4 py-2.5 text-center text-sm text-destructive">
           {error}
         </div>
       )}
 
       {previewError && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
+        <div className="mx-4 rounded-2xl bg-destructive/10 px-4 py-2.5 text-center text-sm text-destructive">
           {previewError}
         </div>
       )}
 
-      <Button
-        className="w-full h-12 text-base font-semibold"
-        disabled={!mounted || loading || previewLoading || !!previewError}
-        onClick={handleConfirm}
-      >
-        {loading ? "Processando..." : mounted ? `Simular pagamento de ${formatCurrency(totalCents)}` : "Carregando..."}
-      </Button>
+      <div className="px-4">
+        <Button
+          className="h-12 w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-base font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
+          disabled={!mounted || loading || previewLoading || !!previewError}
+          onClick={handleConfirm}
+        >
+          {loading ? "Processando..." : mounted ? `Simular pagamento de ${formatCurrency(totalCents)}` : "Carregando..."}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
+
 import { KpiChart } from "@/src/components/shared/kpi-chart";
 import { PeriodSelector } from "@/src/components/shared/period-selector";
 import { api } from "@/src/lib/api-client";
@@ -40,88 +40,81 @@ export default function OpsKpisPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold">KPIs — Todos os Distribuidores</h1>
+        <h1 className="text-lg font-bold font-heading text-foreground">KPIs — Todos os Distribuidores</h1>
         <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="py-6"><div className="h-8 w-16 rounded bg-muted" /></CardContent>
-            </Card>
+            <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+              <div className="h-8 w-16 rounded-lg bg-[#e1e3e4]" />
+            </div>
           ))}
         </div>
       ) : !allKpis || allKpis.length === 0 ? (
         <p className="text-muted-foreground">Sem dados disponíveis.</p>
       ) : (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Resumo por distribuidor</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-2 font-medium">Distribuidor</th>
-                      <th className="py-2 font-medium text-center">SLA Aceite</th>
-                      <th className="py-2 font-medium text-center">Taxa Aceite</th>
-                      <th className="py-2 font-medium text-center">Taxa Reentrega</th>
+          <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+            <p className="text-sm font-semibold font-heading mb-3">Resumo por distribuidor</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left" style={{ borderBottom: "1px solid #e1e3e4" }}>
+                    <th className="py-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold">Distribuidor</th>
+                    <th className="py-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold text-center">SLA Aceite</th>
+                    <th className="py-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold text-center">Taxa Aceite</th>
+                    <th className="py-2 text-xs uppercase tracking-wide text-muted-foreground font-semibold text-center">Taxa Reentrega</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allKpis.map((k) => (
+                    <tr
+                      key={k.distributor_id}
+                      className={`cursor-pointer transition-colors hover:bg-[#e1e3e4]/40 ${
+                        selectedDistributor === k.distributor_id ? "bg-[#0041c8]/5" : ""
+                      }`}
+                      style={{ borderBottom: "1px solid #e1e3e4" }}
+                      onClick={() => setSelectedDistributor(k.distributor_id)}
+                    >
+                      <td className="py-2">{k.distributor_name}</td>
+                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.sla_acceptance_pct.toFixed(1)}%</td>
+                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.acceptance_rate_pct.toFixed(1)}%</td>
+                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.redelivery_rate_pct.toFixed(1)}%</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {allKpis.map((k) => (
-                      <tr
-                        key={k.distributor_id}
-                        className={`border-b cursor-pointer hover:bg-muted/50 ${
-                          selectedDistributor === k.distributor_id ? "bg-muted" : ""
-                        }`}
-                        onClick={() => setSelectedDistributor(k.distributor_id)}
-                      >
-                        <td className="py-2">{k.distributor_name}</td>
-                        <td className="py-2 text-center">{k.sla_acceptance_pct.toFixed(1)}%</td>
-                        <td className="py-2 text-center">{k.acceptance_rate_pct.toFixed(1)}%</td>
-                        <td className="py-2 text-center">{k.redelivery_rate_pct.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           {selectedDistributor && detailKpi && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  Gráficos — {allKpis.find((k) => k.distributor_id === selectedDistributor)?.distributor_name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <KpiChart
-                    data={[{ date: "Atual", value: detailKpi.sla_acceptance_pct }]}
-                    target={98}
-                    label="SLA Aceite"
-                    color="#22c55e"
-                  />
-                  <KpiChart
-                    data={[{ date: "Atual", value: detailKpi.acceptance_rate_pct }]}
-                    target={95}
-                    label="Taxa de Aceite"
-                    color="#2563eb"
-                  />
-                  <KpiChart
-                    data={[{ date: "Atual", value: detailKpi.redelivery_rate_pct }]}
-                    target={3}
-                    label="Taxa de Reentrega"
-                    color="#f59e0b"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+              <p className="text-sm font-semibold font-heading mb-3">
+                Gráficos — {allKpis.find((k) => k.distributor_id === selectedDistributor)?.distributor_name}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <KpiChart
+                  data={[{ date: "Atual", value: detailKpi.sla_acceptance_pct }]}
+                  target={98}
+                  label="SLA Aceite"
+                  color="#22c55e"
+                />
+                <KpiChart
+                  data={[{ date: "Atual", value: detailKpi.acceptance_rate_pct }]}
+                  target={95}
+                  label="Taxa de Aceite"
+                  color="#0041c8"
+                />
+                <KpiChart
+                  data={[{ date: "Atual", value: detailKpi.redelivery_rate_pct }]}
+                  target={3}
+                  label="Taxa de Reentrega"
+                  color="#f59e0b"
+                />
+              </div>
+            </div>
           )}
         </>
       )}

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Card, CardContent } from "@/src/components/ui/card";
 import type { Order } from "@/src/types";
 
 interface SearchResult extends Order {
@@ -36,16 +35,16 @@ export default function SupportPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Suporte</h1>
+      <h1 className="text-lg font-bold font-heading text-foreground">Suporte</h1>
 
       <form onSubmit={handleSearch} className="flex gap-2">
         <Input
           placeholder="Buscar por telefone, e-mail ou ID do pedido"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1"
+          className="flex-1 rounded-xl border-0 bg-[#e1e3e4]"
         />
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading} className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]">
           {loading ? "..." : "Buscar"}
         </Button>
       </form>
@@ -54,17 +53,15 @@ export default function SupportPage() {
         <div className="space-y-3">
           {results.map((order) => (
             <Link key={order.id} href={`/support/${order.id}`}>
-              <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="py-3 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">Pedido #{order.id}</p>
-                    <StatusPill status={order.status} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {order.consumer_name} — {order.consumer_email} — {order.consumer_phone}
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="rounded-2xl bg-white/95 p-3 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm hover:shadow-[0_4px_16px_rgba(0,26,64,0.10)] transition-shadow space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-sm font-heading">Pedido #{order.id}</p>
+                  <StatusPill status={order.status} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {order.consumer_name} — {order.consumer_email} — {order.consumer_phone}
+                </p>
+              </div>
             </Link>
           ))}
         </div>

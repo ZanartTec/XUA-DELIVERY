@@ -11,6 +11,7 @@ import { opsRoutes } from "../modules/ops/index.js";
 import { notificationsRoutes } from "../modules/notifications/index.js";
 import { jobsRoutes } from "../jobs/index.js";
 import { distributorRoutes } from "../modules/distributor/routes/distributor.routes.js";
+import { bannersRoutes } from "../modules/banners/index.js";
 
 // Rotas de negócio registradas progressivamente nos PRs seguintes:
 // PR 05 → auth ✓
@@ -35,4 +36,5 @@ export function registerRoutes(app: Application): void {
   app.use("/api/ops", opsRoutes);
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/distributor", distributorRoutes);
+  app.use("/api/banners", bannersRoutes);
 }
