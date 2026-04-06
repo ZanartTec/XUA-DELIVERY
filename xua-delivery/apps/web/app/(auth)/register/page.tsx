@@ -1,19 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema, type RegisterInput } from "@/src/schemas/auth";
-import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { GlassWater, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const setUser = useAuthStore((s) => s.setUser);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -29,6 +25,7 @@ export default function RegisterPage() {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
@@ -39,9 +36,7 @@ export default function RegisterPage() {
         return;
       }
 
-      const { user } = await res.json();
-      setUser(user);
-      router.push("/");
+      window.location.replace("/");
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     }

@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { useAuthStore } from "@/src/store/auth";
 
 interface LogoutButtonProps {
   variant?: "icon" | "full";
@@ -13,16 +11,17 @@ interface LogoutButtonProps {
 
 export function LogoutButton({ variant = "icon", className }: LogoutButtonProps) {
   const [loading, setLoading] = useState(false);
-  const logout = useAuthStore((s) => s.logout);
-  const router = useRouter();
 
   async function handleLogout() {
     setLoading(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
     } finally {
-      logout();
-      router.push("/login");
+      window.location.replace("/login");
     }
   }
 

@@ -1,23 +1,28 @@
 import { create } from "zustand";
 
-interface User {
+export interface AuthUser {
   id: string;
   name: string;
   role: "consumer" | "distributor_admin" | "driver" | "ops" | "support";
 }
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
-  setUser: (user: User) => void;
+  hydrated: boolean;
+  setUser: (user: AuthUser) => void;
+  setHydrated: () => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()((set) => ({
   user: null,
   isAuthenticated: false,
+  hydrated: false,
 
-  setUser: (user) => set({ user, isAuthenticated: true }),
+  setUser: (user) => set({ user, isAuthenticated: true, hydrated: true }),
 
-  logout: () => set({ user: null, isAuthenticated: false }),
+  setHydrated: () => set({ hydrated: true }),
+
+  logout: () => set({ user: null, isAuthenticated: false, hydrated: true }),
 }));

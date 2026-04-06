@@ -1,19 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput } from "@/src/schemas/auth";
-import { useAuthStore } from "@/src/store/auth";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { GlassWater, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const setUser = useAuthStore((s) => s.setUser);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -29,6 +25,7 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
@@ -39,9 +36,7 @@ export default function LoginPage() {
         return;
       }
 
-      const { user } = await res.json();
-      setUser(user);
-      router.push("/");
+      window.location.replace("/");
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     }
@@ -57,9 +52,9 @@ export default function LoginPage() {
 
       {/* Hero Headline */}
       <h1 className="font-heading text-[2rem] leading-[1.15] font-extrabold tracking-tight text-[#001a40] mb-2">
-        Welcome to the{" "}
+        Seja Bem-vindo{" "}
         <span className="bg-linear-to-r from-[#0041c8] to-[#0055ff] bg-clip-text text-transparent">
-          freshest delivery
+          ao Xua elivery
         </span>
       </h1>
       <p className="text-sm text-[#434656] mb-8">
