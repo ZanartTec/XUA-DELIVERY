@@ -22,6 +22,15 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Xuá Delivery",
   },
+  other: {
+    "theme-color": "#0041c8",
+  },
+  icons: {
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
+      { url: "/icons/icon-192.png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -33,15 +42,9 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       className={`${inter.variable} ${manrope.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <head>
-        {/* Theme color para Android status bar */}
-        <meta name="theme-color" content="#0041c8" />
-        {/* Ícone de "Adicionar à Tela de Início" no iOS (deve ser PNG 180×180) */}
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

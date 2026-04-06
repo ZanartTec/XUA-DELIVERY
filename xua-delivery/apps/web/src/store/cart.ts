@@ -6,6 +6,7 @@ interface CartItem {
   product_name: string;
   unit_price_cents: number;
   quantity: number;
+  image_url?: string | null;
 }
 
 interface CartState {

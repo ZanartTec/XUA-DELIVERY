@@ -122,6 +122,7 @@ export default function CatalogPage() {
       product_id: product.id,
       product_name: product.name,
       unit_price_cents: product.price_cents,
+      image_url: product.image_url,
     });
     toast.success(`${product.name} adicionado ao carrinho`);
   }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useIsClient } from "@/src/hooks/use-is-client";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { DeliveryWindow } from "@/src/types/enums";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
@@ -20,6 +21,7 @@ interface SupportOrderDetail extends Order {
 
 export default function SupportOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isClient = useIsClient();
   const [order, setOrder] = useState<SupportOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -86,7 +88,7 @@ export default function SupportOrderDetailPage() {
                 <div className="flex justify-between">
                   <span className="font-semibold">{evt.event_type}</span>
                   <span className="text-muted-foreground/60">
-                    {new Date(evt.occurred_at).toLocaleString("pt-BR")}
+                    {isClient ? new Date(evt.occurred_at).toLocaleString("pt-BR") : ""}
                   </span>
                 </div>
                 <p className="text-muted-foreground">

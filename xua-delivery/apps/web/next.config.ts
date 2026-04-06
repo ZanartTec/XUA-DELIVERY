@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
     "*": ["node_modules/@swc/**", "node_modules/@esbuild/**", "node_modules/prisma/**"],
   },
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "static.wixstatic.com",
+      },
+    ],
+  },
+
   async rewrites() {
     const apiUrl = process.env.API_URL || "http://localhost:4000";
     return {

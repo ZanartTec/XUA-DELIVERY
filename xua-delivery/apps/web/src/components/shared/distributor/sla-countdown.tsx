@@ -9,9 +9,10 @@ interface SlaCountdownProps {
 }
 
 export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
-  const [remaining, setRemaining] = useState(() => calcRemaining(deadlineIso));
+  const [remaining, setRemaining] = useState(0);
 
   useEffect(() => {
+    setRemaining(calcRemaining(deadlineIso));
     const interval = setInterval(() => {
       setRemaining(calcRemaining(deadlineIso));
     }, 1000);

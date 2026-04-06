@@ -2,6 +2,7 @@
 
 import { cn } from "@/src/lib/utils";
 import { StatusPill } from "@/src/components/shared/status-pill";
+import { useIsClient } from "@/src/hooks/use-is-client";
 
 export interface TimelineEvent {
   status: string;
@@ -15,6 +16,7 @@ interface OrderTimelineProps {
 }
 
 export function OrderTimeline({ events, className }: OrderTimelineProps) {
+  const isClient = useIsClient();
   return (
     <ol className={cn("relative border-l border-gray-200 ml-3", className)}>
       {events.map((event, i) => {
@@ -30,7 +32,7 @@ export function OrderTimeline({ events, className }: OrderTimelineProps) {
             <div className="flex flex-col gap-1">
               <StatusPill status={event.status} />
               <time className="text-xs text-gray-500">
-                {new Date(event.timestamp).toLocaleString("pt-BR")}
+                {isClient ? new Date(event.timestamp).toLocaleString("pt-BR") : ""}
               </time>
               {event.actor && (
                 <span className="text-xs text-gray-400">{event.actor}</span>
