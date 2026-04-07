@@ -138,21 +138,31 @@ enum AuditEventType {
   @@map("audit_event_type")
 }
 
+enum IdempotencyStatus {
+  PENDING    @map("pending")
+  PROCESSED  @map("processed")
+  FAILED     @map("failed")
+
+  @@map("idempotency_status")
+}
+
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
-  id            String       @id @default(uuid()) @db.Uuid
-  name          String
-  email         String       @unique
-  phone         String?
-  password_hash String
-  role          ConsumerRole @default(CONSUMER)
-  is_b2b        Boolean      @default(false)
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
+  id              String       @id @default(uuid()) @db.Uuid
+  name            String
+  email           String       @unique
+  phone           String?
+  password_hash   String
+  role            ConsumerRole @default(CONSUMER)
+  is_b2b          Boolean      @default(false)
+  distributor_id  String?      @db.Uuid
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
 
+  distributor   Distributor?       @relation("DistributorUsers", fields: [distributor_id], references: [id])
   addresses     Address[]
-  orders        Order[]          @relation("ConsumerOrders")
+  orders        Order[]            @relation("ConsumerOrders")
   push_tokens   ConsumerPushToken[]
   subscriptions Subscription[]
   deposits      Deposit[]
@@ -194,6 +204,7 @@ model Distributor {
   created_at              DateTime @default(now())
   updated_at              DateTime @updatedAt
 
+  users           Consumer[]       @relation("DistributorUsers")
   zones           Zone[]
   orders          Order[]
   reconciliations Reconciliation[]
@@ -383,22 +394,29 @@ model Payment {
   provider             String?
   provider_payment_ref String?
   external_id          String?       @unique
+  idempotency_key      String?
   paid_at              DateTime?
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
 
-  order Order @relation(fields: [order_id], references: [id])
+  order        Order                @relation(fields: [order_id], references: [id])
+  transactions PaymentTransaction[]
 
   @@map("13_trn_payments")
 }
 
 model PaymentWebhookEvent {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
   provider           String
   provider_event_ref String
   event_type         String
-  payload            Json     @default("{}")
-  created_at         DateTime @default(now())
+  payload            Json      @default("{}")
+  raw_headers        Json?
+  signature_valid    Boolean   @default(false)
+  processed_at       DateTime?
+  processing_error   String?
+  retry_count        Int       @default(0)
+  created_at         DateTime  @default(now())
 
   @@unique([provider, provider_event_ref])
   @@map("14_cfg_payment_webhook_events")
@@ -464,6 +482,37 @@ model AuditEvent {
   order Order? @relation(fields: [order_id], references: [id])
 
   @@map("18_aud_audit_events")
+}
+
+// ─── Idempotency Keys (deduplicação de webhooks) ──────────────
+
+model IdempotencyKey {
+  id           String            @id @default(uuid()) @db.Uuid
+  key          String            @unique
+  status       IdempotencyStatus @default(PENDING)
+  locked_at    DateTime?
+  processed_at DateTime?
+  created_at   DateTime          @default(now())
+
+  @@index([status, locked_at])
+  @@map("20_cfg_idempotency_keys")
+}
+
+// ─── Payment Transactions (trilha de interações com provedor) ──
+
+model PaymentTransaction {
+  id               String   @id @default(uuid()) @db.Uuid
+  payment_id       String   @db.Uuid
+  action           String
+  provider_status  String
+  provider_response Json    @default("{}")
+  idempotency_key  String?
+  created_at       DateTime @default(now())
+
+  payment Payment @relation(fields: [payment_id], references: [id])
+
+  @@index([payment_id, created_at])
+  @@map("21_trn_payment_transactions")
 }
 
 // ─── Banners promocionais configuráveis (admin) ────────────────

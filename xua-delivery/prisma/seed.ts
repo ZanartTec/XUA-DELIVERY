@@ -25,91 +25,91 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-// ─── IDs fixos para idempotência ────────────────────────────────
+// ─── IDs fixos para idempotência (UUID v4 válido: versão=4, variante=a) ──
 const ID = {
   // Produtos
-  product20l:        "00000000-0000-0000-0000-000000000001",
-  product10l:        "00000000-0000-0000-0000-000000000002",
+  product20l:        "00000000-0000-4000-a000-000000000001",
+  product10l:        "00000000-0000-4000-a000-000000000002",
 
   // Distribuidor e zona
-  distributor:       "00000000-0000-0000-0000-000000000010",
-  zone:              "00000000-0000-0000-0000-000000000020",
-  zoneCov1:          "00000000-0000-0000-0000-000000000030",
-  zoneCov2:          "00000000-0000-0000-0000-000000000031",
+  distributor:       "00000000-0000-4000-a000-000000000010",
+  zone:              "00000000-0000-4000-a000-000000000020",
+  zoneCov1:          "00000000-0000-4000-a000-000000000030",
+  zoneCov2:          "00000000-0000-4000-a000-000000000031",
 
   // Usuários
-  consumer:          "00000000-0000-0000-0000-000000000100",  // joao (consumidor principal)
-  consumer2:         "00000000-0000-0000-0000-000000000105",  // maria (consumidor assinante)
-  adminUser:         "00000000-0000-0000-0000-000000000101",  // distribuidor_admin
-  driver:            "00000000-0000-0000-0000-000000000102",  // driver
-  opsUser:           "00000000-0000-0000-0000-000000000103",  // ops
-  supportUser:       "00000000-0000-0000-0000-000000000104",  // support
+  consumer:          "00000000-0000-4000-a000-000000000100",  // joao (consumidor principal)
+  consumer2:         "00000000-0000-4000-a000-000000000105",  // maria (consumidor assinante)
+  adminUser:         "00000000-0000-4000-a000-000000000101",  // distribuidor_admin
+  driver:            "00000000-0000-4000-a000-000000000102",  // driver
+  opsUser:           "00000000-0000-4000-a000-000000000103",  // ops
+  supportUser:       "00000000-0000-4000-a000-000000000104",  // support
 
   // Endereços
-  address:           "00000000-0000-0000-0000-000000000200",
-  address2:          "00000000-0000-0000-0000-000000000201",
+  address:           "00000000-0000-4000-a000-000000000200",
+  address2:          "00000000-0000-4000-a000-000000000201",
 
   // Pedidos (5 cenários de status distintos)
-  orderConfirmed:    "00000000-0000-0000-0000-000000000300",  // CONFIRMED (aguardando entrega)
-  orderDelivered:    "00000000-0000-0000-0000-000000000301",  // DELIVERED (entregue com OTP)
-  orderCancelled:    "00000000-0000-0000-0000-000000000302",  // CANCELLED
-  orderOutDelivery:  "00000000-0000-0000-0000-000000000303",  // OUT_FOR_DELIVERY (em rota)
-  orderCreated:      "00000000-0000-0000-0000-000000000304",  // CREATED (recém criado)
+  orderConfirmed:    "00000000-0000-4000-a000-000000000300",  // CONFIRMED (aguardando entrega)
+  orderDelivered:    "00000000-0000-4000-a000-000000000301",  // DELIVERED (entregue com OTP)
+  orderCancelled:    "00000000-0000-4000-a000-000000000302",  // CANCELLED
+  orderOutDelivery:  "00000000-0000-4000-a000-000000000303",  // OUT_FOR_DELIVERY (em rota)
+  orderCreated:      "00000000-0000-4000-a000-000000000304",  // CREATED (recém criado)
 
   // Itens de pedido
-  item1:             "00000000-0000-0000-0000-000000000400",
-  item2:             "00000000-0000-0000-0000-000000000401",
-  item3:             "00000000-0000-0000-0000-000000000402",
-  item4:             "00000000-0000-0000-0000-000000000403",
-  item5:             "00000000-0000-0000-0000-000000000404",
+  item1:             "00000000-0000-4000-a000-000000000400",
+  item2:             "00000000-0000-4000-a000-000000000401",
+  item3:             "00000000-0000-4000-a000-000000000402",
+  item4:             "00000000-0000-4000-a000-000000000403",
+  item5:             "00000000-0000-4000-a000-000000000404",
 
   // Pagamentos
-  paymentConfirmed:  "00000000-0000-0000-0000-000000000500",  // CAPTURED
-  paymentDelivered:  "00000000-0000-0000-0000-000000000501",  // CAPTURED
-  paymentCancelled:  "00000000-0000-0000-0000-000000000502",  // REFUNDED
-  paymentFailed:     "00000000-0000-0000-0000-000000000503",  // FAILED (pedido CREATED)
-  paymentOutDelivery:"00000000-0000-0000-0000-000000000504",  // CAPTURED
+  paymentConfirmed:  "00000000-0000-4000-a000-000000000500",  // CAPTURED
+  paymentDelivered:  "00000000-0000-4000-a000-000000000501",  // CAPTURED
+  paymentCancelled:  "00000000-0000-4000-a000-000000000502",  // REFUNDED
+  paymentFailed:     "00000000-0000-4000-a000-000000000503",  // FAILED (pedido CREATED)
+  paymentOutDelivery:"00000000-0000-4000-a000-000000000504",  // CAPTURED
 
   // Depósitos
-  depositConfirmed:  "00000000-0000-0000-0000-000000000600",  // HELD
-  depositDelivered:  "00000000-0000-0000-0000-000000000601",  // REFUNDED
-  depositOutDelivery:"00000000-0000-0000-0000-000000000602",  // HELD
+  depositConfirmed:  "00000000-0000-4000-a000-000000000600",  // HELD
+  depositDelivered:  "00000000-0000-4000-a000-000000000601",  // REFUNDED
+  depositOutDelivery:"00000000-0000-4000-a000-000000000602",  // HELD
 
   // OTPs
-  otpDelivered:      "00000000-0000-0000-0000-000000000700",  // USED
-  otpOutDelivery:    "00000000-0000-0000-0000-000000000701",  // ACTIVE
+  otpDelivered:      "00000000-0000-4000-a000-000000000700",  // USED
+  otpOutDelivery:    "00000000-0000-4000-a000-000000000701",  // ACTIVE
 
   // Assinatura
-  subscriptionActive:   "00000000-0000-0000-0000-000000000800",
-  subscriptionPaused:   "00000000-0000-0000-0000-000000000801",
-  subscriptionCancelled:"00000000-0000-0000-0000-000000000802",
+  subscriptionActive:   "00000000-0000-4000-a000-000000000800",
+  subscriptionPaused:   "00000000-0000-4000-a000-000000000801",
+  subscriptionCancelled:"00000000-0000-4000-a000-000000000802",
 
   // Reconciliação
-  reconciliation:    "00000000-0000-0000-0000-000000000900",
+  reconciliation:    "00000000-0000-4000-a000-000000000900",
 
   // Push token
-  pushToken:         "00000000-0000-0000-0000-000000000a00",
+  pushToken:         "00000000-0000-4000-a000-000000000a00",
 
   // Webhook event
-  webhookEvent:      "00000000-0000-0000-0000-000000000b00",
+  webhookEvent:      "00000000-0000-4000-a000-000000000b00",
 
   // Audit events
-  audit01:           "00000000-0000-0000-0000-000000001001",
-  audit02:           "00000000-0000-0000-0000-000000001002",
-  audit03:           "00000000-0000-0000-0000-000000001003",
-  audit04:           "00000000-0000-0000-0000-000000001004",
-  audit05:           "00000000-0000-0000-0000-000000001005",
-  audit06:           "00000000-0000-0000-0000-000000001006",
-  audit07:           "00000000-0000-0000-0000-000000001007",
-  audit08:           "00000000-0000-0000-0000-000000001008",
-  audit09:           "00000000-0000-0000-0000-000000001009",
-  audit10:           "00000000-0000-0000-0000-000000001010",
+  audit01:           "00000000-0000-4000-a000-000000001001",
+  audit02:           "00000000-0000-4000-a000-000000001002",
+  audit03:           "00000000-0000-4000-a000-000000001003",
+  audit04:           "00000000-0000-4000-a000-000000001004",
+  audit05:           "00000000-0000-4000-a000-000000001005",
+  audit06:           "00000000-0000-4000-a000-000000001006",
+  audit07:           "00000000-0000-4000-a000-000000001007",
+  audit08:           "00000000-0000-4000-a000-000000001008",
+  audit09:           "00000000-0000-4000-a000-000000001009",
+  audit10:           "00000000-0000-4000-a000-000000001010",
 
   // Banners
-  bannerCarousel1:   "00000000-0000-0000-0000-000000001101",
-  bannerCarousel2:   "00000000-0000-0000-0000-000000001102",
-  bannerCarousel3:   "00000000-0000-0000-0000-000000001103",
-  bannerFeatured:    "00000000-0000-0000-0000-000000001104",
+  bannerCarousel1:   "00000000-0000-4000-a000-000000001101",
+  bannerCarousel2:   "00000000-0000-4000-a000-000000001102",
+  bannerCarousel3:   "00000000-0000-4000-a000-000000001103",
+  bannerFeatured:    "00000000-0000-4000-a000-000000001104",
 };
 
 /** Retorna uma data futura zerando o horário */
@@ -139,7 +139,7 @@ async function main() {
   const users = [
     { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
     { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
-    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002" },
+    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002", distributor_id: ID.distributor },
     { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003" },
     { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
     { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },

@@ -209,8 +209,3 @@ Pontos críticos e falhas comuns:
 5. Ativar observabilidade financeira com métricas e alertas.
 6. Separar processamento assíncrono de pagamento do processo web principal.
 
-Se quiser, no próximo passo eu posso te entregar um blueprint técnico objetivo com:
-1. proposta de schema Prisma (campos e índices),
-2. contrato de endpoints de pagamento,
-3. desenho de filas Redis com retries e DLQ,
-4. mapeamento oficial de status Mercado Pago para seu domínio.
