@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-type TimeWindow = "morning" | "afternoon" | "evening";
+type TimeWindow = "morning" | "afternoon";
 type PaymentMethod = "pix" | "credit" | "cash";
 
 interface CheckoutState {

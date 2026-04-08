@@ -197,7 +197,7 @@ export const orderService = {
       );
 
       return updated;
-    });
+    }, { maxWait: 10000, timeout: 10000 });
 
     return order;
   },
@@ -230,7 +230,7 @@ export const orderService = {
       );
 
       return updated;
-    });
+    }, { maxWait: 10000, timeout: 10000 });
 
     return order;
   },
@@ -263,7 +263,7 @@ export const orderService = {
       );
 
       return updated;
-    });
+    }, { maxWait: 10000, timeout: 10000 });
 
     // Socket.io pós-commit: notifica distribuidor
     const io = getIO();

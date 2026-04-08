@@ -257,7 +257,7 @@ async function main() {
       id: ID.product20l,
       name: "Galão de Água 20L",
       description: "Galão de água mineral natural purificada de 20 litros. Retornável.",
-      image_url: "https://xuadelivery.com.br/products/galao-20l.jpg",
+      image_url: "/images/galao-20l.jpg",
       price_cents: 2500,
       deposit_cents: 1000,
       is_active: true,

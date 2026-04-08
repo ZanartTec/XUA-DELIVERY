@@ -17,17 +17,15 @@ import {
   Home,
   Sun,
   CloudSun,
-  Moon,
   Droplets,
   Zap,
 } from "lucide-react";
 
-type TimeWindow = "morning" | "afternoon" | "evening";
+type TimeWindow = "morning" | "afternoon";
 
 const WINDOWS: { value: TimeWindow; label: string; sublabel: string; icon: typeof Sun }[] = [
   { value: "morning", label: "Manhã", sublabel: "Entre 08:00 - 12:00", icon: Sun },
   { value: "afternoon", label: "Tarde", sublabel: "Entre 12:00 - 17:00", icon: CloudSun },
-  { value: "evening", label: "Noite", sublabel: "Entre 17:00 - 21:00", icon: Moon },
 ];
 
 const MONTH_SHORT: Record<number, string> = {

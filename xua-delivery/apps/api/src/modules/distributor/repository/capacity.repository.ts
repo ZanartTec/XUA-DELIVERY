@@ -17,11 +17,12 @@ export const capacityRepository = {
     window: DeliveryWindow,
     tx: TxClient
   ): Promise<DeliveryCapacity | null> {
+    const windowLower = window.toLowerCase();
     const rows = await tx.$queryRaw<DeliveryCapacity[]>`
       SELECT * FROM "07_cfg_delivery_capacity"
       WHERE zone_id = ${zoneId}::uuid
         AND delivery_date = ${date}::date
-        AND window = ${window}::"delivery_window"
+        AND "window" = ${windowLower}::"delivery_window"
       FOR UPDATE
       LIMIT 1
     `;
