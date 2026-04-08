@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { useCartStore } from "@/src/store/cart";
 import { useAuthStore } from "@/src/store/auth";
+import { useCheckoutStore } from "@/src/store/checkout";
 import { formatCurrency } from "@/src/lib/utils";
 import { cn } from "@/src/lib/utils";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
@@ -80,15 +81,35 @@ export default function CheckoutSchedulePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [days] = useState(() => getNext5Days());
-  const [selectedDate, setSelectedDate] = useState<string>(() => days[0].iso);
-  const [selectedWindow, setSelectedWindow] = useState<TimeWindow | null>(null);
-  const [instructions, setInstructions] = useState("");
+
+  // Persisted checkout state (Zustand)
+  const selectedDate = useCheckoutStore((s) => s.selectedDate);
+  const selectedWindow = useCheckoutStore((s) => s.selectedWindow);
+  const instructions = useCheckoutStore((s) => s.instructions);
+  const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
+  const setSelectedDate = useCheckoutStore((s) => s.setSelectedDate);
+  const setSelectedWindow = useCheckoutStore((s) => s.setSelectedWindow);
+  const setInstructions = useCheckoutStore((s) => s.setInstructions);
+  const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
 
-  // Address state
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  // Set default date if store has none
+  useEffect(() => {
+    if (!selectedDate && days.length > 0) {
+      setSelectedDate(days[0].iso);
+    }
+  }, [selectedDate, days, setSelectedDate]);
+
+  // Address state (full object loaded from API, id persisted in store)
+  const [selectedAddress, setSelectedAddressLocal] = useState<Address | null>(null);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [addressLoading, setAddressLoading] = useState(true);
+
+  // When user selects an address, persist its ID to the store
+  const handleAddressSelect = useCallback((addr: Address) => {
+    setSelectedAddressLocal(addr);
+    setSelectedAddressId(addr.id);
+  }, [setSelectedAddressId]);
 
   const loadDefaultAddress = useCallback(async () => {
     if (!user?.id) return;
@@ -98,15 +119,20 @@ export default function CheckoutSchedulePage() {
       const data = await res.json();
       const list: Address[] = data.addresses ?? [];
       if (list.length > 0) {
-        const def = list.find((a) => a.is_default) ?? list[0];
-        setSelectedAddress(def);
+        // If we have a stored address id, prefer that; otherwise use default or first
+        const fromStore = storedAddressId
+          ? list.find((a) => a.id === storedAddressId)
+          : null;
+        const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
+        setSelectedAddressLocal(def);
+        setSelectedAddressId(def.id);
       }
     } catch {
       // silently fail
     } finally {
       setAddressLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, storedAddressId, setSelectedAddressId]);
 
   useEffect(() => {
     void loadDefaultAddress();
@@ -119,20 +145,15 @@ export default function CheckoutSchedulePage() {
   const totalCents = isClient ? getSubtotalCents() + deliveryFeeCents : 0;
   const itemCount = isClient ? items.reduce((acc, i) => acc + i.quantity, 0) : 0;
 
-  const selectedDayObj = days.find((d) => d.iso === selectedDate);
+  const effectiveDate = selectedDate ?? (days.length > 0 ? days[0].iso : null);
+  const selectedDayObj = days.find((d) => d.iso === effectiveDate);
   const selectedLabel = selectedDayObj
     ? `${selectedDayObj.date.getDate()} de ${MONTH_SHORT[selectedDayObj.date.getMonth()]}`
     : "";
 
   function handleContinue() {
-    if (!selectedDate || !selectedWindow) return;
-    const params = new URLSearchParams({
-      date: selectedDate,
-      window: selectedWindow,
-      ...(selectedAddress ? { addressId: selectedAddress.id } : {}),
-      ...(instructions.trim() ? { instructions: instructions.trim() } : {}),
-    });
-    router.push(`/checkout/payment?${params.toString()}`);
+    if (!effectiveDate || !selectedWindow) return;
+    router.push("/checkout/payment");
   }
 
   return (
@@ -224,7 +245,7 @@ export default function CheckoutSchedulePage() {
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {days.map((d) => {
             const info = formatDayLabel(d.date, d.isToday);
-            const selected = selectedDate === d.iso;
+            const selected = effectiveDate === d.iso;
             return (
               <button
                 key={d.iso}
@@ -371,7 +392,7 @@ export default function CheckoutSchedulePage() {
         </div>
         <Button
           className="w-full h-12 rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
-          disabled={!selectedDate || !selectedWindow || !selectedAddress}
+          disabled={!effectiveDate || !selectedWindow || !selectedAddress}
           onClick={handleContinue}
         >
           Continuar para Pagamento
@@ -384,7 +405,7 @@ export default function CheckoutSchedulePage() {
         open={addressSheetOpen}
         onOpenChange={setAddressSheetOpen}
         selectedAddressId={selectedAddress?.id ?? null}
-        onSelect={setSelectedAddress}
+        onSelect={handleAddressSelect}
       />
     </div>
   );
