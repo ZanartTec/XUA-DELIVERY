@@ -1,55 +1,27 @@
 import type { Request, Response } from "express";
-import type { Order, Consumer, OrderItem, Product, AuditEvent } from "@prisma/client";
-import { DeliveryWindow, OrderStatus, PaymentKind } from "@prisma/client";
+import type { Product } from "@prisma/client";
+import { DeliveryWindow } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
-import { paymentService } from "../../payments/services/payments.service.js";
+import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
-import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createOrderSchema, ratingSchema, bottleExchangeSchema, nonCollectionSchema } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
-/**
- * Simula o fluxo completo de pagamento quando PAYMENT_PROVIDER=mock (ambiente de teste).
- * CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR
- */
-async function autoSimulateMockPayment(orderId: string, totalCents: number): Promise<void> {
-  const provider = process.env.PAYMENT_PROVIDER ?? "mock";
-  if (provider !== "mock") return;
-
-  try {
-    await orderService.submitForPayment(orderId);
-    const { payment } = await paymentService.charge(orderId, totalCents, PaymentKind.ORDER);
-    if (payment.status === "CAPTURED") {
-      await orderService.confirmOrder(orderId);
-      await orderService.sendToDistributor(orderId);
-    }
-    logger.info({ orderId }, "[MOCK] Pagamento simulado — pedido enviado ao distribuidor");
-  } catch (err) {
-    logger.warn({ orderId, err }, "[MOCK] Falha na simulação de pagamento, pedido permanece em CREATED");
-  }
+/** Helper: mapeia OrderServiceError para HTTP status */
+function errorStatus(code: string): number {
+  const map: Record<string, number> = {
+    ORDER_NOT_FOUND: 404,
+    FORBIDDEN: 403,
+    INVALID_TRANSITION: 400,
+    INVALID_STATUS: 400,
+    OTP_NOT_FOUND: 404,
+    OTP_EXPIRED: 400,
+    OTP_LOCKED: 429,
+  };
+  return map[code] ?? 400;
 }
-
-// SEC-05: Verifica se o usuário tem acesso ao pedido
-// Para distributor_admin, compara com o distributor_id da empresa vinculada ao usuário.
-async function canAccess(
-  order: { consumer_id: string; distributor_id: string; driver_id: string | null },
-  userId: string,
-  role: string
-): Promise<boolean> {
-  if (role === "ops" || role === "support") return true;
-  if (role === "consumer" && order.consumer_id === userId) return true;
-  if (role === "distributor_admin") {
-    const distId = await distributorRepository.resolveDistributorId(userId);
-    return distId !== null && order.distributor_id === distId;
-  }
-  if (role === "driver" && order.driver_id === userId) return true;
-  return false;
-}
-
-// Helper type for order with consumer
-type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "phone"> };
 
 /**
  * OrdersController — handlers HTTP para rotas de pedidos.
@@ -63,57 +35,21 @@ export const ordersController = {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
-    const prisma = getPrisma();
 
     try {
-      // SEC-12: Scope distributor — resolve distributor_id da empresa vinculada ao usuário
-      if (scope === "distributor") {
-        if (user.role !== "distributor_admin") {
-          res.status(403).json({ error: "Acesso negado" });
-          return;
-        }
-        const distributorId = await distributorRepository.resolveDistributorId(user.sub);
-        if (!distributorId) {
-          res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
-          return;
-        }
-        const statusEnum = statusParam ? (statusParam as OrderStatus) : undefined;
-        const orders = await orderRepository.findByDistributor(distributorId, statusEnum);
-        res.json({ orders });
-        return;
-      }
-
-      // SEC-08: Scope support
+      // SEC-08: Scope support — busca por telefone/email/id
       if (scope === "support") {
         if (user.role !== "support" && user.role !== "ops") {
           res.status(403).json({ error: "Acesso negado" });
           return;
         }
-
         const q = ((req.query.q as string) ?? "").replace(/[%_\\]/g, "");
         if (q.length < 3) {
           res.status(400).json({ error: "Busca deve ter ao menos 3 caracteres" });
           return;
         }
-
-        const orders = await prisma.order.findMany({
-          where: {
-            OR: [
-              { consumer: { phone: { contains: q } } },
-              { consumer: { email: { contains: q } } },
-              { id: q },
-            ],
-          },
-          include: {
-            consumer: {
-              select: { name: true, email: true, phone: true },
-            },
-          },
-          orderBy: { created_at: "desc" },
-          take: 50,
-        });
-
-        const mapped = orders.map((order: OrderWithConsumer) => ({
+        const orders = await orderService.searchOrders(q);
+        const mapped = orders.map((order: any) => ({
           ...order,
           consumer: undefined,
           consumer_name: order.consumer.name,
@@ -124,25 +60,13 @@ export const ordersController = {
         return;
       }
 
-      // Default: lista pedidos do consumer
-      if (user.role === "consumer") {
-        const orders = await orderRepository.findByConsumer(user.sub);
-        res.json({ orders });
-        return;
-      }
-
-      // Ops/admin pode ver todos
-      if (user.role === "ops" || user.role === "support") {
-        const orders = await orderRepository.findAll({
-          limit: 100,
-          ...(statusParam ? { status: statusParam as OrderStatus } : {}),
-        });
-        res.json({ orders });
-        return;
-      }
-
-      res.json({ orders: [] });
+      const orders = await orderService.listOrders(user.sub, user.role, scope, statusParam);
+      res.json({ orders });
     } catch (error) {
+      if (error instanceof OrderServiceError) {
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+        return;
+      }
       logger.error({ error }, "Error listing orders");
       res.status(500).json({ error: "Erro interno" });
     }
@@ -217,7 +141,7 @@ export const ordersController = {
       });
 
       // Simula pagamento automático quando PAYMENT_PROVIDER=mock (padrão de desenvolvimento)
-      void autoSimulateMockPayment(order.id, order.total_cents);
+      void orderService.autoSimulateMockPayment(order.id, order.total_cents);
 
       res.status(201).json({ order });
     } catch (error) {
@@ -243,50 +167,21 @@ export const ordersController = {
   async getById(req: Request, res: Response): Promise<void> {
     const user = req.user!;
     const id = req.params.id as string;
-    const prisma = getPrisma();
 
     try {
-      const order = await prisma.order.findUnique({ where: { id } });
+      const order = await orderRepository.findById(id);
       if (!order) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
       }
 
-      if (!(await canAccess(order, user.sub, user.role))) {
+      if (!(await orderPolicy.canAccess(order, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
 
-      const items = await prisma.orderItem.findMany({
-        where: { order_id: id },
-        select: {
-          quantity: true,
-          unit_price_cents: true,
-          product: { select: { name: true } },
-        },
-      });
-
-      const events = await prisma.auditEvent.findMany({
-        where: { order_id: id },
-        orderBy: { occurred_at: "asc" },
-        select: { event_type: true, occurred_at: true, actor_id: true },
-      });
-
-      res.json({
-        order: {
-          ...order,
-          items: items.map((i: { quantity: number; unit_price_cents: number; product: { name: string } }) => ({
-            product_name: i.product.name,
-            qty: i.quantity,
-            unit_price_cents: i.unit_price_cents,
-          })),
-          events: events.map((e: { event_type: string; occurred_at: Date; actor_id: string }) => ({
-            status: e.event_type,
-            timestamp: e.occurred_at,
-            actor: e.actor_id,
-          })),
-        },
-      });
+      const detail = await orderService.getOrderDetail(id);
+      res.json({ order: detail });
     } catch (error) {
       logger.error({ error }, "Error fetching order");
       res.status(500).json({ error: "Erro interno" });
@@ -301,16 +196,15 @@ export const ordersController = {
     const user = req.user!;
     const id = req.params.id as string;
     const { action, ...payload } = req.body;
-    const prisma = getPrisma();
 
     try {
       // SEC-05: Verifica ownership antes de permitir ação
-      const existing = await prisma.order.findUnique({ where: { id } });
+      const existing = await orderRepository.findById(id);
       if (!existing) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
       }
-      if (!(await canAccess(existing, user.sub, user.role))) {
+      if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
@@ -344,6 +238,16 @@ export const ordersController = {
           const otpCode = await otpService.generate(id, user.sub);
           // Retorna OTP junto com o pedido para ser enviado ao consumer
           res.json({ order: updatedOrder, otp: otpCode });
+          return;
+
+        case "dispatch_with_checklist":
+          if (!payload.driver_id) {
+            res.status(400).json({ error: "ID do motorista obrigatório" });
+            return;
+          }
+          updatedOrder = await orderService.dispatchWithChecklist(id, user.sub, payload.driver_id);
+          const otpCodeChecklist = await otpService.generate(id, user.sub);
+          res.json({ order: updatedOrder, otp: otpCodeChecklist });
           return;
 
         case "deliver":
@@ -418,21 +322,10 @@ export const ordersController = {
           return;
       }
 
-      const order = await prisma.order.findUnique({ where: { id } });
-      res.json({ order: order ?? updatedOrder });
+      res.json({ order: updatedOrder });
     } catch (error) {
       if (error instanceof OrderServiceError) {
-        const statusMap: Record<string, number> = {
-          ORDER_NOT_FOUND: 404,
-          FORBIDDEN: 403,
-          INVALID_TRANSITION: 400,
-          INVALID_STATUS: 400,
-          OTP_NOT_FOUND: 404,
-          OTP_EXPIRED: 400,
-          OTP_LOCKED: 429,
-        };
-        const status = statusMap[error.code] ?? 400;
-        res.status(status).json({ error: error.message, code: error.code });
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
       logger.error({ error }, "Error processing order action");
@@ -459,13 +352,7 @@ export const ordersController = {
       res.json({ order });
     } catch (error) {
       if (error instanceof OrderServiceError) {
-        const statusMap: Record<string, number> = {
-          ORDER_NOT_FOUND: 404,
-          FORBIDDEN: 403,
-          INVALID_STATUS: 400,
-        };
-        const status = statusMap[error.code] ?? 400;
-        res.status(status).json({ error: error.message });
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
       logger.error({ error }, "Error submitting rating");
@@ -496,12 +383,7 @@ export const ordersController = {
       res.json({ order });
     } catch (error) {
       if (error instanceof OrderServiceError) {
-        const statusMap: Record<string, number> = {
-          ORDER_NOT_FOUND: 404,
-          FORBIDDEN: 403,
-        };
-        const status = statusMap[error.code] ?? 400;
-        res.status(status).json({ error: error.message });
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
       logger.error({ error }, "Error recording bottle exchange");
@@ -531,12 +413,7 @@ export const ordersController = {
       res.json({ order });
     } catch (error) {
       if (error instanceof OrderServiceError) {
-        const statusMap: Record<string, number> = {
-          ORDER_NOT_FOUND: 404,
-          FORBIDDEN: 403,
-        };
-        const status = statusMap[error.code] ?? 400;
-        res.status(status).json({ error: error.message });
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
       logger.error({ error }, "Error recording empty not collected");

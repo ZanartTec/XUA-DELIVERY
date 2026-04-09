@@ -10,10 +10,10 @@ export const distributorRepository = {
     });
   },
 
-  async findAllDrivers(): Promise<Array<{ id: string; name: string }>> {
+  async findDriversByDistributor(distributorId: string): Promise<Array<{ id: string; name: string }>> {
     const prisma = getPrisma();
     return prisma.consumer.findMany({
-      where: { role: ConsumerRole.DRIVER },
+      where: { role: ConsumerRole.DRIVER, distributor_id: distributorId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });

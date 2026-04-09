@@ -2,6 +2,7 @@ import { signToken } from "../../../infra/auth/jwt";
 import { hashPassword, comparePassword } from "../../../infra/auth/password";
 import { blacklistToken } from "../../../infra/auth/blacklist";
 import { authRepository } from "../repository/auth.repository.js";
+import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger";
 import { isUserRole } from "@xua/shared/constants/roles";
 import type { UserRole } from "@xua/shared/constants/roles";
@@ -45,10 +46,17 @@ export const authService = {
     }
     const role: UserRole = rawRole;
 
+    // Resolve distributor_id para incluir no JWT (evita query DB no socket handshake)
+    let distributor_id: string | undefined;
+    if (role === "distributor_admin" || role === "driver") {
+      distributor_id = (await distributorRepository.resolveDistributorId(consumer.id)) ?? undefined;
+    }
+
     const token = await signToken({
       sub: consumer.id,
       role,
       name: consumer.name,
+      distributor_id,
     });
 
     // Remove password_hash antes de retornar

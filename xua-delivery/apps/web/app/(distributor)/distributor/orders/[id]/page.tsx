@@ -24,6 +24,7 @@ export default function DistributorOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/orders/${id}`)
@@ -35,23 +36,28 @@ export default function DistributorOrderDetailPage() {
 
   async function handleAction(action: string, body?: Record<string, unknown>) {
     setActionLoading(true);
+    setActionError(null);
     try {
-      await fetch(`/api/orders/${id}`, {
+      const res = await fetch(`/api/orders/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...body }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro ${res.status}`);
+      }
       // Após aceite, redireciona direto para o checklist
       if (action === "accept") {
         router.push(`/distributor/orders/${id}/checklist`);
         return;
       }
       router.refresh();
-      const res = await fetch(`/api/orders/${id}`);
-      const data = await res.json();
+      const detailRes = await fetch(`/api/orders/${id}`);
+      const data = await detailRes.json();
       setOrder(data.order ?? null);
-    } catch {
-      // handle silently
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setActionLoading(false);
     }
@@ -103,6 +109,10 @@ export default function DistributorOrderDetailPage() {
           <p className="mb-2 text-sm font-semibold font-heading">Timeline</p>
           <OrderTimeline events={order.events} />
         </div>
+      )}
+
+      {actionError && (
+        <p className="text-sm text-red-600 rounded-xl bg-red-50 px-3 py-2">{actionError}</p>
       )}
 
       <div className="flex gap-2">

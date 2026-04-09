@@ -29,12 +29,12 @@ export const driverRepository = {
         status: {
           in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
         },
-        delivery_date: { gte: dayStart, lte: dayEnd },
+        dispatched_at: { gte: dayStart, lte: dayEnd },
       },
       include: {
         consumer: { select: { name: true, phone: true } },
       },
-      orderBy: { delivery_date: "asc" },
+      orderBy: { dispatched_at: "asc" },
     }) as unknown as Promise<OrderWithConsumer[]>;
   },
 

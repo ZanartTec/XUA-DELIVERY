@@ -1,4 +1,4 @@
-import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, Prisma } from "@prisma/client";
+import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, PaymentKind, Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
@@ -7,6 +7,8 @@ import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
+import { paymentService } from "../../payments/services/payments.service.js";
+import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
 const log = createLogger("orders");
@@ -407,7 +409,7 @@ export const orderService = {
       const updated = await orderRepository.updateStatus(
         orderId,
         OrderStatus.OUT_FOR_DELIVERY,
-        { dispatched_at: new Date(), driver_id: driverId, delivery_date: new Date() },
+        { dispatched_at: new Date(), driver_id: driverId },
         tx
       );
 
@@ -438,6 +440,70 @@ export const orderService = {
     });
 
     // Push notification - OTP será gerado e enviado pelo controller após esta chamada
+    notificationService
+      .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
+      .catch(() => {});
+
+    return order;
+  },
+
+  /**
+   * Checklist + Dispatch atômico: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH → OUT_FOR_DELIVERY
+   * Faz as duas transições em uma única transação para evitar estado inconsistente.
+   */
+  async dispatchWithChecklist(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+    const prisma = getPrisma();
+    const order = await prisma.$transaction(async (tx: TxClient) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+
+      // Transição 1: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH
+      assertTransition(current.status, OrderStatus.READY_FOR_DISPATCH);
+      await orderRepository.updateStatus(orderId, OrderStatus.READY_FOR_DISPATCH, undefined, tx);
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DISPATCH_CHECKLIST_COMPLETED,
+          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+          orderId,
+          sourceApp: SourceApp.DISTRIBUTOR_WEB,
+        },
+        tx
+      );
+
+      // Transição 2: READY_FOR_DISPATCH → OUT_FOR_DELIVERY
+      const updated = await orderRepository.updateStatus(
+        orderId,
+        OrderStatus.OUT_FOR_DELIVERY,
+        { dispatched_at: new Date(), driver_id: driverId },
+        tx
+      );
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.ORDER_DISPATCHED,
+          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+          orderId,
+          sourceApp: SourceApp.DISTRIBUTOR_WEB,
+          payload: { driverId },
+        },
+        tx
+      );
+
+      return updated;
+    });
+
+    const io = getIO();
+    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+      orderId,
+      status: OrderStatus.OUT_FOR_DELIVERY,
+    });
+
+    io.to(`driver:${driverId}`).emit("new_delivery", {
+      orderId,
+      status: OrderStatus.OUT_FOR_DELIVERY,
+    });
+
     notificationService
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
@@ -796,5 +862,93 @@ export const orderService = {
         payload: e.payload as object,
       })),
     };
+  },
+
+  /**
+   * Lista pedidos conforme role e scope do usuário.
+   */
+  async listOrders(userId: string, role: string, scope?: string, statusParam?: string) {
+    if (scope === "distributor") {
+      if (role !== "distributor_admin") {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      const distributorId = await distributorRepository.resolveDistributorId(userId);
+      if (!distributorId) {
+        throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+      }
+      const statusEnum = statusParam ? (statusParam as OrderStatus) : undefined;
+      return orderRepository.findByDistributor(distributorId, statusEnum);
+    }
+
+    if (scope === "support") {
+      if (role !== "support" && role !== "ops") {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      return []; // caller must use searchOrders()
+    }
+
+    if (role === "consumer") {
+      return orderRepository.findByConsumer(userId);
+    }
+
+    if (role === "ops" || role === "support") {
+      return orderRepository.findAll({
+        limit: 100,
+        ...(statusParam ? { status: statusParam as OrderStatus } : {}),
+      });
+    }
+
+    return [];
+  },
+
+  /**
+   * Busca de pedidos por support (phone, email, id).
+   */
+  async searchOrders(query: string) {
+    return orderRepository.searchBySupport(query);
+  },
+
+  /**
+   * Busca pedido por ID com itens e timeline formatados.
+   */
+  async getOrderDetail(orderId: string) {
+    const result = await orderRepository.findByIdWithDetails(orderId);
+    if (!result) return null;
+
+    const { items, events, ...order } = result;
+    return {
+      ...order,
+      items: items.map((i) => ({
+        product_name: i.product.name,
+        qty: i.quantity,
+        unit_price_cents: i.unit_price_cents,
+      })),
+      events: events.map((e) => ({
+        status: e.event_type,
+        timestamp: e.occurred_at,
+        actor: e.actor_id,
+      })),
+    };
+  },
+
+  /**
+   * Simula o fluxo completo de pagamento quando PAYMENT_PROVIDER=mock.
+   * CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR
+   */
+  async autoSimulateMockPayment(orderId: string, totalCents: number): Promise<void> {
+    const provider = process.env.PAYMENT_PROVIDER ?? "mock";
+    if (provider !== "mock") return;
+
+    try {
+      await orderService.submitForPayment(orderId);
+      const { payment } = await paymentService.charge(orderId, totalCents, PaymentKind.ORDER);
+      if (payment.status === "CAPTURED") {
+        await orderService.confirmOrder(orderId);
+        await orderService.sendToDistributor(orderId);
+      }
+      log.info({ orderId }, "[MOCK] Pagamento simulado — pedido enviado ao distribuidor");
+    } catch (err) {
+      log.warn({ orderId, err }, "[MOCK] Falha na simulação de pagamento, pedido permanece em CREATED");
+    }
   },
 };

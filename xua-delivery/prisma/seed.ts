@@ -160,15 +160,20 @@ async function main() {
     { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
     { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
     { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002", distributor_id: ID.distributor },
-    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003" },
+    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003", distributor_id: ID.distributor },
     { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
     { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },
   ];
   for (const u of users) {
     await prisma.consumer.upsert({
       where: { id: u.id },
-      // Inclui distributor_id para garantir atualização em re-runs do seed
-      update: { distributor_id: u.distributor_id ?? null },
+      update: {
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        distributor_id: u.distributor_id ?? null,
+      },
       create: { ...u, password_hash: passwordHash },
     });
   }

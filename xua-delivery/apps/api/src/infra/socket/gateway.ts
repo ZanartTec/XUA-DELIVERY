@@ -1,7 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { verifyToken } from "../auth/jwt";
-import { getPrisma } from "../prisma/client";
 import { logger } from "../logger";
 
 let io: Server | null = null;
@@ -50,20 +49,9 @@ export function createSocketGateway(httpServer: HttpServer): Server {
 
       // Para distributor_admin, entra também na sala da empresa distribuidora
       // para receber eventos de novos pedidos coletivamente.
-      if (payload.role === "distributor_admin") {
-        try {
-          const prisma = getPrisma();
-          const consumer = await prisma.consumer.findUnique({
-            where: { id: payload.sub },
-            select: { distributor_id: true },
-          });
-          if (consumer?.distributor_id) {
-            socket.join(`distributor:${consumer.distributor_id}`);
-            socket.data.distributorId = consumer.distributor_id;
-          }
-        } catch (err) {
-          logger.warn({ err, userId: payload.sub }, "Falha ao resolver distributor_id no socket");
-        }
+      if (payload.role === "distributor_admin" && payload.distributor_id) {
+        socket.join(`distributor:${payload.distributor_id}`);
+        socket.data.distributorId = payload.distributor_id;
       }
 
       logger.debug(

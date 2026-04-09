@@ -1,7 +1,9 @@
-import type { Prisma, Order, OrderStatus } from "@prisma/client";
+import type { Prisma, Order, OrderStatus, Consumer } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
+
+type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "phone"> };
 
 /**
  * OrderRepository — CRUD e queries de pedidos.
@@ -125,5 +127,57 @@ export const orderRepository = {
       where: { id },
       data,
     });
+  },
+
+  async findByIdWithDetails(
+    id: string,
+    tx?: TxClient
+  ): Promise<
+    | (Order & {
+        items: { quantity: number; unit_price_cents: number; product: { name: string } }[];
+        events: { event_type: string; occurred_at: Date; actor_id: string }[];
+      })
+    | null
+  > {
+    const prisma = getPrisma();
+    return (tx ?? prisma).order.findUnique({
+      where: { id },
+      include: {
+        items: {
+          select: {
+            quantity: true,
+            unit_price_cents: true,
+            product: { select: { name: true } },
+          },
+        },
+        events: {
+          orderBy: { occurred_at: "asc" },
+          select: { event_type: true, occurred_at: true, actor_id: true },
+        },
+      },
+    }) as any;
+  },
+
+  async searchBySupport(
+    query: string,
+    tx?: TxClient
+  ): Promise<OrderWithConsumer[]> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).order.findMany({
+      where: {
+        OR: [
+          { consumer: { phone: { contains: query } } },
+          { consumer: { email: { contains: query } } },
+          { id: query },
+        ],
+      },
+      include: {
+        consumer: {
+          select: { name: true, email: true, phone: true },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 50,
+    }) as unknown as Promise<OrderWithConsumer[]>;
   },
 };

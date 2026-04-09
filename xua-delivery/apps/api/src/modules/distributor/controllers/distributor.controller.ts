@@ -47,7 +47,12 @@ export const distributorController = {
    */
   async getDrivers(req: Request, res: Response): Promise<void> {
     try {
-      const drivers = await distributorRepository.findAllDrivers();
+      const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (!distributorId) {
+        res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+        return;
+      }
+      const drivers = await distributorRepository.findDriversByDistributor(distributorId);
       res.json({ drivers });
     } catch (err) {
       log.error({ err }, "Erro ao buscar motoristas");

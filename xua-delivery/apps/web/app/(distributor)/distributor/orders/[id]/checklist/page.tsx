@@ -46,26 +46,15 @@ export default function ChecklistPage() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Completa o checklist no backend (ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH)
-      const checklistRes = await fetch(`/api/orders/${id}`, {
+      // Checklist + dispatch atômico em uma única chamada
+      const res = await fetch(`/api/orders/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete_checklist" }),
+        body: JSON.stringify({ action: "dispatch_with_checklist", driver_id: selectedDriver }),
       });
-      if (!checklistRes.ok) {
-        const data = await checklistRes.json().catch(() => ({}));
-        throw new Error(data.error ?? "Erro ao completar checklist");
-      }
-
-      // 2. Despacha com o motorista selecionado (READY_FOR_DISPATCH → OUT_FOR_DELIVERY)
-      const dispatchRes = await fetch(`/api/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dispatch", driver_id: selectedDriver }),
-      });
-      if (!dispatchRes.ok) {
-        const data = await dispatchRes.json().catch(() => ({}));
-        throw new Error(data.error ?? "Erro ao despachar pedido");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro ${res.status}`);
       }
 
       router.push("/distributor/queue");
