@@ -4,6 +4,7 @@ import { capacityService } from "../services/capacity.service.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { routeService } from "../services/route.service.js";
 
 const log = createLogger("distributor");
 
@@ -56,6 +57,31 @@ export const distributorController = {
       res.json({ drivers });
     } catch (err) {
       log.error({ err }, "Erro ao buscar motoristas");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * GET /api/distributor/routes/:id
+   * Retorna as paradas de uma rota diária agrupadas por zona e janela.
+   */
+  async getRouteById(req: Request, res: Response): Promise<void> {
+    try {
+      const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (!distributorId) {
+        res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+        return;
+      }
+
+      const route = await routeService.getDailyRoute(distributorId, req.params.id as string);
+      res.json({ route });
+    } catch (err) {
+      if (err instanceof Error && err.message === "INVALID_ROUTE_ID") {
+        res.status(400).json({ error: "Rota inválida. Use yyyy-mm-dd ou 'today'." });
+        return;
+      }
+
+      log.error({ err }, "Erro ao buscar rota do distribuidor");
       res.status(500).json({ error: "Erro interno" });
     }
   },

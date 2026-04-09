@@ -1,5 +1,13 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
-import { ConsumerRole } from "@prisma/client";
+import type { Address, Consumer, Order, OrderItem, Zone } from "@prisma/client";
+import { ConsumerRole, OrderStatus } from "@prisma/client";
+
+export type DistributorRouteStop = Order & {
+  consumer: Pick<Consumer, "name" | "phone">;
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state">;
+  zone: Pick<Zone, "name">;
+  items: Pick<OrderItem, "quantity">[];
+};
 
 export const distributorRepository = {
   async findAllActive() {
@@ -50,6 +58,51 @@ export const distributorRepository = {
     });
 
     return orphanDrivers;
+  },
+
+  async findRouteStopsByDistributor(
+    distributorId: string,
+    deliveryDate: Date
+  ): Promise<DistributorRouteStop[]> {
+    const prisma = getPrisma();
+    const dayStart = new Date(deliveryDate);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(deliveryDate);
+    dayEnd.setUTCHours(23, 59, 59, 999);
+
+    return prisma.order.findMany({
+      where: {
+        distributor_id: distributorId,
+        delivery_date: { gte: dayStart, lte: dayEnd },
+        status: {
+          in: [
+            OrderStatus.READY_FOR_DISPATCH,
+            OrderStatus.OUT_FOR_DELIVERY,
+            OrderStatus.DELIVERED,
+            OrderStatus.DELIVERY_FAILED,
+          ],
+        },
+      },
+      include: {
+        consumer: { select: { name: true, phone: true } },
+        address: {
+          select: {
+            street: true,
+            number: true,
+            complement: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+          },
+        },
+        zone: { select: { name: true } },
+        items: { select: { quantity: true } },
+      },
+      orderBy: [
+        { delivery_window: "asc" },
+        { created_at: "asc" },
+      ],
+    }) as unknown as Promise<DistributorRouteStop[]>;
   },
 
   /**
