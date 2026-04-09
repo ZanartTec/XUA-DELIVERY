@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { kpiService } from "../services/kpi.service.js";
 import { capacityService } from "../services/capacity.service.js";
+import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
@@ -12,7 +13,11 @@ export const distributorController = {
    * Retorna KPIs do distribuidor autenticado.
    */
   async getKpis(req: Request, res: Response): Promise<void> {
-    const distributorId = req.user!.sub;
+    const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
+    if (!distributorId) {
+      res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+      return;
+    }
     const period = (req.query.period as string) ?? "7d";
     const { start, end } = parsePeriodDates(period);
 
@@ -33,6 +38,20 @@ export const distributorController = {
     } catch (err) {
       log.error({ err, distributorId }, "Erro ao buscar KPIs do distribuidor");
       throw err;
+    }
+  },
+
+  /**
+   * GET /api/distributor/drivers
+   * Retorna lista de motoristas disponíveis para despacho.
+   */
+  async getDrivers(req: Request, res: Response): Promise<void> {
+    try {
+      const drivers = await distributorRepository.findAllDrivers();
+      res.json({ drivers });
+    } catch (err) {
+      log.error({ err }, "Erro ao buscar motoristas");
+      res.status(500).json({ error: "Erro interno" });
     }
   },
 

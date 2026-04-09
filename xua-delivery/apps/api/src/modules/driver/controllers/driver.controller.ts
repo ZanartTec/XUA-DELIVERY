@@ -10,7 +10,7 @@ export const driverController = {
   async listDeliveries(req: Request, res: Response): Promise<void> {
     try {
       const mapped = await driverService.listDeliveries(req.user!.sub);
-      res.json(mapped);
+      res.json({ deliveries: mapped });
     } catch (error) {
       logger.error({ error }, "Error listing deliveries");
       res.status(500).json({ error: "Erro interno" });

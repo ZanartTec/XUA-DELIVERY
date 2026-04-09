@@ -265,9 +265,9 @@ export const orderService = {
       return updated;
     }, { maxWait: 10000, timeout: 10000 });
 
-    // Socket.io pós-commit: notifica distribuidor
+    // Socket.io pós-commit: notifica distribuidor (sala da empresa)
     const io = getIO();
-    io.to(`distributor_admin:${order.distributor_id}`).emit("new_order", {
+    io.to(`distributor:${order.distributor_id}`).emit("new_order", {
       orderId,
       status: OrderStatus.SENT_TO_DISTRIBUTOR,
     });
@@ -407,7 +407,7 @@ export const orderService = {
       const updated = await orderRepository.updateStatus(
         orderId,
         OrderStatus.OUT_FOR_DELIVERY,
-        { dispatched_at: new Date(), driver_id: driverId },
+        { dispatched_at: new Date(), driver_id: driverId, delivery_date: new Date() },
         tx
       );
 

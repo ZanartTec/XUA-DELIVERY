@@ -49,12 +49,13 @@ const ID = {
   address:           "00000000-0000-4000-a000-000000000200",
   address2:          "00000000-0000-4000-a000-000000000201",
 
-  // Pedidos (5 cenários de status distintos)
+  // Pedidos (6 cenários de status distintos)
   orderConfirmed:    "00000000-0000-4000-a000-000000000300",  // CONFIRMED (aguardando entrega)
   orderDelivered:    "00000000-0000-4000-a000-000000000301",  // DELIVERED (entregue com OTP)
   orderCancelled:    "00000000-0000-4000-a000-000000000302",  // CANCELLED
   orderOutDelivery:  "00000000-0000-4000-a000-000000000303",  // OUT_FOR_DELIVERY (em rota)
   orderCreated:      "00000000-0000-4000-a000-000000000304",  // CREATED (recém criado)
+  orderSentToDist:   "00000000-0000-4000-a000-000000000305",  // SENT_TO_DISTRIBUTOR (fila da Ana)
 
   // Itens de pedido
   item1:             "00000000-0000-4000-a000-000000000400",
@@ -62,6 +63,7 @@ const ID = {
   item3:             "00000000-0000-4000-a000-000000000402",
   item4:             "00000000-0000-4000-a000-000000000403",
   item5:             "00000000-0000-4000-a000-000000000404",
+  item6:             "00000000-0000-4000-a000-000000000405",
 
   // Pagamentos
   paymentConfirmed:  "00000000-0000-4000-a000-000000000500",  // CAPTURED
@@ -69,6 +71,7 @@ const ID = {
   paymentCancelled:  "00000000-0000-4000-a000-000000000502",  // REFUNDED
   paymentFailed:     "00000000-0000-4000-a000-000000000503",  // FAILED (pedido CREATED)
   paymentOutDelivery:"00000000-0000-4000-a000-000000000504",  // CAPTURED
+  paymentSentToDist: "00000000-0000-4000-a000-000000000505",  // CAPTURED (pedido na fila)
 
   // Depósitos
   depositConfirmed:  "00000000-0000-4000-a000-000000000600",  // HELD
@@ -134,33 +137,7 @@ async function main() {
   const passwordHash = await bcrypt.hash("senha123", 12);
 
   // ═══════════════════════════════════════════════════════════════
-  // TABELA 1 — 01_mst_consumers
-  // ═══════════════════════════════════════════════════════════════
-  const users = [
-    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
-    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
-    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002", distributor_id: ID.distributor },
-    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003" },
-    { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
-    { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },
-  ];
-  for (const u of users) {
-    await prisma.consumer.upsert({
-      where: { id: u.id },
-      update: {},
-      create: { ...u, password_hash: passwordHash },
-    });
-  }
-  console.log("✅ [01] Consumidores: 6 usuários (joao, maria, admin, driver, ops, support) — senha: senha123");
-
-  // ═══════════════════════════════════════════════════════════════
-  // TABELA 2 — 02_mst_addresses
-  // ═══════════════════════════════════════════════════════════════
-  // Endereços são criados depois da zona, mas declaramos os IDs agora.
-  // Os upserts acontecem após a criação da zona (abaixo).
-
-  // ═══════════════════════════════════════════════════════════════
-  // TABELA 3 — 03_mst_distributors
+  // TABELA 3 — 03_mst_distributors (antes dos consumers por FK: Consumer.distributor_id)
   // ═══════════════════════════════════════════════════════════════
   await prisma.distributor.upsert({
     where: { id: ID.distributor },
@@ -175,7 +152,35 @@ async function main() {
       is_active: true,
     },
   });
-  console.log("✅ [03] Distribuidor: Distribuidora Xuá SP");
+
+  // ═══════════════════════════════════════════════════════════════
+  // TABELA 1 — 01_mst_consumers
+  // ═══════════════════════════════════════════════════════════════
+  const users = [
+    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
+    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
+    { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002", distributor_id: ID.distributor },
+    { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003" },
+    { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
+    { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },
+  ];
+  for (const u of users) {
+    await prisma.consumer.upsert({
+      where: { id: u.id },
+      // Inclui distributor_id para garantir atualização em re-runs do seed
+      update: { distributor_id: u.distributor_id ?? null },
+      create: { ...u, password_hash: passwordHash },
+    });
+  }
+  console.log("✅ [01] Consumidores: 6 usuários (joao, maria, admin, driver, ops, support) — senha: senha123");
+
+  // ═══════════════════════════════════════════════════════════════
+  // TABELA 2 — 02_mst_addresses
+  // ═══════════════════════════════════════════════════════════════
+  // Endereços são criados depois da zona, mas declaramos os IDs agora.
+  // Os upserts acontecem após a criação da zona (abaixo).
+
+  console.log("✅ [03] Distribuidor: Distribuidora Xuá SP (criado antes dos consumers por FK)");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 4 — 04_mst_zones
@@ -619,9 +624,57 @@ async function main() {
     },
   });
 
-  console.log("✅ [09] Pedidos: CONFIRMED, DELIVERED, CANCELLED, OUT_FOR_DELIVERY, CREATED");
-  console.log("✅ [10] Itens de pedido: 5 itens distribuídos nos 5 pedidos");
-  console.log("✅ [13] Pagamentos: CAPTURED×3, REFUNDED×1, FAILED×1");
+  // ── Pedido 6: SENT_TO_DISTRIBUTOR (na fila de aceite — visível para Ana) ─
+  await prisma.order.upsert({
+    where: { id: ID.orderSentToDist },
+    update: {},
+    create: {
+      id: ID.orderSentToDist,
+      consumer_id: ID.consumer,
+      address_id: ID.address,
+      distributor_id: ID.distributor,
+      zone_id: ID.zone,
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+      delivery_date: futureDate(2),
+      delivery_window: DeliveryWindow.MORNING,
+      subtotal_cents: 2500,
+      delivery_fee_cents: 500,
+      deposit_cents: 0,
+      deposit_amount_cents: 0,
+      total_cents: 3000,
+    },
+  });
+  await prisma.orderItem.upsert({
+    where: { id: ID.item6 },
+    update: {},
+    create: {
+      id: ID.item6,
+      order_id: ID.orderSentToDist,
+      product_id: ID.product20l,
+      product_name: "Galão de Água 20L",
+      unit_price_cents: 2500,
+      quantity: 1,
+      subtotal_cents: 2500,
+    },
+  });
+  await prisma.payment.upsert({
+    where: { id: ID.paymentSentToDist },
+    update: {},
+    create: {
+      id: ID.paymentSentToDist,
+      order_id: ID.orderSentToDist,
+      kind: PaymentKind.ORDER,
+      status: PaymentStatus.CAPTURED,
+      amount_cents: 3000,
+      provider: "pix",
+      external_id: "ext_seed_sent_006",
+      paid_at: new Date(),
+    },
+  });
+
+  console.log("✅ [09] Pedidos: CONFIRMED, DELIVERED, CANCELLED, OUT_FOR_DELIVERY, CREATED, SENT_TO_DISTRIBUTOR");
+  console.log("✅ [10] Itens de pedido: 6 itens distribuídos nos 6 pedidos");
+  console.log("✅ [13] Pagamentos: CAPTURED×4, REFUNDED×1, FAILED×1");
   console.log("✅ [15] Depósitos: HELD×2 (ativo/transporte), REFUNDED×1 (entregue)");
 
   // ═══════════════════════════════════════════════════════════════
@@ -959,8 +1012,8 @@ async function main() {
   console.log("  Produtos    : Galão 20L (imagem) + Garrafão 10L");
   console.log("  Usuários    : joao, maria, admin, driver, ops, support (senha: senha123)");
   console.log("  Endereços   : João (Centro) + Maria (Consolação)");
-  console.log("  Pedidos     : CONFIRMED · DELIVERED · CANCELLED · OUT_FOR_DELIVERY · CREATED");
-  console.log("  Pagamentos  : CAPTURED×3 · REFUNDED×1 · FAILED×1");
+  console.log("  Pedidos     : CONFIRMED · DELIVERED · CANCELLED · OUT_FOR_DELIVERY · CREATED · SENT_TO_DISTRIBUTOR");
+  console.log("  Pagamentos  : CAPTURED×4 · REFUNDED×1 · FAILED×1");
   console.log("  Depósitos   : HELD×2 · REFUNDED×1");
   console.log("  OTPs        : ACTIVE (código 731524) · USED (código 482910)");
   console.log("  Assinaturas : ACTIVE · PAUSED · CANCELLED");

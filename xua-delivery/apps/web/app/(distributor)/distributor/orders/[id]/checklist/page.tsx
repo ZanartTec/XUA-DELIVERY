@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
@@ -11,11 +11,28 @@ const CHECKLIST_ITEMS = [
   { key: "label_ok", label: "Etiqueta de rota colada" },
 ];
 
+type Driver = { id: string; name: string };
+
 export default function ChecklistPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [selectedDriver, setSelectedDriver] = useState("");
+
+  useEffect(() => {
+    fetch("/api/distributor/drivers")
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? `Erro ${r.status}`);
+        setDrivers(data.drivers ?? []);
+      })
+      .catch((err) => {
+        setError(`Não foi possível carregar motoristas: ${err.message}`);
+      });
+  }, []);
 
   function toggle(key: string) {
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -23,18 +40,37 @@ export default function ChecklistPage() {
 
   const allChecked = CHECKLIST_ITEMS.every((item) => checks[item.key]);
   const progress = CHECKLIST_ITEMS.filter((item) => checks[item.key]).length;
+  const canDispatch = allChecked && selectedDriver !== "";
 
   async function handleDispatch() {
     setLoading(true);
+    setError(null);
     try {
-      await fetch(`/api/orders/${id}`, {
+      // 1. Completa o checklist no backend (ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH)
+      const checklistRes = await fetch(`/api/orders/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dispatch", checklist: checks }),
+        body: JSON.stringify({ action: "complete_checklist" }),
       });
+      if (!checklistRes.ok) {
+        const data = await checklistRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Erro ao completar checklist");
+      }
+
+      // 2. Despacha com o motorista selecionado (READY_FOR_DISPATCH → OUT_FOR_DELIVERY)
+      const dispatchRes = await fetch(`/api/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dispatch", driver_id: selectedDriver }),
+      });
+      if (!dispatchRes.ok) {
+        const data = await dispatchRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Erro ao despachar pedido");
+      }
+
       router.push("/distributor/queue");
-    } catch {
-      // handle silently
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setLoading(false);
     }
@@ -82,9 +118,29 @@ export default function ChecklistPage() {
         ))}
       </div>
 
+      <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-2">
+        <p className="text-sm font-semibold font-heading">Motorista</p>
+        <select
+          value={selectedDriver}
+          onChange={(e) => setSelectedDriver(e.target.value)}
+          className="w-full rounded-xl border border-[#e1e3e4] bg-[#f5f6f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0041c8]"
+        >
+          <option value="">Selecione o motorista...</option>
+          {drivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600 rounded-xl bg-red-50 px-3 py-2">{error}</p>
+      )}
+
       <Button
         className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
-        disabled={!allChecked || loading}
+        disabled={!canDispatch || loading}
         onClick={handleDispatch}
       >
         {loading ? "Despachando..." : "Despachar pedido"}
@@ -92,3 +148,4 @@ export default function ChecklistPage() {
     </div>
   );
 }
+

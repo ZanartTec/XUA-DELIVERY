@@ -41,6 +41,11 @@ export default function DistributorOrderDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...body }),
       });
+      // Após aceite, redireciona direto para o checklist
+      if (action === "accept") {
+        router.push(`/distributor/orders/${id}/checklist`);
+        return;
+      }
       router.refresh();
       const res = await fetch(`/api/orders/${id}`);
       const data = await res.json();

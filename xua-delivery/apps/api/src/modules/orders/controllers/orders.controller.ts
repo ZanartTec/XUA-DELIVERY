@@ -6,6 +6,7 @@ import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { paymentService } from "../../payments/services/payments.service.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
+import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createOrderSchema, ratingSchema, bottleExchangeSchema, nonCollectionSchema } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
@@ -31,14 +32,18 @@ async function autoSimulateMockPayment(orderId: string, totalCents: number): Pro
 }
 
 // SEC-05: Verifica se o usuário tem acesso ao pedido
-function canAccess(
+// Para distributor_admin, compara com o distributor_id da empresa vinculada ao usuário.
+async function canAccess(
   order: { consumer_id: string; distributor_id: string; driver_id: string | null },
   userId: string,
   role: string
-): boolean {
+): Promise<boolean> {
   if (role === "ops" || role === "support") return true;
   if (role === "consumer" && order.consumer_id === userId) return true;
-  if (role === "distributor_admin" && order.distributor_id === userId) return true;
+  if (role === "distributor_admin") {
+    const distId = await distributorRepository.resolveDistributorId(userId);
+    return distId !== null && order.distributor_id === distId;
+  }
   if (role === "driver" && order.driver_id === userId) return true;
   return false;
 }
@@ -61,14 +66,19 @@ export const ordersController = {
     const prisma = getPrisma();
 
     try {
-      // SEC-12: Scope distributor
+      // SEC-12: Scope distributor — resolve distributor_id da empresa vinculada ao usuário
       if (scope === "distributor") {
         if (user.role !== "distributor_admin") {
           res.status(403).json({ error: "Acesso negado" });
           return;
         }
+        const distributorId = await distributorRepository.resolveDistributorId(user.sub);
+        if (!distributorId) {
+          res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+          return;
+        }
         const statusEnum = statusParam ? (statusParam as OrderStatus) : undefined;
-        const orders = await orderRepository.findByDistributor(user.sub, statusEnum);
+        const orders = await orderRepository.findByDistributor(distributorId, statusEnum);
         res.json({ orders });
         return;
       }
@@ -242,7 +252,7 @@ export const ordersController = {
         return;
       }
 
-      if (!canAccess(order, user.sub, user.role)) {
+      if (!(await canAccess(order, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
@@ -300,7 +310,7 @@ export const ordersController = {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
       }
-      if (!canAccess(existing, user.sub, user.role)) {
+      if (!(await canAccess(existing, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
