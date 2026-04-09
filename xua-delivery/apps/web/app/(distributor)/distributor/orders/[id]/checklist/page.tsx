@@ -6,9 +6,9 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
 
 const CHECKLIST_ITEMS = [
-  { key: "products_ok", label: "Produtos conferidos e corretos" },
-  { key: "packaging_ok", label: "Embalagem lacrada e íntegra" },
-  { key: "label_ok", label: "Etiqueta de rota colada" },
+  { key: "items_checked", label: "Itens do pedido separados e conferidos" },
+  { key: "empties_prepared", label: "Vasilhames vazios preparados para retirada" },
+  { key: "address_contact_confirmed", label: "Endereço e contato do cliente confirmados" },
 ];
 
 type Driver = { id: string; name: string };
@@ -121,6 +121,11 @@ export default function ChecklistPage() {
             </option>
           ))}
         </select>
+        {drivers.length === 0 && !error && (
+          <p className="text-xs text-amber-700">
+            Nenhum motorista ativo foi encontrado para esta distribuidora. O despacho permanece bloqueado.
+          </p>
+        )}
       </div>
 
       {error && (

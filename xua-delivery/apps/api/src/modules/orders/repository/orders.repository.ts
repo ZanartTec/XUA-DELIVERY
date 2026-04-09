@@ -11,6 +11,13 @@ export type OrderForQueue = Order & {
   items: Pick<OrderItem, "quantity">[];
 };
 
+export type OrderWithDetails = Order & {
+  consumer: Pick<Consumer, "name" | "email" | "phone">;
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state">;
+  items: { quantity: number; unit_price_cents: number; product: { name: string } }[];
+  audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
+};
+
 /**
  * OrderRepository — CRUD e queries de pedidos.
  * Todas as funções aceitam um TxClient opcional para operações transacionais.
@@ -143,17 +150,24 @@ export const orderRepository = {
   async findByIdWithDetails(
     id: string,
     tx?: TxClient
-  ): Promise<
-    | (Order & {
-        items: { quantity: number; unit_price_cents: number; product: { name: string } }[];
-          audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
-      })
-    | null
-  > {
+  ): Promise<OrderWithDetails | null> {
     const prisma = getPrisma();
     return (tx ?? prisma).order.findUnique({
       where: { id },
       include: {
+        consumer: {
+          select: { name: true, email: true, phone: true },
+        },
+        address: {
+          select: {
+            street: true,
+            number: true,
+            complement: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+          },
+        },
         items: {
           select: {
             quantity: true,
@@ -166,7 +180,7 @@ export const orderRepository = {
           select: { event_type: true, occurred_at: true, actor_id: true },
         },
       },
-    }) as any;
+      }) as Promise<OrderWithDetails | null>;
   },
 
   async searchBySupport(

@@ -939,9 +939,26 @@ export const orderService = {
     const result = await orderRepository.findByIdWithDetails(orderId);
     if (!result) return null;
 
-    const { items, audit_events, ...order } = result;
+    const { items, audit_events, consumer, address, ...order } = result;
+    const addressParts = [
+      `${address.street}, ${address.number}`,
+      address.complement,
+      address.neighborhood,
+      `${address.city}/${address.state}`,
+    ].filter(Boolean);
+
+    const slaDeadline =
+      order.status === OrderStatus.SENT_TO_DISTRIBUTOR
+        ? new Date(new Date(order.created_at).getTime() + 15 * 60 * 1000).toISOString()
+        : null;
+
     return {
       ...order,
+      consumer_name: consumer.name,
+      consumer_email: consumer.email,
+      consumer_phone: consumer.phone,
+      address_line: addressParts.join(" - "),
+      sla_deadline: slaDeadline,
       items: items.map((i) => ({
         product_name: i.product.name,
         qty: i.quantity,

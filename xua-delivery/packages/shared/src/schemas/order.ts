@@ -49,7 +49,15 @@ export const rejectOrderSchema = z.object({
     "operational_capacity",
     "other",
   ]),
-  details: z.string().optional(),
+  details: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.reason === "other" && (!data.details || data.details.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["details"],
+      message: "Detalhe deve ter ao menos 10 caracteres para 'Outro'",
+    });
+  }
 });
 export type RejectOrderInput = z.infer<typeof rejectOrderSchema>;
 

@@ -9,16 +9,16 @@ interface SlaCountdownProps {
 }
 
 export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
-  const [remaining, setRemaining] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    setRemaining(calcRemaining(deadlineIso));
     const interval = setInterval(() => {
-      setRemaining(calcRemaining(deadlineIso));
+      setNow(Date.now());
     }, 1000);
     return () => clearInterval(interval);
   }, [deadlineIso]);
 
+  const remaining = calcRemaining(deadlineIso, now);
   const totalSeconds = Math.max(0, remaining);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -47,6 +47,6 @@ export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
   );
 }
 
-function calcRemaining(deadlineIso: string): number {
-  return Math.floor((new Date(deadlineIso).getTime() - Date.now()) / 1000);
+function calcRemaining(deadlineIso: string, now = Date.now()): number {
+  return Math.floor((new Date(deadlineIso).getTime() - now) / 1000);
 }

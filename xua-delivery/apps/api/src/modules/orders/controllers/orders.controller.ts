@@ -6,7 +6,13 @@ import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
-import { createOrderSchema, ratingSchema, bottleExchangeSchema, nonCollectionSchema } from "@xua/shared/schemas/order";
+import {
+  createOrderSchema,
+  ratingSchema,
+  bottleExchangeSchema,
+  nonCollectionSchema,
+  rejectOrderSchema,
+} from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
 /** Helper: mapeia OrderServiceError para HTTP status */
@@ -217,11 +223,17 @@ export const ordersController = {
           break;
 
         case "reject":
-          if (!payload.reason) {
-            res.status(400).json({ error: "Motivo obrigatório" });
+          const rejectParsed = rejectOrderSchema.safeParse(payload);
+          if (!rejectParsed.success) {
+            res.status(400).json({ error: rejectParsed.error.issues[0].message });
             return;
           }
-          updatedOrder = await orderService.rejectOrder(id, user.sub, payload.reason, payload.details);
+          updatedOrder = await orderService.rejectOrder(
+            id,
+            user.sub,
+            rejectParsed.data.reason,
+            rejectParsed.data.details
+          );
           break;
 
         case "complete_checklist":
