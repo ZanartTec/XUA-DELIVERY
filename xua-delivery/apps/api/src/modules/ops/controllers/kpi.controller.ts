@@ -7,19 +7,22 @@ import { parsePeriodDates } from "../../../utils/date.js";
 export const kpiController = {
   /** GET /api/kpis */
   async get(req: Request, res: Response): Promise<void> {
-    const role = req.user!.role;
-    const userId = req.user!.sub;
+    const { role } = req.user!;
     const period = (req.query.period as string) ?? "7d";
-    const distributorId = req.query.distributorId as string | undefined;
+    const distributorIdQuery = req.query.distributorId as string | undefined;
 
     const { start, end } = parsePeriodDates(period);
 
     try {
       if (role === "distributor_admin") {
-        const [sla, acceptance, redelivery] = await Promise.all([
-          kpiService.slaAcceptance(userId, start, end),
-          kpiService.acceptanceRate(userId, start, end),
-          kpiService.redeliveryRate(userId, start, end),
+        // distributor_id vem do JWT (embutido no login após refactor de autenticação)
+        const distId = req.user!.distributor_id!;
+
+        const [sla, acceptance, redelivery, series] = await Promise.all([
+          kpiService.slaAcceptance(distId, start, end),
+          kpiService.acceptanceRate(distId, start, end),
+          kpiService.redeliveryRate(distId, start, end),
+          kpiService.getDailySeries(distId, start, end),
         ]);
 
         res.json({
@@ -27,17 +30,19 @@ export const kpiController = {
             sla_acceptance_pct: sla.rate,
             acceptance_rate_pct: acceptance.rate,
             redelivery_rate_pct: redelivery.rate,
+            series,
           },
         });
         return;
       }
 
       if (role === "ops") {
-        if (distributorId) {
-          const [sla, acceptance, redelivery] = await Promise.all([
-            kpiService.slaAcceptance(distributorId, start, end),
-            kpiService.acceptanceRate(distributorId, start, end),
-            kpiService.redeliveryRate(distributorId, start, end),
+        if (distributorIdQuery) {
+          const [sla, acceptance, redelivery, series] = await Promise.all([
+            kpiService.slaAcceptance(distributorIdQuery, start, end),
+            kpiService.acceptanceRate(distributorIdQuery, start, end),
+            kpiService.redeliveryRate(distributorIdQuery, start, end),
+            kpiService.getDailySeries(distributorIdQuery, start, end),
           ]);
 
           res.json({
@@ -45,12 +50,13 @@ export const kpiController = {
               sla_acceptance_pct: sla.rate,
               acceptance_rate_pct: acceptance.rate,
               redelivery_rate_pct: redelivery.rate,
+              series,
             },
           });
           return;
         }
 
-        // Sem distributorId: retorna KPIs de todos os distribuidores ativos
+        // Sem distributorId: retorna KPIs agregados de todos os distribuidores ativos
         const distributors = await distributorRepository.findAllActive();
 
         const kpis = await Promise.all(

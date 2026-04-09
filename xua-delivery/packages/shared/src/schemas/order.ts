@@ -60,6 +60,7 @@ export const reconciliationSchema = z.object({
       returned_empty_qty: z.number().int().min(0),
     })
   ).min(1),
+  justification: z.string().trim().min(5, "Justificativa deve ter ao menos 5 caracteres").optional(),
 });
 export type ReconciliationInput = z.infer<typeof reconciliationSchema>;
 

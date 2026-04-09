@@ -876,8 +876,32 @@ export const orderService = {
       if (!distributorId) {
         throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
       }
-      const statusEnum = statusParam ? (statusParam as OrderStatus) : undefined;
-      return orderRepository.findByDistributor(distributorId, statusEnum);
+
+      // Statuses ativos visíveis na fila. Se vier filtro explícito, usa ele; senão mostra todos ativos.
+      const QUEUE_STATUSES: OrderStatus[] = [
+        OrderStatus.SENT_TO_DISTRIBUTOR,
+        OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+        OrderStatus.READY_FOR_DISPATCH,
+        OrderStatus.OUT_FOR_DELIVERY,
+      ];
+      const statuses = statusParam
+        ? [statusParam as OrderStatus]
+        : QUEUE_STATUSES;
+
+      const orders = await orderRepository.findByDistributor(distributorId, statuses);
+
+      // Enriquecer com campos calculados esperados pelo frontend
+      const SLA_MS = 15 * 60 * 1000; // 15 minutos de SLA de aceitação
+      return orders.map((o) => ({
+        ...o,
+        consumer_name: o.consumer.name,
+        address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
+        total_items_qty: o.items.reduce((sum, item) => sum + item.quantity, 0),
+        sla_deadline: new Date(new Date(o.created_at).getTime() + SLA_MS).toISOString(),
+        consumer: undefined,
+        address: undefined,
+        items: undefined,
+      }));
     }
 
     if (scope === "support") {
@@ -915,7 +939,7 @@ export const orderService = {
     const result = await orderRepository.findByIdWithDetails(orderId);
     if (!result) return null;
 
-    const { items, events, ...order } = result;
+    const { items, audit_events, ...order } = result;
     return {
       ...order,
       items: items.map((i) => ({
@@ -923,7 +947,7 @@ export const orderService = {
         qty: i.quantity,
         unit_price_cents: i.unit_price_cents,
       })),
-      events: events.map((e) => ({
+      events: audit_events.map((e) => ({
         status: e.event_type,
         timestamp: e.occurred_at,
         actor: e.actor_id,
