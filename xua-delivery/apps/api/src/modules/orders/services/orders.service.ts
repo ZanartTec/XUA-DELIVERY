@@ -10,6 +10,7 @@ import { notificationService } from "../../notifications/services/notification.s
 import { paymentService } from "../../payments/services/payments.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import redis from "../../../infra/redis/client.js";
 
 const log = createLogger("orders");
 
@@ -1012,6 +1013,7 @@ export const orderService = {
         timestamp: e.occurred_at,
         actor: e.actor_id,
       })),
+      otp_code: await redis.get(`otp:${orderId}`) ?? undefined,
     };
   },
 

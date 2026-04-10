@@ -358,7 +358,7 @@ export default function DistributorQueuePage() {
       </section>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as QueueTabValue)}>
-        <TabsList className="h-auto w-full rounded-[28px] bg-white p-1 shadow-[0_10px_28px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+        <TabsList className="!h-auto !bg-white flex w-full flex-row flex-nowrap rounded-[28px] p-1 shadow-[0_10px_28px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
           {TAB_CONFIG.map((tab) => {
             const count = orders.filter((order) => matchesStatuses(order.status, tab.statuses)).length;
 
@@ -366,7 +366,7 @@ export default function DistributorQueuePage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="min-h-18 flex-col items-start gap-1 rounded-[22px] px-3 py-3 text-left data-active:border-transparent data-active:bg-[#edf4ff] data-active:text-[#0b2a59]"
+                className="!h-auto min-h-18 flex flex-1 flex-col items-start gap-1 rounded-[22px] px-3 py-3 text-left data-active:border-transparent data-active:bg-[#edf4ff] data-active:text-[#0b2a59]"
               >
                 <span className="text-sm font-semibold">{tab.label}</span>
                 <span className="text-[11px] leading-tight text-current/70">{tab.description}</span>

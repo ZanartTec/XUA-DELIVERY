@@ -4,6 +4,7 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { otpRepository } from "../repository/otp.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import redis from "../../../infra/redis/client.js";
 
 const logger = createLogger("otp");
 
@@ -84,6 +85,8 @@ export const otpService = {
     });
 
     logger.info({ orderId }, "OTP generated");
+    // Armazena código em claro no Redis por 90min para exibição ao consumer
+    await redis.set(`otp:${orderId}`, code, "EX", OTP_TTL_MINUTES * 60);
     return code;
   },
 
@@ -121,6 +124,8 @@ export const otpService = {
 
       if (isValid) {
         await otpRepository.markUsed(otp.id, tx);
+        // Remove código do Redis ao usar
+        redis.del(`otp:${orderId}`).catch(() => {});
       } else {
         const updated = await otpRepository.incrementAttempts(otp.id, tx);
         attempts = updated.attempts;
@@ -159,6 +164,8 @@ export const otpService = {
       if (otp) {
         await otpRepository.markUsed(otp.id, tx);
       }
+      // Remove código do Redis no override
+      redis.del(`otp:${orderId}`).catch(() => {});
 
       await auditRepository.emit(
         {

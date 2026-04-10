@@ -6,6 +6,7 @@ import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
+import { getIO } from "../../../infra/socket/gateway.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -248,7 +249,11 @@ export const ordersController = {
           updatedOrder = await orderService.dispatch(id, user.sub, payload.driver_id);
           // Gera OTP após dispatch
           const otpCode = await otpService.generate(id, user.sub);
-          // Retorna OTP junto com o pedido para ser enviado ao consumer
+          // Envia OTP em tempo real ao consumer via Socket.IO
+          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
+            orderId: id,
+            code: otpCode,
+          });
           res.json({ order: updatedOrder, otp: otpCode });
           return;
 
@@ -259,6 +264,11 @@ export const ordersController = {
           }
           updatedOrder = await orderService.dispatchWithChecklist(id, user.sub, payload.driver_id);
           const otpCodeChecklist = await otpService.generate(id, user.sub);
+          // Envia OTP em tempo real ao consumer via Socket.IO
+          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
+            orderId: id,
+            code: otpCodeChecklist,
+          });
           res.json({ order: updatedOrder, otp: otpCodeChecklist });
           return;
 
