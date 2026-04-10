@@ -3,15 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { Truck, MapPin, ChevronRight, PackageOpen } from "lucide-react";
+import { MapPin, ChevronRight, PackageOpen, Phone, Droplets } from "lucide-react";
 
 interface Delivery {
   order_id: string;
   consumer_name: string;
+  consumer_phone: string | null;
   address_line: string;
   status: string;
-  delivery_window: string;
+  delivery_window: "MORNING" | "AFTERNOON";
   sequence: number;
+  total_items_qty: number;
+}
+
+function canAdvanceToOtp(status: string) {
+  return status === "OUT_FOR_DELIVERY";
 }
 
 function DeliverySkeleton() {
@@ -59,8 +65,8 @@ export default function DeliveriesPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {deliveries.map((d) => (
-            <Link key={d.order_id} href={`/driver/deliveries/${d.order_id}/otp`}>
+          {deliveries.map((d) => {
+            const card = (
               <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm hover:shadow-[0_4px_20px_rgba(0,26,64,0.10)] transition-shadow flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-[#0041c8]/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-sm font-bold text-[#0041c8]">{d.sequence}</span>
@@ -71,17 +77,43 @@ export default function DeliveriesPage() {
                     <MapPin className="h-3 w-3" />
                     {d.address_line}
                   </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1">
+                      <Droplets className="h-3 w-3" />
+                      {d.total_items_qty} garrafão(ões)
+                    </span>
+                    {d.consumer_phone && (
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {d.consumer_phone}
+                      </span>
+                    )}
+                  </p>
                   <StatusPill status={d.status} />
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <span className="text-xs text-muted-foreground">
-                    {d.delivery_window === "morning" ? "Manhã" : "Tarde"}
+                    {d.delivery_window === "MORNING" ? "Manhã" : "Tarde"}
                   </span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  {canAdvanceToOtp(d.status) ? (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <span className="text-[11px] font-medium text-muted-foreground">Concluída</span>
+                  )}
                 </div>
               </div>
-            </Link>
-          ))}
+            );
+
+            if (!canAdvanceToOtp(d.status)) {
+              return <div key={d.order_id}>{card}</div>;
+            }
+
+            return (
+              <Link key={d.order_id} href={`/driver/deliveries/${d.order_id}/otp`}>
+                {card}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

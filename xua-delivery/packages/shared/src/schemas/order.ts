@@ -38,7 +38,15 @@ export const nonCollectionSchema = z.object({
     "unsafe_location",
     "other",
   ]),
-  notes: z.string().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
+  notes: z.string().trim().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
+}).superRefine((data, ctx) => {
+  if (data.reason === "other" && (!data.notes || data.notes.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["notes"],
+      message: "Detalhe deve ter ao menos 10 caracteres",
+    });
+  }
 });
 export type NonCollectionInput = z.infer<typeof nonCollectionSchema>;
 

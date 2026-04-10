@@ -38,6 +38,13 @@ export class OtpServiceError extends Error {
   }
 }
 
+export interface OtpValidationResult {
+  isValid: boolean;
+  attempts: number;
+  maxAttempts: number;
+  locked: boolean;
+}
+
 /**
  * OtpService — OTP HMAC-SHA256, TTL 90min, max 5 tentativas (seção 2.4).
  * Texto claro NUNCA persistido no banco — apenas hash HMAC.
@@ -85,7 +92,7 @@ export const otpService = {
    * Retorna true se válido, false se inválido.
    * @throws OtpServiceError se OTP não encontrado, expirado ou locked
    */
-  async validate(orderId: string, code: string, driverId: string): Promise<boolean> {
+  async validate(orderId: string, code: string, driverId: string): Promise<OtpValidationResult> {
     const prisma = getPrisma();
 
     // FUNC-01: Usa transação com FOR UPDATE para evitar race condition
@@ -109,12 +116,17 @@ export const otpService = {
       const hash = hmacHash(code);
       const isValid = hash === otp.otp_hash;
 
+      let attempts = otp.attempts + 1;
+      let locked = false;
+
       if (isValid) {
         await otpRepository.markUsed(otp.id, tx);
       } else {
         const updated = await otpRepository.incrementAttempts(otp.id, tx);
+        attempts = updated.attempts;
         if (updated.attempts >= MAX_ATTEMPTS) {
           await otpRepository.markLocked(otp.id, tx);
+          locked = true;
         }
       }
 
@@ -124,13 +136,13 @@ export const otpService = {
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
-          payload: { success: isValid, attempts: otp.attempts + 1 },
+          payload: { success: isValid, attempts },
         },
         tx
       );
 
-      logger.info({ orderId, isValid, attempts: otp.attempts + 1 }, "OTP validation attempted");
-      return isValid;
+      logger.info({ orderId, isValid, attempts }, "OTP validation attempted");
+      return { isValid, attempts, maxAttempts: MAX_ATTEMPTS, locked };
     });
   },
 

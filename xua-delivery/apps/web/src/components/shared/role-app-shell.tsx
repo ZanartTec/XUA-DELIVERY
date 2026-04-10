@@ -12,6 +12,7 @@ import {
   Droplets,
   FileText,
   Headphones,
+  History,
   KeyRound,
   MapPin,
   Package,
@@ -82,6 +83,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     badgeLabel: "Motorista",
     navItems: [
       { href: "/driver/deliveries", label: "Entregas", icon: Truck },
+      { href: "/driver/history", label: "Historico", icon: History },
     ],
   },
   ops: {

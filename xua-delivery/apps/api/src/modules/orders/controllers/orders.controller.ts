@@ -271,9 +271,16 @@ export const ordersController = {
             res.status(400).json({ error: "Código OTP obrigatório" });
             return;
           }
-          const valid = await otpService.validate(id, payload.code, user.sub);
-          if (!valid) {
-            res.status(400).json({ error: "Código inválido ou expirado" });
+          const validation = await otpService.validate(id, payload.code, user.sub);
+          if (!validation.isValid) {
+            res.status(validation.locked ? 429 : 400).json({
+              error: validation.locked
+                ? "Código bloqueado por excesso de tentativas"
+                : "Código incorreto",
+              code: validation.locked ? "OTP_LOCKED" : "OTP_INVALID",
+              attempts: validation.attempts,
+              max_attempts: validation.maxAttempts,
+            });
             return;
           }
           updatedOrder = await orderService.deliverOrder(id, user.sub);
@@ -380,7 +387,7 @@ export const ordersController = {
     const user = req.user!;
     const id = req.params.id as string;
 
-    const parsed = bottleExchangeSchema.safeParse(req.body);
+    const parsed = bottleExchangeSchema.safeParse({ ...req.body, driver_id: user.sub });
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
@@ -411,7 +418,7 @@ export const ordersController = {
     const user = req.user!;
     const id = req.params.id as string;
 
-    const parsed = nonCollectionSchema.safeParse(req.body);
+    const parsed = nonCollectionSchema.safeParse({ ...req.body, driver_id: user.sub });
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;

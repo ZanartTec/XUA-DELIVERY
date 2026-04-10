@@ -1,4 +1,4 @@
-import type { Order, Consumer, Address, Prisma } from "@prisma/client";
+import type { Order, Consumer, Address, OrderItem, Prisma } from "@prisma/client";
 import { OrderStatus } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
@@ -6,6 +6,8 @@ type TxClient = Prisma.TransactionClient;
 
 export type OrderWithConsumer = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state"> | null;
+  items: Pick<OrderItem, "quantity">[];
 };
 
 export type OrderWithConsumerAndAddress = Order & {
@@ -13,28 +15,52 @@ export type OrderWithConsumerAndAddress = Order & {
   address: Address | null;
 };
 
+export type OrderHistoryWithConsumer = Order & {
+  consumer: Pick<Consumer, "name" | "phone">;
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state"> | null;
+  items: Pick<OrderItem, "quantity">[];
+};
+
 export const driverRepository = {
   async findTodayDeliveries(
     driverId: string,
+    date?: Date,
     tx?: TxClient
   ): Promise<OrderWithConsumer[]> {
     const prisma = getPrisma();
-    const today = new Date().toISOString().slice(0, 10);
-    const dayStart = new Date(today + "T00:00:00Z");
-    const dayEnd = new Date(today + "T23:59:59.999Z");
+    const targetDate = date ?? new Date();
+    const dayStart = new Date(targetDate);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate);
+    dayEnd.setUTCHours(23, 59, 59, 999);
 
     return (tx ?? prisma).order.findMany({
       where: {
         driver_id: driverId,
         status: {
-          in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
+          in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED],
         },
-        dispatched_at: { gte: dayStart, lte: dayEnd },
+        delivery_date: { gte: dayStart, lte: dayEnd },
       },
       include: {
         consumer: { select: { name: true, phone: true } },
+        address: {
+          select: {
+            street: true,
+            number: true,
+            complement: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+          },
+        },
+        items: { select: { quantity: true } },
       },
-      orderBy: { dispatched_at: "asc" },
+      orderBy: [
+        { status: "asc" },
+        { delivery_window: "asc" },
+        { created_at: "asc" },
+      ],
     }) as unknown as Promise<OrderWithConsumer[]>;
   },
 
@@ -61,7 +87,7 @@ export const driverRepository = {
     limit: number,
     offset: number,
     tx?: TxClient
-  ): Promise<Order[]> {
+  ): Promise<OrderHistoryWithConsumer[]> {
     const prisma = getPrisma();
     return (tx ?? prisma).order.findMany({
       where: {
@@ -70,9 +96,23 @@ export const driverRepository = {
           in: [OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED],
         },
       },
-      orderBy: { delivered_at: "desc" },
+      include: {
+        consumer: { select: { name: true, phone: true } },
+        address: {
+          select: {
+            street: true,
+            number: true,
+            complement: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+          },
+        },
+        items: { select: { quantity: true } },
+      },
+      orderBy: { updated_at: "desc" },
       take: limit,
       skip: offset,
-    });
+    }) as unknown as Promise<OrderHistoryWithConsumer[]>;
   },
 };
