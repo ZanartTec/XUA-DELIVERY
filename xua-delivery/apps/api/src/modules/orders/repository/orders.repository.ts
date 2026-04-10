@@ -8,13 +8,19 @@ type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "
 export type OrderForQueue = Order & {
   consumer: Pick<Consumer, "name">;
   address: Pick<Address, "street" | "number" | "neighborhood">;
-  items: Pick<OrderItem, "quantity">[];
+  items: Pick<OrderItem, "quantity" | "product_name">[];
 };
 
 export type OrderWithDetails = Order & {
   consumer: Pick<Consumer, "name" | "email" | "phone">;
-  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state">;
-  items: { quantity: number; unit_price_cents: number; product: { name: string } }[];
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
+  items: {
+    quantity: number;
+    unit_price_cents: number;
+    subtotal_cents: number;
+    product_name: string;
+    product: { image_url: string | null };
+  }[];
   audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
 };
 
@@ -71,7 +77,7 @@ export const orderRepository = {
       include: {
         consumer: { select: { name: true } },
         address: { select: { street: true, number: true, neighborhood: true } },
-        items: { select: { quantity: true } },
+        items: { select: { quantity: true, product_name: true } },
       },
     }) as unknown as Promise<OrderForQueue[]>;
   },
@@ -166,13 +172,16 @@ export const orderRepository = {
             neighborhood: true,
             city: true,
             state: true,
+            zip_code: true,
           },
         },
         items: {
           select: {
             quantity: true,
             unit_price_cents: true,
-            product: { select: { name: true } },
+            subtotal_cents: true,
+            product_name: true,
+            product: { select: { image_url: true } },
           },
         },
           audit_events: {

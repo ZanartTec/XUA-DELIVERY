@@ -872,6 +872,7 @@ export const orderService = {
       if (role !== "distributor_admin") {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
       }
+      const prisma = getPrisma();
       const distributorId = await distributorRepository.resolveDistributorId(userId);
       if (!distributorId) {
         throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
@@ -890,18 +891,47 @@ export const orderService = {
 
       const orders = await orderRepository.findByDistributor(distributorId, statuses);
 
+      const driverIds = Array.from(
+        new Set(
+          orders
+            .map((order) => order.driver_id)
+            .filter((driverId): driverId is string => Boolean(driverId))
+        )
+      );
+
+      const drivers = driverIds.length
+        ? await prisma.consumer.findMany({
+            where: { id: { in: driverIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+
+      const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
+
       // Enriquecer com campos calculados esperados pelo frontend
       const SLA_MS = 15 * 60 * 1000; // 15 minutos de SLA de aceitação
-      return orders.map((o) => ({
-        ...o,
-        consumer_name: o.consumer.name,
-        address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
-        total_items_qty: o.items.reduce((sum, item) => sum + item.quantity, 0),
-        sla_deadline: new Date(new Date(o.created_at).getTime() + SLA_MS).toISOString(),
-        consumer: undefined,
-        address: undefined,
-        items: undefined,
-      }));
+      return orders.map((o) => {
+        const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
+        const firstItem = o.items[0];
+        const itemSummary = firstItem
+          ? o.items.length > 1
+            ? `${totalItemsQty} itens em ${o.items.length} produtos`
+            : `${firstItem.quantity}x ${firstItem.product_name}`
+          : "0 item(ns)";
+
+        return {
+          ...o,
+          consumer_name: o.consumer.name,
+          address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
+          total_items_qty: totalItemsQty,
+          item_summary: itemSummary,
+          driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
+          sla_deadline: new Date(new Date(o.created_at).getTime() + SLA_MS).toISOString(),
+          consumer: undefined,
+          address: undefined,
+          items: undefined,
+        };
+      });
     }
 
     if (scope === "support") {
@@ -940,6 +970,7 @@ export const orderService = {
     if (!result) return null;
 
     const { items, audit_events, consumer, address, ...order } = result;
+    const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
     const addressParts = [
       `${address.street}, ${address.number}`,
       address.complement,
@@ -958,11 +989,23 @@ export const orderService = {
       consumer_email: consumer.email,
       consumer_phone: consumer.phone,
       address_line: addressParts.join(" - "),
+      address_details: {
+        street: address.street,
+        number: address.number,
+        complement: address.complement,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        zip_code: address.zip_code,
+      },
       sla_deadline: slaDeadline,
+      total_items_qty: totalItemsQty,
       items: items.map((i) => ({
-        product_name: i.product.name,
+        product_name: i.product_name,
         qty: i.quantity,
         unit_price_cents: i.unit_price_cents,
+        subtotal_cents: i.subtotal_cents,
+        image_url: i.product.image_url ?? null,
       })),
       events: audit_events.map((e) => ({
         status: e.event_type,
