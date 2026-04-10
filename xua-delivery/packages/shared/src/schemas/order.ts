@@ -38,7 +38,15 @@ export const nonCollectionSchema = z.object({
     "unsafe_location",
     "other",
   ]),
-  notes: z.string().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
+  notes: z.string().trim().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
+}).superRefine((data, ctx) => {
+  if (data.reason === "other" && (!data.notes || data.notes.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["notes"],
+      message: "Detalhe deve ter ao menos 10 caracteres",
+    });
+  }
 });
 export type NonCollectionInput = z.infer<typeof nonCollectionSchema>;
 
@@ -49,7 +57,15 @@ export const rejectOrderSchema = z.object({
     "operational_capacity",
     "other",
   ]),
-  details: z.string().optional(),
+  details: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.reason === "other" && (!data.details || data.details.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["details"],
+      message: "Detalhe deve ter ao menos 10 caracteres para 'Outro'",
+    });
+  }
 });
 export type RejectOrderInput = z.infer<typeof rejectOrderSchema>;
 
@@ -60,6 +76,7 @@ export const reconciliationSchema = z.object({
       returned_empty_qty: z.number().int().min(0),
     })
   ).min(1),
+  justification: z.string().trim().min(5, "Justificativa deve ter ao menos 5 caracteres").optional(),
 });
 export type ReconciliationInput = z.infer<typeof reconciliationSchema>;
 

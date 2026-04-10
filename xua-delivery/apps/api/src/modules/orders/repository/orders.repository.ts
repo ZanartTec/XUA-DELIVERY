@@ -1,7 +1,28 @@
-import type { Prisma, Order, OrderStatus } from "@prisma/client";
+import type { Prisma, Order, OrderStatus, Consumer, Address, OrderItem } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
+
+type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "phone"> };
+
+export type OrderForQueue = Order & {
+  consumer: Pick<Consumer, "name">;
+  address: Pick<Address, "street" | "number" | "neighborhood">;
+  items: Pick<OrderItem, "quantity" | "product_name">[];
+};
+
+export type OrderWithDetails = Order & {
+  consumer: Pick<Consumer, "name" | "email" | "phone">;
+  address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
+  items: {
+    quantity: number;
+    unit_price_cents: number;
+    subtotal_cents: number;
+    product_name: string;
+    product: { image_url: string | null };
+  }[];
+  audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
+};
 
 /**
  * OrderRepository — CRUD e queries de pedidos.
@@ -43,17 +64,22 @@ export const orderRepository = {
 
   async findByDistributor(
     distributorId: string,
-    status?: OrderStatus,
+    statuses?: OrderStatus[],
     tx?: TxClient
-  ): Promise<Order[]> {
+  ): Promise<OrderForQueue[]> {
     const prisma = getPrisma();
     return (tx ?? prisma).order.findMany({
       where: {
         distributor_id: distributorId,
-        ...(status ? { status } : {}),
+        ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
       },
       orderBy: { created_at: "desc" },
-    });
+      include: {
+        consumer: { select: { name: true } },
+        address: { select: { street: true, number: true, neighborhood: true } },
+        items: { select: { quantity: true, product_name: true } },
+      },
+    }) as unknown as Promise<OrderForQueue[]>;
   },
 
   async findByDriver(
@@ -125,5 +151,67 @@ export const orderRepository = {
       where: { id },
       data,
     });
+  },
+
+  async findByIdWithDetails(
+    id: string,
+    tx?: TxClient
+  ): Promise<OrderWithDetails | null> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).order.findUnique({
+      where: { id },
+      include: {
+        consumer: {
+          select: { name: true, email: true, phone: true },
+        },
+        address: {
+          select: {
+            street: true,
+            number: true,
+            complement: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+            zip_code: true,
+          },
+        },
+        items: {
+          select: {
+            quantity: true,
+            unit_price_cents: true,
+            subtotal_cents: true,
+            product_name: true,
+            product: { select: { image_url: true } },
+          },
+        },
+          audit_events: {
+          orderBy: { occurred_at: "asc" },
+          select: { event_type: true, occurred_at: true, actor_id: true },
+        },
+      },
+      }) as Promise<OrderWithDetails | null>;
+  },
+
+  async searchBySupport(
+    query: string,
+    tx?: TxClient
+  ): Promise<OrderWithConsumer[]> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).order.findMany({
+      where: {
+        OR: [
+          { consumer: { phone: { contains: query } } },
+          { consumer: { email: { contains: query } } },
+          { id: query },
+        ],
+      },
+      include: {
+        consumer: {
+          select: { name: true, email: true, phone: true },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 50,
+    }) as unknown as Promise<OrderWithConsumer[]>;
   },
 };

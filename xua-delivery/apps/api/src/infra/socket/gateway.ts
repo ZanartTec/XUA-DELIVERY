@@ -47,6 +47,13 @@ export function createSocketGateway(httpServer: HttpServer): Server {
       socket.data.role = payload.role;
       socket.join(`${payload.role}:${payload.sub}`);
 
+      // Para distributor_admin, entra também na sala da empresa distribuidora
+      // para receber eventos de novos pedidos coletivamente.
+      if (payload.role === "distributor_admin" && payload.distributor_id) {
+        socket.join(`distributor:${payload.distributor_id}`);
+        socket.data.distributorId = payload.distributor_id;
+      }
+
       logger.debug(
         { userId: payload.sub, role: payload.role },
         "Socket connected"

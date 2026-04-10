@@ -11,6 +11,7 @@ const RECONCILIATION_SELECT = {
   deposit_amount_cents: true,
   status: true,
   delivery_date: true,
+  consumer: { select: { name: true } },
 } as const;
 
 export const reconciliationRepository = {
@@ -40,6 +41,31 @@ export const reconciliationRepository = {
     return tx.order.update({
       where: { id: orderId },
       data: { returned_empty_qty: returnedEmptyQty },
+    });
+  },
+
+  async insertReconciliation(
+    data: {
+      distributorId: string;
+      reconciliationDate: Date;
+      fullOut: number;
+      emptyReturned: number;
+      delta: number;
+      justification?: string | null;
+      closedBy: string;
+    },
+    tx: TxClient
+  ) {
+    return tx.reconciliation.create({
+      data: {
+        distributor_id: data.distributorId,
+        reconciliation_date: data.reconciliationDate,
+        full_out: data.fullOut,
+        empty_returned: data.emptyReturned,
+        delta: data.delta,
+        justification: data.justification ?? null,
+        closed_by: data.closedBy,
+      },
     });
   },
 };

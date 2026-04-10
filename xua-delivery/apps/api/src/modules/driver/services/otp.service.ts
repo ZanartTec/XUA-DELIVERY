@@ -4,6 +4,7 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { otpRepository } from "../repository/otp.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import redis from "../../../infra/redis/client.js";
 
 const logger = createLogger("otp");
 
@@ -36,6 +37,13 @@ export class OtpServiceError extends Error {
     super(message);
     this.name = "OtpServiceError";
   }
+}
+
+export interface OtpValidationResult {
+  isValid: boolean;
+  attempts: number;
+  maxAttempts: number;
+  locked: boolean;
 }
 
 /**
@@ -77,6 +85,8 @@ export const otpService = {
     });
 
     logger.info({ orderId }, "OTP generated");
+    // Armazena código em claro no Redis por 90min para exibição ao consumer
+    await redis.set(`otp:${orderId}`, code, "EX", OTP_TTL_MINUTES * 60);
     return code;
   },
 
@@ -85,7 +95,7 @@ export const otpService = {
    * Retorna true se válido, false se inválido.
    * @throws OtpServiceError se OTP não encontrado, expirado ou locked
    */
-  async validate(orderId: string, code: string, driverId: string): Promise<boolean> {
+  async validate(orderId: string, code: string, driverId: string): Promise<OtpValidationResult> {
     const prisma = getPrisma();
 
     // FUNC-01: Usa transação com FOR UPDATE para evitar race condition
@@ -109,12 +119,19 @@ export const otpService = {
       const hash = hmacHash(code);
       const isValid = hash === otp.otp_hash;
 
+      let attempts = otp.attempts + 1;
+      let locked = false;
+
       if (isValid) {
         await otpRepository.markUsed(otp.id, tx);
+        // Remove código do Redis ao usar
+        redis.del(`otp:${orderId}`).catch(() => {});
       } else {
         const updated = await otpRepository.incrementAttempts(otp.id, tx);
+        attempts = updated.attempts;
         if (updated.attempts >= MAX_ATTEMPTS) {
           await otpRepository.markLocked(otp.id, tx);
+          locked = true;
         }
       }
 
@@ -124,13 +141,13 @@ export const otpService = {
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
-          payload: { success: isValid, attempts: otp.attempts + 1 },
+          payload: { success: isValid, attempts },
         },
         tx
       );
 
-      logger.info({ orderId, isValid, attempts: otp.attempts + 1 }, "OTP validation attempted");
-      return isValid;
+      logger.info({ orderId, isValid, attempts }, "OTP validation attempted");
+      return { isValid, attempts, maxAttempts: MAX_ATTEMPTS, locked };
     });
   },
 
@@ -147,6 +164,8 @@ export const otpService = {
       if (otp) {
         await otpRepository.markUsed(otp.id, tx);
       }
+      // Remove código do Redis no override
+      redis.del(`otp:${orderId}`).catch(() => {});
 
       await auditRepository.emit(
         {

@@ -27,12 +27,21 @@ export const reconciliationService = {
         [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
       );
 
+    const rows = orders.map((o) => {
+      const sent = o.qty_20l_sent ?? 0;
+      const returned = o.returned_empty_qty ?? 0;
+      return {
+        order_id: o.id,
+        consumer_name: o.consumer.name,
+        sent_qty: sent,
+        returned_qty: returned,
+        delta: sent - returned,
+      };
+    });
+
     const summary = {
-      total_sent: orders.reduce((s, o) => s + (o.qty_20l_sent ?? 0), 0),
-      total_returned: orders.reduce(
-        (s, o) => s + (o.returned_empty_qty ?? 0),
-        0
-      ),
+      total_sent: rows.reduce((s, r) => s + r.sent_qty, 0),
+      total_returned: rows.reduce((s, r) => s + r.returned_qty, 0),
       total_deposit_cents: orders.reduce(
         (s, o) => s + (o.deposit_amount_cents ?? 0),
         0
@@ -40,14 +49,21 @@ export const reconciliationService = {
       orders_count: orders.length,
     };
 
-    return { orders, summary };
+    return { rows, summary };
   },
 
   async close(
     items: Array<{ order_id: string; returned_empty_qty: number }>,
-    userId: string
+    userId: string,
+    distributorId: string,
+    date: string,
+    justification?: string
   ) {
     const prisma = getPrisma();
+    const dayStart = new Date(date + "T00:00:00Z");
+    const dayEnd = new Date(date + "T23:59:59.999Z");
+    const emptyReturned = items.reduce((s, i) => s + i.returned_empty_qty, 0);
+
     await prisma.$transaction(async (tx: TxClient) => {
       for (const item of items) {
         await reconciliationRepository.updateReturnedQty(
@@ -57,13 +73,40 @@ export const reconciliationService = {
         );
       }
 
+      const orders = await reconciliationRepository.findOrdersForReconciliation(
+        distributorId,
+        dayStart,
+        dayEnd,
+        [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+        tx
+      );
+      const fullOut = orders.reduce((s, o) => s + (o.qty_20l_sent ?? 0), 0);
+      const delta = fullOut - emptyReturned;
+
+      if (delta > 0 && (!justification || justification.trim().length < 5)) {
+        throw new Error("JUSTIFICATION_REQUIRED");
+      }
+
+      await reconciliationRepository.insertReconciliation(
+        {
+          distributorId,
+          reconciliationDate: dayStart,
+          fullOut,
+          emptyReturned,
+          delta,
+          justification: justification?.trim() || null,
+          closedBy: userId,
+        },
+        tx
+      );
+
       await auditRepository.emit(
         {
           eventType: AuditEventType.DAILY_RECONCILIATION_CLOSED,
           actor: { type: ActorType.DISTRIBUTOR_USER, id: userId },
           orderId: null,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
-          payload: { items_count: items.length },
+          payload: { items_count: items.length, delta },
         },
         tx
       );

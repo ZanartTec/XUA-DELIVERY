@@ -19,6 +19,7 @@ export async function signToken(payload: {
   sub: string;
   role: UserRole;
   name: string;
+  distributor_id?: string;
 }): Promise<string> {
   if (!isUserRole(payload.role)) {
     throw new Error(`signToken: role inválida "${payload.role}"`);

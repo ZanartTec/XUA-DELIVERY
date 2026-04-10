@@ -132,4 +132,91 @@ export const kpiService = {
       delivered,
     };
   },
+
+  /**
+   * Série diária de KPIs para gráficos.
+   * Retorna um ponto por dia no intervalo, com SLA, aceitação e reentrega.
+   */
+  async getDailySeries(
+    distributorId: string,
+    startDate: Date,
+    endDate: Date,
+    slaSeconds: number = 180
+  ): Promise<Array<{ date: string; sla_pct: number; acceptance_pct: number; redelivery_pct: number }>> {
+    const prisma = getPrisma();
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        day: Date;
+        total_received: number;
+        within_sla: number;
+        accepted: number;
+        delivered: number;
+        redeliveries: number;
+      }>
+    >`
+      WITH dist_orders AS (
+        SELECT id FROM "09_trn_orders" WHERE distributor_id = ${distributorId}::uuid
+      ),
+      daily_events AS (
+        SELECT
+          DATE(occurred_at) AS day,
+          event_type,
+          order_id,
+          occurred_at
+        FROM "18_aud_audit_events"
+        WHERE occurred_at BETWEEN ${startDate} AND ${endDate}
+          AND order_id IN (SELECT id FROM dist_orders)
+      ),
+      received_events AS (
+        SELECT order_id, day, occurred_at AS received_at
+        FROM daily_events
+        WHERE event_type = ${AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR}::"audit_event_type"
+      ),
+      accepted_events AS (
+        SELECT order_id, day, occurred_at AS accepted_at
+        FROM daily_events
+        WHERE event_type = ${AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR}::"audit_event_type"
+      )
+      SELECT
+        COALESCE(r.day, a.day, d.day) AS day,
+        COUNT(DISTINCT r.order_id)::int AS total_received,
+        COUNT(DISTINCT CASE
+          WHEN EXTRACT(EPOCH FROM (a.accepted_at - r.received_at)) <= ${slaSeconds}
+          THEN r.order_id END)::int AS within_sla,
+        COUNT(DISTINCT a.order_id)::int AS accepted,
+        COUNT(DISTINCT CASE
+          WHEN d.event_type = ${AuditEventType.ORDER_DELIVERED}::"audit_event_type"
+          THEN d.order_id END)::int AS delivered,
+        COUNT(DISTINCT CASE
+          WHEN d.event_type = ${AuditEventType.REDELIVERY_REQUIRED}::"audit_event_type"
+          THEN d.order_id END)::int AS redeliveries
+      FROM received_events r
+      FULL OUTER JOIN accepted_events a ON a.order_id = r.order_id AND a.day = r.day
+      FULL OUTER JOIN (
+        SELECT order_id, day, event_type FROM daily_events
+        WHERE event_type IN (
+          ${AuditEventType.ORDER_DELIVERED}::"audit_event_type",
+          ${AuditEventType.REDELIVERY_REQUIRED}::"audit_event_type"
+        )
+      ) d ON d.order_id = COALESCE(r.order_id, a.order_id) AND d.day = COALESCE(r.day, a.day)
+      GROUP BY COALESCE(r.day, a.day, d.day)
+      ORDER BY day ASC
+    `;
+
+    return rows.map((row) => {
+      const totalReceived = Number(row.total_received);
+      const withinSla = Number(row.within_sla);
+      const accepted = Number(row.accepted);
+      const delivered = Number(row.delivered);
+      const redeliveries = Number(row.redeliveries);
+
+      return {
+        date: new Date(row.day).toISOString().slice(0, 10),
+        sla_pct: totalReceived > 0 ? (withinSla / totalReceived) * 100 : 0,
+        acceptance_pct: totalReceived > 0 ? (accepted / totalReceived) * 100 : 0,
+        redelivery_pct: delivered > 0 ? (redeliveries / delivered) * 100 : 0,
+      };
+    });
+  },
 };

@@ -1,4 +1,4 @@
-import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, Prisma } from "@prisma/client";
+import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, PaymentKind, Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
@@ -7,7 +7,10 @@ import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
+import { paymentService } from "../../payments/services/payments.service.js";
+import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import redis from "../../../infra/redis/client.js";
 
 const log = createLogger("orders");
 
@@ -265,9 +268,9 @@ export const orderService = {
       return updated;
     }, { maxWait: 10000, timeout: 10000 });
 
-    // Socket.io pós-commit: notifica distribuidor
+    // Socket.io pós-commit: notifica distribuidor (sala da empresa)
     const io = getIO();
-    io.to(`distributor_admin:${order.distributor_id}`).emit("new_order", {
+    io.to(`distributor:${order.distributor_id}`).emit("new_order", {
       orderId,
       status: OrderStatus.SENT_TO_DISTRIBUTOR,
     });
@@ -438,6 +441,70 @@ export const orderService = {
     });
 
     // Push notification - OTP será gerado e enviado pelo controller após esta chamada
+    notificationService
+      .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
+      .catch(() => {});
+
+    return order;
+  },
+
+  /**
+   * Checklist + Dispatch atômico: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH → OUT_FOR_DELIVERY
+   * Faz as duas transições em uma única transação para evitar estado inconsistente.
+   */
+  async dispatchWithChecklist(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+    const prisma = getPrisma();
+    const order = await prisma.$transaction(async (tx: TxClient) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+
+      // Transição 1: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH
+      assertTransition(current.status, OrderStatus.READY_FOR_DISPATCH);
+      await orderRepository.updateStatus(orderId, OrderStatus.READY_FOR_DISPATCH, undefined, tx);
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DISPATCH_CHECKLIST_COMPLETED,
+          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+          orderId,
+          sourceApp: SourceApp.DISTRIBUTOR_WEB,
+        },
+        tx
+      );
+
+      // Transição 2: READY_FOR_DISPATCH → OUT_FOR_DELIVERY
+      const updated = await orderRepository.updateStatus(
+        orderId,
+        OrderStatus.OUT_FOR_DELIVERY,
+        { dispatched_at: new Date(), driver_id: driverId },
+        tx
+      );
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.ORDER_DISPATCHED,
+          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+          orderId,
+          sourceApp: SourceApp.DISTRIBUTOR_WEB,
+          payload: { driverId },
+        },
+        tx
+      );
+
+      return updated;
+    });
+
+    const io = getIO();
+    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+      orderId,
+      status: OrderStatus.OUT_FOR_DELIVERY,
+    });
+
+    io.to(`driver:${driverId}`).emit("new_delivery", {
+      orderId,
+      status: OrderStatus.OUT_FOR_DELIVERY,
+    });
+
     notificationService
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
@@ -796,5 +863,178 @@ export const orderService = {
         payload: e.payload as object,
       })),
     };
+  },
+
+  /**
+   * Lista pedidos conforme role e scope do usuário.
+   */
+  async listOrders(userId: string, role: string, scope?: string, statusParam?: string) {
+    if (scope === "distributor") {
+      if (role !== "distributor_admin") {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      const prisma = getPrisma();
+      const distributorId = await distributorRepository.resolveDistributorId(userId);
+      if (!distributorId) {
+        throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+      }
+
+      // Statuses ativos visíveis na fila. Se vier filtro explícito, usa ele; senão mostra todos ativos.
+      const QUEUE_STATUSES: OrderStatus[] = [
+        OrderStatus.SENT_TO_DISTRIBUTOR,
+        OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+        OrderStatus.READY_FOR_DISPATCH,
+        OrderStatus.OUT_FOR_DELIVERY,
+      ];
+      const statuses = statusParam
+        ? [statusParam as OrderStatus]
+        : QUEUE_STATUSES;
+
+      const orders = await orderRepository.findByDistributor(distributorId, statuses);
+
+      const driverIds = Array.from(
+        new Set(
+          orders
+            .map((order) => order.driver_id)
+            .filter((driverId): driverId is string => Boolean(driverId))
+        )
+      );
+
+      const drivers = driverIds.length
+        ? await prisma.consumer.findMany({
+            where: { id: { in: driverIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+
+      const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
+
+      // Enriquecer com campos calculados esperados pelo frontend
+      const SLA_MS = 15 * 60 * 1000; // 15 minutos de SLA de aceitação
+      return orders.map((o) => {
+        const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
+        const firstItem = o.items[0];
+        const itemSummary = firstItem
+          ? o.items.length > 1
+            ? `${totalItemsQty} itens em ${o.items.length} produtos`
+            : `${firstItem.quantity}x ${firstItem.product_name}`
+          : "0 item(ns)";
+
+        return {
+          ...o,
+          consumer_name: o.consumer.name,
+          address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
+          total_items_qty: totalItemsQty,
+          item_summary: itemSummary,
+          driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
+          sla_deadline: new Date(new Date(o.created_at).getTime() + SLA_MS).toISOString(),
+          consumer: undefined,
+          address: undefined,
+          items: undefined,
+        };
+      });
+    }
+
+    if (scope === "support") {
+      if (role !== "support" && role !== "ops") {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      return []; // caller must use searchOrders()
+    }
+
+    if (role === "consumer") {
+      return orderRepository.findByConsumer(userId);
+    }
+
+    if (role === "ops" || role === "support") {
+      return orderRepository.findAll({
+        limit: 100,
+        ...(statusParam ? { status: statusParam as OrderStatus } : {}),
+      });
+    }
+
+    return [];
+  },
+
+  /**
+   * Busca de pedidos por support (phone, email, id).
+   */
+  async searchOrders(query: string) {
+    return orderRepository.searchBySupport(query);
+  },
+
+  /**
+   * Busca pedido por ID com itens e timeline formatados.
+   */
+  async getOrderDetail(orderId: string) {
+    const result = await orderRepository.findByIdWithDetails(orderId);
+    if (!result) return null;
+
+    const { items, audit_events, consumer, address, ...order } = result;
+    const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    const addressParts = [
+      `${address.street}, ${address.number}`,
+      address.complement,
+      address.neighborhood,
+      `${address.city}/${address.state}`,
+    ].filter(Boolean);
+
+    const slaDeadline =
+      order.status === OrderStatus.SENT_TO_DISTRIBUTOR
+        ? new Date(new Date(order.created_at).getTime() + 15 * 60 * 1000).toISOString()
+        : null;
+
+    return {
+      ...order,
+      consumer_name: consumer.name,
+      consumer_email: consumer.email,
+      consumer_phone: consumer.phone,
+      address_line: addressParts.join(" - "),
+      address_details: {
+        street: address.street,
+        number: address.number,
+        complement: address.complement,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        zip_code: address.zip_code,
+      },
+      sla_deadline: slaDeadline,
+      total_items_qty: totalItemsQty,
+      items: items.map((i) => ({
+        product_name: i.product_name,
+        qty: i.quantity,
+        unit_price_cents: i.unit_price_cents,
+        subtotal_cents: i.subtotal_cents,
+        image_url: i.product.image_url ?? null,
+      })),
+      events: audit_events.map((e) => ({
+        status: e.event_type,
+        timestamp: e.occurred_at,
+        actor: e.actor_id,
+      })),
+      otp_code: await redis.get(`otp:${orderId}`) ?? undefined,
+    };
+  },
+
+  /**
+   * Simula o fluxo completo de pagamento quando PAYMENT_PROVIDER=mock.
+   * CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR
+   */
+  async autoSimulateMockPayment(orderId: string, totalCents: number): Promise<void> {
+    const provider = process.env.PAYMENT_PROVIDER ?? "mock";
+    if (provider !== "mock") return;
+
+    try {
+      await orderService.submitForPayment(orderId);
+      const { payment } = await paymentService.charge(orderId, totalCents, PaymentKind.ORDER);
+      if (payment.status === "CAPTURED") {
+        await orderService.confirmOrder(orderId);
+        await orderService.sendToDistributor(orderId);
+      }
+      log.info({ orderId }, "[MOCK] Pagamento simulado — pedido enviado ao distribuidor");
+    } catch (err) {
+      log.warn({ orderId, err }, "[MOCK] Falha na simulação de pagamento, pedido permanece em CREATED");
+    }
   },
 };

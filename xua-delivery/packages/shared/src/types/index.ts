@@ -6,4 +6,5 @@ export interface JwtPayload {
   jti: string;
   iat: number;
   exp: number;
+  distributor_id?: string;
 }

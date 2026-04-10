@@ -8,9 +8,17 @@ import { driverService } from "../services/driver.service.js";
 export const driverController = {
   /** GET /api/driver/deliveries */
   async listDeliveries(req: Request, res: Response): Promise<void> {
+    const dateParam = req.query.date as string | undefined;
+    const date = dateParam ? new Date(`${dateParam}T00:00:00.000Z`) : undefined;
+
+    if (dateParam && Number.isNaN(date?.getTime())) {
+      res.status(400).json({ error: "Data inválida. Use yyyy-mm-dd." });
+      return;
+    }
+
     try {
-      const mapped = await driverService.listDeliveries(req.user!.sub);
-      res.json(mapped);
+      const mapped = await driverService.listDeliveries(req.user!.sub, date);
+      res.json({ deliveries: mapped });
     } catch (error) {
       logger.error({ error }, "Error listing deliveries");
       res.status(500).json({ error: "Erro interno" });

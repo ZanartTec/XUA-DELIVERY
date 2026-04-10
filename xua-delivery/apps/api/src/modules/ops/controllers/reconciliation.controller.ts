@@ -6,7 +6,7 @@ import { reconciliationService } from "../services/reconciliation.service.js";
 export const reconciliationController = {
   /** GET /api/reconciliations — resumo do dia para o distribuidor */
   async get(req: Request, res: Response): Promise<void> {
-    const distributorId = req.user!.sub;
+    const distributorId = req.user!.distributor_id!;
     const date =
       (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
 
@@ -27,10 +27,24 @@ export const reconciliationController = {
       return;
     }
 
+    const distributorId = req.user!.distributor_id!;
+    const date =
+      (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+
     try {
-      await reconciliationService.close(parsed.data.items, req.user!.sub);
+      await reconciliationService.close(
+        parsed.data.items,
+        req.user!.sub,
+        distributorId,
+        date,
+        parsed.data.justification
+      );
       res.json({ ok: true });
     } catch (error) {
+      if (error instanceof Error && error.message === "JUSTIFICATION_REQUIRED") {
+        res.status(400).json({ error: "Justificativa obrigatória quando o delta do dia for maior que zero." });
+        return;
+      }
       logger.error({ error }, "Error closing reconciliation");
       res.status(500).json({ error: "Erro interno" });
     }

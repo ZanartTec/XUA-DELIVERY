@@ -11,6 +11,12 @@ router.use(requireRole("distributor_admin"));
 // KPIs do distribuidor autenticado
 router.get("/kpis", distributorController.getKpis);
 
+// Lista motoristas disponíveis para despacho
+router.get("/drivers", distributorController.getDrivers);
+
+// Lista de paradas agrupadas por zona/janela para uma data
+router.get("/routes/:id", distributorController.getRouteById);
+
 // Disponibilidade de capacidade por zone/período
 router.get("/capacity", distributorController.getCapacity);
 

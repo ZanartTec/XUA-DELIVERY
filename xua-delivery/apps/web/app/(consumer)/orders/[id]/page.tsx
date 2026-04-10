@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSocket } from "@/src/hooks/use-socket";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
@@ -17,6 +18,7 @@ import {
   MapPin,
   Calendar,
   Clock,
+  ShieldCheck,
 } from "lucide-react";
 import type { Order } from "@/src/types";
 
@@ -24,6 +26,16 @@ interface OrderDetail extends Order {
   items: { product_name: string; qty: number; unit_price_cents: number }[];
   events: TimelineEvent[];
   otp_code?: string;
+  address_line?: string;
+  address_details?: {
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zip_code: string;
+  };
 }
 
 /* ── helpers ── */
@@ -53,6 +65,17 @@ export default function OrderDetailPage() {
   const [npsSubmitted, setNpsSubmitted] = useState(false);
   const [npsSubmitting, setNpsSubmitting] = useState(false);
   const [npsMessage, setNpsMessage] = useState("");
+  const [otpCode, setOtpCode] = useState<string | null>(null);
+  const { on, off } = useSocket();
+
+  useEffect(() => {
+    const handler = (...args: unknown[]) => {
+      const data = args[0] as { orderId: string; code: string };
+      if (data.orderId === id) setOtpCode(data.code);
+    };
+    on("otp_generated", handler);
+    return () => off("otp_generated", handler);
+  }, [id, on, off]);
 
   useEffect(() => {
     fetch(`/api/orders/${id}`)
@@ -231,22 +254,34 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* OTP code */}
-          {order.otp_code && (
-            <div className="mt-6 pt-5 border-t border-[#e1e3e4]/40 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#dce1ff] flex items-center justify-center">
-                <Check className="h-5 w-5 text-[#0041c8]" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-[#737688]">Código de entrega</p>
-                <p className="font-mono text-lg font-bold tracking-widest text-[#0041c8]">
-                  {order.otp_code}
-                </p>
-              </div>
-            </div>
-          )}
+
         </div>
       </div>
+
+      {/* ── OTP Card ── */}
+      {(otpCode ?? order.otp_code) && (
+        <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#0038b0_0%,#004de1_55%,#2a84ff_100%)] p-6 text-white shadow-[0_16px_40px_rgba(0,65,200,0.28)]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
+              <ShieldCheck className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">Confirmação de entrega</p>
+              <p className="text-sm font-bold text-white">Mostre este código ao motorista</p>
+            </div>
+          </div>
+
+          <div className="rounded-[20px] bg-white/15 backdrop-blur px-4 py-5 text-center">
+            <p className="font-mono text-5xl font-black tracking-[0.35em] text-white drop-shadow-sm">
+              {otpCode ?? order.otp_code}
+            </p>
+          </div>
+
+          <p className="mt-3 text-center text-xs text-white/65">
+            O motorista irá inserir este código para confirmar a entrega.
+          </p>
+        </div>
+      )}
 
       {/* ── Delivery Info ── */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
@@ -280,6 +315,36 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Delivery Address ── */}
+      {(order.address_line ?? order.address_details) && (
+        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
+            Endereço de entrega
+          </h3>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+              <MapPin className="h-4 w-4 text-[#0041c8]" />
+            </div>
+            <div className="space-y-0.5">
+              {order.address_details ? (
+                <>
+                  <p className="text-sm font-semibold text-[#191c1d]">
+                    {order.address_details.street}, {order.address_details.number}
+                    {order.address_details.complement ? ` — ${order.address_details.complement}` : ""}
+                  </p>
+                  <p className="text-xs text-[#737688]">
+                    {order.address_details.neighborhood} · {order.address_details.city}/{order.address_details.state}
+                  </p>
+                  <p className="text-xs text-[#737688]">CEP: {order.address_details.zip_code}</p>
+                </>
+              ) : (
+                <p className="text-sm font-semibold text-[#191c1d]">{order.address_line}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Items ── */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
