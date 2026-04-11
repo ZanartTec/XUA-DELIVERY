@@ -54,11 +54,11 @@ export default function LoginPage() {
       <h1 className="font-heading text-[2rem] leading-[1.15] font-extrabold tracking-tight text-[#001a40] mb-2">
         Seja Bem-vindo{" "}
         <span className="bg-linear-to-r from-[#0041c8] to-[#0055ff] bg-clip-text text-transparent">
-          ao Xua elivery
+          ao Xua Delivery
         </span>
       </h1>
       <p className="text-sm text-[#434656] mb-8">
-        Pure hydration, delivered to your sanctuary.
+        Hidratação pura, entregue em sua casa.
       </p>
 
       {/* Form */}
@@ -72,12 +72,12 @@ export default function LoginPage() {
         {/* Email */}
         <div className="space-y-1.5">
           <label htmlFor="email" className="text-[11px] font-semibold tracking-widest text-[#434656] uppercase">
-            Email Address
+            Endereço de Email
           </label>
           <Input
             id="email"
             type="email"
-            placeholder="name@example.com"
+            placeholder="nome@exemplo.com"
             className="h-12 rounded-xl border-0 bg-white/70 backdrop-blur-sm text-[#191c1d] placeholder:text-[#737688]/70 shadow-none focus:bg-white focus:ring-2 focus:ring-[#0055ff]/20"
             {...register("email")}
           />
@@ -90,10 +90,10 @@ export default function LoginPage() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label htmlFor="password" className="text-[11px] font-semibold tracking-widest text-[#434656] uppercase">
-              Password
+              Senha
             </label>
             <button type="button" className="text-xs text-[#0041c8] hover:text-[#0055ff] font-medium">
-              Forgot?
+              Esqueceu?
             </button>
           </div>
           <Input
@@ -146,9 +146,9 @@ export default function LoginPage() {
 
       {/* Footer */}
       <p className="mt-8 text-center text-sm text-[#434656]">
-        New to Xuá?{" "}
+        Novo no Xuá?{" "}
         <Link href="/register" className="font-semibold text-[#0041c8] hover:text-[#0055ff]">
-          Register
+          Registre-se
         </Link>
       </p>
     </>
