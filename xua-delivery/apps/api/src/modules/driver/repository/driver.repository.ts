@@ -28,11 +28,17 @@ export const driverRepository = {
     tx?: TxClient
   ): Promise<OrderWithConsumer[]> {
     const prisma = getPrisma();
-    const targetDate = date ?? new Date();
-    const dayStart = new Date(targetDate);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const dayEnd = new Date(targetDate);
-    dayEnd.setUTCHours(23, 59, 59, 999);
+
+    // Filtra por data apenas se explicitamente informado; caso contrário retorna todos ativos
+    const dateFilter: Prisma.OrderWhereInput = date
+      ? (() => {
+          const dayStart = new Date(date);
+          dayStart.setUTCHours(0, 0, 0, 0);
+          const dayEnd = new Date(date);
+          dayEnd.setUTCHours(23, 59, 59, 999);
+          return { delivery_date: { gte: dayStart, lte: dayEnd } };
+        })()
+      : {};
 
     return (tx ?? prisma).order.findMany({
       where: {
@@ -40,7 +46,7 @@ export const driverRepository = {
         status: {
           in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED],
         },
-        delivery_date: { gte: dayStart, lte: dayEnd },
+        ...dateFilter,
       },
       include: {
         consumer: { select: { name: true, phone: true } },

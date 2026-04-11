@@ -77,7 +77,7 @@ export default function NonCollectionPage() {
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo *</label>
           <select
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => setReason(e.target.value as typeof reason)}
             className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm"
           >
             <option value="">Selecione...</option>
