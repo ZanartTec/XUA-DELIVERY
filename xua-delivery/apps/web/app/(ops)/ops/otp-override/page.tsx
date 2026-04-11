@@ -64,7 +64,7 @@ export default function OtpOverridePage() {
         {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
         {result && <div className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700">{result}</div>}
 
-        <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading || !orderId || !reason} onClick={handleOverride}>
+        <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading || !orderId || !reason} onClick={handleOverride}>
           {loading ? "Processando..." : "Confirmar Override"}
         </Button>
       </div>

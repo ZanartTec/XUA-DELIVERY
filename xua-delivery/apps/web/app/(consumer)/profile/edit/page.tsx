@@ -82,7 +82,7 @@ export default function ProfileEditPage() {
             <label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</label>
             <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
           </div>
-          <Button type="submit" className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading}>
+          <Button type="submit" className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading}>
             {loading ? "Salvando..." : "Salvar alterações"}
           </Button>
         </form>

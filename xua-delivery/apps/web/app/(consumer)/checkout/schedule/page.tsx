@@ -172,7 +172,7 @@ export default function CheckoutSchedulePage() {
       </div>
 
       {/* Hero Banner */}
-      <div className="mx-4 rounded-2xl bg-linear-to-br from-[#0041c8] to-[#0055ff] p-5 relative overflow-hidden">
+      <div className="mx-4 rounded-2xl bg-linear-to-br from-primary to-primary-hover p-5 relative overflow-hidden">
         <div className="absolute -right-4 -bottom-4 opacity-15">
           <Droplets className="h-32 w-32 text-white" />
         </div>
@@ -198,7 +198,7 @@ export default function CheckoutSchedulePage() {
           <button
             type="button"
             onClick={() => setAddressSheetOpen(true)}
-            className="text-xs font-semibold text-[#0041c8] hover:underline"
+            className="text-xs font-semibold text-primary hover:underline"
           >
             Alterar
           </button>
@@ -206,10 +206,10 @@ export default function CheckoutSchedulePage() {
         <button
           type="button"
           onClick={() => setAddressSheetOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-[#0041c8]/30"
+          className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8eeff]">
-            <Home className="h-5 w-5 text-[#0041c8]" />
+            <Home className="h-5 w-5 text-primary" />
           </div>
           {addressLoading ? (
             <div className="flex-1 space-y-2 animate-pulse">
@@ -228,7 +228,7 @@ export default function CheckoutSchedulePage() {
             </div>
           ) : (
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#0041c8]">Selecionar endereço</p>
+              <p className="text-sm font-semibold text-primary">Selecionar endereço</p>
               <p className="text-xs text-[#737688]">Toque para adicionar</p>
             </div>
           )}
@@ -252,8 +252,8 @@ export default function CheckoutSchedulePage() {
                 className={cn(
                   "flex flex-col items-center shrink-0 rounded-2xl px-4 py-3 min-w-20 transition-all active:scale-95",
                   selected
-                    ? "bg-[#0041c8] text-white shadow-[0_4px_12px_rgba(0,65,200,0.3)]"
-                    : "bg-white border border-[#e1e3e4] text-[#191c1d] hover:border-[#0041c8]/30",
+                    ? "bg-primary text-white shadow-[0_4px_12px_rgba(27,74,154,0.3)]"
+                    : "bg-white border border-[#e1e3e4] text-[#191c1d] hover:border-primary/30",
                 )}
               >
                 <span
@@ -296,20 +296,20 @@ export default function CheckoutSchedulePage() {
                 className={cn(
                   "flex w-full items-center gap-3 rounded-2xl p-4 transition-all active:scale-[0.98]",
                   selected
-                    ? "bg-white border-2 border-[#0041c8] shadow-[0_2px_12px_rgba(0,65,200,0.1)]"
-                    : "bg-white border border-[#e1e3e4] hover:border-[#0041c8]/30",
+                    ? "bg-white border-2 border-primary shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
+                    : "bg-white border border-[#e1e3e4] hover:border-primary/30",
                 )}
               >
                 <div
                   className={cn(
                     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                    selected ? "bg-[#0041c8]/10" : "bg-[#f0f2f4]",
+                    selected ? "bg-primary/10" : "bg-[#f0f2f4]",
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-5 w-5",
-                      selected ? "text-[#0041c8]" : "text-[#737688]",
+                      selected ? "text-primary" : "text-[#737688]",
                     )}
                   />
                 </div>
@@ -328,7 +328,7 @@ export default function CheckoutSchedulePage() {
                   className={cn(
                     "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
                     selected
-                      ? "border-[#0041c8] bg-[#0041c8]"
+                      ? "border-primary bg-primary"
                       : "border-[#c4c6cf] bg-transparent",
                   )}
                 >
@@ -353,7 +353,7 @@ export default function CheckoutSchedulePage() {
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="Ex: Deixar na portaria, código 1234..."
           rows={3}
-          className="w-full rounded-2xl border border-[#e1e3e4] bg-[#f8f9fa] px-4 py-3 text-sm text-[#191c1d] placeholder:text-[#737688]/50 resize-none focus:outline-none focus:border-[#0041c8]/40 transition-colors"
+          className="w-full rounded-2xl border border-[#e1e3e4] bg-[#f8f9fa] px-4 py-3 text-sm text-[#191c1d] placeholder:text-[#737688]/50 resize-none focus:outline-none focus:border-primary/40 transition-colors"
         />
       </div>
 
@@ -379,7 +379,7 @@ export default function CheckoutSchedulePage() {
           </div>
           <div className="flex items-center -space-x-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8eeff] border-2 border-white">
-              <Droplets className="h-3.5 w-3.5 text-[#0041c8]" />
+              <Droplets className="h-3.5 w-3.5 text-primary" />
             </div>
             {itemCount > 1 && (
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f2f4] border-2 border-white text-[10px] font-bold text-[#737688]">
@@ -389,7 +389,7 @@ export default function CheckoutSchedulePage() {
           </div>
         </div>
         <Button
-          className="w-full h-12 rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={!effectiveDate || !selectedWindow || !selectedAddress}
           onClick={handleContinue}
         >

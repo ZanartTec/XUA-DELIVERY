@@ -157,7 +157,7 @@ export default function AddressesPage() {
                 className="rounded-xl border-0 bg-[#e1e3e4]"
               />
             </div>
-            <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" onClick={handleAdd} disabled={saving || !number}>
+            <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" onClick={handleAdd} disabled={saving || !number}>
               {saving ? "Salvando..." : "Adicionar endereço"}
             </Button>
           </>
@@ -172,8 +172,8 @@ export default function AddressesPage() {
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : addresses.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0041c8]/10">
-              <MapPin className="h-8 w-8 text-[#0041c8]/40" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <MapPin className="h-8 w-8 text-primary/40" />
             </div>
             <p className="text-sm text-muted-foreground">Nenhum endereço cadastrado.</p>
           </div>
@@ -189,7 +189,7 @@ export default function AddressesPage() {
                   {addr.neighborhood} — {addr.city}/{addr.state} — CEP {addr.zip_code}
                 </p>
                 {addr.is_default && (
-                  <span className="text-xs font-medium text-[#0041c8]">Principal</span>
+                  <span className="text-xs font-medium text-primary">Principal</span>
                 )}
               </li>
             ))}

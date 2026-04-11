@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { Order } from "@/src/types";
 
-/* â”€â”€ helpers â”€â”€ */
+/* ── helpers ── */
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: "Confirmado",
   SENT_TO_DISTRIBUTOR: "A caminho",
@@ -81,7 +81,7 @@ export default function OrdersPage() {
     <div className="pb-4">
       {/* Header */}
       <div className="px-6 pt-6 mb-8">
-        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#0041c8] mb-1">
+        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-primary mb-1">
           Acompanhamento
         </p>
         <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[#191c1d]">
@@ -97,14 +97,14 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#0041c8]/10">
-            <ClipboardList className="h-10 w-10 text-[#0041c8]/40" />
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+            <ClipboardList className="h-10 w-10 text-primary/40" />
           </div>
           <p className="text-[#737688]">Nenhum pedido encontrado.</p>
         </div>
       ) : (
         <>
-          {/* â”€â”€ Active Orders â”€â”€ */}
+          {/* ── Active Orders ── */}
           {activeOrders.length > 0 && (
             <div className="px-6 mb-10">
               <div className="space-y-4">
@@ -114,22 +114,22 @@ export default function OrdersPage() {
                     <Link key={order.id} href={`/orders/${order.id}`}>
                       <div className="bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
                         {/* decorative blur */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#0041c8]/5 rounded-full -mr-20 -mt-20 blur-3xl" />
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl" />
 
                         <div className="relative z-10">
                           {/* Product info + Track */}
                           <div className="flex items-start justify-between mb-6">
                             <div className="flex items-center gap-4">
                               <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                                <Droplets className="h-7 w-7 text-[#0041c8]" />
+                                <Droplets className="h-7 w-7 text-primary" />
                               </div>
                               <div>
                                 <h3 className="font-heading text-lg font-bold text-[#191c1d]">
                                   Pedido #{shortId(order.id)}
                                 </h3>
                                 <p className="text-sm text-[#737688] font-medium">
-                                  {formatDate(order.delivery_date)} â€¢{" "}
-                                  <span className="text-[#0041c8]">
+                                  {formatDate(order.delivery_date)} •{" "}
+                                  <span className="text-primary">
                                     {formatCurrency(order.total_cents)}
                                   </span>
                                 </p>
@@ -141,7 +141,7 @@ export default function OrdersPage() {
                           <div className="relative mt-4 pb-2">
                             <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
                               <div
-                                className={`h-full bg-linear-to-r from-[#0041c8] to-[#0055ff] rounded-full transition-all ${pct}`}
+                                className={`h-full bg-primary hover:bg-primary-hover rounded-full transition-all ${pct}`}
                               />
                             </div>
                             <div className="relative flex justify-between">
@@ -149,7 +149,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 1
-                                      ? "bg-linear-to-br from-[#0041c8] to-[#0055ff] text-white"
+                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -157,7 +157,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 1 ? "text-[#0041c8]" : "text-[#737688]"
+                                    step >= 1 ? "text-primary" : "text-[#737688]"
                                   }`}
                                 >
                                   Confirmado
@@ -167,7 +167,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 2
-                                      ? "bg-linear-to-br from-[#0041c8] to-[#0055ff] text-white"
+                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -175,7 +175,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 2 ? "text-[#0041c8]" : "text-[#737688]"
+                                    step >= 2 ? "text-primary" : "text-[#737688]"
                                   }`}
                                 >
                                   A caminho
@@ -185,7 +185,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 3
-                                      ? "bg-linear-to-br from-[#0041c8] to-[#0055ff] text-white"
+                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -193,7 +193,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 3 ? "text-[#0041c8]" : "text-[#737688]"
+                                    step >= 3 ? "text-primary" : "text-[#737688]"
                                   }`}
                                 >
                                   Entregue
@@ -210,7 +210,7 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {/* â”€â”€ Past Deliveries â”€â”€ */}
+          {/* ── Past Deliveries ── */}
           {pastOrders.length > 0 && (
             <section className="px-6">
               <div className="flex items-center justify-between mb-5">
@@ -248,9 +248,9 @@ export default function OrdersPage() {
                             </p>
                             <p className="text-xs text-[#737688] font-medium">
                               {order.delivery_window === DeliveryWindow.MORNING
-                                ? "ManhÃ£"
+                                ? "Manhã"
                                 : "Tarde"}{" "}
-                              â€¢{" "}
+                              •{" "}
                               {STATUS_LABELS[order.status] ??
                                 order.status.replace(/_/g, " ").toLowerCase()}
                             </p>
@@ -261,7 +261,7 @@ export default function OrdersPage() {
                           <span className="font-heading font-bold text-[#191c1d]">
                             {formatCurrency(order.total_cents)}
                           </span>
-                          <ChevronRight className="h-4 w-4 text-[#737688] group-hover:text-[#0041c8] transition-colors" />
+                          <ChevronRight className="h-4 w-4 text-[#737688] group-hover:text-primary transition-colors" />
                         </div>
                       </div>
                     </Link>
@@ -271,7 +271,7 @@ export default function OrdersPage() {
             </section>
           )}
 
-          {/* â”€â”€ Upsell Banner â”€â”€ */}
+          {/* ── Upsell Banner ── */}
           <div className="mx-6 mt-10 rounded-3xl overflow-hidden relative h-44 bg-[#191c1d] shadow-2xl">
             <div className="absolute inset-0 bg-linear-to-r from-[#191c1d] to-transparent" />
             <div className="absolute inset-0 flex items-center px-8">

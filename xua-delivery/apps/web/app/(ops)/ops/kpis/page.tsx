@@ -73,15 +73,15 @@ export default function OpsKpisPage() {
                     <tr
                       key={k.distributor_id}
                       className={`cursor-pointer transition-colors hover:bg-[#e1e3e4]/40 ${
-                        selectedDistributor === k.distributor_id ? "bg-[#0041c8]/5" : ""
+                        selectedDistributor === k.distributor_id ? "bg-primary/5" : ""
                       }`}
                       style={{ borderBottom: "1px solid #e1e3e4" }}
                       onClick={() => setSelectedDistributor(k.distributor_id)}
                     >
                       <td className="py-2">{k.distributor_name}</td>
-                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.sla_acceptance_pct.toFixed(1)}%</td>
-                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.acceptance_rate_pct.toFixed(1)}%</td>
-                      <td className="py-2 text-center font-medium text-[#0041c8]">{k.redelivery_rate_pct.toFixed(1)}%</td>
+                      <td className="py-2 text-center font-medium text-primary">{k.sla_acceptance_pct.toFixed(1)}%</td>
+                      <td className="py-2 text-center font-medium text-primary">{k.acceptance_rate_pct.toFixed(1)}%</td>
+                      <td className="py-2 text-center font-medium text-primary">{k.redelivery_rate_pct.toFixed(1)}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -105,7 +105,7 @@ export default function OpsKpisPage() {
                   data={[{ date: "Atual", value: detailKpi.acceptance_rate_pct }]}
                   target={95}
                   label="Taxa de Aceite"
-                  color="#0041c8"
+                  color="#1B4A9A"
                 />
                 <KpiChart
                   data={[{ date: "Atual", value: detailKpi.redelivery_rate_pct }]}

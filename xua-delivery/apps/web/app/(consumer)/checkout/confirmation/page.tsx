@@ -26,7 +26,7 @@ function ConfirmationContent() {
       </div>
       <div className="flex gap-3">
         <Link href={orderId ? `/orders/${orderId}` : "/orders"}>
-          <Button className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] shadow-none hover:opacity-90 active:scale-[0.98]">
+          <Button className="rounded-xl bg-primary hover:bg-primary-hover shadow-none hover:opacity-90 active:scale-[0.98]">
             Ver pedido
           </Button>
         </Link>

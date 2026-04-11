@@ -103,12 +103,12 @@ export default function OpsProductsPage() {
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold font-heading leading-tight">{product.name}</p>
               <div className="flex items-center gap-2 shrink-0">
-                <Badge variant={product.is_active ? "default" : "secondary"} className={product.is_active ? "bg-[#0041c8] text-white" : ""}>
+                <Badge variant={product.is_active ? "default" : "secondary"} className={product.is_active ? "bg-primary text-white" : ""}>
                   {product.is_active ? "Ativo" : "Inativo"}
                 </Badge>
                 <Button
                   size="sm"
-                  className={product.is_active ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" : "h-7 text-xs rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white shadow-none hover:opacity-90"}
+                  className={product.is_active ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" : "h-7 text-xs rounded-xl bg-primary hover:bg-primary-hover text-white shadow-none hover:opacity-90"}
                   onClick={() => toggleActive(product)}
                 >
                   {product.is_active ? "Desativar" : "Ativar"}
@@ -154,7 +154,7 @@ export default function OpsProductsPage() {
                   size="sm"
                   disabled={saving[product.id]}
                   onClick={() => saveImageUrl(product)}
-                  className="rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] shadow-none hover:opacity-90 active:scale-[0.98]"
+                  className="rounded-xl bg-primary hover:bg-primary-hover shadow-none hover:opacity-90 active:scale-[0.98]"
                 >
                   <Save className="h-3.5 w-3.5" />
                 </Button>
