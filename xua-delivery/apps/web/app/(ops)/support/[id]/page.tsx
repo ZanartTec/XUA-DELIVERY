@@ -59,12 +59,12 @@ export default function SupportOrderDetailPage() {
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between">
               <span>{item.product_name} x{item.qty}</span>
-              <span className="font-medium text-[#0041c8]">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+              <span className="font-medium text-primary">{formatCurrency(item.unit_price_cents * item.qty)}</span>
             </div>
           ))}
           <div className="flex justify-between font-bold pt-2" style={{ borderTop: "1px solid #e1e3e4" }}>
             <span>Total</span>
-            <span className="text-[#0041c8]">{formatCurrency(order.total_cents)}</span>
+            <span className="text-primary">{formatCurrency(order.total_cents)}</span>
           </div>
           <p className="text-xs text-muted-foreground">
             {formatDate(order.delivery_date)} — {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}

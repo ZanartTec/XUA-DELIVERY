@@ -71,7 +71,7 @@ export default function ChecklistPage() {
 
       <div className="w-full bg-[#e1e3e4] rounded-full h-2">
         <div
-          className="bg-linear-to-r from-[#0041c8] to-[#0055ff] h-2 rounded-full transition-all"
+          className="bg-primary hover:bg-primary-hover h-2 rounded-full transition-all"
           style={{ width: `${(progress / CHECKLIST_ITEMS.length) * 100}%` }}
         />
       </div>
@@ -112,7 +112,7 @@ export default function ChecklistPage() {
         <select
           value={selectedDriver}
           onChange={(e) => setSelectedDriver(e.target.value)}
-          className="w-full rounded-xl border border-[#e1e3e4] bg-[#f5f6f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0041c8]"
+          className="w-full rounded-xl border border-[#e1e3e4] bg-[#f5f6f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="">Selecione o motorista...</option>
           {drivers.map((d) => (
@@ -133,7 +133,7 @@ export default function ChecklistPage() {
       )}
 
       <Button
-        className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
+        className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
         disabled={!canDispatch || loading}
         onClick={handleDispatch}
       >

@@ -136,7 +136,7 @@ export function RoleAppShell({
           <div className="flex h-14 items-center justify-between gap-2 px-4">
             {/* Endereço de entrega */}
             <button className="flex min-w-0 items-center gap-1.5 text-left">
-              <MapPin className="h-4 w-4 shrink-0 text-[#0041c8]" />
+              <MapPin className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0">
                 <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
                   Entregar em
@@ -152,8 +152,8 @@ export function RoleAppShell({
             <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
 
             {/* Ícone ação */}
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0041c8]/10">
-              <Zap className="h-4 w-4 text-[#0041c8]" />
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+              <Zap className="h-4 w-4 text-primary" />
             </button>
           </div>
         </header>
@@ -164,7 +164,7 @@ export function RoleAppShell({
               <div className="flex items-center gap-2">
                 <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
               </div>
-              <span className="rounded-full bg-[#0041c8]/10 px-2 py-0.5 text-xs font-semibold text-[#0041c8]">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                 {config.badgeLabel}
               </span>
             </div>
@@ -196,10 +196,10 @@ export function RoleAppShell({
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-center transition-colors",
-                    active ? "text-[#0041c8]" : "text-muted-foreground hover:text-foreground"
+                    active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", active && "fill-[#0041c8]/15")} />
+                  <Icon className={cn("h-5 w-5", active && "fill-primary/15")} />
                   <span className={cn("text-[10px] leading-tight", active && "font-semibold")}>
                     {item.label}
                   </span>
