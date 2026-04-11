@@ -73,7 +73,7 @@ export default function KpisPage() {
                 <GoalBadge met={kpis.acceptance_rate_pct >= 95} />
               </div>
               <div className="mt-2 w-full bg-[#e1e3e4] rounded-full h-2">
-                <div className="bg-[#0041c8] h-2 rounded-full transition-all" style={{ width: `${Math.min(100, kpis.acceptance_rate_pct)}%` }} />
+                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${Math.min(100, kpis.acceptance_rate_pct)}%` }} />
               </div>
             </div>
             <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
@@ -93,7 +93,7 @@ export default function KpisPage() {
               <KpiChart data={kpis.series.map((s) => ({ date: s.date, value: s.sla_pct }))} target={98} label="SLA Aceite" color="#22c55e" />
             </div>
             <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-              <KpiChart data={kpis.series.map((s) => ({ date: s.date, value: s.acceptance_pct }))} target={95} label="Taxa de Aceite" color="#0041c8" />
+              <KpiChart data={kpis.series.map((s) => ({ date: s.date, value: s.acceptance_pct }))} target={95} label="Taxa de Aceite" color="#1B4A9A" />
             </div>
             <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
               <KpiChart data={kpis.series.map((s) => ({ date: s.date, value: s.redelivery_pct }))} target={3} label="Taxa de Reentrega" color="#f59e0b" />

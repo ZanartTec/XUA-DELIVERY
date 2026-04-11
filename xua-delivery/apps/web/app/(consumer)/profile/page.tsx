@@ -101,7 +101,7 @@ export default function ProfilePage() {
       <section className="px-6 pt-6 pb-8 text-center">
         {/* Avatar */}
         <div className="relative inline-block mb-5">
-          <div className="w-28 h-28 mx-auto rounded-3xl overflow-hidden shadow-2xl bg-linear-to-br from-[#0041c8] to-[#0055ff] flex items-center justify-center transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+          <div className="w-28 h-28 mx-auto rounded-3xl overflow-hidden shadow-2xl bg-linear-to-br from-primary to-primary-hover flex items-center justify-center transform -rotate-3 hover:rotate-0 transition-transform duration-500">
             <User className="h-14 w-14 text-white" />
           </div>
         </div>
@@ -134,7 +134,7 @@ export default function ProfilePage() {
         {/* Next delivery placeholder */}
         <Link href="/orders">
           <div className="bg-[#f3f4f5] rounded-3xl p-5 relative overflow-hidden">
-            <Truck className="h-5 w-5 text-[#0041c8] mb-3" />
+            <Truck className="h-5 w-5 text-primary mb-3" />
             <h3 className="text-lg font-bold text-[#191c1d] font-heading mb-0.5">
               Próxima Entrega
             </h3>
@@ -156,7 +156,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-[#0041c8] group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
                 <MapPin className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Endereços Salvos</span>
@@ -170,7 +170,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-[#0041c8] group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
                 <User className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Editar Perfil</span>
@@ -181,7 +181,7 @@ export default function ProfilePage() {
           {/* Help */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-[#0041c8] group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
                 <HelpCircle className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Ajuda e Suporte</span>
@@ -192,7 +192,7 @@ export default function ProfilePage() {
           {/* About */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-[#0041c8] group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
                 <Info className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Sobre Nós</span>
@@ -219,7 +219,7 @@ export default function ProfilePage() {
             </h2>
             <Link
               href="/profile/addresses"
-              className="text-[#0041c8] text-xs font-bold uppercase tracking-widest hover:underline"
+              className="text-primary text-xs font-bold uppercase tracking-widest hover:underline"
             >
               Ver todos
             </Link>
@@ -232,7 +232,7 @@ export default function ProfilePage() {
               >
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <MapPin className="h-4 w-4 text-[#0041c8]" />
+                    <MapPin className="h-4 w-4 text-primary" />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm text-[#191c1d]">

@@ -65,7 +65,7 @@ export default function AuditExportPage() {
           </select>
         </div>
 
-        <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading} onClick={handleExport}>
+        <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading} onClick={handleExport}>
           {loading ? "Exportando..." : "Baixar CSV"}
         </Button>
       </div>

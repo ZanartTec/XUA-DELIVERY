@@ -9,7 +9,6 @@ import {
   CalendarDays,
   ChevronDown,
   ClipboardList,
-  Droplets,
   FileText,
   Headphones,
   History,
@@ -150,7 +149,7 @@ export function RoleAppShell({
             </button>
 
             {/* Logo centralizado */}
-            <span className="text-xl font-bold font-heading text-[#001a40]">Xuá</span>
+            <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
 
             {/* Ícone ação */}
             <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0041c8]/10">
@@ -163,10 +162,7 @@ export function RoleAppShell({
           <div className="flex h-14 items-center justify-between gap-3 px-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-[#0041c8] to-[#0055ff]">
-                  <Droplets className="h-4 w-4 text-white" />
-                </div>
-                <span className="text-lg font-bold font-heading text-[#0041c8]">Xua</span>
+                <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
               </div>
               <span className="rounded-full bg-[#0041c8]/10 px-2 py-0.5 text-xs font-semibold text-[#0041c8]">
                 {config.badgeLabel}

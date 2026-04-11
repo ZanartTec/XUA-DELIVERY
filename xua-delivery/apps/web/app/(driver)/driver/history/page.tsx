@@ -53,7 +53,7 @@ export default function DriverHistoryPage() {
           <h1 className="text-lg font-bold font-heading text-foreground">Historico de entregas</h1>
           <p className="text-sm text-muted-foreground">Entregas concluídas e falhas registradas pelo motorista.</p>
         </div>
-        <span className="rounded-full bg-[#0041c8]/10 px-2.5 py-1 text-xs font-medium text-[#0041c8]">
+        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
           {history.length} registro(s)
         </span>
       </div>
@@ -64,8 +64,8 @@ export default function DriverHistoryPage() {
         </div>
       ) : history.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#0041c8]/10">
-            <PackageOpen className="h-10 w-10 text-[#0041c8]/40" />
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+            <PackageOpen className="h-10 w-10 text-primary/40" />
           </div>
           <p className="text-muted-foreground">Nenhum registro encontrado.</p>
         </div>

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     title: "Xuá Delivery",
   },
   other: {
-    "theme-color": "#0041c8",
+    "theme-color": "#1B4A9A",
   },
   icons: {
     apple: [

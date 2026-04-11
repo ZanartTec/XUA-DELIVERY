@@ -235,15 +235,15 @@ function PaymentContent() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-[#0055ff]/10 transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-primary-hover/10 transition-colors"
         >
-          <ArrowLeft className="h-5 w-5 text-[#0041c8]" />
+          <ArrowLeft className="h-5 w-5 text-primary" />
         </button>
-        <h1 className="text-2xl font-bold tracking-tight text-[#0041c8] font-heading">
+        <h1 className="text-2xl font-bold tracking-tight text-primary font-heading">
           Xuá
         </h1>
         <div className="flex items-center gap-1.5">
-          <Zap className="h-4 w-4 text-[#0041c8]" />
+          <Zap className="h-4 w-4 text-primary" />
           <span className="text-[10px] font-semibold text-[#32466e] uppercase tracking-wider">
             Secure Checkout
           </span>
@@ -271,7 +271,7 @@ function PaymentContent() {
             <button
               type="button"
               onClick={() => setAddressSheetOpen(true)}
-              className="text-sm font-semibold text-[#0041c8] hover:underline"
+              className="text-sm font-semibold text-primary hover:underline"
             >
               Alterar
             </button>
@@ -307,7 +307,7 @@ function PaymentContent() {
               </div>
             ) : (
               <div className="min-w-0">
-                <p className="font-bold text-[#0041c8]">
+                <p className="font-bold text-primary">
                   Selecionar endereço
                 </p>
                 <p className="text-sm text-[#434656]">
@@ -337,7 +337,7 @@ function PaymentContent() {
                   className={cn(
                     "relative flex w-full items-center gap-4 rounded-xl p-4 transition-all active:scale-[0.98]",
                     selected
-                      ? "bg-white border-2 border-[#0041c8] shadow-[0_2px_12px_rgba(0,65,200,0.08)]"
+                      ? "bg-white border-2 border-primary shadow-[0_2px_12px_rgba(27,74,154,0.08)]"
                       : "bg-white border border-[#e1e3e4] hover:bg-[#e7e8e9]",
                     disabled && "opacity-50 cursor-not-allowed",
                   )}
@@ -355,7 +355,7 @@ function PaymentContent() {
                     <p className="text-xs text-[#434656]">{pm.sublabel}</p>
                   </div>
                   {selected && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0041c8]">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
                       <Check className="h-3.5 w-3.5 text-white" />
                     </div>
                   )}
@@ -456,7 +456,7 @@ function PaymentContent() {
             )}
             <div className="flex justify-between text-lg font-extrabold pt-3 border-t border-[#e1e3e4]">
               <span className="text-[#191c1d]">Total</span>
-              <span className="text-[#0041c8]">
+              <span className="text-primary">
                 {mounted ? formatCurrency(totalCents) : "—"}
               </span>
             </div>
@@ -477,7 +477,7 @@ function PaymentContent() {
 
         {/* CTA Button */}
         <Button
-          className="w-full h-14 rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white font-bold text-lg shadow-lg hover:shadow-[#0041c8]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-lg shadow-lg hover:shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={
             !mounted || loading || previewLoading || !!previewError || !selectedAddress
           }
@@ -500,7 +500,7 @@ function PaymentContent() {
         {/* Legal notice */}
         <div className="rounded-xl bg-[#d8e2ff]/30 p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-4 w-4 shrink-0 text-[#0041c8] mt-0.5" />
+            <Info className="h-4 w-4 shrink-0 text-primary mt-0.5" />
             <p className="text-xs text-[#32466e] leading-relaxed">
               Ao finalizar este pedido, você concorda com nossos termos de uso e
               política de devolução de embalagens retornáveis.

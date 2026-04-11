@@ -160,7 +160,7 @@ export default function ReconciliationPage() {
             value={justification}
             onChange={(event) => setJustification(event.target.value)}
             placeholder="Explique a diferença entre saídas e retornos do dia"
-            className="min-h-28 w-full rounded-xl border border-[#e1e3e4] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#0041c8]"
+            className="min-h-28 w-full rounded-xl border border-[#e1e3e4] bg-white px-3 py-2 text-sm outline-none transition focus:border-primary"
           />
           <p className="mt-2 text-xs text-muted-foreground">
             Quando o delta do dia for maior que zero, a justificativa é obrigatória para fechar a conciliação.
@@ -168,7 +168,7 @@ export default function ReconciliationPage() {
         </div>
       )}
 
-      <Button className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={!canSubmit} onClick={handleSubmit}>
+      <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={!canSubmit} onClick={handleSubmit}>
         {submitting ? "Enviando..." : submitted ? "Conciliação confirmada!" : "Confirmar conciliação"}
       </Button>
 

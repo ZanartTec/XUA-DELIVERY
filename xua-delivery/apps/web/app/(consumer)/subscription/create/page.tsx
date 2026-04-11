@@ -107,7 +107,7 @@ export default function SubscriptionCreatePage() {
       <section className="px-6 pt-6 pb-4">
         <button
           onClick={() => (step > 0 ? back() : router.back())}
-          className="flex items-center gap-1 text-sm font-semibold text-[#4a5e87] mb-4 hover:text-[#0041c8] transition-colors"
+          className="flex items-center gap-1 text-sm font-semibold text-[#4a5e87] mb-4 hover:text-primary transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar
@@ -132,9 +132,9 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "h-1.5 rounded-full transition-all duration-300",
                 i === step
-                  ? "w-8 bg-linear-to-r from-[#0041c8] to-[#0055ff]"
+                  ? "w-8 bg-primary hover:bg-primary-hover"
                   : i < step
-                    ? "w-4 bg-[#0041c8]"
+                    ? "w-4 bg-primary"
                     : "w-4 bg-[#e1e3e4]"
               )}
             />
@@ -150,7 +150,7 @@ export default function SubscriptionCreatePage() {
             <div className="bg-white rounded-3xl p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
-                  <Droplets className="h-6 w-6 text-[#0041c8]" />
+                  <Droplets className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <p className="font-bold text-[#191c1d] font-heading">
@@ -194,7 +194,7 @@ export default function SubscriptionCreatePage() {
                   className={cn(
                     "flex-1 py-3 rounded-2xl text-sm font-semibold transition-all",
                     qty === n
-                      ? "bg-[#0041c8] text-white"
+                      ? "bg-primary text-white"
                       : "bg-[#f3f4f5] text-[#4a5e87] hover:bg-[#e8e9ea]"
                   )}
                 >
@@ -218,14 +218,14 @@ export default function SubscriptionCreatePage() {
                   className={cn(
                     "w-full rounded-3xl p-5 flex items-center gap-4 transition-all text-left",
                     sel
-                      ? "bg-white ring-2 ring-[#0041c8]"
+                      ? "bg-white ring-2 ring-primary"
                       : "bg-[#f3f4f5] hover:bg-[#edeef0]"
                   )}
                 >
                   <div
                     className={cn(
                       "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors",
-                      sel ? "bg-[#0041c8] text-white" : "bg-white text-[#4a5e87]"
+                      sel ? "bg-primary text-white" : "bg-white text-[#4a5e87]"
                     )}
                   >
                     <Icon className="h-6 w-6" />
@@ -237,7 +237,7 @@ export default function SubscriptionCreatePage() {
                     <p className="text-sm text-[#737688]">{w.desc}</p>
                   </div>
                   {sel && (
-                    <div className="w-7 h-7 rounded-full bg-[#0041c8] flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
                       <Check className="h-4 w-4 text-white" />
                     </div>
                   )}
@@ -260,7 +260,7 @@ export default function SubscriptionCreatePage() {
                     className={cn(
                       "rounded-2xl py-4 flex flex-col items-center gap-1 transition-all",
                       sel
-                        ? "bg-[#0041c8] text-white"
+                        ? "bg-primary text-white"
                         : "bg-[#f3f4f5] text-[#4a5e87] hover:bg-[#e8e9ea]"
                     )}
                   >
@@ -298,7 +298,7 @@ export default function SubscriptionCreatePage() {
                 <div className="h-px bg-[#e1e3e4] my-1" />
                 <div className="flex justify-between">
                   <span className="text-[#737688]">Frequência</span>
-                  <span className="font-bold text-[#0041c8]">Semanal</span>
+                  <span className="font-bold text-primary">Semanal</span>
                 </div>
               </div>
             </div>
@@ -322,7 +322,7 @@ export default function SubscriptionCreatePage() {
             className={cn(
               "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base transition-all",
               canAdvance
-                ? "bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white hover:opacity-90 active:scale-[0.97]"
+                ? "bg-primary hover:bg-primary-hover text-white hover:opacity-90 active:scale-[0.97]"
                 : "bg-[#e1e3e4] text-[#737688] cursor-not-allowed"
             )}
           >
@@ -336,7 +336,7 @@ export default function SubscriptionCreatePage() {
             className={cn(
               "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base transition-all",
               canAdvance && !loading
-                ? "bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white hover:opacity-90 active:scale-[0.97]"
+                ? "bg-primary hover:bg-primary-hover text-white hover:opacity-90 active:scale-[0.97]"
                 : "bg-[#e1e3e4] text-[#737688] cursor-not-allowed"
             )}
           >

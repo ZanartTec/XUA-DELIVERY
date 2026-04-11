@@ -57,7 +57,7 @@ export default function DeliveriesPage() {
   return (
     <div className="space-y-5">
       {/* Hero banner */}
-      <section className="relative overflow-hidden rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#0038b0_0%,#004de1_52%,#2a84ff_100%)] px-5 py-6 text-white shadow-[0_22px_50px_rgba(0,65,200,0.28)]">
+      <section className="relative overflow-hidden rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#0038b0_0%,#004de1_52%,#2a84ff_100%)] px-5 py-6 text-white shadow-[0_22px_50px_rgba(27,74,154,0.28)]">
         <div className="absolute -right-10 top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
 
@@ -94,7 +94,7 @@ export default function DeliveriesPage() {
         </div>
       ) : deliveries.length === 0 ? (
         <div className="rounded-[28px] bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#edf4ff] text-[#0041c8]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#edf4ff] text-primary">
             <PackageOpen className="h-8 w-8" />
           </div>
           <h2 className="mt-4 font-heading text-xl font-extrabold text-[#0d1b2f]">Nenhuma entrega</h2>
@@ -110,7 +110,7 @@ export default function DeliveriesPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Em rota</p>
                   <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">Aguardando entrega</h2>
                 </div>
-                <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-[#0041c8]">
+                <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-primary">
                   {pending.length}
                 </span>
               </div>
@@ -119,7 +119,7 @@ export default function DeliveriesPage() {
                 <Link key={d.order_id} href={`/driver/deliveries/${d.order_id}/otp`} className="group block">
                   <article className="rounded-[28px] bg-white px-4 py-4 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(0,26,64,0.12)]">
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#edf4ff] text-[#0041c8]">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#edf4ff] text-primary">
                         <span className="font-heading text-lg font-extrabold">{d.sequence}</span>
                       </div>
 
@@ -146,7 +146,7 @@ export default function DeliveriesPage() {
                         </div>
                       </div>
 
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#eff4ff] text-[#0041c8] transition-transform duration-200 group-hover:translate-x-0.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#eff4ff] text-primary transition-transform duration-200 group-hover:translate-x-0.5">
                         <ChevronRight className="h-5 w-5" />
                       </div>
                     </div>

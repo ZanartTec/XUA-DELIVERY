@@ -5,31 +5,32 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* ═══ Xuá Delivery — Design System "Hydro-Editorial" (Stitch) ═══ */
-  /* Primary: Water Blue #0041c8 / Container: #0055ff */
+  /* ═══ Xuá Delivery — Design System (Nova Identidade Visual) ═══ */
+  /* Primary: #1B4A9A | Secondary: #5697E9 | Accent: #C8F708        */
   --background: #f8f9fa;
   --foreground: #191c1d;
   --card: #ffffff;
   --card-foreground: #191c1d;
   --popover: #ffffff;
   --popover-foreground: #191c1d;
-  --primary: #0041c8;
+  --primary: #1B4A9A;
   --primary-foreground: #ffffff;
-  --secondary: #d8e2ff;
-  --secondary-foreground: #001a40;
+  --primary-hover: #5697E9;
+  --secondary: #DAEEFF;
+  --secondary-foreground: #001735;
   --muted: #f3f4f5;
   --muted-foreground: #434656;
-  --accent: #0055ff;
-  --accent-foreground: #ffffff;
+  --accent: #C8F708;
+  --accent-foreground: #111800;
   --destructive: #ba1a1a;
-  --border: #c3c5d9;
+  --border: #C0CDE4;
   --input: #e1e3e4;
-  --ring: #0055ff;
-  --chart-1: #0055ff;
-  --chart-2: #0041c8;
+  --ring: #1B4A9A;
+  --chart-1: #5697E9;
+  --chart-2: #1B4A9A;
   --chart-3: #005865;
   --chart-4: #4a5e87;
-  --chart-5: #001a40;
+  --chart-5: #001735;
   --radius: 1rem;
 
   /* Surface tokens (Stitch layers) */
@@ -39,18 +40,18 @@
   --surface-container-high: #e7e8e9;
   --surface-container-highest: #e1e3e4;
   --surface-container-lowest: #ffffff;
-  --surface-tint: #004dea;
-  --outline: #737688;
-  --outline-variant: #c3c5d9;
+  --surface-tint: #1B4A9A;
+  --outline: #5A7197;
+  --outline-variant: #C0CDE4;
 
   --sidebar: #f3f4f5;
   --sidebar-foreground: #191c1d;
-  --sidebar-primary: #0041c8;
+  --sidebar-primary: #1B4A9A;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #d8e2ff;
-  --sidebar-accent-foreground: #001a40;
-  --sidebar-border: #c3c5d9;
-  --sidebar-ring: #0055ff;
+  --sidebar-accent: #DAEEFF;
+  --sidebar-accent-foreground: #001735;
+  --sidebar-border: #C0CDE4;
+  --sidebar-ring: #1B4A9A;
 }
 
 @theme inline {
@@ -83,6 +84,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -117,31 +119,32 @@ body {
   --card-foreground: #e1e3e4;
   --popover: #1a1c22;
   --popover-foreground: #e1e3e4;
-  --primary: #b6c4ff;
-  --primary-foreground: #001a40;
-  --secondary: #32466e;
-  --secondary-foreground: #d8e2ff;
+  --primary: #ADC6FF;
+  --primary-foreground: #001735;
+  --primary-hover: #5697E9;
+  --secondary: #243C5E;
+  --secondary-foreground: #DAEEFF;
   --muted: #252730;
   --muted-foreground: #c3c5d9;
-  --accent: #b6c4ff;
-  --accent-foreground: #001a40;
+  --accent: #C8F708;
+  --accent-foreground: #111800;
   --destructive: #ffb4ab;
   --border: rgba(255,255,255,0.1);
   --input: rgba(255,255,255,0.15);
-  --ring: #b6c4ff;
-  --chart-1: #b6c4ff;
-  --chart-2: #0041c8;
+  --ring: #ADC6FF;
+  --chart-1: #ADC6FF;
+  --chart-2: #1B4A9A;
   --chart-3: #a5eeff;
   --chart-4: #4a5e87;
-  --chart-5: #d8e2ff;
+  --chart-5: #DAEEFF;
   --sidebar: #1a1c22;
   --sidebar-foreground: #e1e3e4;
-  --sidebar-primary: #b6c4ff;
-  --sidebar-primary-foreground: #001a40;
-  --sidebar-accent: #32466e;
-  --sidebar-accent-foreground: #d8e2ff;
+  --sidebar-primary: #ADC6FF;
+  --sidebar-primary-foreground: #001735;
+  --sidebar-accent: #243C5E;
+  --sidebar-accent-foreground: #DAEEFF;
   --sidebar-border: rgba(255,255,255,0.1);
-  --sidebar-ring: #b6c4ff;
+  --sidebar-ring: #ADC6FF;
 }
 
 @layer base {

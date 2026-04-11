@@ -107,7 +107,7 @@ export default function SubscriptionManagePage() {
         </div>
         <Link
           href="/subscription/create"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white text-sm font-bold shadow-none hover:opacity-90 active:scale-[0.97] transition-all"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-none hover:opacity-90 active:scale-[0.97] transition-all"
         >
           <Plus className="h-4 w-4" />
           Nova
@@ -119,7 +119,7 @@ export default function SubscriptionManagePage() {
         <section className="px-6 mt-8">
           <div className="bg-[#f3f4f5] rounded-3xl p-8 flex flex-col items-center text-center">
             <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center mb-5">
-              <Repeat className="h-10 w-10 text-[#0041c8]" />
+              <Repeat className="h-10 w-10 text-primary" />
             </div>
             <h2 className="text-xl font-bold text-[#191c1d] font-heading mb-1">
               Sem assinaturas
@@ -130,7 +130,7 @@ export default function SubscriptionManagePage() {
             </p>
             <Link
               href="/subscription/create"
-              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white font-bold hover:opacity-90 active:scale-[0.97] transition-all"
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold hover:opacity-90 active:scale-[0.97] transition-all"
             >
               <Plus className="h-4 w-4" />
               Criar assinatura
@@ -152,12 +152,12 @@ export default function SubscriptionManagePage() {
                 className="bg-white rounded-3xl p-5 relative overflow-hidden"
               >
                 {/* Accent bar */}
-                <div className="absolute top-0 left-0 w-1 h-full bg-linear-to-b from-[#0041c8] to-[#0055ff] rounded-l-3xl" />
+                <div className="absolute top-0 left-0 w-1 h-full bg-linear-to-b from-primary to-primary-hover rounded-l-3xl" />
 
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Droplets className="h-5 w-5 text-[#0041c8]" />
+                      <Droplets className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="font-bold text-[#191c1d] font-heading">
@@ -253,7 +253,7 @@ export default function SubscriptionManagePage() {
                   {isPaused && (
                     <button
                       onClick={() => toggleStatus(sub.id, "resume")}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-linear-to-r from-[#0041c8] to-[#0055ff] text-white text-xs font-bold hover:opacity-90 active:scale-[0.97] transition-all"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-primary hover:bg-primary-hover text-white text-xs font-bold hover:opacity-90 active:scale-[0.97] transition-all"
                     >
                       <Play className="h-3.5 w-3.5" />
                       Retomar
@@ -272,7 +272,7 @@ export default function SubscriptionManagePage() {
           <Link href="/subscription/create">
             <div className="bg-[#f3f4f5] rounded-3xl p-5 flex items-center gap-4 hover:bg-[#edeef0] transition-colors">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                <Plus className="h-5 w-5 text-[#0041c8]" />
+                <Plus className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1">
                 <p className="font-bold text-[#191c1d] font-heading text-sm">
