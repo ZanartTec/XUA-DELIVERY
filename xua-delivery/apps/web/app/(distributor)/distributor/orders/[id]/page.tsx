@@ -320,7 +320,7 @@ export default function DistributorOrderDetailPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Itens do pedido</p>
                 <h2 className="mt-2 font-heading text-2xl font-extrabold text-[#0d1b2f]">{order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}</h2>
               </div>
-              <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-[#0041c8]">
+              <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-primary">
                 {order.items.length} produto{order.items.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -328,7 +328,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-3">
               {order.items.map((item, index) => (
                 <div key={`${item.product_name}-${index}`} className="flex items-center gap-3 rounded-[24px] bg-[#f7f8fb] px-4 py-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eaf0ff] text-[#0041c8]">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eaf0ff] text-primary">
                     <Package2 className="h-5 w-5" />
                   </div>
 
@@ -354,7 +354,7 @@ export default function DistributorOrderDetailPage() {
                 {order.events.map((event, index) => (
                   <div key={`${event.status}-${event.timestamp}-${index}`} className="flex gap-3">
                     <div className="flex flex-col items-center">
-                      <div className="h-3 w-3 rounded-full bg-[#0041c8]" />
+                      <div className="h-3 w-3 rounded-full bg-primary" />
                       {index < order.events.length - 1 ? <div className="mt-1 h-full w-px bg-[#d9dde6]" /> : null}
                     </div>
 
@@ -409,7 +409,7 @@ export default function DistributorOrderDetailPage() {
                       <span
                         className={cn(
                           "absolute left-[calc(50%+1.15rem)] right-[-calc(50%-1.15rem)] top-5 h-px",
-                          isDone ? "bg-[#0041c8]" : "bg-[#d9dde6]"
+                          isDone ? "bg-primary" : "bg-[#d9dde6]"
                         )}
                       />
                     ) : null}
@@ -419,9 +419,9 @@ export default function DistributorOrderDetailPage() {
                         className={cn(
                           "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold",
                           isDone
-                            ? "border-[#0041c8] bg-[#0041c8] text-white"
+                            ? "border-primary bg-primary text-white"
                             : isCurrent
-                              ? "border-[#cfe0ff] bg-[#edf4ff] text-[#0041c8]"
+                              ? "border-[#cfe0ff] bg-[#edf4ff] text-primary"
                               : "border-[#d9dde6] bg-[#f7f8fb] text-[#8a91a1]"
                         )}
                       >
@@ -460,7 +460,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-4">
               {canAccept ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-linear-to-r from-[#0041c8] to-[#0055ff] text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
                   disabled={actionLoading}
                   onClick={() => handleAction("accept")}
                 >
@@ -470,7 +470,7 @@ export default function DistributorOrderDetailPage() {
 
               {canProceedToChecklist ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-linear-to-r from-[#0041c8] to-[#0055ff] text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
                   onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                 >
                   Ir para checklist de despacho
@@ -491,7 +491,7 @@ export default function DistributorOrderDetailPage() {
                           className={cn(
                             "rounded-[18px] border px-3 py-3 text-left text-sm transition-all",
                             active
-                              ? "border-[#0041c8] bg-[#edf4ff] text-[#0b2a59]"
+                              ? "border-primary bg-[#edf4ff] text-[#0b2a59]"
                               : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
                           )}
                         >

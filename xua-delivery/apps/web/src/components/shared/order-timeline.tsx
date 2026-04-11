@@ -70,7 +70,7 @@ export function OrderTimeline({ events, className }: OrderTimelineProps) {
             <span
               className={cn(
                 "absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white",
-                isLast ? "bg-[#0041c8]" : "bg-[#c7cbd4]"
+                isLast ? "bg-primary" : "bg-[#c7cbd4]"
               )}
             />
             <div className="flex flex-col gap-1">

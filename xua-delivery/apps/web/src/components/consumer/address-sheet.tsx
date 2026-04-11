@@ -189,8 +189,8 @@ export function AddressSheet({
             </>
           ) : addresses.length === 0 && !showForm ? (
             <div className="flex flex-col items-center gap-2 py-8">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0041c8]/10">
-                <MapPin className="h-8 w-8 text-[#0041c8]/40" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <MapPin className="h-8 w-8 text-primary/40" />
               </div>
               <p className="text-sm text-[#737688]">Nenhum endereço cadastrado.</p>
             </div>
@@ -205,20 +205,20 @@ export function AddressSheet({
                   className={cn(
                     "flex w-full items-center gap-3 rounded-2xl p-4 text-left transition-all active:scale-[0.98]",
                     isSelected
-                      ? "border-2 border-[#0041c8] bg-white shadow-[0_2px_12px_rgba(0,65,200,0.1)]"
-                      : "border border-[#e1e3e4] bg-white hover:border-[#0041c8]/30",
+                      ? "border-2 border-primary bg-white shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
+                      : "border border-[#e1e3e4] bg-white hover:border-primary/30",
                   )}
                 >
                   <div
                     className={cn(
                       "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-                      isSelected ? "bg-[#0041c8]/10" : "bg-[#e8eeff]",
+                      isSelected ? "bg-primary/10" : "bg-[#e8eeff]",
                     )}
                   >
                     <Home
                       className={cn(
                         "h-5 w-5",
-                        isSelected ? "text-[#0041c8]" : "text-[#0041c8]/60",
+                        isSelected ? "text-primary" : "text-primary/60",
                       )}
                     />
                   </div>
@@ -226,7 +226,7 @@ export function AddressSheet({
                     <p className="text-sm font-semibold text-[#191c1d]">
                       {addr.label || "Endereço"}
                       {addr.is_default && (
-                        <span className="ml-1.5 text-[10px] font-medium text-[#0041c8]">
+                        <span className="ml-1.5 text-[10px] font-medium text-primary">
                           Principal
                         </span>
                       )}
@@ -237,7 +237,7 @@ export function AddressSheet({
                     </p>
                   </div>
                   {isSelected && (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0041c8]">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
                       <Check className="h-3.5 w-3.5 text-white" />
                     </div>
                   )}
@@ -299,7 +299,7 @@ export function AddressSheet({
                   />
                 </div>
                 <Button
-                  className="w-full rounded-xl bg-linear-to-r from-[#0041c8] to-[#0055ff] font-semibold text-white shadow-none hover:opacity-90 active:scale-[0.98]"
+                  className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold text-white shadow-none hover:opacity-90 active:scale-[0.98]"
                   onClick={handleAdd}
                   disabled={saving || !number}
                 >
@@ -329,7 +329,7 @@ export function AddressSheet({
           <div className="px-5 mt-3 pb-5">
             <Button
               variant="outline"
-              className="w-full h-12 rounded-2xl border-dashed border-[#0041c8]/30 text-[#0041c8] font-semibold hover:bg-[#e8eeff]/50 active:scale-[0.98]"
+              className="w-full h-12 rounded-2xl border-dashed border-primary/30 text-primary font-semibold hover:bg-[#e8eeff]/50 active:scale-[0.98]"
               onClick={() => setShowForm(true)}
             >
               <Plus className="h-4 w-4 mr-2" />
