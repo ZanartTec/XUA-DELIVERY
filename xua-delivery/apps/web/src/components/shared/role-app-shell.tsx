@@ -128,7 +128,7 @@ export function RoleAppShell({
   const firstName = resolvedName?.trim().split(/\s+/)[0];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
       <OfflineBanner />
 
       {role === "consumer" ? (
