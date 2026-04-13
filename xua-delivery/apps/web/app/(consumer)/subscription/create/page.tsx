@@ -132,9 +132,9 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "h-1.5 rounded-full transition-all duration-300",
                 i === step
-                  ? "w-8 bg-primary hover:bg-primary-hover"
+                  ? "w-8 bg-[#C8F708]"
                   : i < step
-                    ? "w-4 bg-primary"
+                    ? "w-4 bg-[#C8F708]"
                     : "w-4 bg-[#e1e3e4]"
               )}
             />
@@ -149,8 +149,8 @@ export default function SubscriptionCreatePage() {
           <div className="space-y-4">
             <div className="bg-white rounded-3xl p-6">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
-                  <Droplets className="h-6 w-6 text-primary" />
+                <div className="w-12 h-12 rounded-2xl bg-[#5697E9]/15 flex items-center justify-center">
+                  <Droplets className="h-6 w-6 text-[#5697E9]" />
                 </div>
                 <div>
                   <p className="font-bold text-[#191c1d] font-heading">
@@ -194,7 +194,7 @@ export default function SubscriptionCreatePage() {
                   className={cn(
                     "flex-1 py-3 rounded-2xl text-sm font-semibold transition-all",
                     qty === n
-                      ? "bg-primary text-white"
+                      ? "bg-[#C8F708] text-[#1a2600]"
                       : "bg-[#f3f4f5] text-[#4a5e87] hover:bg-[#e8e9ea]"
                   )}
                 >
@@ -237,8 +237,8 @@ export default function SubscriptionCreatePage() {
                     <p className="text-sm text-[#737688]">{w.desc}</p>
                   </div>
                   {sel && (
-                    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="h-4 w-4 text-white" />
+                    <div className="w-7 h-7 rounded-full bg-[#C8F708] flex items-center justify-center">
+                      <Check className="h-4 w-4 text-[#1a2600]" />
                     </div>
                   )}
                 </button>
@@ -260,7 +260,7 @@ export default function SubscriptionCreatePage() {
                     className={cn(
                       "rounded-2xl py-4 flex flex-col items-center gap-1 transition-all",
                       sel
-                        ? "bg-primary text-white"
+                        ? "bg-[#C8F708] text-[#1a2600]"
                         : "bg-[#f3f4f5] text-[#4a5e87] hover:bg-[#e8e9ea]"
                     )}
                   >
@@ -322,7 +322,7 @@ export default function SubscriptionCreatePage() {
             className={cn(
               "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base transition-all",
               canAdvance
-                ? "bg-primary hover:bg-primary-hover text-white hover:opacity-90 active:scale-[0.97]"
+                ? "bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] hover:opacity-90 active:scale-[0.97]"
                 : "bg-[#e1e3e4] text-[#737688] cursor-not-allowed"
             )}
           >
@@ -336,7 +336,7 @@ export default function SubscriptionCreatePage() {
             className={cn(
               "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base transition-all",
               canAdvance && !loading
-                ? "bg-primary hover:bg-primary-hover text-white hover:opacity-90 active:scale-[0.97]"
+                ? "bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] hover:opacity-90 active:scale-[0.97]"
                 : "bg-[#e1e3e4] text-[#737688] cursor-not-allowed"
             )}
           >

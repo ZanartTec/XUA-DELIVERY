@@ -26,8 +26,8 @@ const FALLBACK_SLIDES: BannerSlide[] = [
     subtitle: "Use o cupom:",
     highlight: "XUAFRESH",
     bg_color: null,
-    bg_gradient_from: "#0041c8",
-    bg_gradient_to: "#0055ff",
+    bg_gradient_from: "#1B4A9A",
+    bg_gradient_to: "#5697E9",
     bg_image_url: "/images/banner-welcome.webp",
     text_color: null,
     image_url: null,
@@ -69,8 +69,8 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
   const slide = slides[current];
 
   // Build gradient/bg style
-  const gradientFrom = slide.bg_gradient_from ?? "#0041c8";
-  const gradientTo = slide.bg_gradient_to ?? "#0055ff";
+  const gradientFrom = slide.bg_gradient_from ?? "#1B4A9A";
+  const gradientTo = slide.bg_gradient_to ?? "#5697E9";
   const bgStyle: React.CSSProperties = slide.bg_color
     ? { backgroundColor: slide.bg_color }
     : { backgroundImage: `linear-gradient(to bottom right, ${gradientFrom}, ${gradientTo})` };
@@ -121,7 +121,7 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
           {slide.cta_text && slide.cta_url && (
             <a
               href={slide.cta_url}
-              className="mt-3 inline-flex items-center rounded-lg bg-white/20 px-4 py-2 text-xs font-bold uppercase tracking-wide backdrop-blur-sm transition-colors hover:bg-white/30"
+              className="mt-3 inline-flex items-center rounded-lg bg-[#C8F708] px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#1a2600] transition-colors hover:bg-[#C8F708]/90"
             >
               {slide.cta_text}
             </a>

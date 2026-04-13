@@ -208,7 +208,7 @@ export default function CheckoutSchedulePage() {
           onClick={() => setAddressSheetOpen(true)}
           className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
         >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8eeff]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5697E9]/15">
             <Home className="h-5 w-5 text-primary" />
           </div>
           {addressLoading ? (
@@ -252,14 +252,14 @@ export default function CheckoutSchedulePage() {
                 className={cn(
                   "flex flex-col items-center shrink-0 rounded-2xl px-4 py-3 min-w-20 transition-all active:scale-95",
                   selected
-                    ? "bg-primary text-white shadow-[0_4px_12px_rgba(27,74,154,0.3)]"
+                    ? "bg-[#C8F708] text-[#1a2600] shadow-[0_4px_12px_rgba(200,247,8,0.3)]"
                     : "bg-white border border-[#e1e3e4] text-[#191c1d] hover:border-primary/30",
                 )}
               >
                 <span
                   className={cn(
                     "text-[9px] font-bold uppercase tracking-wider",
-                    selected ? "text-white/80" : "text-[#737688]",
+                    selected ? "text-[#1a2600]/70" : "text-[#737688]",
                   )}
                 >
                   {info.top}
@@ -268,7 +268,7 @@ export default function CheckoutSchedulePage() {
                 <span
                   className={cn(
                     "text-[10px] capitalize",
-                    selected ? "text-white/70" : "text-[#737688]",
+                    selected ? "text-[#1a2600]/60" : "text-[#737688]",
                   )}
                 >
                   {info.month}
@@ -303,13 +303,13 @@ export default function CheckoutSchedulePage() {
                 <div
                   className={cn(
                     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                    selected ? "bg-primary/10" : "bg-[#f0f2f4]",
+                    selected ? "bg-[#C8F708]/15" : "bg-[#f0f2f4]",
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-5 w-5",
-                      selected ? "text-primary" : "text-[#737688]",
+                      selected ? "text-[#1a2600]" : "text-[#737688]",
                     )}
                   />
                 </div>
@@ -328,7 +328,7 @@ export default function CheckoutSchedulePage() {
                   className={cn(
                     "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
                     selected
-                      ? "border-primary bg-primary"
+                      ? "border-[#C8F708] bg-[#C8F708]"
                       : "border-[#c4c6cf] bg-transparent",
                   )}
                 >
@@ -378,8 +378,8 @@ export default function CheckoutSchedulePage() {
             </div>
           </div>
           <div className="flex items-center -space-x-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8eeff] border-2 border-white">
-              <Droplets className="h-3.5 w-3.5 text-primary" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5697E9]/15 border-2 border-white">
+              <Droplets className="h-3.5 w-3.5 text-[#5697E9]" />
             </div>
             {itemCount > 1 && (
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f2f4] border-2 border-white text-[10px] font-bold text-[#737688]">
@@ -389,7 +389,7 @@ export default function CheckoutSchedulePage() {
           </div>
         </div>
         <Button
-          className="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={!effectiveDate || !selectedWindow || !selectedAddress}
           onClick={handleContinue}
         >

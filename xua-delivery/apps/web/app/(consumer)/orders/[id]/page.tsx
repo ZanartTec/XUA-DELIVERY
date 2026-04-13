@@ -193,7 +193,7 @@ export default function OrderDetailPage() {
           <div className="relative mt-6 pb-2">
             <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
               <div
-                className={`h-full bg-primary hover:bg-primary-hover rounded-full transition-all ${pct}`}
+                className={`h-full bg-[#C8F708] rounded-full transition-all ${pct}`}
               />
             </div>
             <div className="relative flex justify-between">
@@ -201,7 +201,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 1
-                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                      ? "bg-[#C8F708] text-[#1a2600]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -209,7 +209,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 1 ? "text-primary" : "text-[#737688]"
+                    step >= 1 ? "text-[#1a2600]" : "text-[#737688]"
                   }`}
                 >
                   Confirmado
@@ -219,7 +219,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 2
-                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                      ? "bg-[#C8F708] text-[#1a2600]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -227,7 +227,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 2 ? "text-primary" : "text-[#737688]"
+                    step >= 2 ? "text-[#1a2600]" : "text-[#737688]"
                   }`}
                 >
                   A caminho
@@ -237,7 +237,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 3
-                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                      ? "bg-[#C8F708] text-[#1a2600]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -245,7 +245,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 3 ? "text-primary" : "text-[#737688]"
+                    step >= 3 ? "text-[#1a2600]" : "text-[#737688]"
                   }`}
                 >
                   Entregue
@@ -260,7 +260,7 @@ export default function OrderDetailPage() {
 
       {/* ── OTP Card ── */}
       {(otpCode ?? order.otp_code) && (
-        <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#0038b0_0%,#004de1_55%,#2a84ff_100%)] p-6 text-white shadow-[0_16px_40px_rgba(27,74,154,0.28)]">
+        <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] p-6 text-white shadow-[0_16px_40px_rgba(27,74,154,0.28)]">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
               <ShieldCheck className="h-5 w-5 text-white" />
@@ -290,8 +290,8 @@ export default function OrderDetailPage() {
         </h3>
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-primary" />
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
+              <Calendar className="h-4 w-4 text-[#5697E9]" />
             </div>
             <div>
               <p className="text-sm font-semibold text-[#191c1d]">
@@ -301,8 +301,8 @@ export default function OrderDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-primary" />
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
+              <Clock className="h-4 w-4 text-[#5697E9]" />
             </div>
             <div>
               <p className="text-sm font-semibold text-[#191c1d]">
@@ -323,8 +323,8 @@ export default function OrderDetailPage() {
             Endereço de entrega
           </h3>
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin className="h-4 w-4 text-primary" />
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0 mt-0.5">
+              <MapPin className="h-4 w-4 text-[#5697E9]" />
             </div>
             <div className="space-y-0.5">
               {order.address_details ? (

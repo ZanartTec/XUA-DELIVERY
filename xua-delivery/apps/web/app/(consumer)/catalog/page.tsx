@@ -165,8 +165,8 @@ export default function CatalogPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <PackageOpen className="h-10 w-10 text-primary/40" />
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
+            <PackageOpen className="h-10 w-10 text-[#5697E9]/50" />
           </div>
           <p className="text-[#434656]">Nenhum produto encontrado.</p>
         </div>
@@ -219,7 +219,7 @@ export default function CatalogPage() {
                   </div>
                   <Button
                     size="icon"
-                    className="h-9 w-9 rounded-full bg-primary hover:bg-primary-hover shadow-none hover:opacity-90 active:scale-95"
+                    className="h-9 w-9 rounded-full bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] shadow-none hover:opacity-90 active:scale-95"
                     disabled={!product.is_active}
                     onClick={() => handleAdd(product)}
                   >
@@ -238,7 +238,7 @@ export default function CatalogPage() {
       )}
 
       {/* CTA Assinatura — estilo Stitch: card azul escuro */}
-      <div className="mx-4 rounded-2xl bg-linear-to-br from-secondary-foreground to-primary p-5 text-white">
+      <div className="mx-4 rounded-2xl bg-linear-to-br from-[#1B4A9A] to-[#5697E9] p-5 text-white">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-lg font-bold font-heading">Assinatura Xuá</h3>
@@ -248,7 +248,7 @@ export default function CatalogPage() {
           </div>
           <Link
             href="/subscription/manage"
-            className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-4 text-sm font-bold text-primary transition-opacity hover:opacity-90 active:scale-[0.98]"
+            className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-[#C8F708] px-4 text-sm font-bold text-[#1a2600] transition-opacity hover:opacity-90 active:scale-[0.98]"
           >
             Saiba Mais
           </Link>

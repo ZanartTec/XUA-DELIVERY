@@ -59,11 +59,11 @@ const REJECT_REASON_OPTIONS = [
 ] as const;
 
 const DELIVERY_STEPS = [
-  { key: "received", label: "Recebido" },
-  { key: "accepted", label: "Aceite" },
-  { key: "dispatch", label: "Despacho" },
-  { key: "route", label: "Em rota" },
-  { key: "done", label: "Concluído" },
+  { key: "received", label: "Recebido", shortLabel: "Receb." },
+  { key: "accepted", label: "Aceite", shortLabel: "Aceite" },
+  { key: "dispatch", label: "Despacho", shortLabel: "Desp." },
+  { key: "route", label: "Em rota", shortLabel: "Rota" },
+  { key: "done", label: "Concluído", shortLabel: "Concl." },
 ] as const;
 
 const TERMINAL_ISSUE_STATUSES = [
@@ -225,8 +225,8 @@ export default function DistributorOrderDetailPage() {
   const hasTerminalIssue = matchesStatuses(order.status, TERMINAL_ISSUE_STATUSES);
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-[32px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
+      <section className="rounded-[24px] sm:rounded-[32px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
         <button
           type="button"
           onClick={() => router.push("/distributor/queue")}
@@ -236,31 +236,31 @@ export default function DistributorOrderDetailPage() {
           Voltar para fila
         </button>
 
-        <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+        <div className="mt-4 space-y-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Pedido da operação</p>
-            <h1 className="mt-2 font-heading text-[2rem] leading-none font-extrabold text-[#0d1b2f]">
+            <h1 className="mt-2 font-heading text-xl sm:text-[2rem] leading-tight font-extrabold text-[#0d1b2f]">
               Pedido #{formatShortOrderId(order.id)}
             </h1>
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-[#5d6473]">
+            <p className="mt-2 text-sm leading-relaxed text-[#5d6473]">
               {order.consumer_name} • Entrega em {formatDate(order.delivery_date)} • Janela {formatWindowLabel(order.delivery_window)}
             </p>
           </div>
 
-          <div className="space-y-2 text-right">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={order.status} className="bg-[#edf4ff] text-[#0b2a59]" />
             <p className="text-sm text-[#5d6473]">Criado às {formatTime(order.created_at)}</p>
           </div>
         </div>
 
         {order.sla_deadline ? (
-          <div className="mt-5 rounded-[24px] bg-[#fff2dd] px-4 py-4 text-[#7a4700]">
-            <div className="flex items-center justify-between gap-3">
+          <div className="mt-4 rounded-[18px] sm:rounded-[24px] bg-[#fff2dd] px-3 py-3 sm:px-4 sm:py-4 text-[#7a4700]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a0620a]">SLA de aceite</p>
                 <p className="mt-1 text-sm font-medium">Este pedido ainda precisa de uma decisão da distribuidora.</p>
               </div>
-              <div className="rounded-full bg-white/70 px-3 py-2">
+              <div className="shrink-0 self-start rounded-full bg-white/70 px-3 py-2">
                 <SlaCountdown deadlineIso={order.sla_deadline} className="text-base text-[#7a4700]" />
               </div>
             </div>
@@ -268,11 +268,11 @@ export default function DistributorOrderDetailPage() {
         ) : null}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-        <div className="space-y-5">
-          <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="space-y-4 sm:space-y-5">
+          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Informações do cliente</p>
-            <h2 className="mt-2 font-heading text-2xl font-extrabold text-[#0d1b2f]">{order.consumer_name}</h2>
+            <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">{order.consumer_name}</h2>
 
             <div className="mt-5 space-y-4 text-sm text-[#334155]">
               <div className="flex items-start gap-3">
@@ -314,21 +314,21 @@ export default function DistributorOrderDetailPage() {
             </div>
           </section>
 
-          <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Itens do pedido</p>
-                <h2 className="mt-2 font-heading text-2xl font-extrabold text-[#0d1b2f]">{order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}</h2>
+                <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">{order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}</h2>
               </div>
-              <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-primary">
+              <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
                 {order.items.length} produto{order.items.length === 1 ? "" : "s"}
               </span>
             </div>
 
             <div className="mt-5 space-y-3">
               {order.items.map((item, index) => (
-                <div key={`${item.product_name}-${index}`} className="flex items-center gap-3 rounded-[24px] bg-[#f7f8fb] px-4 py-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eaf0ff] text-primary">
+                <div key={`${item.product_name}-${index}`} className="flex items-center gap-3 rounded-[18px] sm:rounded-[24px] bg-[#f7f8fb] px-3 py-3 sm:px-4 sm:py-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#1B4A9A]">
                     <Package2 className="h-5 w-5" />
                   </div>
 
@@ -348,7 +348,7 @@ export default function DistributorOrderDetailPage() {
           </section>
 
           {order.events.length > 0 ? (
-            <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+            <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Histórico operacional</p>
               <div className="mt-5 space-y-4">
                 {order.events.map((event, index) => (
@@ -372,43 +372,43 @@ export default function DistributorOrderDetailPage() {
           ) : null}
         </div>
 
-        <div className="space-y-5">
-          <section className="rounded-[28px] bg-[#0d1b2f] px-5 py-5 text-white shadow-[0_18px_44px_rgba(0,26,64,0.22)]">
+        <div className="space-y-4 sm:space-y-5">
+          <section className="rounded-[20px] sm:rounded-[28px] bg-[#0d1b2f] px-4 py-4 sm:px-5 sm:py-5 text-white shadow-[0_18px_44px_rgba(0,26,64,0.22)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">Total do pedido</p>
-            <p className="mt-3 font-heading text-4xl font-extrabold">{formatCurrency(order.total_cents)}</p>
+            <p className="mt-3 font-heading text-3xl sm:text-4xl font-extrabold">{formatCurrency(order.total_cents)}</p>
 
             <div className="mt-5 space-y-3 text-sm">
-              <div className="flex items-center justify-between text-white/72">
-                <span>Subtotal</span>
-                <span>{formatCurrency(order.subtotal_cents)}</span>
+              <div className="flex items-center justify-between gap-2 text-white/72">
+                <span className="shrink-0">Subtotal</span>
+                <span className="shrink-0">{formatCurrency(order.subtotal_cents)}</span>
               </div>
-              <div className="flex items-center justify-between text-white/72">
-                <span>Taxa de entrega</span>
-                <span>{formatCurrency(order.delivery_fee_cents)}</span>
+              <div className="flex items-center justify-between gap-2 text-white/72">
+                <span className="shrink-0">Taxa de entrega</span>
+                <span className="shrink-0">{formatCurrency(order.delivery_fee_cents)}</span>
               </div>
               {order.deposit_cents > 0 ? (
-                <div className="flex items-center justify-between text-white/72">
-                  <span>Caução</span>
-                  <span>{formatCurrency(order.deposit_cents)}</span>
+                <div className="flex items-center justify-between gap-2 text-white/72">
+                  <span className="shrink-0">Caução</span>
+                  <span className="shrink-0">{formatCurrency(order.deposit_cents)}</span>
                 </div>
               ) : null}
             </div>
           </section>
 
-          <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Status da entrega</p>
 
-            <div className="mt-5 flex items-start gap-2 overflow-x-auto pb-1">
+            <div className="mt-4 flex items-start pb-1">
               {DELIVERY_STEPS.map((step, index) => {
                 const isDone = !hasTerminalIssue && index < currentStepIndex;
                 const isCurrent = !hasTerminalIssue && index === currentStepIndex;
 
                 return (
-                  <div key={step.key} className="relative min-w-19 flex-1">
+                  <div key={step.key} className="relative flex-1 min-w-0">
                     {index < DELIVERY_STEPS.length - 1 ? (
                       <span
                         className={cn(
-                          "absolute left-[calc(50%+1.15rem)] right-[-calc(50%-1.15rem)] top-5 h-px",
+                          "absolute left-[calc(50%+0.75rem)] right-[calc(-50%+0.75rem)] top-3.5 sm:top-5 h-px",
                           isDone ? "bg-primary" : "bg-[#d9dde6]"
                         )}
                       />
@@ -417,24 +417,25 @@ export default function DistributorOrderDetailPage() {
                     <div className="relative z-10 flex flex-col items-center text-center">
                       <div
                         className={cn(
-                          "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold",
+                          "flex h-7 w-7 sm:h-10 sm:w-10 items-center justify-center rounded-full border text-[11px] sm:text-sm font-semibold",
                           isDone
-                            ? "border-primary bg-primary text-white"
+                            ? "border-[#C8F708] bg-[#C8F708] text-[#1a2600]"
                             : isCurrent
-                              ? "border-[#cfe0ff] bg-[#edf4ff] text-primary"
+                              ? "border-[#5697E9]/40 bg-[#5697E9]/10 text-[#1B4A9A]"
                               : "border-[#d9dde6] bg-[#f7f8fb] text-[#8a91a1]"
                         )}
                       >
                         {index + 1}
                       </div>
-                      <p className="mt-2 text-xs font-medium text-[#4b5565]">{step.label}</p>
+                      <p className="mt-1 text-[9px] sm:text-xs font-medium text-[#4b5565] leading-tight sm:hidden">{step.shortLabel}</p>
+                      <p className="mt-1.5 hidden text-xs font-medium text-[#4b5565] leading-tight sm:block">{step.label}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-5 rounded-[24px] bg-[#f7f8fb] px-4 py-4 text-sm text-[#4b5565]">
+            <div className="mt-4 rounded-[18px] sm:rounded-[24px] bg-[#f7f8fb] px-3 py-3 sm:px-4 sm:py-4 text-sm text-[#4b5565]">
               <div className="flex items-start gap-3">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
                 <p>{getOperationalMessage(order)}</p>
@@ -442,11 +443,11 @@ export default function DistributorOrderDetailPage() {
             </div>
           </section>
 
-          <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Ações operacionais</p>
-                <h2 className="mt-2 font-heading text-2xl font-extrabold text-[#0d1b2f]">Próximo passo</h2>
+                <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">Próximo passo</h2>
               </div>
               <ChevronRight className="h-5 w-5 text-[#7d8494]" />
             </div>
@@ -460,7 +461,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-4">
               {canAccept ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] text-base font-semibold shadow-none hover:opacity-90"
                   disabled={actionLoading}
                   onClick={() => handleAction("accept")}
                 >
@@ -470,7 +471,7 @@ export default function DistributorOrderDetailPage() {
 
               {canProceedToChecklist ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#5697E9] hover:bg-[#5697E9]/90 text-white text-base font-semibold shadow-none hover:opacity-90"
                   onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                 >
                   Ir para checklist de despacho
@@ -491,7 +492,7 @@ export default function DistributorOrderDetailPage() {
                           className={cn(
                             "rounded-[18px] border px-3 py-3 text-left text-sm transition-all",
                             active
-                              ? "border-primary bg-[#edf4ff] text-[#0b2a59]"
+                              ? "border-[#5697E9] bg-[#5697E9]/10 text-[#0b2a59]"
                               : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
                           )}
                         >

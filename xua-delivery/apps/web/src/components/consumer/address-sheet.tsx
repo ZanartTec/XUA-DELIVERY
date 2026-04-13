@@ -189,8 +189,8 @@ export function AddressSheet({
             </>
           ) : addresses.length === 0 && !showForm ? (
             <div className="flex flex-col items-center gap-2 py-8">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <MapPin className="h-8 w-8 text-primary/40" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#5697E9]/15">
+                <MapPin className="h-8 w-8 text-[#5697E9]/50" />
               </div>
               <p className="text-sm text-[#737688]">Nenhum endereço cadastrado.</p>
             </div>
@@ -212,13 +212,13 @@ export function AddressSheet({
                   <div
                     className={cn(
                       "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-                      isSelected ? "bg-primary/10" : "bg-[#e8eeff]",
+                      isSelected ? "bg-[#5697E9]/15" : "bg-[#5697E9]/10",
                     )}
                   >
                     <Home
                       className={cn(
                         "h-5 w-5",
-                        isSelected ? "text-primary" : "text-primary/60",
+                        isSelected ? "text-primary" : "text-[#5697E9]/70",
                       )}
                     />
                   </div>
@@ -237,8 +237,8 @@ export function AddressSheet({
                     </p>
                   </div>
                   {isSelected && (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
-                      <Check className="h-3.5 w-3.5 text-white" />
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#C8F708]">
+                      <Check className="h-3.5 w-3.5 text-[#1a2600]" />
                     </div>
                   )}
                 </button>
@@ -299,7 +299,7 @@ export function AddressSheet({
                   />
                 </div>
                 <Button
-                  className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold text-white shadow-none hover:opacity-90 active:scale-[0.98]"
+                  className="w-full rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 font-semibold text-[#1a2600] shadow-none hover:opacity-90 active:scale-[0.98]"
                   onClick={handleAdd}
                   disabled={saving || !number}
                 >
@@ -329,7 +329,7 @@ export function AddressSheet({
           <div className="px-5 mt-3 pb-5">
             <Button
               variant="outline"
-              className="w-full h-12 rounded-2xl border-dashed border-primary/30 text-primary font-semibold hover:bg-[#e8eeff]/50 active:scale-[0.98]"
+              className="w-full h-12 rounded-2xl border-dashed border-[#5697E9]/30 text-[#5697E9] font-semibold hover:bg-[#5697E9]/5 active:scale-[0.98]"
               onClick={() => setShowForm(true)}
             >
               <Plus className="h-4 w-4 mr-2" />

@@ -97,8 +97,8 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <ClipboardList className="h-10 w-10 text-primary/40" />
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
+            <ClipboardList className="h-10 w-10 text-[#5697E9]/50" />
           </div>
           <p className="text-[#737688]">Nenhum pedido encontrado.</p>
         </div>
@@ -114,7 +114,7 @@ export default function OrdersPage() {
                     <Link key={order.id} href={`/orders/${order.id}`}>
                       <div className="bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
                         {/* decorative blur */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl" />
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#5697E9]/8 rounded-full -mr-20 -mt-20 blur-3xl" />
 
                         <div className="relative z-10">
                           {/* Product info + Track */}
@@ -141,7 +141,7 @@ export default function OrdersPage() {
                           <div className="relative mt-4 pb-2">
                             <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
                               <div
-                                className={`h-full bg-primary hover:bg-primary-hover rounded-full transition-all ${pct}`}
+                                className={`h-full bg-[#C8F708] rounded-full transition-all ${pct}`}
                               />
                             </div>
                             <div className="relative flex justify-between">
@@ -149,7 +149,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 1
-                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                                      ? "bg-[#C8F708] text-[#1a2600]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -157,7 +157,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 1 ? "text-primary" : "text-[#737688]"
+                                    step >= 1 ? "text-[#1a2600]" : "text-[#737688]"
                                   }`}
                                 >
                                   Confirmado
@@ -167,7 +167,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 2
-                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                                      ? "bg-[#C8F708] text-[#1a2600]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -175,7 +175,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 2 ? "text-primary" : "text-[#737688]"
+                                    step >= 2 ? "text-[#1a2600]" : "text-[#737688]"
                                   }`}
                                 >
                                   A caminho
@@ -185,7 +185,7 @@ export default function OrdersPage() {
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
                                     step >= 3
-                                      ? "bg-linear-to-br from-primary to-primary-hover text-white"
+                                      ? "bg-[#C8F708] text-[#1a2600]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
@@ -193,7 +193,7 @@ export default function OrdersPage() {
                                 </div>
                                 <span
                                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 3 ? "text-primary" : "text-[#737688]"
+                                    step >= 3 ? "text-[#1a2600]" : "text-[#737688]"
                                   }`}
                                 >
                                   Entregue
