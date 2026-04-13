@@ -71,7 +71,7 @@ export default function ChecklistPage() {
 
       <div className="w-full bg-[#e1e3e4] rounded-full h-2">
         <div
-          className="bg-primary hover:bg-primary-hover h-2 rounded-full transition-all"
+          className="bg-[#C8F708] h-2 rounded-full transition-all"
           style={{ width: `${(progress / CHECKLIST_ITEMS.length) * 100}%` }}
         />
       </div>
@@ -133,7 +133,7 @@ export default function ChecklistPage() {
       )}
 
       <Button
-        className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
+        className="w-full rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
         disabled={!canDispatch || loading}
         onClick={handleDispatch}
       >

@@ -156,7 +156,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
                 <MapPin className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Endereços Salvos</span>
@@ -170,7 +170,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
                 <User className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Editar Perfil</span>
@@ -181,7 +181,7 @@ export default function ProfilePage() {
           {/* Help */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
                 <HelpCircle className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Ajuda e Suporte</span>
@@ -192,7 +192,7 @@ export default function ProfilePage() {
           {/* About */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 text-primary group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
                 <Info className="h-5 w-5" />
               </div>
               <span className="font-semibold text-[#191c1d]">Sobre Nós</span>
@@ -231,8 +231,8 @@ export default function ProfilePage() {
                 className="bg-white rounded-2xl p-4 shadow-sm"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <MapPin className="h-4 w-4 text-primary" />
+                  <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0 mt-0.5">
+                    <MapPin className="h-4 w-4 text-[#5697E9]" />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm text-[#191c1d]">
@@ -243,7 +243,7 @@ export default function ProfilePage() {
                       {addr.zip_code}
                     </p>
                     {addr.is_default && (
-                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#a5eeff] text-[#004e5a] text-[10px] font-bold uppercase tracking-wider rounded-full">
+                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#C8F708]/20 text-[#1a2600] text-[10px] font-bold uppercase tracking-wider rounded-full">
                         Principal
                       </span>
                     )}

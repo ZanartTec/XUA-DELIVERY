@@ -320,7 +320,7 @@ export default function DistributorOrderDetailPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Itens do pedido</p>
                 <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">{order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}</h2>
               </div>
-              <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-primary">
+              <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
                 {order.items.length} produto{order.items.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -328,7 +328,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-3">
               {order.items.map((item, index) => (
                 <div key={`${item.product_name}-${index}`} className="flex items-center gap-3 rounded-[18px] sm:rounded-[24px] bg-[#f7f8fb] px-3 py-3 sm:px-4 sm:py-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eaf0ff] text-primary">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#1B4A9A]">
                     <Package2 className="h-5 w-5" />
                   </div>
 
@@ -419,9 +419,9 @@ export default function DistributorOrderDetailPage() {
                         className={cn(
                           "flex h-7 w-7 sm:h-10 sm:w-10 items-center justify-center rounded-full border text-[11px] sm:text-sm font-semibold",
                           isDone
-                            ? "border-primary bg-primary text-white"
+                            ? "border-[#C8F708] bg-[#C8F708] text-[#1a2600]"
                             : isCurrent
-                              ? "border-[#cfe0ff] bg-[#edf4ff] text-primary"
+                              ? "border-[#5697E9]/40 bg-[#5697E9]/10 text-[#1B4A9A]"
                               : "border-[#d9dde6] bg-[#f7f8fb] text-[#8a91a1]"
                         )}
                       >
@@ -461,7 +461,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-4">
               {canAccept ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] text-base font-semibold shadow-none hover:opacity-90"
                   disabled={actionLoading}
                   onClick={() => handleAction("accept")}
                 >
@@ -471,7 +471,7 @@ export default function DistributorOrderDetailPage() {
 
               {canProceedToChecklist ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-primary hover:bg-primary-hover text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#5697E9] hover:bg-[#5697E9]/90 text-white text-base font-semibold shadow-none hover:opacity-90"
                   onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                 >
                   Ir para checklist de despacho
@@ -492,7 +492,7 @@ export default function DistributorOrderDetailPage() {
                           className={cn(
                             "rounded-[18px] border px-3 py-3 text-left text-sm transition-all",
                             active
-                              ? "border-primary bg-[#edf4ff] text-[#0b2a59]"
+                              ? "border-[#5697E9] bg-[#5697E9]/10 text-[#0b2a59]"
                               : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
                           )}
                         >

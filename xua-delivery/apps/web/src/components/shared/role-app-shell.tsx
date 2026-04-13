@@ -12,6 +12,7 @@ import {
   FileText,
   Headphones,
   History,
+  Image,
   KeyRound,
   MapPin,
   Package,
@@ -91,6 +92,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
       { href: "/ops/zones", label: "Zonas", icon: MapPin },
       { href: "/ops/products", label: "Produtos", icon: Package },
+      { href: "/ops/banners", label: "Banners", icon: Image },
       { href: "/support", label: "Suporte", icon: Headphones },
       { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
       { href: "/ops/audit-export", label: "Auditoria", icon: FileText },
@@ -152,8 +154,8 @@ export function RoleAppShell({
             <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
 
             {/* Ícone ação */}
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-              <Zap className="h-4 w-4 text-primary" />
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#C8F708]/15">
+              <Zap className="h-4 w-4 text-[#1a2600]" />
             </button>
           </div>
         </header>

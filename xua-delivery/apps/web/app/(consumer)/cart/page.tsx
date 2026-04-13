@@ -56,8 +56,8 @@ export default function CartPage() {
 
       {isEmpty ? (
         <div className="flex flex-1 flex-col items-center justify-center py-16 text-center px-4">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <ShoppingCart className="h-10 w-10 text-primary/40" />
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
+            <ShoppingCart className="h-10 w-10 text-[#5697E9]/50" />
           </div>
           <p className="text-[#737688] mb-3">Seu carrinho está vazio.</p>
           <Link href="/catalog">
@@ -91,7 +91,7 @@ export default function CartPage() {
 
                 <div className="flex gap-4">
                   {/* Product Image */}
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#e8eeff] to-[#f0f4ff] overflow-hidden">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#5697E9]/10 to-[#5697E9]/05 overflow-hidden">
                     {item.image_url ? (
                       <Image
                         src={item.image_url}
@@ -153,10 +153,10 @@ export default function CartPage() {
           </div>
 
           {/* Empty Gallons for Exchange */}
-          <div className="mx-4 mt-4 rounded-2xl bg-[#e8eeff] p-4">
+          <div className="mx-4 mt-4 rounded-2xl bg-[#5697E9]/10 p-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Recycle className="h-5 w-5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5697E9]/15">
+                  <Recycle className="h-5 w-5 text-[#5697E9]" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-sm text-[#191c1d] font-heading">
@@ -191,14 +191,14 @@ export default function CartPage() {
                 </div>
               </div>
               {emptyBottlesQty === 0 ? (
-                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-primary/10">
+                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
                   <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   <p className="text-[11px] text-amber-600 leading-tight font-medium">
                     Primeira compra? Será cobrada caução de R$ 30 por garrafão.
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-primary/10">
+                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
                   <Info className="h-3.5 w-3.5 text-primary/60 shrink-0" />
                   <p className="text-[10px] text-primary/70 leading-tight">
                     Necessário para preço de refil
@@ -237,7 +237,7 @@ export default function CartPage() {
           {/* CTA Button */}
           <div className="mx-4 mt-4">
             <Link href="/checkout/schedule" className="block">
-              <Button className="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all">
+              <Button className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all">
                 Continuar para Agendamento
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>

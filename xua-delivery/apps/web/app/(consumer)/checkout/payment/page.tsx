@@ -355,8 +355,8 @@ function PaymentContent() {
                     <p className="text-xs text-[#434656]">{pm.sublabel}</p>
                   </div>
                   {selected && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-                      <Check className="h-3.5 w-3.5 text-white" />
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#C8F708]">
+                      <Check className="h-3.5 w-3.5 text-[#1a2600]" />
                     </div>
                   )}
                 </button>
@@ -477,7 +477,7 @@ function PaymentContent() {
 
         {/* CTA Button */}
         <Button
-          className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-lg shadow-lg hover:shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-14 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-bold text-lg shadow-lg hover:shadow-[#C8F708]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={
             !mounted || loading || previewLoading || !!previewError || !selectedAddress
           }

@@ -110,8 +110,8 @@ function getStageMeta(status: QueueOrder["status"]) {
       return {
         label: "Em preparação",
         icon: Package2,
-        iconClassName: "bg-[#edf4ff] text-[#0b2a59]",
-        badgeClassName: "bg-[#edf4ff] text-[#0b2a59]",
+        iconClassName: "bg-[#5697E9]/15 text-[#1B4A9A]",
+        badgeClassName: "bg-[#5697E9]/15 text-[#1B4A9A]",
       };
   }
 }
@@ -203,7 +203,7 @@ function OrderCard({ order }: { order: QueueOrder }) {
             </div>
           </div>
 
-          <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eff4ff] text-primary transition-transform duration-200 group-hover:translate-x-0.5">
+          <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#5697E9] transition-transform duration-200 group-hover:translate-x-0.5">
             <ChevronRight className="h-5 w-5" />
           </div>
         </div>
@@ -232,7 +232,7 @@ function Section({
           <p className="mt-1 text-sm text-[#5d6473]">{description}</p>
         </div>
 
-        <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-sm font-semibold text-primary">
+        <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
           {orders.length}
         </span>
       </div>
@@ -253,7 +253,7 @@ function EmptyState({
 }) {
   return (
     <div className="rounded-[28px] bg-white px-6 py-10 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#edf4ff] text-primary">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#5697E9]/15 text-[#5697E9]">
         <ClipboardList className="h-8 w-8" />
       </div>
       <h2 className="mt-4 font-heading text-xl font-extrabold text-[#0d1b2f]">{title}</h2>
@@ -321,7 +321,7 @@ export default function DistributorQueuePage() {
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[24px] sm:rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#0038b0_0%,#004de1_52%,#2a84ff_100%)] px-4 py-5 sm:px-5 sm:py-6 text-white shadow-[0_22px_50px_rgba(27,74,154,0.28)]">
+      <section className="relative overflow-hidden rounded-[24px] sm:rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] px-4 py-5 sm:px-5 sm:py-6 text-white shadow-[0_22px_50px_rgba(27,74,154,0.28)]">
         <div className="absolute -right-10 top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
 
@@ -366,7 +366,7 @@ export default function DistributorQueuePage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="!h-auto flex flex-1 shrink-0 flex-col items-center gap-0.5 rounded-[22px] px-2 py-2 text-center data-active:border-transparent data-active:bg-[#edf4ff] data-active:text-[#0b2a59] sm:items-start sm:gap-1 sm:px-3 sm:py-3 sm:text-left"
+                className="!h-auto flex flex-1 shrink-0 flex-col items-center gap-0.5 rounded-[22px] px-2 py-2 text-center data-active:border-transparent data-active:bg-[#5697E9]/10 data-active:text-[#0b2a59] sm:items-start sm:gap-1 sm:px-3 sm:py-3 sm:text-left"
               >
                 <span className="text-xs font-semibold sm:text-sm">{tab.label}</span>
                 <span className="hidden text-[11px] leading-tight text-current/70 sm:block">{tab.description}</span>
