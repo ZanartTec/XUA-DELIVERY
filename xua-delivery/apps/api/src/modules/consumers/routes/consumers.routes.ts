@@ -16,6 +16,9 @@ router.get("/cep/:cep", consumersController.lookupCep);
 router.get("/:id", consumersController.getProfile);
 router.patch("/:id", consumersController.updateProfile);
 
+// Assign mode (auto/manual distributor)
+router.patch("/:id/assign-mode", consumersController.updateAssignMode);
+
 // Deposit preview
 router.get("/:id/deposit-preview", consumersController.depositPreview);
 

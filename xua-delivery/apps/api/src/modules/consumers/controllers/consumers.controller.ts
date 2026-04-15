@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { logger } from "../../../infra/logger/index.js";
 import { consumersService } from "../services/consumers.service.js";
-import { profileUpdateSchema } from "@xua/shared/schemas/consumer";
+import { profileUpdateSchema, updateAssignModeSchema } from "@xua/shared/schemas/consumer";
 
 const createAddressSchema = z.object({
   zip_code: z.string().trim().min(1, "CEP é obrigatório"),
@@ -84,6 +84,33 @@ export const consumersController = {
       res.json(preview);
     } catch (error) {
       logger.error({ error }, "Error getting deposit preview");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  // ─── Assign Mode ──────────────────────────────────────────
+
+  /** PATCH /api/consumers/:id/assign-mode */
+  async updateAssignMode(req: Request, res: Response): Promise<void> {
+    const user = req.user!;
+    const id = req.params.id as string;
+
+    if (user.sub !== id) {
+      res.status(403).json({ error: "Acesso negado" });
+      return;
+    }
+
+    const parsed = updateAssignModeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const updated = await consumersService.updateProfile(id, parsed.data);
+      res.json(updated);
+    } catch (error) {
+      logger.error({ error }, "Error updating assign mode");
       res.status(500).json({ error: "Erro interno" });
     }
   },

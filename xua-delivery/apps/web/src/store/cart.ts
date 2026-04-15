@@ -12,10 +12,12 @@ interface CartItem {
 interface CartState {
   items: CartItem[];
   emptyBottlesQty: number;
+  selectedDistributorId: string | null;
   addItem: (item: Omit<CartItem, "quantity">) => void;
   removeItem: (productId: string) => void;
   updateQty: (productId: string, quantity: number) => void;
   setEmptyBottles: (qty: number) => void;
+  setSelectedDistributorId: (id: string | null) => void;
   clearCart: () => void;
   getSubtotalCents: () => number;
 }
@@ -25,6 +27,7 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       emptyBottlesQty: 0,
+      selectedDistributorId: null,
 
       addItem: (item) =>
         set((state) => {
@@ -60,7 +63,9 @@ export const useCartStore = create<CartState>()(
 
       setEmptyBottles: (qty) => set({ emptyBottlesQty: qty }),
 
-      clearCart: () => set({ items: [], emptyBottlesQty: 0 }),
+      setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),
+
+      clearCart: () => set({ items: [], emptyBottlesQty: 0, selectedDistributorId: null }),
 
       getSubtotalCents: () =>
         get().items.reduce(

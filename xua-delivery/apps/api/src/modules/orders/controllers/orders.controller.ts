@@ -7,6 +7,7 @@ import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
+import { distributorService, DistributorServiceError } from "../../distributor/index.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -129,13 +130,23 @@ export const ordersController = {
       const windowEnum =
         parsed.data.delivery_window === "morning" ? DeliveryWindow.MORNING : DeliveryWindow.AFTERNOON;
 
+      // Resolve distribuidora: manual (se informado) ou automática
+      const resolved = await distributorService.resolveDistributor(
+        user.sub,
+        zone.id,
+        parsed.data.delivery_date,
+        parsed.data.delivery_window,
+        parsed.data.distributor_id,
+      );
+
       const order = await orderService.createOrder({
         consumerId: user.sub,
         addressId: parsed.data.address_id,
-        distributorId: zone.distributor_id,
-        zoneId: zone.id,
+        distributorId: resolved.distributorId,
+        zoneId: resolved.zoneId,
         deliveryDate: parsed.data.delivery_date,
         deliveryWindow: windowEnum,
+        distributorSelectionMode: resolved.mode,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;
           return {
@@ -152,6 +163,10 @@ export const ordersController = {
 
       res.status(201).json({ order });
     } catch (error) {
+      if (error instanceof DistributorServiceError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       if (error instanceof Error) {
         if (error.message === "SLOT_FULL") {
           res.status(409).json({ error: "Horário de entrega esgotado" });

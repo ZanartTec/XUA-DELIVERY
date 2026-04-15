@@ -149,23 +149,26 @@ enum IdempotencyStatus {
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
-  id              String       @id @default(uuid()) @db.Uuid
-  name            String
-  email           String       @unique
-  phone           String?
-  password_hash   String
-  role            ConsumerRole @default(CONSUMER)
-  is_b2b          Boolean      @default(false)
-  distributor_id  String?      @db.Uuid
-  created_at      DateTime     @default(now())
-  updated_at      DateTime     @updatedAt
+  id                       String       @id @default(uuid()) @db.Uuid
+  name                     String
+  email                    String       @unique
+  phone                    String?
+  password_hash            String
+  role                     ConsumerRole @default(CONSUMER)
+  is_b2b                   Boolean      @default(false)
+  distributor_id           String?      @db.Uuid
+  auto_assign_distributor  Boolean      @default(true)
+  preferred_distributor_id String?      @db.Uuid
+  created_at               DateTime     @default(now())
+  updated_at               DateTime     @updatedAt
 
-  distributor   Distributor?       @relation("DistributorUsers", fields: [distributor_id], references: [id])
-  addresses     Address[]
-  orders        Order[]            @relation("ConsumerOrders")
-  push_tokens   ConsumerPushToken[]
-  subscriptions Subscription[]
-  deposits      Deposit[]
+  distributor            Distributor?       @relation("DistributorUsers", fields: [distributor_id], references: [id])
+  preferred_distributor  Distributor?       @relation("ConsumerPreferredDistributor", fields: [preferred_distributor_id], references: [id])
+  addresses              Address[]
+  orders                 Order[]            @relation("ConsumerOrders")
+  push_tokens            ConsumerPushToken[]
+  subscriptions          Subscription[]
+  deposits               Deposit[]
 
   @@map("01_mst_consumers")
 }
@@ -194,17 +197,19 @@ model Address {
 }
 
 model Distributor {
-  id                      String   @id @default(uuid()) @db.Uuid
-  name                    String
-  cnpj                    String   @unique
-  phone                   String
-  email                   String
-  acceptance_sla_seconds  Int      @default(180)
-  is_active               Boolean  @default(true)
-  created_at              DateTime @default(now())
-  updated_at              DateTime @updatedAt
+  id                       String   @id @default(uuid()) @db.Uuid
+  name                     String
+  cnpj                     String   @unique
+  phone                    String
+  email                    String
+  acceptance_sla_seconds   Int      @default(180)
+  is_active                Boolean  @default(true)
+  allows_consumer_choice   Boolean  @default(false)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
 
   users           Consumer[]       @relation("DistributorUsers")
+  preferred_by    Consumer[]       @relation("ConsumerPreferredDistributor")
   zones           Zone[]
   orders          Order[]
   reconciliations Reconciliation[]

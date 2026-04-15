@@ -37,6 +37,13 @@ const ID = {
   zoneCov1:          "00000000-0000-4000-a000-000000000030",
   zoneCov2:          "00000000-0000-4000-a000-000000000031",
 
+  // Segunda distribuidora (para testar seleção manual)
+  distributor2:      "00000000-0000-4000-a000-000000000011",
+  zone2:             "00000000-0000-4000-a000-000000000021",
+  zoneCov3:          "00000000-0000-4000-a000-000000000032",
+  zoneCov4:          "00000000-0000-4000-a000-000000000033",
+  adminUser2:        "00000000-0000-4000-a000-000000000106",
+
   // Usuários
   consumer:          "00000000-0000-4000-a000-000000000100",  // joao (consumidor principal)
   consumer2:         "00000000-0000-4000-a000-000000000105",  // maria (consumidor assinante)
@@ -141,7 +148,7 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════
   await prisma.distributor.upsert({
     where: { id: ID.distributor },
-    update: {},
+    update: { allows_consumer_choice: true },
     create: {
       id: ID.distributor,
       name: "Distribuidora Xuá SP",
@@ -150,6 +157,22 @@ async function main() {
       email: "contato@xua.com.br",
       acceptance_sla_seconds: 300,
       is_active: true,
+      allows_consumer_choice: true,
+    },
+  });
+
+  await prisma.distributor.upsert({
+    where: { id: ID.distributor2 },
+    update: { allows_consumer_choice: true },
+    create: {
+      id: ID.distributor2,
+      name: "Distribuidora ÁguaFácil",
+      cnpj: "98.765.432/0001-11",
+      phone: "(11) 98765-4321",
+      email: "contato@aguafacil.com.br",
+      acceptance_sla_seconds: 600,
+      is_active: true,
+      allows_consumer_choice: true,
     },
   });
 
@@ -160,6 +183,7 @@ async function main() {
     { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1001" },
     { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(11) 99001-1006" },
     { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1002", distributor_id: ID.distributor },
+    { id: ID.adminUser2,   name: "Bruno ÁguaFácil",    email: "admin2@xua.com.br",  role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(11) 99001-1007", distributor_id: ID.distributor2 },
     { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(11) 99001-1003", distributor_id: ID.distributor },
     { id: ID.opsUser,      name: "Fernanda Ops",       email: "ops@xua.com.br",     role: ConsumerRole.OPS,               phone: "(11) 99001-1004" },
     { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(11) 99001-1005" },
@@ -177,7 +201,7 @@ async function main() {
       create: { ...u, password_hash: passwordHash },
     });
   }
-  console.log("✅ [01] Consumidores: 6 usuários (joao, maria, admin, driver, ops, support) — senha: senha123");
+  console.log("✅ [01] Consumidores: 7 usuários (joao, maria, admin, admin2, driver, ops, support) — senha: senha123");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 2 — 02_mst_addresses
@@ -185,7 +209,7 @@ async function main() {
   // Endereços são criados depois da zona, mas declaramos os IDs agora.
   // Os upserts acontecem após a criação da zona (abaixo).
 
-  console.log("✅ [03] Distribuidor: Distribuidora Xuá SP (criado antes dos consumers por FK)");
+  console.log("✅ [03] Distribuidoras: Xuá SP + ÁguaFácil (ambas com allows_consumer_choice=true)");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 4 — 04_mst_zones
@@ -200,23 +224,37 @@ async function main() {
       is_active: true,
     },
   });
-  console.log("✅ [04] Zona: Zona Centro-SP");
+
+  await prisma.zone.upsert({
+    where: { id: ID.zone2 },
+    update: {},
+    create: {
+      id: ID.zone2,
+      distributor_id: ID.distributor2,
+      name: "Zona Centro-SP (ÁguaFácil)",
+      is_active: true,
+    },
+  });
+  console.log("✅ [04] Zonas: Zona Centro-SP (Xuá) + Zona Centro-SP (ÁguaFácil)");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 5 — 05_mst_zone_coverage
   // ═══════════════════════════════════════════════════════════════
   const coverages = [
-    { id: ID.zoneCov1, neighborhood: "Centro",     zip_code: "01310-100" },
-    { id: ID.zoneCov2, neighborhood: "Consolação", zip_code: "01303-001" },
+    { id: ID.zoneCov1, zone_id: ID.zone,  neighborhood: "Centro",     zip_code: "01310-100" },
+    { id: ID.zoneCov2, zone_id: ID.zone,  neighborhood: "Consolação", zip_code: "01303-001" },
+    // Segunda distribuidora cobre as mesmas áreas → aparece no seletor
+    { id: ID.zoneCov3, zone_id: ID.zone2, neighborhood: "Centro",     zip_code: "01310-100" },
+    { id: ID.zoneCov4, zone_id: ID.zone2, neighborhood: "Consolação", zip_code: "01303-001" },
   ];
   for (const cov of coverages) {
     await prisma.zoneCoverage.upsert({
       where: { id: cov.id },
       update: {},
-      create: { ...cov, zone_id: ID.zone },
+      create: cov,
     });
   }
-  console.log("✅ [05] Coberturas: Centro (01310-100), Consolação (01303-001)");
+  console.log("✅ [05] Coberturas: Centro + Consolação para ambas distribuidoras");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 2 — 02_mst_addresses (agora que a zona existe)
@@ -295,23 +333,26 @@ async function main() {
   // TABELA 7 — 07_cfg_delivery_capacity (próximos 30 dias)
   // ═══════════════════════════════════════════════════════════════
   const windows = [DeliveryWindow.MORNING, DeliveryWindow.AFTERNOON];
+  const capacityZones = [ID.zone, ID.zone2];
   for (let i = 1; i <= 30; i++) {
     const date = futureDate(i);
     for (const window of windows) {
-      await prisma.deliveryCapacity.upsert({
-        where: { zone_id_delivery_date_window: { zone_id: ID.zone, delivery_date: date, window } },
-        update: {},
-        create: {
-          zone_id: ID.zone,
-          delivery_date: date,
-          window,
-          capacity_total: 20,
-          capacity_reserved: 0,
-        },
-      });
+      for (const zoneId of capacityZones) {
+        await prisma.deliveryCapacity.upsert({
+          where: { zone_id_delivery_date_window: { zone_id: zoneId, delivery_date: date, window } },
+          update: {},
+          create: {
+            zone_id: zoneId,
+            delivery_date: date,
+            window,
+            capacity_total: 20,
+            capacity_reserved: 0,
+          },
+        });
+      }
     }
   }
-  console.log("✅ [07] Capacidade: 30 dias × 2 janelas × 20 slots/zona");
+  console.log("✅ [07] Capacidade: 30 dias × 2 janelas × 20 slots × 2 zonas");
 
   // ═══════════════════════════════════════════════════════════════
   // TABELA 8 — 08_sec_consumer_push_tokens

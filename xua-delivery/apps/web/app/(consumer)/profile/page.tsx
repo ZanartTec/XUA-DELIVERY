@@ -12,6 +12,7 @@ import {
   Info,
   Truck,
   Droplets,
+  Building2,
 } from "lucide-react";
 import { useAuthStore } from "@/src/store/auth";
 import { LogoutButton } from "@/src/components/shared/logout-button";
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [assignToggleLoading, setAssignToggleLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +179,77 @@ export default function ProfilePage() {
             </div>
             <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
           </Link>
+
+          {/* Auto-assign distributor toggle */}
+          {consumer && (
+            <div className="flex items-center justify-between p-4 bg-white rounded-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="font-semibold text-[#191c1d] block text-sm">
+                    Distribuidora automática
+                  </span>
+                  <span className="text-xs text-[#737688]">
+                    {consumer.auto_assign_distributor
+                      ? "Sistema escolhe a melhor"
+                      : "Você escolhe manualmente"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={assignToggleLoading}
+                onClick={async () => {
+                  if (!consumer) return;
+                  setAssignToggleLoading(true);
+                  try {
+                    const res = await fetch(
+                      `/api/consumers/${consumer.id}/assign-mode`,
+                      {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          auto_assign_distributor:
+                            !consumer.auto_assign_distributor,
+                        }),
+                      },
+                    );
+                    if (res.ok) {
+                      const updated = await res.json();
+                      setConsumer((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              auto_assign_distributor:
+                                updated.auto_assign_distributor,
+                            }
+                          : prev,
+                      );
+                    }
+                  } catch {
+                    // silently fail
+                  } finally {
+                    setAssignToggleLoading(false);
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  consumer.auto_assign_distributor
+                    ? "bg-[#C8F708]"
+                    : "bg-[#c4c6cf]"
+                } ${assignToggleLoading ? "opacity-50" : ""}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    consumer.auto_assign_distributor
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Help */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">

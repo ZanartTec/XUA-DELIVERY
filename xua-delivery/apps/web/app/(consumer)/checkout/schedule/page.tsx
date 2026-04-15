@@ -151,7 +151,7 @@ export default function CheckoutSchedulePage() {
 
   function handleContinue() {
     if (!effectiveDate || !selectedWindow) return;
-    router.push("/checkout/payment");
+    router.push("/checkout/distributor");
   }
 
   return (

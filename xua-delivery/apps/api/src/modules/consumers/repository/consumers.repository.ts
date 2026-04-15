@@ -11,6 +11,8 @@ const SAFE_SELECT = {
   phone: true,
   role: true,
   is_b2b: true,
+  auto_assign_distributor: true,
+  preferred_distributor_id: true,
   created_at: true,
   updated_at: true,
 } as const;
@@ -34,7 +36,7 @@ export const consumerRepository = {
 
   async update(
     id: string,
-    data: Partial<Pick<Consumer, "name" | "email" | "phone">>,
+    data: Partial<Pick<Consumer, "name" | "email" | "phone" | "auto_assign_distributor" | "preferred_distributor_id">>,
     tx?: TxClient
   ) {
     const prisma = getPrisma();
