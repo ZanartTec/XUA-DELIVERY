@@ -52,4 +52,34 @@ export const productsController = {
       res.status(500).json({ error: "Erro interno" });
     }
   },
+
+  /** POST /api/products — somente ops */
+  async create(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, description, image_url, price_cents, deposit_cents } = req.body as {
+        name: string;
+        description?: string | null;
+        image_url?: string | null;
+        price_cents: number;
+        deposit_cents?: number;
+      };
+
+      if (!name || typeof price_cents !== "number") {
+        res.status(400).json({ error: "Nome e preço são obrigatórios" });
+        return;
+      }
+
+      const product = await productsService.create({
+        name,
+        description,
+        image_url,
+        price_cents,
+        deposit_cents,
+      });
+      res.status(201).json({ product });
+    } catch (error) {
+      logger.error({ error }, "Error creating product");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
 };

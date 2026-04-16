@@ -27,6 +27,18 @@ export const productsService = {
     return productsRepository.findAll();
   },
 
+  async create(data: {
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+    price_cents: number;
+    deposit_cents?: number;
+  }) {
+    const product = await productsRepository.create(data);
+    redis.del(CACHE_KEY).catch(() => {});
+    return product;
+  },
+
   async update(
     id: string,
     data: {
