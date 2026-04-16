@@ -82,15 +82,15 @@ function ProductForm({
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
-      <Field label="Descri\u00e7\u00e3o">
+      <Field label="Descrição">
         <Input
           value={draft.description}
           onChange={(e) => onChange({ ...draft, description: e.target.value })}
-          placeholder="Descri\u00e7\u00e3o opcional"
+          placeholder="Descrição opcional"
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
-      <Field label="Pre\u00e7o (R$) *">
+      <Field label="Preço (R$) *">
         <Input
           type="number"
           step="0.01"
@@ -101,7 +101,7 @@ function ProductForm({
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
-      <Field label="Dep\u00f3sito (R$)">
+      <Field label="Depósito (R$)">
         <Input
           type="number"
           step="0.01"
@@ -150,7 +150,7 @@ export default function OpsProductsPage() {
       return;
     }
     if (!draft.price_cents || parseFloat(draft.price_cents) <= 0) {
-      toast.error("Informe um pre\u00e7o v\u00e1lido");
+      toast.error("Informe um preço válido");
       return;
     }
     setSaving(true);
@@ -179,7 +179,7 @@ export default function OpsProductsPage() {
       return;
     }
     if (!editDraft.price_cents || parseFloat(editDraft.price_cents) <= 0) {
-      toast.error("Informe um pre\u00e7o v\u00e1lido");
+      toast.error("Informe um preço válido");
       return;
     }
     setSaving(true);
@@ -346,7 +346,7 @@ export default function OpsProductsPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatCurrency(product.price_cents)}
                         {product.deposit_cents > 0 &&
-                          ` + dep\u00f3sito ${formatCurrency(product.deposit_cents)}`}
+                          ` + depósito ${formatCurrency(product.deposit_cents)}`}
                       </p>
                     </div>
                   </div>
