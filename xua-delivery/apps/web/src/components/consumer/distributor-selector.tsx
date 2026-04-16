@@ -102,7 +102,7 @@ export function DistributorSelector({
             className={cn(
               "flex w-full items-start gap-4 rounded-2xl p-4 transition-all active:scale-[0.98]",
               isSelected
-                ? "bg-white border-2 border-primary shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
+                ? "bg-white border-2 border-[#C8F708] shadow-[0_2px_12px_rgba(200,247,8,0.15)]"
                 : "bg-white border border-[#e1e3e4] hover:border-primary/30",
             )}
           >

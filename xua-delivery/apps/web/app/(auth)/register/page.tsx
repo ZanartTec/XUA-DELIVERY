@@ -94,7 +94,7 @@ export default function RegisterPage() {
 
         <Button
           type="submit"
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground text-base font-semibold shadow-[0_4px_24px_rgba(27,74,154,0.25)] transition-all hover:bg-primary-hover active:scale-[0.98]"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#C8F708] text-[#1a2600] text-base font-semibold shadow-none transition-all hover:bg-[#C8F708]/90 active:scale-[0.98]"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Creating..." : "Create Account"}

@@ -108,7 +108,7 @@ export default function OpsProductsPage() {
                 </Badge>
                 <Button
                   size="sm"
-                  className={product.is_active ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" : "h-7 text-xs rounded-xl bg-primary hover:bg-primary-hover text-white shadow-none hover:opacity-90"}
+                  className={product.is_active ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" : "h-7 text-xs rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] shadow-none active:scale-[0.98]"}
                   onClick={() => toggleActive(product)}
                 >
                   {product.is_active ? "Desativar" : "Ativar"}
@@ -154,7 +154,7 @@ export default function OpsProductsPage() {
                   size="sm"
                   disabled={saving[product.id]}
                   onClick={() => saveImageUrl(product)}
-                  className="rounded-xl bg-primary hover:bg-primary-hover shadow-none hover:opacity-90 active:scale-[0.98]"
+                  className="rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] shadow-none active:scale-[0.98]"
                 >
                   <Save className="h-3.5 w-3.5" />
                 </Button>

@@ -134,7 +134,7 @@ export default function RouteDetailPage() {
                 <p className="text-sm font-semibold font-heading">{group.zone_name}</p>
                 <p className="text-xs text-muted-foreground">Janela {windowLabel(group.delivery_window)}</p>
               </div>
-              <span className="rounded-full bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#0b2a59]">
+              <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-xs font-semibold text-[#1B4A9A]">
                 {group.stops.length} paradas
               </span>
             </div>
@@ -169,7 +169,7 @@ export default function RouteDetailPage() {
                       <button
                         type="button"
                         onClick={() => window.open(stop.maps_url, "_blank", "noopener,noreferrer")}
-                        className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                        className="rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 px-3 py-2 text-sm font-semibold text-[#1a2600] transition-opacity active:scale-[0.98]"
                       >
                         Abrir no Google Maps
                       </button>
