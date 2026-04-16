@@ -7,3 +7,8 @@ export const profileUpdateSchema = z.object({
   message: "Informe ao menos um campo para atualizar",
 });
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+
+export const updateAssignModeSchema = z.object({
+  auto_assign_distributor: z.boolean(),
+});
+export type UpdateAssignModeInput = z.infer<typeof updateAssignModeSchema>;

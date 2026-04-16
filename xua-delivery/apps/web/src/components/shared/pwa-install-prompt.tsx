@@ -63,8 +63,7 @@ export function PwaInstallPrompt() {
           <div className="flex items-center gap-1 shrink-0">
             <Button
               size="sm"
-              variant="outline"
-              className="h-7 text-xs px-2"
+              className="h-7 border-[#C8F708] bg-[#C8F708] px-2 text-xs text-[#1a2600] hover:bg-[#b6e100] hover:text-[#1a2600]"
               onClick={status === "ios" ? () => setIsIosSheetOpen(true) : promptInstall}
             >
               <Download className="h-3 w-3 mr-1" />

@@ -5,7 +5,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 
 interface LogoutButtonProps {
-  variant?: "icon" | "full";
+  variant?: "icon" | "full" | "nav";
   className?: string;
 }
 
@@ -23,6 +23,19 @@ export function LogoutButton({ variant = "icon", className }: LogoutButtonProps)
     } finally {
       window.location.replace("/login");
     }
+  }
+
+  if (variant === "nav") {
+    return (
+      <button
+        onClick={handleLogout}
+        disabled={loading}
+        className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-center text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50 ${className ?? ""}`}
+      >
+        <LogOut className="h-5 w-5" />
+        <span className="text-[10px] leading-tight font-medium">{loading ? "Saindo" : "Sair"}</span>
+      </button>
+    );
   }
 
   if (variant === "full") {

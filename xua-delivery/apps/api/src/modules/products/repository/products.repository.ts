@@ -28,6 +28,17 @@ export const productsRepository = {
     });
   },
 
+  async create(data: {
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+    price_cents: number;
+    deposit_cents?: number;
+  }) {
+    const prisma = getPrisma();
+    return prisma.product.create({ data, select: PRODUCT_SELECT });
+  },
+
   async update(
     id: string,
     data: {

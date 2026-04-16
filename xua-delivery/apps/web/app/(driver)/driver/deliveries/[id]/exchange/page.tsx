@@ -68,7 +68,7 @@ export default function BottleExchangePage() {
           Pedido #{id} — Registre os garrafões coletados.
         </p>
 
-        <div className="rounded-xl bg-[#edf4ff] px-3 py-2 text-xs text-[#0b2a59]">
+        <div className="rounded-xl bg-[#5697E9]/10 px-3 py-2 text-xs text-[#1B4A9A]">
           Passo 1 de 2: quantidade coletada{returnedQty > 0 ? " • Passo 2: condição" : ""}
         </div>
 
@@ -80,7 +80,7 @@ export default function BottleExchangePage() {
                 key={qty}
                 type="button"
                 onClick={() => setReturnedQty(qty)}
-                className={`rounded-xl px-3 py-3 text-sm font-semibold transition-all ${returnedQty === qty ? "bg-primary text-white shadow-[0_2px_8px_rgba(27,74,154,0.3)]" : "bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"}`}
+                className={`rounded-xl px-3 py-3 text-sm font-semibold transition-all ${returnedQty === qty ? "bg-[#C8F708] text-[#1a2600] shadow-none" : "bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"}`}
               >
                 {qty === 5 ? "5+" : qty}
               </button>
@@ -93,19 +93,19 @@ export default function BottleExchangePage() {
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Condição</label>
             <div className="flex gap-2">
               <button
-                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "ok" ? "bg-primary text-white shadow-[0_2px_8px_rgba(27,74,154,0.3)]" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "ok" ? "bg-[#C8F708] text-[#1a2600] shadow-none" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
                 onClick={() => setCondition("ok")}
               >
                 OK
               </button>
               <button
-                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "damaged" ? "bg-primary text-white shadow-[0_2px_8px_rgba(27,74,154,0.3)]" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "damaged" ? "bg-[#C8F708] text-[#1a2600] shadow-none" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
                 onClick={() => setCondition("damaged")}
               >
                 Danificado
               </button>
               <button
-                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "dirty" ? "bg-primary text-white shadow-[0_2px_8px_rgba(27,74,154,0.3)]" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${condition === "dirty" ? "bg-[#C8F708] text-[#1a2600] shadow-none" : "bg-[#e1e3e4] text-muted-foreground hover:bg-[#d1d3d4]"}`}
                 onClick={() => setCondition("dirty")}
               >
                 Sujo
@@ -116,7 +116,7 @@ export default function BottleExchangePage() {
 
         {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-        <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading} onClick={handleSubmit}>
+        <Button className="w-full rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold shadow-none active:scale-[0.98]" disabled={loading} onClick={handleSubmit}>
           {loading ? "Registrando..." : returnedQty === 0 ? "Continuar para não coleta" : "Confirmar troca"}
         </Button>
       </div>

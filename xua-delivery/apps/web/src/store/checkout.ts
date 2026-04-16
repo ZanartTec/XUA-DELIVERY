@@ -11,6 +11,9 @@ interface CheckoutState {
   instructions: string;
   selectedAddressId: string | null;
 
+  // Distributor step
+  selectedDistributorId: string | null;
+
   // Payment step
   paymentMethod: PaymentMethod;
 
@@ -19,6 +22,7 @@ interface CheckoutState {
   setSelectedWindow: (window: TimeWindow) => void;
   setInstructions: (text: string) => void;
   setSelectedAddressId: (id: string | null) => void;
+  setSelectedDistributorId: (id: string | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
 
   /** Reset all checkout state (after order placed or cart cleared) */
@@ -30,6 +34,7 @@ const initialState = {
   selectedWindow: null as TimeWindow | null,
   instructions: "",
   selectedAddressId: null,
+  selectedDistributorId: null as string | null,
   paymentMethod: "pix" as PaymentMethod,
 };
 
@@ -42,6 +47,7 @@ export const useCheckoutStore = create<CheckoutState>()(
       setSelectedWindow: (window) => set({ selectedWindow: window }),
       setInstructions: (text) => set({ instructions: text }),
       setSelectedAddressId: (id) => set({ selectedAddressId: id }),
+      setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),
       setPaymentMethod: (method) => set({ paymentMethod: method }),
 
       resetCheckout: () => set(initialState),

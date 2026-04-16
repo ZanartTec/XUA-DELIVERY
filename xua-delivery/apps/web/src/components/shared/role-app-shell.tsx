@@ -21,13 +21,13 @@ import {
   ShoppingCart,
   Truck,
   User,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import type { UserRole } from "@/src/lib/role-utils";
 import { useAuthStore } from "@/src/store/auth";
 import { OfflineBanner } from "@/src/components/shared/offline-banner";
 import { LogoutButton } from "@/src/components/shared/logout-button";
+import { CartNavItem } from "@/src/components/consumer/cart-nav-item";
 
 interface RoleNavItem {
   href: string;
@@ -135,9 +135,9 @@ export function RoleAppShell({
 
       {role === "consumer" ? (
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
-          <div className="flex h-14 items-center justify-between gap-2 px-4">
+          <div className="flex h-16 items-center justify-between gap-3 px-4">
             {/* Endereço de entrega */}
-            <button className="flex min-w-0 items-center gap-1.5 text-left">
+            <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
               <MapPin className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0">
                 <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
@@ -150,13 +150,7 @@ export function RoleAppShell({
               </div>
             </button>
 
-            {/* Logo centralizado */}
-            <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
-
-            {/* Ícone ação */}
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#C8F708]/15">
-              <Zap className="h-4 w-4 text-[#1a2600]" />
-            </button>
+            <img src="/logo-transparent.png" alt="Xuá" className="h-18 w-auto shrink-0" />
           </div>
         </header>
       ) : (
@@ -188,9 +182,18 @@ export function RoleAppShell({
       <nav className="fixed inset-x-0 bottom-0 z-40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur shadow-[0_-1px_8px_rgba(0,26,64,0.04)] supports-backdrop-filter:bg-white/80">
         <ul className="mx-auto flex w-full max-w-3xl items-stretch justify-around gap-1 px-2 py-1.5">
           {config.navItems.map((item) => {
-            const Icon = item.icon;
             const active = isItemActive(pathname, item);
 
+            /* Cart gets its own dedicated component */
+            if (role === "consumer" && item.href === "/cart") {
+              return (
+                <li key={item.href} className="flex min-w-0 flex-1">
+                  <CartNavItem active={active} />
+                </li>
+              );
+            }
+
+            const Icon = item.icon;
             return (
               <li key={item.href} className="flex min-w-0 flex-1">
                 <Link
@@ -209,6 +212,12 @@ export function RoleAppShell({
               </li>
             );
           })}
+
+          {role === "consumer" ? (
+            <li className="flex min-w-0 flex-1">
+              <LogoutButton variant="nav" />
+            </li>
+          ) : null}
         </ul>
       </nav>
     </div>

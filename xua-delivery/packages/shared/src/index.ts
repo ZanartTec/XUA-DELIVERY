@@ -6,3 +6,4 @@ export * from "./schemas/order";
 export * from "./schemas/consumer";
 export * from "./schemas/zone";
 export * from "./schemas/audit";
+export * from "./schemas/distributor";

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -22,15 +22,19 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Xuá Delivery",
   },
-  other: {
-    "theme-color": "#1B4A9A",
-  },
   icons: {
     apple: [
       { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
       { url: "/icons/icon-192.png" },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#dfeef6",
 };
 
 export default function RootLayout({

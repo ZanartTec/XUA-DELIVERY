@@ -70,6 +70,7 @@ function PaymentContent() {
   const date = useCheckoutStore((s) => s.selectedDate);
   const deliveryWindow = useCheckoutStore((s) => s.selectedWindow) ?? "morning";
   const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
+  const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const paymentMethod = useCheckoutStore((s) => s.paymentMethod);
   const setPaymentMethod = useCheckoutStore((s) => s.setPaymentMethod);
   const resetCheckout = useCheckoutStore((s) => s.resetCheckout);
@@ -200,6 +201,7 @@ function PaymentContent() {
           empty_bottles_qty: emptyBottlesQty,
           delivery_date: date,
           delivery_window: deliveryWindow,
+          ...(selectedDistributorId ? { distributor_id: selectedDistributorId } : {}),
           // Mercado Pago: será usado quando integrar
           payment_method: paymentMethod,
         }),

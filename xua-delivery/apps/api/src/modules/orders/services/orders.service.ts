@@ -72,6 +72,7 @@ export const orderService = {
     zoneId: string;
     deliveryDate: string;
     deliveryWindow: DeliveryWindow;
+    distributorSelectionMode: "manual" | "auto";
     items: Array<{
       product_id: string;
       product_name: string;
@@ -161,6 +162,7 @@ export const orderService = {
           actor: { type: ActorType.CONSUMER, id: data.consumerId },
           orderId: created.id,
           sourceApp: SourceApp.CONSUMER_WEB,
+          payload: { distributor_selection_mode: data.distributorSelectionMode },
         },
         tx
       );

@@ -5,10 +5,35 @@ import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { routeService } from "../services/route.service.js";
+import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
 
 const log = createLogger("distributor");
 
 export const distributorController = {
+  /**
+   * GET /api/distributors?zone_id=&date=&window=
+   * Lista distribuidoras disponíveis para seleção manual pelo consumidor.
+   */
+  async listAvailable(req: Request, res: Response): Promise<void> {
+    const parsed = distributorQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const distributors = await distributorRepository.findAvailableForZone(
+        parsed.data.zone_id,
+        parsed.data.date,
+        parsed.data.window,
+      );
+      res.json({ distributors });
+    } catch (err) {
+      log.error({ err }, "Erro ao buscar distribuidoras disponíveis");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
   /**
    * GET /api/distributor/kpis?period=7d
    * Retorna KPIs do distribuidor autenticado.

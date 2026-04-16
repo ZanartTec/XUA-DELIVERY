@@ -101,7 +101,7 @@ export default function NonCollectionPage() {
 
         {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-        <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading || !reason || (needsDetails && notes.trim().length < 10)} onClick={handleSubmit}>
+        <Button className="w-full rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold shadow-none active:scale-[0.98]" disabled={loading || !reason || (needsDetails && notes.trim().length < 10)} onClick={handleSubmit}>
           {loading ? "Registrando..." : "Registrar não coleta"}
         </Button>
 

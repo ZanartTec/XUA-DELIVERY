@@ -471,7 +471,7 @@ export default function DistributorOrderDetailPage() {
 
               {canProceedToChecklist ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-[#5697E9] hover:bg-[#5697E9]/90 text-white text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] text-base font-semibold shadow-none active:scale-[0.98]"
                   onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                 >
                   Ir para checklist de despacho
