@@ -4,7 +4,7 @@ import { cn } from "@/src/lib/utils";
 
 const CATEGORIES = [
   { label: "Todos", value: "all" },
-  { label: "Mineral", value: "mineral" },
+  { label: "Água Mineral", value: "mineral" },
   { label: "Galões", value: "gallons" },
   { label: "Acessórios", value: "accessories" },
   { label: "Premium", value: "premium" },
@@ -19,7 +19,7 @@ interface CategoryFilterProps {
 
 export function CategoryFilter({ selected, onChange }: CategoryFilterProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
+    <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none">
       {CATEGORIES.map((cat) => (
         <button
           key={cat.value}

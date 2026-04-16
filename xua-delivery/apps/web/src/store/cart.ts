@@ -19,6 +19,7 @@ interface CartState {
   setEmptyBottles: (qty: number) => void;
   setSelectedDistributorId: (id: string | null) => void;
   clearCart: () => void;
+  getTotalItems: () => number;
   getSubtotalCents: () => number;
 }
 
@@ -66,6 +67,9 @@ export const useCartStore = create<CartState>()(
       setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),
 
       clearCart: () => set({ items: [], emptyBottlesQty: 0, selectedDistributorId: null }),
+
+      getTotalItems: () =>
+        get().items.reduce((sum, item) => sum + item.quantity, 0),
 
       getSubtotalCents: () =>
         get().items.reduce(
