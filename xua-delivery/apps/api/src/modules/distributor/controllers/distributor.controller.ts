@@ -3,6 +3,7 @@ import { kpiService } from "../services/kpi.service.js";
 import { capacityService } from "../services/capacity.service.js";
 import { scheduleService } from "../services/schedule.service.js";
 import { scheduleRepository } from "../repository/schedule.repository.js";
+import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
@@ -277,6 +278,120 @@ export const distributorController = {
       res.status(204).end();
     } catch (err) {
       log.error({ err, distributorId, date }, "Erro ao desbloquear data");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  // ─── Time Slots CRUD ──────────────────────────────────────
+
+  /** GET /api/distributor/schedule/:distributorId/time-slots */
+  async listTimeSlots(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão" });
+        return;
+      }
+    }
+
+    try {
+      const slots = await timeslotRepository.findAllByDistributor(distributorId);
+      res.json({ slots });
+    } catch (err) {
+      log.error({ err, distributorId }, "Erro ao listar time slots");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** POST /api/distributor/schedule/:distributorId/time-slots */
+  async upsertTimeSlot(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão" });
+        return;
+      }
+    }
+
+    const { id, label, start_hour, start_minute, end_hour, end_minute, window, sort_order, is_active } = req.body;
+    if (!label || start_hour == null || end_hour == null || !window) {
+      res.status(400).json({ error: "Campos obrigatórios: label, start_hour, end_hour, window" });
+      return;
+    }
+    if (!["MORNING", "AFTERNOON"].includes(window)) {
+      res.status(400).json({ error: "window deve ser MORNING ou AFTERNOON" });
+      return;
+    }
+
+    try {
+      const slot = await timeslotRepository.upsertSlot(distributorId, {
+        id,
+        label,
+        start_hour: Number(start_hour),
+        start_minute: start_minute != null ? Number(start_minute) : 0,
+        end_hour: Number(end_hour),
+        end_minute: end_minute != null ? Number(end_minute) : 0,
+        window,
+        sort_order: sort_order != null ? Number(sort_order) : 0,
+        is_active: is_active ?? true,
+      });
+      res.status(id ? 200 : 201).json(slot);
+    } catch (err) {
+      log.error({ err, distributorId }, "Erro ao salvar time slot");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** PATCH /api/distributor/schedule/:distributorId/time-slots/:slotId/toggle */
+  async toggleTimeSlot(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    const slotId = req.params.slotId as string;
+
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão" });
+        return;
+      }
+    }
+
+    const { is_active } = req.body;
+    if (typeof is_active !== "boolean") {
+      res.status(400).json({ error: "is_active (boolean) obrigatório" });
+      return;
+    }
+
+    try {
+      const slot = await timeslotRepository.toggleSlot(slotId, is_active);
+      res.json(slot);
+    } catch (err) {
+      log.error({ err, slotId }, "Erro ao alternar time slot");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** DELETE /api/distributor/schedule/:distributorId/time-slots/:slotId */
+  async deleteTimeSlot(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    const slotId = req.params.slotId as string;
+
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão" });
+        return;
+      }
+    }
+
+    try {
+      await timeslotRepository.deleteSlot(slotId);
+      res.status(204).end();
+    } catch (err) {
+      log.error({ err, slotId }, "Erro ao deletar time slot");
       res.status(500).json({ error: "Erro interno" });
     }
   },

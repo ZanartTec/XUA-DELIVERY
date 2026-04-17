@@ -74,6 +74,9 @@ export const orderService = {
     deliveryDate: string;
     deliveryWindow: DeliveryWindow;
     distributorSelectionMode: "manual" | "auto";
+    timeSlotId?: string | null;
+    preferredTimeStart?: number | null;
+    preferredTimeEnd?: number | null;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -113,7 +116,8 @@ export const orderService = {
         data.zoneId,
         data.deliveryDate,
         data.deliveryWindow,
-        tx
+        tx,
+        data.timeSlotId,
       );
 
       const created = await orderRepository.create(
@@ -125,6 +129,9 @@ export const orderService = {
           status: OrderStatus.CREATED,
           delivery_date: new Date(data.deliveryDate),
           delivery_window: data.deliveryWindow,
+          time_slot_id: data.timeSlotId ?? null,
+          preferred_time_start: data.preferredTimeStart ?? null,
+          preferred_time_end: data.preferredTimeEnd ?? null,
           subtotal_cents: subtotalCents,
           delivery_fee_cents: deliveryFeeCents,
           deposit_cents: depositAmountCents,
@@ -699,7 +706,8 @@ export const orderService = {
         current.zone_id,
         current.delivery_date.toISOString().split("T")[0],
         current.delivery_window,
-        tx
+        tx,
+        current.time_slot_id,
       );
 
       return updated;

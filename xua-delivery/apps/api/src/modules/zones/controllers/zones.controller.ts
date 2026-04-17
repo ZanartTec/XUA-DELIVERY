@@ -1,10 +1,11 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
 import { zoneSchema, coverageSchema } from "@xua/shared/schemas/zone";
-import { availableDatesQuerySchema } from "@xua/shared/schemas/schedule";
+import { availableDatesQuerySchema, timeSlotsQuerySchema } from "@xua/shared/schemas/schedule";
 import { zonesService } from "../services/zones.service.js";
 import { zonesRepository } from "../repository/zones.repository.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
+import { timeslotRepository } from "../../distributor/repository/timeslot.repository.js";
 
 export const zonesController = {
   // ─── Zone CRUD ────────────────────────────────────────────
@@ -106,7 +107,7 @@ export const zonesController = {
     try {
       let distributorId = parsed.data.distributor_id;
       if (!distributorId) {
-        distributorId = await zonesRepository.findDistributorId(zoneId);
+        distributorId = (await zonesRepository.findDistributorId(zoneId)) ?? undefined;
         if (!distributorId) {
           res.status(404).json({ error: "Zona não encontrada" });
           return;
@@ -121,6 +122,33 @@ export const zonesController = {
       res.json({ distributor_id: distributorId, dates });
     } catch (error) {
       logger.error({ error }, "Error getting available dates");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** GET /api/zones/:id/time-slots?distributor_id=&date=YYYY-MM-DD */
+  async getTimeSlots(req: Request, res: Response): Promise<void> {
+    const zoneId = req.params.id as string;
+    const parsed = timeSlotsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      let distributorId = parsed.data.distributor_id;
+      if (!distributorId) {
+        distributorId = (await zonesRepository.findDistributorId(zoneId)) ?? undefined;
+        if (!distributorId) {
+          res.status(404).json({ error: "Zona não encontrada" });
+          return;
+        }
+      }
+
+      const slots = await timeslotRepository.findActiveByDistributor(distributorId);
+      res.json({ distributor_id: distributorId, date: parsed.data.date, slots });
+    } catch (error) {
+      logger.error({ error }, "Error getting time slots");
       res.status(500).json({ error: "Erro interno" });
     }
   },

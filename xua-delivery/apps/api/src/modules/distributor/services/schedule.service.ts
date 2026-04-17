@@ -1,6 +1,7 @@
 import type { DeliveryWindow } from "@prisma/client";
 import { scheduleRepository } from "../repository/schedule.repository.js";
 import { capacityRepository } from "../repository/capacity.repository.js";
+import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
 const log = createLogger("schedule-service");
@@ -49,6 +50,7 @@ export type AvailableDate = {
   weekday: number;
   morning_available: boolean;
   afternoon_available: boolean;
+  has_time_slots: boolean;
 };
 
 export const scheduleService = {
@@ -81,6 +83,10 @@ export const scheduleService = {
       scheduleRepository.findBlockedDates(distributorId, todayIso, endIso),
       capacityRepository.findAvailable(zoneId, todayIso, endIso),
     ]);
+
+    // Verifica se a distribuidora tem time slots configurados
+    const timeSlots = await timeslotRepository.findActiveByDistributor(distributorId);
+    const hasTimeSlots = timeSlots.length > 0;
 
     // Index schedule por weekday (0-6). Se vazio → todos os dias ativos.
     const scheduleMap = new Map<number, { is_active: boolean; lead_time_hours: number }>();
@@ -128,6 +134,7 @@ export const scheduleService = {
           weekday,
           morning_available: false,
           afternoon_available: false,
+          has_time_slots: hasTimeSlots,
         });
         continue;
       }
@@ -147,6 +154,7 @@ export const scheduleService = {
         weekday,
         morning_available: morningAvailable,
         afternoon_available: afternoonAvailable,
+        has_time_slots: hasTimeSlots,
       });
     }
 

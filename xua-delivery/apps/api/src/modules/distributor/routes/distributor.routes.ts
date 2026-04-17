@@ -42,4 +42,26 @@ router.delete(
   distributorController.unblockDate,
 );
 
+// ─── Time Slots CRUD ──────────────────────────────────────
+router.get(
+  "/schedule/:distributorId/time-slots",
+  requireRole("distributor_admin", "ops"),
+  distributorController.listTimeSlots,
+);
+router.post(
+  "/schedule/:distributorId/time-slots",
+  requireRole("distributor_admin", "ops"),
+  distributorController.upsertTimeSlot,
+);
+router.patch(
+  "/schedule/:distributorId/time-slots/:slotId/toggle",
+  requireRole("distributor_admin", "ops"),
+  distributorController.toggleTimeSlot,
+);
+router.delete(
+  "/schedule/:distributorId/time-slots/:slotId",
+  requireRole("distributor_admin", "ops"),
+  distributorController.deleteTimeSlot,
+);
+
 export { router as distributorRoutes };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calendar, Check, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Calendar, Check, Clock, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
 
@@ -15,6 +15,18 @@ type BlockedDate = {
   id: string;
   blocked_date: string;
   reason: string | null;
+};
+
+type TimeSlotConfig = {
+  id: string;
+  label: string;
+  start_hour: number;
+  start_minute: number;
+  end_hour: number;
+  end_minute: number;
+  window: "MORNING" | "AFTERNOON";
+  is_active: boolean;
+  sort_order: number;
 };
 
 type ScheduleConfig = {
@@ -57,6 +69,19 @@ export default function DistributorSchedulePage() {
   const [newBlockReason, setNewBlockReason] = useState("");
   const [addingBlock, setAddingBlock] = useState(false);
 
+  // Time slots state
+  const [timeSlots, setTimeSlots] = useState<TimeSlotConfig[]>([]);
+  const [showSlotForm, setShowSlotForm] = useState(false);
+  const [slotForm, setSlotForm] = useState({
+    label: "",
+    start_hour: 8,
+    start_minute: 0,
+    end_hour: 10,
+    end_minute: 0,
+    window: "MORNING" as "MORNING" | "AFTERNOON",
+  });
+  const [savingSlot, setSavingSlot] = useState(false);
+
   // Resolve distributor_id do usuário autenticado via /api/auth/me
   useEffect(() => {
     fetch("/api/auth/me")
@@ -92,6 +117,79 @@ export default function DistributorSchedulePage() {
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
+
+  // Load time slots
+  const loadTimeSlots = useCallback(async () => {
+    if (!distributorId) return;
+    try {
+      const res = await fetch(`/api/distributor/schedule/${distributorId}/time-slots`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTimeSlots(data.slots ?? []);
+    } catch {
+      // ignore
+    }
+  }, [distributorId]);
+
+  useEffect(() => {
+    void loadTimeSlots();
+  }, [loadTimeSlots]);
+
+  const addTimeSlot = async () => {
+    if (!distributorId || !slotForm.label) return;
+    setSavingSlot(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/distributor/schedule/${distributorId}/time-slots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(slotForm),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setSlotForm({ label: "", start_hour: 8, start_minute: 0, end_hour: 10, end_minute: 0, window: "MORNING" });
+      setShowSlotForm(false);
+      await loadTimeSlots();
+      setMessage({ type: "success", text: "Horário adicionado" });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Erro ao salvar" });
+    } finally {
+      setSavingSlot(false);
+    }
+  };
+
+  const toggleSlot = async (slotId: string, isActive: boolean) => {
+    if (!distributorId) return;
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/distributor/schedule/${distributorId}/time-slots/${slotId}/toggle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: isActive }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadTimeSlots();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Erro" });
+    }
+  };
+
+  const deleteSlot = async (slotId: string) => {
+    if (!distributorId) return;
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/distributor/schedule/${distributorId}/time-slots/${slotId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadTimeSlots();
+      setMessage({ type: "success", text: "Horário removido" });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Erro" });
+    }
+  };
 
   const toggleActive = (weekday: number) => {
     setWeekdays((prev) =>
@@ -338,6 +436,157 @@ export default function DistributorSchedulePage() {
                   onClick={() => removeBlockedDate(b.blocked_date)}
                   className="p-2 rounded-lg hover:bg-[#f0f2f4] text-[#737688] hover:text-red-500 transition-colors"
                   aria-label="Remover bloqueio"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Time Slots */}
+      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-[#191c1d]">Horários de Entrega</h2>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setShowSlotForm(!showSlotForm)}
+            className="bg-primary text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Adicionar
+          </Button>
+        </div>
+
+        <p className="text-xs text-[#737688] mb-3">
+          Configure faixas de horário granulares. Se nenhum horário estiver configurado,
+          o consumidor escolhe entre Manhã/Tarde.
+        </p>
+
+        {showSlotForm && (
+          <div className="rounded-lg border border-[#e1e3e4] p-3 mb-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder="Nome (ex: Início da manhã)"
+                value={slotForm.label}
+                onChange={(e) => setSlotForm((f) => ({ ...f, label: e.target.value }))}
+                className="flex-1 rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+              />
+              <select
+                value={slotForm.window}
+                onChange={(e) => setSlotForm((f) => ({ ...f, window: e.target.value as "MORNING" | "AFTERNOON" }))}
+                className="rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+              >
+                <option value="MORNING">Manhã</option>
+                <option value="AFTERNOON">Tarde</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-[#737688]">De</label>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={slotForm.start_hour}
+                onChange={(e) => setSlotForm((f) => ({ ...f, start_hour: Number(e.target.value) }))}
+                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+              />
+              <span className="text-xs text-[#737688]">:</span>
+              <input
+                type="number"
+                min={0}
+                max={59}
+                step={15}
+                value={slotForm.start_minute}
+                onChange={(e) => setSlotForm((f) => ({ ...f, start_minute: Number(e.target.value) }))}
+                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+              />
+              <label className="text-xs text-[#737688] ml-2">Até</label>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={slotForm.end_hour}
+                onChange={(e) => setSlotForm((f) => ({ ...f, end_hour: Number(e.target.value) }))}
+                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+              />
+              <span className="text-xs text-[#737688]">:</span>
+              <input
+                type="number"
+                min={0}
+                max={59}
+                step={15}
+                value={slotForm.end_minute}
+                onChange={(e) => setSlotForm((f) => ({ ...f, end_minute: Number(e.target.value) }))}
+                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={addTimeSlot}
+                disabled={!slotForm.label || savingSlot}
+                className="bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600]"
+              >
+                {savingSlot ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowSlotForm(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {timeSlots.length === 0 ? (
+          <p className="text-xs text-[#737688]">
+            Nenhum horário configurado — usando Manhã/Tarde padrão
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {timeSlots.map((slot) => (
+              <li
+                key={slot.id}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3",
+                  slot.is_active ? "border-[#e1e3e4]" : "border-[#e1e3e4] bg-[#f8f9fa] opacity-60",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSlot(slot.id, !slot.is_active)}
+                  className={cn(
+                    "relative h-6 w-11 rounded-full transition-colors",
+                    slot.is_active ? "bg-primary" : "bg-[#c4c6cf]",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform",
+                      slot.is_active ? "translate-x-5" : "translate-x-0.5",
+                    )}
+                  />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#191c1d]">{slot.label}</p>
+                  <p className="text-xs text-[#737688]">
+                    {String(slot.start_hour).padStart(2, "0")}:{String(slot.start_minute).padStart(2, "0")} –{" "}
+                    {String(slot.end_hour).padStart(2, "0")}:{String(slot.end_minute).padStart(2, "0")}{" "}
+                    ({slot.window === "MORNING" ? "Manhã" : "Tarde"})
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteSlot(slot.id)}
+                  className="p-2 rounded-lg hover:bg-[#f0f2f4] text-[#737688] hover:text-red-500 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

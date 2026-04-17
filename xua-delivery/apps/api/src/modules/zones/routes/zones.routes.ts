@@ -15,6 +15,11 @@ router.get(
   requireRole("consumer", "distributor_admin", "ops"),
   zonesController.getAvailableDates,
 );
+router.get(
+  "/:id/time-slots",
+  requireRole("consumer", "distributor_admin", "ops"),
+  zonesController.getTimeSlots,
+);
 
 // Escrita: distributor_admin, ops
 router.post("/", requireRole("distributor_admin", "ops"), zonesController.create);

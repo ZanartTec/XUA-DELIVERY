@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { Product } from "@prisma/client";
+import type { Product, DeliveryWindow } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
@@ -142,8 +142,9 @@ export const ordersController = {
         distributorId: resolved.distributorId,
         zoneId: resolved.zoneId,
         deliveryDate: parsed.data.delivery_date,
-        deliveryWindow: parsed.data.delivery_window,
+        deliveryWindow: parsed.data.delivery_window.toUpperCase() as DeliveryWindow,
         distributorSelectionMode: resolved.mode,
+        timeSlotId: parsed.data.time_slot_id ?? null,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;
           return {

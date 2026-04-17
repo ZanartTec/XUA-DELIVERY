@@ -215,6 +215,7 @@ model Distributor {
   reconciliations Reconciliation[]
   schedules       DistributorSchedule[]
   blocked_dates   DistributorBlockedDate[]
+  time_slots      TimeSlot[]
 
   @@map("03_mst_distributors")
 }
@@ -269,14 +270,16 @@ model DeliveryCapacity {
   zone_id           String         @db.Uuid
   delivery_date     DateTime       @db.Date
   window            DeliveryWindow
+  time_slot_id      String?        @db.Uuid
   capacity_total    Int
   capacity_reserved Int            @default(0)
   created_at        DateTime       @default(now())
   updated_at        DateTime       @updatedAt
 
-  zone Zone @relation(fields: [zone_id], references: [id])
+  zone      Zone      @relation(fields: [zone_id], references: [id])
+  time_slot TimeSlot? @relation(fields: [time_slot_id], references: [id])
 
-  @@unique([zone_id, delivery_date, window])
+  @@unique([zone_id, delivery_date, window, time_slot_id])
   @@map("07_cfg_delivery_capacity")
 }
 
@@ -303,6 +306,9 @@ model Order {
   status                     OrderStatus    @default(CREATED)
   delivery_date              DateTime       @db.Date
   delivery_window            DeliveryWindow
+  time_slot_id               String?        @db.Uuid
+  preferred_time_start       Int?
+  preferred_time_end         Int?
   subtotal_cents             Int            @default(0)
   delivery_fee_cents         Int            @default(0)
   deposit_cents              Int            @default(0)
@@ -331,6 +337,7 @@ model Order {
   address     Address       @relation(fields: [address_id], references: [id])
   distributor Distributor   @relation(fields: [distributor_id], references: [id])
   zone        Zone          @relation(fields: [zone_id], references: [id])
+  time_slot   TimeSlot?     @relation(fields: [time_slot_id], references: [id])
   items       OrderItem[]
   payments    Payment[]
   deposits    Deposit[]
@@ -579,4 +586,24 @@ model DistributorBlockedDate {
 
   @@unique([distributor_id, blocked_date])
   @@map("23_cfg_distributor_blocked_dates")
+}
+
+model TimeSlot {
+  id             String         @id @default(uuid()) @db.Uuid
+  distributor_id String         @db.Uuid
+  label          String
+  start_hour     Int
+  start_minute   Int            @default(0)
+  end_hour       Int
+  end_minute     Int            @default(0)
+  window         DeliveryWindow
+  is_active      Boolean        @default(true)
+  sort_order     Int            @default(0)
+  created_at     DateTime       @default(now())
+
+  distributor    Distributor      @relation(fields: [distributor_id], references: [id])
+  capacity_slots DeliveryCapacity[]
+  orders         Order[]
+
+  @@map("24_cfg_time_slots")
 }

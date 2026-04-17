@@ -26,13 +26,15 @@ export const capacityService = {
     zoneId: string,
     deliveryDate: string,
     deliveryWindow: string,
-    tx: TxClient
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<void> {
     const slot = await capacityRepository.findSlotForUpdate(
       zoneId,
       deliveryDate,
       deliveryWindow,
-      tx
+      tx,
+      timeSlotId
     );
 
     if (!slot) {
@@ -66,13 +68,15 @@ export const capacityService = {
     zoneId: string,
     deliveryDate: string,
     deliveryWindow: string,
-    tx: TxClient
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<void> {
     const slot = await capacityRepository.findSlotForUpdate(
       zoneId,
       deliveryDate,
       deliveryWindow,
-      tx
+      tx,
+      timeSlotId
     );
 
     if (!slot) {

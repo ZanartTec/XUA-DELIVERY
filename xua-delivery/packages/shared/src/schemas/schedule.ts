@@ -25,3 +25,9 @@ export const availableDatesQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(30).default(14),
 });
 export type AvailableDatesQuery = z.infer<typeof availableDatesQuerySchema>;
+
+export const timeSlotsQuerySchema = z.object({
+  distributor_id: z.string().uuid("distributor_id inválido").optional(),
+  date: z.string().regex(isoDateRegex, "Data inválida (YYYY-MM-DD)"),
+});
+export type TimeSlotsQuery = z.infer<typeof timeSlotsQuerySchema>;

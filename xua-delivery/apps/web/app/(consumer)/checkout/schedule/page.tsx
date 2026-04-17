@@ -10,6 +10,7 @@ import { formatCurrency } from "@/src/lib/utils";
 import { cn } from "@/src/lib/utils";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import { useIsClient } from "@/src/hooks/use-is-client";
+import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
 import type { Address } from "@/src/types";
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ type AvailableDate = {
   weekday: number;
   morning_available: boolean;
   afternoon_available: boolean;
+  has_time_slots: boolean;
 };
 
 type DayItem = {
@@ -92,8 +94,10 @@ export default function CheckoutSchedulePage() {
   const instructions = useCheckoutStore((s) => s.instructions);
   const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
+  const selectedSlotId = useCheckoutStore((s) => s.selectedSlotId);
   const setSelectedDate = useCheckoutStore((s) => s.setSelectedDate);
   const setSelectedWindow = useCheckoutStore((s) => s.setSelectedWindow);
+  const setSelectedSlotId = useCheckoutStore((s) => s.setSelectedSlotId);
   const setInstructions = useCheckoutStore((s) => s.setInstructions);
   const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
   const setSelectedDistributorId = useCheckoutStore((s) => s.setSelectedDistributorId);
@@ -178,6 +182,12 @@ export default function CheckoutSchedulePage() {
     };
   }, [zoneId, selectedDistributorId]);
 
+  // Detect if current distributor has time slots configured
+  const hasTimeSlots = useMemo(() => {
+    if (!availableDates || availableDates.length === 0) return false;
+    return availableDates[0].has_time_slots === true;
+  }, [availableDates]);
+
   // Build day cards from API data (fallback to empty list while loading)
   const days: DayItem[] = useMemo(() => {
     if (!availableDates) return [];
@@ -205,11 +215,21 @@ export default function CheckoutSchedulePage() {
   // Clear window selection if it becomes unavailable for current day
   useEffect(() => {
     if (!selectedDate || !selectedWindow) return;
+    if (hasTimeSlots) return; // managed by TimeSlotPicker
     const day = days.find((d) => d.iso === selectedDate);
     if (!day) return;
     if (selectedWindow === "morning" && !day.morningAvailable) setSelectedWindow(null);
     if (selectedWindow === "afternoon" && !day.afternoonAvailable) setSelectedWindow(null);
-  }, [days, selectedDate, selectedWindow, setSelectedWindow]);
+  }, [days, selectedDate, selectedWindow, setSelectedWindow, hasTimeSlots]);
+
+  // Clear slot when date changes
+  useEffect(() => {
+    if (hasTimeSlots) {
+      setSelectedSlotId(null);
+      setSelectedWindow(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   const isClient = useIsClient();
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
@@ -228,6 +248,7 @@ export default function CheckoutSchedulePage() {
 
   function handleContinue() {
     if (!effectiveDate || !selectedWindow) return;
+    if (hasTimeSlots && !selectedSlotId) return;
     router.push("/checkout/payment");
   }
 
@@ -386,6 +407,14 @@ export default function CheckoutSchedulePage() {
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688] mb-3">
           Janela de Horário Preferida
         </p>
+
+        {hasTimeSlots && zoneId && effectiveDate ? (
+          <TimeSlotPicker
+            zoneId={zoneId}
+            date={effectiveDate}
+            distributorId={selectedDistributorId ?? undefined}
+          />
+        ) : (
         <div className="space-y-2">
           {WINDOWS.map((w) => {
             const selected = selectedWindow === w.value;
@@ -455,6 +484,7 @@ export default function CheckoutSchedulePage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Special Instructions */}
@@ -505,7 +535,7 @@ export default function CheckoutSchedulePage() {
         </div>
         <Button
           className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
-          disabled={!effectiveDate || !selectedWindow || !selectedAddress}
+          disabled={!effectiveDate || !selectedWindow || !selectedAddress || (hasTimeSlots && !selectedSlotId)}
           onClick={handleContinue}
         >
           Continuar para Pagamento

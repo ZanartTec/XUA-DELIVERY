@@ -15,13 +15,33 @@ export const capacityRepository = {
     zoneId: string,
     date: string,
     window: string,
-    tx: TxClient
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<DeliveryCapacity | null> {
+    // O banco armazena o enum como lowercase (via @map). Normaliza aqui para raw SQL.
+    const windowDb = window.toLowerCase();
+    if (timeSlotId) {
+      const slotRows = await tx.$queryRaw<DeliveryCapacity[]>`
+        SELECT * FROM "07_cfg_delivery_capacity"
+        WHERE zone_id = ${zoneId}::uuid
+          AND delivery_date = ${date}::date
+          AND "window" = ${windowDb}::"delivery_window"
+          AND time_slot_id = ${timeSlotId}::uuid
+        FOR UPDATE
+        LIMIT 1
+      `;
+
+      if (slotRows[0]) {
+        return slotRows[0];
+      }
+    }
+
     const rows = await tx.$queryRaw<DeliveryCapacity[]>`
       SELECT * FROM "07_cfg_delivery_capacity"
       WHERE zone_id = ${zoneId}::uuid
         AND delivery_date = ${date}::date
-        AND "window" = ${window}
+        AND "window" = ${windowDb}::"delivery_window"
+        AND time_slot_id IS NULL
       FOR UPDATE
       LIMIT 1
     `;
