@@ -6,57 +6,63 @@ import { useAuthStore } from "@/src/store/auth";
 import { useCheckoutStore } from "@/src/store/checkout";
 import { useCartStore } from "@/src/store/cart";
 import { DistributorSelector } from "@/src/components/consumer/distributor-selector";
+import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import { Button } from "@/src/components/ui/button";
-import { ArrowLeft, Zap, Droplets, Building2 } from "lucide-react";
+import { ArrowLeft, Zap, Droplets, Building2, Home } from "lucide-react";
 import type { Address } from "@/src/types";
 
 export default function CheckoutDistributorPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
 
-  const selectedDate = useCheckoutStore((s) => s.selectedDate);
-  const selectedWindow = useCheckoutStore((s) => s.selectedWindow);
   const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
+  const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const setSelectedDistributorId = useCheckoutStore((s) => s.setSelectedDistributorId);
 
   const setCartDistributorId = useCartStore((s) => s.setSelectedDistributorId);
 
-  const [zoneId, setZoneId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedAddress, setSelectedAddressLocal] = useState<Address | null>(null);
+  const [addressLoading, setAddressLoading] = useState(true);
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
 
-  // Load zone_id from address
-  useEffect(() => {
-    let cancelled = false;
+  const zoneId = selectedAddress?.zone_id ?? null;
 
-    async function loadZone() {
-      if (!user?.id || !storedAddressId) return;
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/consumers/${user.id}/addresses`);
-        const data = await res.json();
-        const addresses: Address[] = data.addresses ?? [];
-        const addr = addresses.find((a) => a.id === storedAddressId);
-        if (!cancelled && addr?.zone_id) {
-          setZoneId(addr.zone_id);
-        }
-      } catch {
-        // silently fail — will redirect on missing data
-      } finally {
-        if (!cancelled) setLoading(false);
+  // When user selects an address, persist its ID and reset distributor
+  const handleAddressSelect = useCallback((addr: Address) => {
+    setSelectedAddressLocal(addr);
+    setSelectedAddressId(addr.id);
+    // Trocar endereço invalida distribuidora selecionada
+    setSelectedDistributorId(null);
+    setCartDistributorId(null);
+  }, [setSelectedAddressId, setSelectedDistributorId, setCartDistributorId]);
+
+  // Load default address
+  const loadDefaultAddress = useCallback(async () => {
+    if (!user?.id) return;
+    setAddressLoading(true);
+    try {
+      const res = await fetch(`/api/consumers/${user.id}/addresses`);
+      const data = await res.json();
+      const list: Address[] = data.addresses ?? [];
+      if (list.length > 0) {
+        const fromStore = storedAddressId
+          ? list.find((a) => a.id === storedAddressId)
+          : null;
+        const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
+        setSelectedAddressLocal(def);
+        setSelectedAddressId(def.id);
       }
+    } catch {
+      // silently fail
+    } finally {
+      setAddressLoading(false);
     }
+  }, [user?.id, storedAddressId, setSelectedAddressId]);
 
-    void loadZone();
-    return () => { cancelled = true; };
-  }, [user?.id, storedAddressId]);
-
-  // If no schedule data, redirect to schedule
   useEffect(() => {
-    if (!storedAddressId || !selectedDate || !selectedWindow) {
-      router.replace("/checkout/schedule");
-    }
-  }, [storedAddressId, selectedDate, selectedWindow, router]);
+    void loadDefaultAddress();
+  }, [loadDefaultAddress]);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -69,14 +75,12 @@ export default function CheckoutDistributorPage() {
   const handleSkip = useCallback(() => {
     setSelectedDistributorId(null);
     setCartDistributorId(null);
-    router.push("/checkout/payment");
+    router.push("/checkout/schedule");
   }, [setSelectedDistributorId, setCartDistributorId, router]);
 
   function handleContinue() {
-    router.push("/checkout/payment");
+    router.push("/checkout/schedule");
   }
-
-  if (!storedAddressId || !selectedDate || !selectedWindow) return null;
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-8rem)]">
@@ -113,28 +117,72 @@ export default function CheckoutDistributorPage() {
         </p>
       </div>
 
+      {/* Delivering To */}
+      <div className="mx-4 mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
+            Entregando em
+          </p>
+          <button
+            type="button"
+            onClick={() => setAddressSheetOpen(true)}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Alterar
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddressSheetOpen(true)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5697E9]/15">
+            <Home className="h-5 w-5 text-primary" />
+          </div>
+          {addressLoading ? (
+            <div className="flex-1 space-y-2 animate-pulse">
+              <div className="h-3 w-24 rounded bg-[#e1e3e4]" />
+              <div className="h-2.5 w-40 rounded bg-[#e1e3e4]" />
+            </div>
+          ) : selectedAddress ? (
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#191c1d]">
+                {selectedAddress.label || "Endereço"}
+              </p>
+              <p className="text-xs text-[#737688] truncate">
+                {selectedAddress.street}, {selectedAddress.number}
+                {selectedAddress.complement ? ` — ${selectedAddress.complement}` : ""}
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-primary">Selecionar endereço</p>
+              <p className="text-xs text-[#737688]">Toque para adicionar</p>
+            </div>
+          )}
+        </button>
+      </div>
+
       {/* Distributor Selector */}
       <div className="mx-4 mt-5 flex-1">
-        {loading ? (
+        {addressLoading ? (
           <div className="flex items-center justify-center py-12">
             <Droplets className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : zoneId ? (
           <DistributorSelector
             zoneId={zoneId}
-            date={selectedDate}
-            window={selectedWindow}
             selectedId={selectedDistributorId}
             onSelect={handleSelect}
             onSkip={handleSkip}
           />
-        ) : (
+        ) : selectedAddress ? (
           <div className="rounded-2xl bg-amber-50 p-4">
             <p className="text-sm text-amber-700">
               Seu endereço ainda não está vinculado a uma zona de entrega.
             </p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Sticky Footer */}
@@ -144,10 +192,18 @@ export default function CheckoutDistributorPage() {
             onClick={handleContinue}
             className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all"
           >
-            Continuar para Pagamento
+            Continuar para Agendamento
           </Button>
         </div>
       )}
+
+      {/* Address Selection Sheet */}
+      <AddressSheet
+        open={addressSheetOpen}
+        onOpenChange={setAddressSheetOpen}
+        selectedAddressId={selectedAddress?.id ?? null}
+        onSelect={handleAddressSelect}
+      />
     </div>
   );
 }

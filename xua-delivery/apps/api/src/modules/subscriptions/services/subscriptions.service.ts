@@ -1,5 +1,5 @@
 import type { Prisma, Subscription } from "@prisma/client";
-import { SubscriptionStatus, DeliveryWindow, AuditEventType, ActorType, SourceApp } from "@prisma/client";
+import { SubscriptionStatus, AuditEventType, ActorType, SourceApp } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { subscriptionRepository } from "../repository/subscriptions.repository.js";
@@ -16,7 +16,7 @@ export const subscriptionService = {
 
   async create(
     consumerId: string,
-    data: { qty_20l: number; weekday: number; delivery_window: DeliveryWindow }
+    data: { qty_20l: number; weekday: number; delivery_window: string }
   ) {
     const sub = await subscriptionRepository.create({
       consumer_id: consumerId,

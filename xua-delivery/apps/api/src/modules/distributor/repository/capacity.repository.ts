@@ -1,4 +1,4 @@
-import type { Prisma, DeliveryCapacity, DeliveryWindow } from "@prisma/client";
+import type { Prisma, DeliveryCapacity } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -14,15 +14,14 @@ export const capacityRepository = {
   async findSlotForUpdate(
     zoneId: string,
     date: string,
-    window: DeliveryWindow,
+    window: string,
     tx: TxClient
   ): Promise<DeliveryCapacity | null> {
-    const windowLower = window.toLowerCase();
     const rows = await tx.$queryRaw<DeliveryCapacity[]>`
       SELECT * FROM "07_cfg_delivery_capacity"
       WHERE zone_id = ${zoneId}::uuid
         AND delivery_date = ${date}::date
-        AND "window" = ${windowLower}::"delivery_window"
+        AND "window" = ${window}
       FOR UPDATE
       LIMIT 1
     `;

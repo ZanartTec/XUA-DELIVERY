@@ -327,9 +327,9 @@ body{
     <div class="section">
       <div class="section-header" style="background:#EEEDFE;color:#3C3489"><span class="section-num" style="background:#7C3AED">4</span>Checkout</div>
       <div class="screens">
-        <div class="screen" onclick="detail('Agendar entrega','Calendário 7 dias. Botões manhã/tarde. Esgotado aparece desabilitado. Reserva a janela. Avança para seleção de distribuidora.','MVP','GET /zones/:id/capacity','slots, janela',this)">
+        <div class="screen" onclick="detail('Agendar entrega','Calendário 14 dias. Apenas datas disponíveis (agenda da distribuidora + lead_time + bloqueios). Botões manhã/tarde. Esgotado aparece desabilitado. Avança para seleção de distribuidora.','MVP','GET /zones/:id/available-dates?days=14','slots, janela, agenda',this)">
           <div class="screen-icon" style="background:#EEEDFE;color:#7C3AED">&#128197;</div>
-          <div class="screen-info"><div class="screen-name">Agendar entrega</div><div class="screen-sub">Manhã ou tarde · slots disponíveis</div></div>
+          <div class="screen-info"><div class="screen-name">Agendar entrega</div><div class="screen-sub">14 dias · agenda dinâmica · slots disponíveis</div></div>
           <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
           <span class="screen-arrow">&#8250;</span>
         </div>
@@ -414,7 +414,7 @@ body{
       <div class="flow-desc">Parceiro que recebe e opera as entregas na sua zona. Usa o app para aceitar pedidos, organizar rotas, fazer checklist e conciliar vasilhames ao fim do dia.</div>
     </div>
   </div>
-  <div class="step-counter">&#128230; Total de telas: <strong>6</strong> &nbsp;·&nbsp; Todas MVP</div>
+  <div class="step-counter">&#128230; Total de telas: <strong>7</strong> &nbsp;·&nbsp; Todas MVP</div>
   <div class="sections">
 
     <div class="section">
@@ -465,6 +465,12 @@ body{
         <div class="screen" onclick="detail2('KPI dashboard','3 cards: SLA de aceitação, taxa de aceitação, reentrega. Seletor de período. Calculado só por audit events.','MVP','GET /kpis','KPI, performance',this)">
           <div class="screen-icon" style="background:#E1F5EE;color:#0D9488">&#128200;</div>
           <div class="screen-info"><div class="screen-name">KPI dashboard</div><div class="screen-sub">SLA · aceitação · reentrega</div></div>
+          <span class="screen-badge" style="background:#0D9488;color:#fff">MVP</span>
+          <span class="screen-arrow">&#8250;</span>
+        </div>
+        <div class="screen" onclick="detail2('Configuração de agenda','Grid semanal: 7 linhas (Dom–Sáb), toggle ativo/inativo + lead_time_hours por dia. CRUD datas bloqueadas (DatePicker + motivo). Reflete imediatamente no calendário de 14 dias do consumidor.','MVP','PUT /distributor/schedule/:id/weekdays · POST/DELETE block-date','agenda, lead_time, bloqueios',this)">
+          <div class="screen-icon" style="background:#E1F5EE;color:#0D9488">&#128197;</div>
+          <div class="screen-info"><div class="screen-name">Configuração de agenda</div><div class="screen-sub">Dias ativos · lead time · bloqueios</div></div>
           <span class="screen-badge" style="background:#0D9488;color:#fff">MVP</span>
           <span class="screen-arrow">&#8250;</span>
         </div>
@@ -618,7 +624,7 @@ body{
 
 <!-- FOOTER -->
 <div class="page-footer">
-  <p>Xuá Delivery &mdash; Mapa de telas &middot; 32 telas mapeadas &middot; 4 perfis de usuário</p>
+  <p>Xuá Delivery &mdash; Mapa de telas &middot; 33 telas mapeadas &middot; 4 perfis de usuário</p>
 </div>
 
 </div><!-- /page-container -->

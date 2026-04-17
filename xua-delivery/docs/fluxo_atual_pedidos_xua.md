@@ -136,13 +136,19 @@ Na pratica:
 O consumidor segue o fluxo de checkout na area do cliente:
 
 1. escolhe os produtos
-2. escolhe a data da entrega
+2. escolhe a data da entrega (calendário com próximos 14 dias — apenas datas disponíveis)
 3. escolhe a janela de entrega
 4. escolhe o endereço
 5. **[NOVO]** escolhe a distribuidora (quando há 2 ou mais disponíveis com `allows_consumer_choice=true`)
 6. confirma o pagamento
 
 Se apenas uma distribuidora cobre a zona com `allows_consumer_choice=true`, essa etapa é ignorada e o sistema seleciona automaticamente. A preferência pode ser configurada no perfil do consumidor pelo campo `auto_assign_distributor`.
+
+**[NOVO] Validação de agenda no checkout:** Antes de avançar para o pagamento, o sistema valida a data escolhida via `validateDeliveryDate()`. Essa validação verifica:
+- Se o dia da semana está ativo na agenda da distribuidora (`22_cfg_distributor_schedule`).
+- Se a data não está bloqueada (`23_cfg_distributor_blocked_dates`).
+- Se o lead_time mínimo é atendido (horário atual + lead_time < horário limite do dia).
+Caso alguma regra seja violada, o pedido é rejeitado com HTTP 422 e o erro correspondente (`WEEKDAY_INACTIVE`, `DATE_BLOCKED` ou `LEAD_TIME_VIOLATION`).
 
 ### O que vai no payload
 

@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { SubscriptionStatus, DeliveryWindow } from "@prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -18,7 +18,7 @@ export const subscriptionRepository = {
       consumer_id: string;
       qty_20l: number;
       weekday: number;
-      delivery_window: DeliveryWindow;
+      delivery_window: string;
       status: SubscriptionStatus;
     },
     tx?: TxClient

@@ -71,10 +71,12 @@ Carrinho (/cart)
 └── Botão 'Agendar entrega' -> /checkout/schedule
 
 Agendar entrega (/checkout/schedule)
-├── Calendário horizontal: próximos 7 dias (componente Calendar shadcn/ui)
+├── Calendário horizontal: próximos 14 dias (componente Calendar shadcn/ui)
+├── Somente datas disponíveis são clicáveis (respeitam agenda da distribuidora)
+│   └── GET /api/zones/:id/available-dates?days=14
+│       Filtra por: dia da semana ativo, datas bloqueadas, lead_time, capacidade
 ├── Para cada dia: pills 'Manhã (8h–12h)' e 'Tarde (13h–18h)'
 │   └── [Slot esgotado] -> pill desabilitada + tooltip 'Esgotado'
-├── Capacidade consultada: GET /api/zones/[id]/capacity
 ├── [Sem slots em nenhum dia] -> mensagem + link suporte
 └── Botão 'Continuar' -> /checkout/distributor
 
@@ -172,7 +174,7 @@ Perfil (/profile)
 ---
 
 ## Fluxo 2 — Distribuidor
-**6 páginas · Web responsivo**
+**7 páginas · Web responsivo**
 
 ```
 Login (role: distributor_admin) -> middleware redirect /distributor/queue
@@ -229,6 +231,18 @@ KPI Dashboard (/distributor/kpis)
 │   [Taxa reentrega: 2.1%]  meta <= 3%  [verde/vermelho]
 ├── Seletor de período: 7d / 30d / 90d
 └── Calculado via KpiService (somente audit_events)
+
+Configuração de agenda (/distributor/schedule) — NOVA PÁGINA
+├── Grid semanal: 7 linhas (Domingo a Sábado)
+│   ├── Cada linha: toggle ativo/inativo + input lead_time_hours
+│   ├── lead_time_hours: tempo mínimo de antecedência para aceitar pedidos
+│   └── Salvar: PUT /api/distributor/schedule/:distributorId/weekdays (bulk upsert)
+├── Datas bloqueadas (CRUD):
+│   ├── DatePicker + motivo opcional
+│   ├── Adicionar: POST /api/distributor/schedule/:distributorId/block-date
+│   ├── Remover: DELETE /api/distributor/schedule/:distributorId/block-date
+│   └── Lista de datas bloqueadas exibida abaixo do grid
+└── Impacto: reflete imediatamente no calendário do consumidor em /checkout/schedule
 ```
 
 ---
@@ -400,7 +414,7 @@ Todos os eventos de notificação passam pelo **Socket.io** embutido no custom s
 | `/register` | (auth) | consumer | Cadastro: nome + email + senha (min 8). Redirect → `/profile/addresses`. |
 | `/catalog` | (consumer) | consumer | Catálogo: garrafão 20L com preço + disponibilidade. Requer endereço. |
 | `/cart` | (consumer) | consumer | Carrinho: qty + garrafões vazios (obrigatório) + banner caução 1ª compra. |
-| `/checkout/schedule` | (consumer) | consumer | Agendamento: Calendar 7 dias + pills manhã/tarde + slot esgotado. |
+| `/checkout/schedule` | (consumer) | consumer | Agendamento: Calendar 14 dias + pills manhã/tarde + filtra agenda/bloqueios/lead_time. |
 | `/checkout/payment` | (consumer) | consumer | Resumo (produto+frete+caução) + SDK gateway + retry. |
 | `/checkout/confirmation` | (consumer) | consumer | Confirmação: animação sucesso + botão acompanhar pedido. |
 | `/orders` | (consumer) | consumer | Histórico paginado + filtro status + "Repetir pedido" 1 clique. |
@@ -416,6 +430,7 @@ Todos os eventos de notificação passam pelo **Socket.io** embutido no custom s
 | `/distributor/routes/[id]` | (distributor) | dist_admin | Paradas: por zona/janela + link Google Maps. |
 | `/distributor/reconciliation` | (distributor) | dist_admin | Conciliação: saídas/retornos/delta + justificativa obrigatória. |
 | `/distributor/kpis` | (distributor) | dist_admin | KPIs: 3 cards Recharts + seletor período. |
+| `/distributor/schedule` | (distributor) | dist_admin | **[NOVO]** Agenda semanal: grid 7 dias (toggle + lead_time) + CRUD datas bloqueadas. |
 | `/driver/deliveries` | (driver) | operator | Lista entregas do dia (funciona offline via Service Worker). |
 | `/driver/deliveries/[id]/otp` | (driver) | operator | OTP: 6 inputs auto-avanço + shake erro + contador tentativas. |
 | `/driver/deliveries/[id]/exchange` | (driver) | operator | Troca: stepper qty→condição. Caução Regra A automática. |

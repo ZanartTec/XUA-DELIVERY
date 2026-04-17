@@ -1,7 +1,6 @@
 import {
   SubscriptionStatus,
   OrderStatus,
-  DeliveryWindow,
   AuditEventType,
   ActorType,
   SourceApp,
@@ -49,7 +48,7 @@ export async function runSubscriptionJob(): Promise<{ processed: number }> {
             zone_id: sub.zone_id!,
             status: OrderStatus.CREATED,
             delivery_date: todayDate,
-            delivery_window: sub.delivery_window ?? DeliveryWindow.MORNING,
+            delivery_window: sub.delivery_window ?? "08:00-12:00",
             subtotal_cents: 0,
             delivery_fee_cents: 0,
             deposit_cents: 0,

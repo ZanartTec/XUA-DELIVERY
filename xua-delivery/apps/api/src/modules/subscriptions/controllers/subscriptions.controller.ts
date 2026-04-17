@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { DeliveryWindow } from "@prisma/client";
 import { logger } from "../../../infra/logger/index.js";
 import { subscriptionService } from "../services/subscriptions.service.js";
 import { subscriptionUpdateSchema } from "@xua/shared/schemas/order";
@@ -8,7 +7,7 @@ import { subscriptionUpdateSchema } from "@xua/shared/schemas/order";
 const createSubscriptionSchema = z.object({
   qty_20l: z.number().int().min(1),
   weekday: z.number().int().min(0).max(6),
-  window: z.nativeEnum(DeliveryWindow),
+  window: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Janela inválida (HH:MM-HH:MM)"),
 });
 
 export const subscriptionsController = {

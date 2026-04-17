@@ -18,8 +18,8 @@ interface CheckoutState {
   paymentMethod: PaymentMethod;
 
   // Actions
-  setSelectedDate: (date: string) => void;
-  setSelectedWindow: (window: TimeWindow) => void;
+  setSelectedDate: (date: string | null) => void;
+  setSelectedWindow: (window: TimeWindow | null) => void;
   setInstructions: (text: string) => void;
   setSelectedAddressId: (id: string | null) => void;
   setSelectedDistributorId: (id: string | null) => void;

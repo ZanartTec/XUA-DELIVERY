@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import type { Product } from "@prisma/client";
-import { DeliveryWindow } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
@@ -127,8 +126,6 @@ export const ordersController = {
       }
 
       const productMap = new Map(products.map((p: Product) => [p.id, p] as const));
-      const windowEnum =
-        parsed.data.delivery_window === "morning" ? DeliveryWindow.MORNING : DeliveryWindow.AFTERNOON;
 
       // Resolve distribuidora: manual (se informado) ou automática
       const resolved = await distributorService.resolveDistributor(
@@ -145,7 +142,7 @@ export const ordersController = {
         distributorId: resolved.distributorId,
         zoneId: resolved.zoneId,
         deliveryDate: parsed.data.delivery_date,
-        deliveryWindow: windowEnum,
+        deliveryWindow: parsed.data.delivery_window,
         distributorSelectionMode: resolved.mode,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;

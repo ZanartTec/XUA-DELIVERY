@@ -208,11 +208,13 @@ model Distributor {
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
-  users           Consumer[]       @relation("DistributorUsers")
-  preferred_by    Consumer[]       @relation("ConsumerPreferredDistributor")
+  users           Consumer[]               @relation("DistributorUsers")
+  preferred_by    Consumer[]               @relation("ConsumerPreferredDistributor")
   zones           Zone[]
   orders          Order[]
   reconciliations Reconciliation[]
+  schedules       DistributorSchedule[]
+  blocked_dates   DistributorBlockedDate[]
 
   @@map("03_mst_distributors")
 }
@@ -550,4 +552,31 @@ model Banner {
   updated_at       DateTime   @updatedAt
 
   @@map("19_cfg_banners")
+}
+
+model DistributorSchedule {
+  id              String   @id @default(uuid()) @db.Uuid
+  distributor_id  String   @db.Uuid
+  weekday         Int
+  is_active       Boolean  @default(true)
+  lead_time_hours Int      @default(2)
+  created_at      DateTime @default(now())
+
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
+
+  @@unique([distributor_id, weekday])
+  @@map("22_cfg_distributor_schedule")
+}
+
+model DistributorBlockedDate {
+  id             String   @id @default(uuid()) @db.Uuid
+  distributor_id String   @db.Uuid
+  blocked_date   DateTime @db.Date
+  reason         String?
+  created_at     DateTime @default(now())
+
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
+
+  @@unique([distributor_id, blocked_date])
+  @@map("23_cfg_distributor_blocked_dates")
 }

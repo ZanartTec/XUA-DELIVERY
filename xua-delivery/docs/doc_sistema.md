@@ -150,13 +150,27 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
 
 **Passo a passo**
 
-1. Escolher dia
+1. Escolher dia (calendário horizontal com próximos 14 dias — apenas datas disponíveis)
 2. Escolher janela (manhã/tarde) disponível
 3. Confirmar SLA estimado
 
 **Requisitos de programação**
 
 - Motor de janelas: capacidade por zona/janela/dia.
+- **[NOVO] Configuração de agenda por distribuidora** (`22_cfg_distributor_schedule`):
+    - Cada dia da semana pode ser ativado/desativado individualmente.
+    - Cada dia ativo possui `lead_time_hours` — tempo mínimo de antecedência para aceitar pedidos (ex.: 24 h).
+    - `GET /api/zones/:id/available-dates?days=14` retorna apenas datas que passam em **todos** os filtros:
+        1. Dia da semana está ativo na agenda.
+        2. Data não está na lista de bloqueios (`23_cfg_distributor_blocked_dates`).
+        3. Lead-time atendido (horário atual + lead_time < horário limite do dia).
+        4. Existe capacidade disponível (slots não esgotados).
+- **[NOVO] Datas bloqueadas** (`23_cfg_distributor_blocked_dates`):
+    - Distribuidor pode bloquear datas específicas (feriados, manutenção, etc.) com motivo opcional.
+    - CRUD via `POST/DELETE /api/distributor/schedule/:distributorId/block-date`.
+- **[NOVO] Validação no pedido** (`validateDeliveryDate`):
+    - Antes de reservar capacidade em `createOrder`, o sistema valida a data escolhida contra a agenda ativa, datas bloqueadas e lead_time.
+    - Erros possíveis: `WEEKDAY_INACTIVE`, `DATE_BLOCKED`, `LEAD_TIME_VIOLATION` — todos retornam HTTP 422.
 - Cálculo e “reserva” de capacidade no momento do checkout.
 - Estados do pedido: **created → scheduled → paid? → sent_to_distributor**.
 

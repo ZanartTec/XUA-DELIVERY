@@ -45,4 +45,13 @@ export const zonesRepository = {
       where: { id: coverageId, zone_id: zoneId },
     });
   },
+
+  async findDistributorId(zoneId: string, tx?: TxClient): Promise<string | null> {
+    const prisma = getPrisma();
+    const zone = await (tx ?? prisma).zone.findUnique({
+      where: { id: zoneId },
+      select: { distributor_id: true },
+    });
+    return zone?.distributor_id ?? null;
+  },
 };

@@ -1,11 +1,17 @@
 import type { Request, Response } from "express";
 import { kpiService } from "../services/kpi.service.js";
 import { capacityService } from "../services/capacity.service.js";
+import { scheduleService } from "../services/schedule.service.js";
+import { scheduleRepository } from "../repository/schedule.repository.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { routeService } from "../services/route.service.js";
 import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
+import {
+  weekdayBulkSchema,
+  blockDateSchema,
+} from "@xua/shared/schemas/schedule";
 
 const log = createLogger("distributor");
 
@@ -133,6 +139,145 @@ export const distributorController = {
     } catch (err) {
       log.error({ err, zoneId }, "Erro ao buscar capacidade");
       throw err;
+    }
+  },
+
+  /**
+   * GET /api/distributor/schedule/:distributorId
+   * Retorna configuração de dias ativos + lead_time + datas bloqueadas.
+   */
+  async getScheduleConfig(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    if (!distributorId) {
+      res.status(400).json({ error: "distributorId obrigatório" });
+      return;
+    }
+
+    // Ownership: distributor_admin só acessa a própria distribuidora; ops acessa qualquer
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        return;
+      }
+    }
+
+    try {
+      const config = await scheduleService.getScheduleConfig(distributorId);
+      res.json(config);
+    } catch (err) {
+      log.error({ err, distributorId }, "Erro ao buscar config de agenda");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * POST /api/distributor/schedule/:distributorId/weekdays
+   * Configura múltiplos dias da semana em batch.
+   */
+  async upsertWeekdays(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    const parsed = weekdayBulkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    // Ownership: distributor_admin só acessa a própria distribuidora; ops acessa qualquer
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        return;
+      }
+    }
+
+    try {
+      const prisma = (await import("../../../infra/prisma/client.js")).getPrisma();
+      const results = await prisma.$transaction(async (tx: any) => {
+        const items = [];
+        for (const w of parsed.data.weekdays) {
+          const result = await scheduleRepository.upsertWeekday(
+            distributorId,
+            w.weekday,
+            { is_active: w.is_active, lead_time_hours: w.lead_time_hours },
+            tx,
+          );
+          items.push(result);
+        }
+        return items;
+      });
+      res.status(200).json({ weekdays: results });
+    } catch (err) {
+      log.error({ err, distributorId }, "Erro ao configurar dias da semana");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * POST /api/distributor/schedule/:distributorId/block-date
+   */
+  async blockDate(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    const parsed = blockDateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    // Ownership: distributor_admin só acessa a própria distribuidora; ops acessa qualquer
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        return;
+      }
+    }
+
+    try {
+      const blocked = await scheduleRepository.blockDate(
+        distributorId,
+        parsed.data.blocked_date,
+        parsed.data.reason,
+      );
+      res.status(201).json(blocked);
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        res.status(409).json({ error: "Data já está bloqueada" });
+        return;
+      }
+      log.error({ err, distributorId }, "Erro ao bloquear data");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * DELETE /api/distributor/schedule/:distributorId/block-date/:date
+   */
+  async unblockDate(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    const date = req.params.date as string;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: "Data inválida (YYYY-MM-DD)" });
+      return;
+    }
+
+    // Ownership: distributor_admin só acessa a própria distribuidora; ops acessa qualquer
+    if (req.user!.role !== "ops") {
+      const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (userDistId !== distributorId) {
+        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        return;
+      }
+    }
+
+    try {
+      await scheduleRepository.unblockDate(distributorId, date);
+      res.status(204).end();
+    } catch (err) {
+      log.error({ err, distributorId, date }, "Erro ao desbloquear data");
+      res.status(500).json({ error: "Erro interno" });
     }
   },
 };

@@ -6,14 +6,14 @@
 | | |
 |---|---|
 | **Stack** | Next.js 15 fullstack (App Router + Route Handlers + Server Actions) |
-| **Banco** | PostgreSQL 16 (schema idêntico — 19 tabelas, 9 enums, 26 índices) |
+| **Banco** | PostgreSQL 16 (schema idêntico — 21 tabelas, 9 enums, 28 índices) |
 | **UI** | shadcn/ui + Tailwind CSS + Radix UI (mobile-first responsivo) |
 | **Real-time** | Socket.io 4.x embutido no mesmo servidor Next.js |
 | **Deploy** | Railway ou VPS (servidor persistente para WebSocket + cron) |
 | **Equipe** | 2 desenvolvedores · 4 semanas |
 | **Versão** | 3.0 — Março 2026 (arquitetura fullstack unificada) |
 
-**19** tabelas · **13** estados/pedido · **24** tipos/evento · **5** perfis/RBAC
+**21** tabelas · **13** estados/pedido · **24** tipos/evento · **5** perfis/RBAC
 
 ---
 
@@ -21,7 +21,7 @@
 
 O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão retornável 20L. Na versão 3.0, todo o sistema roda em um único projeto **Next.js 15**: o frontend (React Server Components + Client Components), a API (Route Handlers), a lógica de negócio (Services), o banco de dados (PostgreSQL via Prisma ORM), o real-time (Socket.io embutido via custom server) e os cron jobs (node-cron). Não existe servidor Node.js separado — tudo é um deploy só.
 
-O banco de dados permanece **100% idêntico** ao schema original: 19 tabelas, 9 enums, 26 índices, trigger de proteção contra regressão de estado. A única alteração é no enum `source_app`, que agora registra `consumer_web`, `distributor_web` e `driver_web` ao invés das versões mobile.
+O banco de dados é **compatível** com o schema original: 21 tabelas (19 originais + 2 de agenda), 9 enums, 28 índices, trigger de proteção contra regressão de estado. A única alteração no enum é em `source_app`, que agora registra `consumer_web`, `distributor_web` e `driver_web` ao invés das versões mobile.
 
 ### Superfícies e Responsabilidades
 
@@ -46,7 +46,7 @@ Navegador (Consumidor / Distribuidor / Motorista / Ops)
 
   ┌─────────────────┬──────────────────┬──────────────────────┐
   │  PostgreSQL 16  │    Redis 7       │  Gateway Pagamento   │
-  │  19 tabelas     │  Sessões JWT     │  Webhooks            │
+  │  21 tabelas     │  Sessões JWT     │  Webhooks            │
   │  triggers       │  cache OTP TTL   │  idempotentes        │
   │  enums · índices│  blacklist       │  Caução automática   │
   └─────────────────┴──────────────────┴──────────────────────┘
@@ -74,7 +74,7 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only).
 
-> O schema é **compatível com o original** — 3 campos foram adicionados: `auto_assign_distributor` e `preferred_distributor_id` em `01_mst_consumers`; `allows_consumer_choice` em `03_mst_distributors`. Demais tabelas, constraints, índices e triggers permanecem intactos.
+> O schema é **compatível com o original** — 3 campos foram adicionados: `auto_assign_distributor` e `preferred_distributor_id` em `01_mst_consumers`; `allows_consumer_choice` em `03_mst_distributors`. Além disso, 2 tabelas novas foram criadas: `22_cfg_distributor_schedule` (agenda semanal) e `23_cfg_distributor_blocked_dates` (datas bloqueadas). Demais tabelas, constraints, índices e triggers permanecem intactos.
 
 ### 2.1 Mapa de Tabelas
 
@@ -98,6 +98,8 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `16_sec_order_otps` | sec | OTPs de entrega: hash HMAC-SHA256, TTL 90min, max 5 tentativas, status `locked` |
 | `17_trn_reconciliations` | trn | Conciliação diária: saídas vs retornos, delta calculado, justificativa obrigatória se > 0 |
 | `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs, disputas e auditoria. Nunca UPDATE/DELETE. |
+| `22_cfg_distributor_schedule` | cfg | **[NOVO]** Agenda semanal por distribuidora. Cada dia da semana pode ser ativado/desativado com `lead_time_hours` (antecedência mínima para aceitar pedidos). Constraint `UNIQUE(distributor_id, day_of_week)`. |
+| `23_cfg_distributor_blocked_dates` | cfg | **[NOVO]** Datas bloqueadas por distribuidora (feriados, manutenção, etc.) com motivo opcional. Constraint `UNIQUE(distributor_id, blocked_date)`. |
 
 ### 2.2 Relacionamentos Principais
 
@@ -113,6 +115,8 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `09_trn_orders` | 1 : N | `16_sec_order_otps` | Novo OTP a cada tentativa de entrega |
 | `11_trn_subscriptions` | N : N | `09_trn_orders` | Via `12_piv_subscription_orders` |
 | `09_trn_orders` | 1 : N | `18_aud_audit_events` | Todo evento gravado com timestamp |
+| `03_mst_distributors` | 1 : N | `22_cfg_distributor_schedule` | Agenda semanal (7 registros possíveis por distribuidora) |
+| `03_mst_distributors` | 1 : N | `23_cfg_distributor_blocked_dates` | Datas bloqueadas para a distribuidora |
 
 ### 2.3 Enums PostgreSQL
 
@@ -186,7 +190,7 @@ COMMIT;
 | **Infra** | fetch + SDKs | Gateway pagamento (interface desacoplada), Web Push API, SMS fallback. Troca de provider sem alterar Services. |
 | **Real-time** | Socket.io 4.x (embutido) | Custom server Next.js: mesmo processo, mesmo port. Salas `consumer:{id}`, `distributor:{id}`. Reconnect automático. |
 | **Cron** | node-cron 3.x | Roda no mesmo processo: assinaturas 06h (São Paulo), OTP cleanup cada 15min. Sem worker separado. |
-| **Banco** | PostgreSQL 16 | 19 tabelas, 9 enums, 26 índices, trigger de proteção. Schema idêntico. |
+| **Banco** | PostgreSQL 16 | 21 tabelas, 9 enums, 28 índices, trigger de proteção. Schema compatível (2 tabelas de agenda adicionadas). |
 | **Cache** | Redis 7 + ioredis | Sessões JWT (blacklist), cache catálogo (5min), TTL de OTP (90min). |
 | **Offline** | Service Worker + IndexedDB | PWA (Workbox): cache assets. idb: fila offline motorista. Sync automático ao reconectar. |
 
@@ -234,7 +238,7 @@ app.prepare().then(() => {
 | Perfil | Rotas permitidas | Permissões |
 |---|---|---|
 | `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. **Selecionar distribuidora no checkout quando há 2+ opções. Configurar preferência de seleção automática via perfil.** Não pode ver dados de outros consumidores. |
-| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis` | Aceitar/rejeitar pedidos da sua zona, checklist, despacho, conciliação, KPIs da própria operação. |
+| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule` | Aceitar/rejeitar pedidos da sua zona, checklist, despacho, conciliação, KPIs da própria operação. **Configurar agenda semanal (ativar/desativar dias, lead_time) e datas bloqueadas.** |
 | `operator` | `/driver/deliveries`, `/driver/deliveries/[id]/*`, `/driver/sync` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
 | `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline, reagendar entregas, override de OTP com motivo obrigatório. |
 | `ops` | `/ops/*` + `/support/*` | Tudo do support + configurar zonas, dashboard KPIs global (Recharts), exportar auditoria CSV. |
@@ -404,7 +408,7 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 | State Client | Zustand v5 | 1KB, sem boilerplate, persist middleware, zero context hell |
 | Forms | React Hook Form + Zod | Performance + validação tipada + schemas compartilhados client/server |
 | DB Access | Prisma 7.x | ORM type-safe com migrations, transações interativas, schema declarativo |
-| Banco | PostgreSQL 16 | 19 tabelas, 9 enums, 26 índices, trigger proteção. Schema idêntico. |
+| Banco | PostgreSQL 16 | 21 tabelas, 9 enums, 28 índices, trigger proteção. Schema compatível (2 tabelas de agenda adicionadas). |
 | Cache | Redis 7 + ioredis | JWT blacklist, cache catálogo 5min, OTP TTL 90min |
 | Real-time | Socket.io 4.x (embutido) | Mesmo processo Next.js. Salas por usuário. Reconnect automático. |
 | Cron | node-cron 3.x | Mesmo processo: assinaturas 06h, OTP cleanup 15min. Sem worker extra. |
@@ -457,4 +461,4 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 
 *Xuá Delivery — Guia Técnico v3.0 (Next.js Fullstack Unificado)*
 *Zanart · Março 2026 · 1 projeto, 1 deploy, 1 servidor*
-*19 tabelas · 9 enums · 26 índices · 13 estados · 24 eventos · 5 perfis RBAC*
+*21 tabelas · 9 enums · 28 índices · 13 estados · 24 eventos · 5 perfis RBAC*
