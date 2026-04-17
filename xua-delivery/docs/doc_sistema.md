@@ -74,6 +74,9 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
 - Cadastro e validação de **distribuidores** (documentação, integração, capacidade
     mínima).
 - Configuração de **zona de atendimento** + **janelas** (manhã/tarde) + **SLA por zona**.
+- **[NOVO]** Configuração por distribuidora do campo `allows_consumer_choice` (default `false`):
+    - `true` — distribuidora aparece no seletor do consumidor no checkout.
+    - `false` — distribuidora é usada apenas quando é a única da zona (modo auto).
 - Catálogo (SKU), preços, promoções locais (previsto no dashboard).
 - Parâmetros de vasilhames:
     - cota por cliente
@@ -161,6 +164,34 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
 
 - Mostrar janelas como **slots simples** (ex.: “Manhã (8–12)”, “Tarde (13–18)”).
 - Mostrar status de forma humana, mas com estados consistentes para o sistema.
+
+
+**Etapa 3½ — Seleção de distribuidora [NOVA ETAPA]**
+
+**Stakeholders:** Consumidor; Distribuidores com `allows_consumer_choice=true`
+**Tela/Módulo:** Checkout — `/checkout/distributor`
+
+**Passo a passo**
+
+1. Após o agendamento, o sistema consulta `GET /api/distributors?zone_id=...&date=...&window=...`
+2. Se 0 ou 1 resultado — a tela é ignorada e o sistema usa a distribuidora da zona automaticamente
+3. Se 2 ou mais resultados — o consumidor vê cards de seleção com nome, média NPS (estrelas) e próxima disponibilidade
+4. Consumidor escolhe e confirma
+
+**Requisitos de programação**
+
+- Endpoint `GET /api/distributors` filtra por `is_active + allows_consumer_choice + zone_coverage + capacidade disponível`.
+- Média NPS calculada como `ROUND(AVG(nps_score)::numeric, 1)` de pedidos `DELIVERED` da distribuidora.
+- Lista ordenada por `avg_nps DESC NULLS LAST`.
+- `distributor_id` selecionado enviado no payload do pedido (campo opcional).
+- O servico `resolveDistributor()` valida e registra `distributor_selection_mode: 'manual' | 'auto'` no evento de auditoria `ORDER_CREATED`.
+- Endpoint `PATCH /api/consumers/:id/assign-mode` permite ao consumidor configurar a preferência `auto_assign_distributor` no perfil.
+
+**Usabilidade**
+
+- Se apenas 1 distribuidora disponível: fluxo completamente transparente (sem tela).
+- Cards devem mostrar informações objetivas (nome, nota, próxima data).
+- Consumidor pode sempre deixar o sistema escolher automaticamente via toggle no perfil.
 
 
 **Etapa 4 — Checkout e pagamento (quando aplicável) + caução**

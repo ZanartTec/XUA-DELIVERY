@@ -327,13 +327,19 @@ body{
     <div class="section">
       <div class="section-header" style="background:#EEEDFE;color:#3C3489"><span class="section-num" style="background:#7C3AED">4</span>Checkout</div>
       <div class="screens">
-        <div class="screen" onclick="detail('Agendar entrega','Calendário 7 dias. Botões manhã/tarde. Esgotado aparece desabilitado. Reserva a janela.','MVP','GET /zones/:id/capacity','slots, janela',this)">
+        <div class="screen" onclick="detail('Agendar entrega','Calendário 7 dias. Botões manhã/tarde. Esgotado aparece desabilitado. Reserva a janela. Avança para seleção de distribuidora.','MVP','GET /zones/:id/capacity','slots, janela',this)">
           <div class="screen-icon" style="background:#EEEDFE;color:#7C3AED">&#128197;</div>
           <div class="screen-info"><div class="screen-name">Agendar entrega</div><div class="screen-sub">Manhã ou tarde · slots disponíveis</div></div>
           <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
           <span class="screen-arrow">&#8250;</span>
         </div>
-        <div class="screen" onclick="detail('Resumo e pagamento','Breakdown: produto + frete + caução. SDK gateway. Loading, erro com retry. Após aprovação → Status.','MVP','POST /orders · POST /payments/:id/charge','pagamento, caução',this)">
+        <div class="screen" onclick="detail('Escolher distribuidora','Auto-skip se apenas 1 disponível. Quando 2+: cards com nome, estrelas NPS e próxima data. Selecionar grava distributor_id no store.','MVP','GET /api/distributors?zone_id=&date=&window=','distribuidora, NPS, seleção manual',this)">
+          <div class="screen-icon" style="background:#EEEDFE;color:#7C3AED">&#127970;</div>
+          <div class="screen-info"><div class="screen-name">Escolher distribuidora</div><div class="screen-sub">Auto-skip se ≤1 · cards NPS · seleção manual</div></div>
+          <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
+          <span class="screen-arrow">&#8250;</span>
+        </div>
+        <div class="screen" onclick="detail('Resumo e pagamento','Breakdown: produto + frete + caução. SDK gateway. Loading, erro com retry. Envia distributor_id se selecionado. Após aprovação → Status.','MVP','POST /orders · POST /payments/:id/charge','pagamento, caução, distribuidor',this)">
           <div class="screen-icon" style="background:#EEEDFE;color:#7C3AED">&#128179;</div>
           <div class="screen-info"><div class="screen-name">Resumo e pagamento</div><div class="screen-sub">Linha separada de caução · SDK</div></div>
           <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
@@ -381,9 +387,9 @@ body{
           <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
           <span class="screen-arrow">&#8250;</span>
         </div>
-        <div class="screen" onclick="detail('Perfil','Dados pessoais, lista de endereços, status da caução (retido/devolvido), logout.','MVP','GET /consumers/me','perfil, caução',this)">
+        <div class="screen" onclick="detail('Perfil','Dados pessoais, lista de endereços, status da caução (retido/devolvido), toggle distribuidora automática (auto_assign_distributor), logout.','MVP','GET /consumers/me · PATCH /consumers/:id/assign-mode','perfil, caução, distribuidora',this)">
           <div class="screen-icon" style="background:#EEEDFE;color:#7C3AED">&#128100;</div>
-          <div class="screen-info"><div class="screen-name">Perfil</div><div class="screen-sub">Dados + endereços + caução</div></div>
+          <div class="screen-info"><div class="screen-name">Perfil</div><div class="screen-sub">Dados + endereços + caução + toggle distribuidora</div></div>
           <span class="screen-badge" style="background:#7C3AED;color:#fff">MVP</span>
           <span class="screen-arrow">&#8250;</span>
         </div>

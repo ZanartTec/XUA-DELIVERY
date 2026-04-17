@@ -27,7 +27,7 @@ O banco de dados permanece **100% idêntico** ao schema original: 19 tabelas, 9 
 
 | Superfície | Perfil JWT | Responsabilidades |
 |---|---|---|
-| **Área do Consumidor** — Web mobile-first | `consumer` | Realizar pedidos, pagamento integrado, agendar janela de entrega (manhã/tarde), acompanhar status em tempo real via Socket.io, gerenciar assinatura mensal, visualizar OTP de entrega, avaliar pedido (NPS 5 estrelas) |
+| **Área do Consumidor** — Web mobile-first | `consumer` | Realizar pedidos, pagamento integrado, agendar janela de entrega (manhã/tarde), **selecionar distribuidora quando há 2 ou mais opções disponíveis** (com auto-skip se ≤1), acompanhar status em tempo real via Socket.io, gerenciar assinatura mensal, visualizar OTP de entrega, avaliar pedido (NPS 5 estrelas), **configurar preferência de distribuidora automática no perfil** |
 | **Área do Distribuidor** — Web responsivo | `distributor_admin` | Receber pedidos com SLA countdown (vermelho <60s), aceitar/recusar com motivo obrigatório, checklist de saída (3 itens, bloqueio até 100%), despachar pedido (gera OTP), lista de paradas, conciliação diária de vasilhames, dashboard de KPIs |
 | **Módulo Motorista** — Web PWA (offline) | `operator` | Executar rota de entregas, confirmar entrega via OTP 6 dígitos (max 5 tentativas, TTL 90min), registrar troca de vasilhame (qty + condição: ok/danificado/sujo), motivo de não-coleta obrigatório, operar offline com fila IndexedDB + sync automático ao reconectar |
 | **Painel de Operações** — Web desktop | `ops` / `support` | Configurar zonas e capacidade por data/janela, dashboard KPIs de todos distribuidores (Recharts), console de suporte (busca telefone/email/order_id + timeline de audit_events), reagendar entregas, override de OTP com motivo obrigatório, exportar auditoria CSV |
@@ -74,15 +74,15 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only).
 
-> O schema é **idêntico ao original** — zero alteração em tabelas, colunas, constraints ou índices.
+> O schema é **compatível com o original** — 3 campos foram adicionados: `auto_assign_distributor` e `preferred_distributor_id` em `01_mst_consumers`; `allows_consumer_choice` em `03_mst_distributors`. Demais tabelas, constraints, índices e triggers permanecem intactos.
 
 ### 2.1 Mapa de Tabelas
 
 | Tabela | Tipo | Responsabilidade |
 |---|---|---|
-| `01_mst_consumers` | mst | Cadastro de consumidores B2C e B2B |
+| `01_mst_consumers` | mst | Cadastro de consumidores B2C e B2B. **Campos adicionados: `auto_assign_distributor` (bool, default true) e `preferred_distributor_id` (uuid nullable)** |
 | `02_mst_addresses` | mst | Endereços de entrega por consumidor (múltiplos) |
-| `03_mst_distributors` | mst | Parceiros distribuidores que operam as entregas |
+| `03_mst_distributors` | mst | Parceiros distribuidores que operam as entregas. **Campo adicionado: `allows_consumer_choice` (bool, default false) — habilita a distribuidora para aparecer no seletor do consumidor** |
 | `04_mst_zones` | mst | Regiões de cobertura por distribuidor |
 | `05_mst_zone_coverage` | mst | Bairros e CEPs cobertos por cada zona |
 | `06_mst_products` | mst | Catálogo de SKUs (MVP: apenas garrafão 20L) |
@@ -233,7 +233,7 @@ app.prepare().then(() => {
 
 | Perfil | Rotas permitidas | Permissões |
 |---|---|---|
-| `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. Não pode ver dados de outros consumidores. |
+| `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. **Selecionar distribuidora no checkout quando há 2+ opções. Configurar preferência de seleção automática via perfil.** Não pode ver dados de outros consumidores. |
 | `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis` | Aceitar/rejeitar pedidos da sua zona, checklist, despacho, conciliação, KPIs da própria operação. |
 | `operator` | `/driver/deliveries`, `/driver/deliveries/[id]/*`, `/driver/sync` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
 | `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline, reagendar entregas, override de OTP com motivo obrigatório. |
@@ -290,7 +290,7 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 
 | Evento | Ator | Quando é emitido |
 |---|---|---|
-| `ORDER_CREATED` | consumer | Pedido criado com itens e data de entrega |
+| `ORDER_CREATED` | consumer | Pedido criado com itens e data de entrega. **Payload inclui `distributor_selection_mode: 'manual' | 'auto'`** |
 | `ORDER_PRICING_FINALIZED` | system | Valores calculados (items + frete + caução se aplicável) |
 | `ORDER_CONFIRMED` | system | Pagamento capturado e janela reservada com sucesso |
 | `ORDER_CANCELLED` | consumer/ops | Pedido cancelado com motivo obrigatório |

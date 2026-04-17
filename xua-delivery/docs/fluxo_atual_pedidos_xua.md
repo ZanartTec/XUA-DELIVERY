@@ -138,10 +138,11 @@ O consumidor segue o fluxo de checkout na area do cliente:
 1. escolhe os produtos
 2. escolhe a data da entrega
 3. escolhe a janela de entrega
-4. escolhe o endereco
-5. confirma o pagamento
+4. escolhe o endereço
+5. **[NOVO]** escolhe a distribuidora (quando há 2 ou mais disponíveis com `allows_consumer_choice=true`)
+6. confirma o pagamento
 
-Ao confirmar, o frontend envia os dados para a API de pedidos.
+Se apenas uma distribuidora cobre a zona com `allows_consumer_choice=true`, essa etapa é ignorada e o sistema seleciona automaticamente. A preferência pode ser configurada no perfil do consumidor pelo campo `auto_assign_distributor`.
 
 ### O que vai no payload
 
@@ -153,28 +154,34 @@ O pedido enviado pelo checkout contem, em linhas gerais:
 - delivery_date
 - delivery_window
 - indicacao do metodo de pagamento
+- **distributor_id (opcional)** — presente apenas quando o consumidor escolheu manualmente
 
 ---
 
-## 5.2. Etapa 2 — a API resolve a distribuidora do pedido
+## 5.2 — Etapa 2 — a API resolve a distribuidora do pedido
 
-Quando o backend recebe o POST do pedido, ele nao escolhe a distribuidora manualmente nem por usuario.
+Quando o backend recebe o POST do pedido, ele executa o servico `resolveDistributor()` para determinar qual distribuidora atendera o pedido.
 
-Ele faz esta cadeia de resolucao:
+Esse servico aplica a seguinte logica:
 
-1. valida se o endereco realmente pertence ao consumidor logado
-2. verifica se o endereco tem zone_id
-3. busca a zona
-4. valida se a zona esta ativa
-5. pega da zona o distributor_id
+1. valida se o endereco pertence ao consumidor logado
+2. obtem o `zone_id` do endereco
+3. verifica se a zona esta ativa
+4. **[NOVO] se o payload contem `distributor_id`:**
+   - valida se essa distribuidora cobre a zona
+   - valida se ela tem `is_active = true` e `allows_consumer_choice = true`
+   - se valido: usa a distribuidora escolhida pelo consumidor (`mode = 'manual'`)
+5. **[NOVO] se nao ha `distributor_id` ou a validacao falha:**
+   - pega o `distributor_id` diretamente da zona (`zone.distributor_id`)
+   - modo automatico (`mode = 'auto'`)
 
-Isso quer dizer que o pedido cai na distribuidora dona da zona do endereco.
+O modo de selecao (`manual` ou `auto`) e registrado no evento de auditoria `ORDER_CREATED`.
 
 Em resumo:
 
-**endereco -> zona -> distribuidora**
+**endereco -> zona -> resolveDistributor() -> distribuidora**
 
-Se a Xuá for a distribuidora da zona, o pedido e da Xuá.
+Se o consumidor escolheu uma distribuidora valida, ela prevalece. Caso contrario, a distribuidora da zona e usada automaticamente.
 
 ---
 

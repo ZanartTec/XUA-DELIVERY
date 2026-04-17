@@ -19,7 +19,7 @@ O sistema tem **4 usuários** com jornadas distintas. O fluxo abaixo descreve ca
 ---
 
 ## Fluxo 1 — Consumidor
-**15 páginas · Web mobile-first**
+**16 páginas · Web mobile-first**
 
 ### Autenticação
 
@@ -76,7 +76,21 @@ Agendar entrega (/checkout/schedule)
 │   └── [Slot esgotado] -> pill desabilitada + tooltip 'Esgotado'
 ├── Capacidade consultada: GET /api/zones/[id]/capacity
 ├── [Sem slots em nenhum dia] -> mensagem + link suporte
-└── Botão 'Continuar para pagamento' -> /checkout/payment
+└── Botão 'Continuar' -> /checkout/distributor
+
+Seleção de distribuidora (/checkout/distributor) — NOVA ETAPA
+├── GET /api/distributors?zone_id=...&date=...&window=...
+├── Filtra distribuidoras com is_active=true + allows_consumer_choice=true
+│   que cobrem a mesma área geográfica e têm capacidade disponível
+├── [0 ou 1 resultado] -> redirecionamento automático para /checkout/payment
+│   (sistema usa a distribuidora padrão da zona — modo auto)
+├── [2+ resultados] -> exibe cards de seleção:
+│   ├── Ícone + nome da distribuidora
+│   ├── ⭐ Média NPS (calculada de pedidos anteriores com nps_score)
+│   ├── 📅 Próxima disponibilidade
+│   └── Indicador de seleção (radio-style)
+├── Botão 'Continuar para Pagamento' -> habilitado após seleção
+└── distributor_id selecionado salvo nos stores checkout.ts e cart.ts
 
 Resumo e pagamento (/checkout/payment)
 ├── Breakdown do valor:
@@ -85,6 +99,7 @@ Resumo e pagamento (/checkout/payment)
 │     [1ª compra] Caução ........... R$ 15,00
 │     ----------------------------------------
 │     Total ........................ R$ 70,00
+├── [distributor_id presente] -> enviado no POST /api/orders como campo opcional
 ├── SDK do gateway (iframe ou redirect)
 ├── [Pagamento aprovado] -> /checkout/confirmation
 │   ├── Animação de sucesso (checkmark)
@@ -146,6 +161,10 @@ Perfil (/profile)
 ├── Dados pessoais: nome, email, telefone
 ├── Lista de endereços com estrela no padrão
 ├── Status da caução: badge 'Retida R$ XX' ou 'Devolvida'
+├── Toggle 'Distribuidora automática':
+│   ├── LIGADO (padrão) -> sistema escolhe a distribuidora da zona automaticamente
+│   └── DESLIGADO -> consumidor escolhe manualmente no checkout
+│       PATCH /api/consumers/:id/assign-mode {auto_assign_distributor: bool}
 ├── Botão 'Editar dados' -> /profile/edit
 └── Botão logout -> limpa cookie + redirect /login
 ```
