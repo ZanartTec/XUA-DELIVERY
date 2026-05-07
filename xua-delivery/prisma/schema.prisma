@@ -371,6 +371,7 @@ model Subscription {
   product_id            String?            @db.Uuid
   distributor_id        String?            @db.Uuid
   zone_id               String?            @db.Uuid
+  time_slot_id          String?            @db.Uuid
   quantity              Int                @default(1)
   delivery_window       DeliveryWindow     @default(MORNING)
   delivery_day_of_month Int?
@@ -378,10 +379,12 @@ model Subscription {
   next_delivery_date    DateTime?          @db.Date
   qty_20l               Int?
   weekday               Int?
+  weekdays              Int[]              @default([])
   created_at            DateTime           @default(now())
   updated_at            DateTime           @updatedAt
 
   consumer            Consumer            @relation(fields: [consumer_id], references: [id])
+  time_slot           TimeSlot?           @relation(fields: [time_slot_id], references: [id])
   subscription_orders SubscriptionOrder[]
 
   @@map("11_trn_subscriptions")
@@ -604,6 +607,7 @@ model TimeSlot {
   distributor    Distributor      @relation(fields: [distributor_id], references: [id])
   capacity_slots DeliveryCapacity[]
   orders         Order[]
+  subscriptions  Subscription[]
 
   @@map("24_cfg_time_slots")
 }

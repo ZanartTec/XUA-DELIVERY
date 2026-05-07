@@ -9,6 +9,7 @@ export const subscriptionRepository = {
     const prisma = getPrisma();
     return (tx ?? prisma).subscription.findMany({
       where: { consumer_id: consumerId },
+      include: { time_slot: true },
       orderBy: { created_at: "desc" },
     });
   },
@@ -17,14 +18,19 @@ export const subscriptionRepository = {
     data: {
       consumer_id: string;
       qty_20l: number;
-      weekday: number;
-      delivery_window: string;
+      weekdays: number[];
+      time_slot_id: string;
+      distributor_id: string;
       status: SubscriptionStatus;
+      next_delivery_date?: Date;
     },
     tx?: TxClient
   ) {
     const prisma = getPrisma();
-    return (tx ?? prisma).subscription.create({ data });
+    return (tx ?? prisma).subscription.create({
+      data,
+      include: { time_slot: true },
+    });
   },
 
   async findById(id: string, tx?: TxClient) {
