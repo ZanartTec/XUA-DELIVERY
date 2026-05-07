@@ -8,6 +8,9 @@ const createSubscriptionSchema = z.object({
   qty_20l: z.number().int().min(1),
   weekdays: z.array(z.number().int().min(0).max(6)).min(1),
   time_slot_id: z.string().uuid(),
+  product_id: z.string().uuid().optional(),
+  address_id: z.string().uuid().optional(),
+  zone_id: z.string().uuid().optional(),
 });
 
 export const subscriptionsController = {
@@ -39,11 +42,18 @@ export const subscriptionsController = {
         qty_20l: parsed.data.qty_20l,
         weekdays: parsed.data.weekdays,
         time_slot_id: parsed.data.time_slot_id,
+        product_id: parsed.data.product_id,
+        address_id: parsed.data.address_id,
+        zone_id: parsed.data.zone_id,
       });
       res.status(201).json(subscription);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Erro interno";
 
+      if (msg === "PRODUCT_NOT_FOUND") {
+        res.status(404).json({ error: "Produto não encontrado ou inativo" });
+        return;
+      }
       if (msg === "TIME_SLOT_NOT_FOUND" || msg === "TIME_SLOT_INACTIVE") {
         res.status(400).json({ error: "Horário indisponível" });
         return;

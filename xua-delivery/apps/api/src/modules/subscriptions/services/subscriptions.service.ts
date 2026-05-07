@@ -19,8 +19,22 @@ export const subscriptionService = {
 
   async create(
     consumerId: string,
-    data: { qty_20l: number; weekdays: number[]; time_slot_id: string }
+    data: {
+      qty_20l: number;
+      weekdays: number[];
+      time_slot_id: string;
+      product_id?: string;
+      address_id?: string;
+      zone_id?: string;
+    }
   ) {
+    const prisma = getPrisma();
+
+    if (data.product_id) {
+      const product = await prisma.product.findUnique({ where: { id: data.product_id } });
+      if (!product || !product.is_active) throw new Error("PRODUCT_NOT_FOUND");
+    }
+
     const slot = await timeslotRepository.findById(data.time_slot_id);
     if (!slot) throw new Error("TIME_SLOT_NOT_FOUND");
     if (!slot.is_active) throw new Error("TIME_SLOT_INACTIVE");
@@ -49,6 +63,9 @@ export const subscriptionService = {
       distributor_id: slot.distributor_id,
       status: SubscriptionStatus.ACTIVE,
       next_delivery_date: new Date(nextDateStr + "T00:00:00.000Z"),
+      ...(data.product_id ? { product_id: data.product_id } : {}),
+      ...(data.address_id ? { address_id: data.address_id } : {}),
+      ...(data.zone_id ? { zone_id: data.zone_id } : {}),
     });
     log.info(
       { subscriptionId: sub.id, consumerId, weekdays: data.weekdays },

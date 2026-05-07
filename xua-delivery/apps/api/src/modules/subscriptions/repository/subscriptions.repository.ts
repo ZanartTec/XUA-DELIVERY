@@ -23,6 +23,9 @@ export const subscriptionRepository = {
       distributor_id: string;
       status: SubscriptionStatus;
       next_delivery_date?: Date;
+      product_id?: string;
+      address_id?: string;
+      zone_id?: string;
     },
     tx?: TxClient
   ) {
