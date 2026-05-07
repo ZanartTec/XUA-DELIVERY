@@ -11,4 +11,12 @@ router.use(authMiddleware);
 // Lista distribuidoras disponíveis para seleção manual pelo consumidor
 router.get("/", requireRole("consumer"), distributorController.listAvailable);
 
+// GET /api/distributors/:distributorId/public-schedule
+// Weekdays ativos + time slots disponíveis para montar telas do consumer.
+router.get(
+  "/:distributorId/public-schedule",
+  requireRole("consumer"),
+  distributorController.getPublicSchedule,
+);
+
 export { router as distributorsPublicRoutes };

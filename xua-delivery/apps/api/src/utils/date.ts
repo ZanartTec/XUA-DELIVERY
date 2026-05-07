@@ -18,6 +18,32 @@ export function nextMonthSameDay(dateStr: string): string {
 }
 
 /**
+ * Dado um array de weekdays (0=Dom..6=Sáb) e uma data base,
+ * retorna a próxima data (ISO YYYY-MM-DD) cujo dia-da-semana está no array.
+ * Se `inclusive` = true e a data base já bate, retorna a própria data base.
+ */
+export function nextWeekdayDate(
+  weekdays: number[],
+  fromDate: Date,
+  inclusive = false,
+): string {
+  if (weekdays.length === 0) throw new Error("weekdays vazio");
+  const set = new Set(weekdays);
+  const start = inclusive ? 0 : 1;
+  for (let offset = start; offset < start + 7; offset++) {
+    const d = new Date(
+      Date.UTC(
+        fromDate.getUTCFullYear(),
+        fromDate.getUTCMonth(),
+        fromDate.getUTCDate() + offset,
+      ),
+    );
+    if (set.has(d.getUTCDay())) return d.toISOString().split("T")[0];
+  }
+  throw new Error("nenhum weekday válido (não deveria acontecer)");
+}
+
+/**
  * Converte um período abreviado ("1d", "7d", "30d", "90d") em datas de início/fim.
  * Usado em dashboards de KPI.
  */

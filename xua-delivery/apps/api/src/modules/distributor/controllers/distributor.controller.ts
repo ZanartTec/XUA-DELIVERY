@@ -144,6 +144,35 @@ export const distributorController = {
   },
 
   /**
+   * GET /api/distributors/:distributorId/public-schedule
+   * Endpoint consumido pelo app do consumer para montar telas que dependem
+   * dos dias úteis e horários disponíveis (ex.: criação de assinatura).
+   * Retorna apenas weekdays e time slots ATIVOS.
+   */
+  async getPublicSchedule(req: Request, res: Response): Promise<void> {
+    const distributorId = req.params.distributorId as string;
+    if (!distributorId) {
+      res.status(400).json({ error: "distributorId obrigatório" });
+      return;
+    }
+
+    try {
+      const [weekdays, timeSlots] = await Promise.all([
+        scheduleRepository.findScheduleByDistributor(distributorId),
+        timeslotRepository.findActiveByDistributor(distributorId),
+      ]);
+
+      res.json({
+        active_weekdays: weekdays.filter((w) => w.is_active).map((w) => w.weekday),
+        time_slots: timeSlots,
+      });
+    } catch (err) {
+      log.error({ err, distributorId }, "Erro ao buscar agenda pública");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
    * GET /api/distributor/schedule/:distributorId
    * Retorna configuração de dias ativos + lead_time + datas bloqueadas.
    */

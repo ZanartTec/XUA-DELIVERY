@@ -6,8 +6,8 @@ import { subscriptionUpdateSchema } from "@xua/shared/schemas/order";
 
 const createSubscriptionSchema = z.object({
   qty_20l: z.number().int().min(1),
-  weekday: z.number().int().min(0).max(6),
-  window: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, "Janela inválida (HH:MM-HH:MM)"),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1),
+  time_slot_id: z.string().uuid(),
 });
 
 export const subscriptionsController = {
@@ -37,11 +37,24 @@ export const subscriptionsController = {
     try {
       const subscription = await subscriptionService.create(user.sub, {
         qty_20l: parsed.data.qty_20l,
-        weekday: parsed.data.weekday,
-        delivery_window: parsed.data.window,
+        weekdays: parsed.data.weekdays,
+        time_slot_id: parsed.data.time_slot_id,
       });
       res.status(201).json(subscription);
     } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro interno";
+
+      if (msg === "TIME_SLOT_NOT_FOUND" || msg === "TIME_SLOT_INACTIVE") {
+        res.status(400).json({ error: "Horário indisponível" });
+        return;
+      }
+      if (msg === "WEEKDAY_NOT_AVAILABLE") {
+        res
+          .status(400)
+          .json({ error: "Um ou mais dias selecionados não estão disponíveis" });
+        return;
+      }
+
       logger.error({ error }, "Error creating subscription");
       res.status(500).json({ error: "Erro interno" });
     }

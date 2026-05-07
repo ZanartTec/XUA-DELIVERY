@@ -5,8 +5,7 @@ import Link from "next/link";
 import {
   Repeat,
   Plus,
-  Sun,
-  Cloud,
+  Clock,
   Pause,
   Play,
   XCircle,
@@ -14,25 +13,51 @@ import {
   CalendarDays,
   ChevronRight,
 } from "lucide-react";
-import type { Subscription } from "@/src/types";
-import { DeliveryWindow, SubscriptionStatus } from "@/src/types/enums";
+import type { Subscription, TimeSlot } from "@/src/types";
+import { SubscriptionStatus } from "@/src/types/enums";
 
-const DAY_LABELS: Record<number, string> = {
-  0: "Domingo",
-  1: "Segunda",
-  2: "Terça",
-  3: "Quarta",
-  4: "Quinta",
-  5: "Sexta",
-  6: "Sábado",
+const DAY_SHORT: Record<number, string> = {
+  0: "Dom",
+  1: "Seg",
+  2: "Ter",
+  3: "Qua",
+  4: "Qui",
+  5: "Sex",
+  6: "Sáb",
 };
+
+const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+type SubscriptionWithSlot = Subscription & { time_slot?: TimeSlot | null };
+
+function pad(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+function formatTimeSlot(slot: TimeSlot | null | undefined): string | null {
+  if (!slot) return null;
+  return `${pad(slot.start_hour)}:${pad(slot.start_minute)}–${pad(slot.end_hour)}:${pad(slot.end_minute)}`;
+}
+
+function formatWeekdays(sub: SubscriptionWithSlot): string {
+  const days = sub.weekdays && sub.weekdays.length > 0
+    ? sub.weekdays
+    : sub.weekday != null
+      ? [sub.weekday]
+      : [];
+  if (days.length === 0) return "—";
+  return [...days]
+    .sort((a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b))
+    .map((d) => DAY_SHORT[d] ?? `D${d}`)
+    .join(", ");
+}
 
 function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
 export default function SubscriptionManagePage() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionWithSlot[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -173,19 +198,15 @@ export default function SubscriptionManagePage() {
                 </div>
 
                 {/* Details row */}
-                <div className="flex items-center gap-4 text-sm text-[#4a5e87] mb-4">
+                <div className="flex items-center gap-4 text-sm text-[#4a5e87] mb-4 flex-wrap">
                   <span className="flex items-center gap-1.5">
-                    {sub.delivery_window === DeliveryWindow.MORNING ? (
-                      <Sun className="h-3.5 w-3.5" />
-                    ) : (
-                      <Cloud className="h-3.5 w-3.5" />
-                    )}
-                    {sub.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {formatWeekdays(sub)}
                   </span>
-                  {sub.weekday != null && (
+                  {formatTimeSlot(sub.time_slot) && (
                     <span className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {DAY_LABELS[sub.weekday] ?? `Dia ${sub.weekday}`}
+                      <Clock className="h-3.5 w-3.5" />
+                      {formatTimeSlot(sub.time_slot)}
                     </span>
                   )}
                 </div>

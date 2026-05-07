@@ -3,6 +3,9 @@ import { SubscriptionStatus, AuditEventType, ActorType, SourceApp } from "@prism
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { subscriptionRepository } from "../repository/subscriptions.repository.js";
+import { timeslotRepository } from "../../distributor/repository/timeslot.repository.js";
+import { scheduleRepository } from "../../distributor/repository/schedule.repository.js";
+import { nextWeekdayDate } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger";
 
 const log = createLogger("subscriptions");
@@ -16,16 +19,41 @@ export const subscriptionService = {
 
   async create(
     consumerId: string,
-    data: { qty_20l: number; weekday: number; delivery_window: string }
+    data: { qty_20l: number; weekdays: number[]; time_slot_id: string }
   ) {
+    const slot = await timeslotRepository.findById(data.time_slot_id);
+    if (!slot) throw new Error("TIME_SLOT_NOT_FOUND");
+    if (!slot.is_active) throw new Error("TIME_SLOT_INACTIVE");
+
+    const schedule = await scheduleRepository.findScheduleByDistributor(
+      slot.distributor_id
+    );
+    const activeWeekdays = new Set(
+      schedule.filter((s) => s.is_active).map((s) => s.weekday)
+    );
+    for (const w of data.weekdays) {
+      if (!activeWeekdays.has(w)) throw new Error("WEEKDAY_NOT_AVAILABLE");
+    }
+
+    const today = new Date();
+    const todayUtc = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    const nextDateStr = nextWeekdayDate(data.weekdays, todayUtc, true);
+
     const sub = await subscriptionRepository.create({
       consumer_id: consumerId,
       qty_20l: data.qty_20l,
-      weekday: data.weekday,
-      delivery_window: data.delivery_window,
+      weekdays: data.weekdays,
+      time_slot_id: data.time_slot_id,
+      distributor_id: slot.distributor_id,
       status: SubscriptionStatus.ACTIVE,
+      next_delivery_date: new Date(nextDateStr + "T00:00:00.000Z"),
     });
-    log.info({ subscriptionId: sub.id, consumerId }, "Subscription created");
+    log.info(
+      { subscriptionId: sub.id, consumerId, weekdays: data.weekdays },
+      "Subscription created"
+    );
     return sub;
   },
 

@@ -12,6 +12,7 @@ export type {
   OrderItem,
   Subscription,
   SubscriptionOrder,
+  TimeSlot,
   Payment,
   PaymentWebhookEvent,
   Deposit,
