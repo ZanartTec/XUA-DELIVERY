@@ -104,13 +104,14 @@ export default function SubscriptionCreatePage() {
         if (cancelled) return;
         setProducts(productsData.products ?? productsData ?? []);
 
-        const userId = me.sub ?? me.id;
+        const userId = me.consumer?.id ?? me.sub ?? me.id;
         if (userId) {
           const addrRes = await fetch(`/api/consumers/${userId}/addresses`);
           if (!addrRes.ok) return;
-          const addrs = await addrRes.json();
+          const addrData = await addrRes.json();
           if (cancelled) return;
-          const addr = (addrs as any[]).find((a) => a.is_default) ?? addrs[0];
+          const addrs: any[] = addrData.addresses ?? addrData ?? [];
+          const addr = addrs.find((a) => a.is_default) ?? addrs[0];
           if (addr) {
             setAddressId(addr.id);
             setZoneId(addr.zone_id ?? null);
@@ -139,7 +140,7 @@ export default function SubscriptionCreatePage() {
         const res = await fetch(`/api/distributors?zone_id=${zoneId}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
-        if (!cancelled) setDistributors(data ?? []);
+        if (!cancelled) setDistributors(data.distributors ?? data ?? []);
       } catch {
         if (!cancelled) setDistributors([]);
       } finally {
