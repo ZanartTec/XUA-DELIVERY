@@ -13,8 +13,8 @@ interface AvailableDistributor {
 
 interface DistributorSelectorProps {
   zoneId: string;
-  date: string;
-  window: string;
+  date?: string;
+  window?: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSkip: () => void;
@@ -41,9 +41,9 @@ export function DistributorSelector({
       try {
         const params = new URLSearchParams({
           zone_id: zoneId,
-          date,
-          window: deliveryWindow,
         });
+        if (date) params.set("date", date);
+        if (deliveryWindow) params.set("window", deliveryWindow);
         const res = await fetch(`/api/distributors?${params}`);
         if (!res.ok) {
           const body = await res.json();
@@ -55,8 +55,11 @@ export function DistributorSelector({
         const list: AvailableDistributor[] = body.distributors ?? [];
         setDistributors(list);
 
-        // Se não há opção de escolha (0 ou 1), pular automaticamente
-        if (list.length <= 1) {
+        // Se só uma distribuidora, seleciona automaticamente e pula
+        if (list.length === 1) {
+          onSelect(list[0].id);
+          onSkip();
+        } else if (list.length === 0) {
           onSkip();
         }
       } catch (err) {
@@ -70,7 +73,7 @@ export function DistributorSelector({
 
     void load();
     return () => { cancelled = true; };
-  }, [zoneId, date, deliveryWindow, onSkip]);
+  }, [zoneId, date, deliveryWindow, onSkip, onSelect]);
 
   if (loading) {
     return (

@@ -1,4 +1,4 @@
-import type { Prisma, DeliveryWindow } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { capacityRepository } from "../repository/capacity.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
@@ -25,14 +25,16 @@ export const capacityService = {
   async reserve(
     zoneId: string,
     deliveryDate: string,
-    deliveryWindow: DeliveryWindow,
-    tx: TxClient
+    deliveryWindow: string,
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<void> {
     const slot = await capacityRepository.findSlotForUpdate(
       zoneId,
       deliveryDate,
       deliveryWindow,
-      tx
+      tx,
+      timeSlotId
     );
 
     if (!slot) {
@@ -65,14 +67,16 @@ export const capacityService = {
   async release(
     zoneId: string,
     deliveryDate: string,
-    deliveryWindow: DeliveryWindow,
-    tx: TxClient
+    deliveryWindow: string,
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<void> {
     const slot = await capacityRepository.findSlotForUpdate(
       zoneId,
       deliveryDate,
       deliveryWindow,
-      tx
+      tx,
+      timeSlotId
     );
 
     if (!slot) {

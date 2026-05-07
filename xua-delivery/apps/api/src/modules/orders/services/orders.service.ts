@@ -5,6 +5,7 @@ import { getIO } from "../../../infra/socket/gateway.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
+import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
 import { paymentService } from "../../payments/services/payments.service.js";
@@ -73,6 +74,9 @@ export const orderService = {
     deliveryDate: string;
     deliveryWindow: DeliveryWindow;
     distributorSelectionMode: "manual" | "auto";
+    timeSlotId?: string | null;
+    preferredTimeStart?: number | null;
+    preferredTimeEnd?: number | null;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -100,12 +104,20 @@ export const orderService = {
         : 0;
       const totalCents = subtotalCents + deliveryFeeCents + depositAmountCents;
 
+      // Valida agenda da distribuidora (dias ativos, datas bloqueadas, lead_time)
+      await scheduleService.validateDeliveryDate(
+        data.distributorId,
+        data.deliveryDate,
+        data.deliveryWindow,
+      );
+
       // ARCH-04: Reserva capacidade dentro da mesma transação
       await capacityService.reserve(
         data.zoneId,
         data.deliveryDate,
         data.deliveryWindow,
-        tx
+        tx,
+        data.timeSlotId,
       );
 
       const created = await orderRepository.create(
@@ -117,6 +129,9 @@ export const orderService = {
           status: OrderStatus.CREATED,
           delivery_date: new Date(data.deliveryDate),
           delivery_window: data.deliveryWindow,
+          time_slot_id: data.timeSlotId ?? null,
+          preferred_time_start: data.preferredTimeStart ?? null,
+          preferred_time_end: data.preferredTimeEnd ?? null,
           subtotal_cents: subtotalCents,
           delivery_fee_cents: deliveryFeeCents,
           deposit_cents: depositAmountCents,
@@ -691,7 +706,8 @@ export const orderService = {
         current.zone_id,
         current.delivery_date.toISOString().split("T")[0],
         current.delivery_window,
-        tx
+        tx,
+        current.time_slot_id,
       );
 
       return updated;

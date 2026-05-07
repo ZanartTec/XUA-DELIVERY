@@ -76,6 +76,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         label: "Concilia",
         icon: ArrowLeftRight,
       },
+      { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
     ],
   },

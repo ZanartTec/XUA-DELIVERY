@@ -1,4 +1,4 @@
-import type { Prisma, DeliveryCapacity, DeliveryWindow } from "@prisma/client";
+import type { Prisma, DeliveryCapacity } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -14,15 +14,34 @@ export const capacityRepository = {
   async findSlotForUpdate(
     zoneId: string,
     date: string,
-    window: DeliveryWindow,
-    tx: TxClient
+    window: string,
+    tx: TxClient,
+    timeSlotId?: string | null
   ): Promise<DeliveryCapacity | null> {
-    const windowLower = window.toLowerCase();
+    // O banco armazena o enum como lowercase (via @map). Normaliza aqui para raw SQL.
+    const windowDb = window.toLowerCase();
+    if (timeSlotId) {
+      const slotRows = await tx.$queryRaw<DeliveryCapacity[]>`
+        SELECT * FROM "07_cfg_delivery_capacity"
+        WHERE zone_id = ${zoneId}::uuid
+          AND delivery_date = ${date}::date
+          AND "window" = ${windowDb}::"delivery_window"
+          AND time_slot_id = ${timeSlotId}::uuid
+        FOR UPDATE
+        LIMIT 1
+      `;
+
+      if (slotRows[0]) {
+        return slotRows[0];
+      }
+    }
+
     const rows = await tx.$queryRaw<DeliveryCapacity[]>`
       SELECT * FROM "07_cfg_delivery_capacity"
       WHERE zone_id = ${zoneId}::uuid
         AND delivery_date = ${date}::date
-        AND "window" = ${windowLower}::"delivery_window"
+        AND "window" = ${windowDb}::"delivery_window"
+        AND time_slot_id IS NULL
       FOR UPDATE
       LIMIT 1
     `;

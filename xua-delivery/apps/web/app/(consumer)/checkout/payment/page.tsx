@@ -69,6 +69,7 @@ function PaymentContent() {
   // Read schedule data from persisted checkout store
   const date = useCheckoutStore((s) => s.selectedDate);
   const deliveryWindow = useCheckoutStore((s) => s.selectedWindow) ?? "morning";
+  const selectedSlotId = useCheckoutStore((s) => s.selectedSlotId);
   const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const paymentMethod = useCheckoutStore((s) => s.paymentMethod);
@@ -201,6 +202,7 @@ function PaymentContent() {
           empty_bottles_qty: emptyBottlesQty,
           delivery_date: date,
           delivery_window: deliveryWindow,
+          ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
           ...(selectedDistributorId ? { distributor_id: selectedDistributorId } : {}),
           // Mercado Pago: será usado quando integrar
           payment_method: paymentMethod,

@@ -338,17 +338,20 @@ async function main() {
     const date = futureDate(i);
     for (const window of windows) {
       for (const zoneId of capacityZones) {
-        await prisma.deliveryCapacity.upsert({
-          where: { zone_id_delivery_date_window: { zone_id: zoneId, delivery_date: date, window } },
-          update: {},
-          create: {
-            zone_id: zoneId,
-            delivery_date: date,
-            window,
-            capacity_total: 20,
-            capacity_reserved: 0,
-          },
-        });
+        const existingCap = await prisma.deliveryCapacity.findFirst({
+            where: { zone_id: zoneId, delivery_date: date, window, time_slot_id: null },
+          });
+          if (!existingCap) {
+            await prisma.deliveryCapacity.create({
+              data: {
+                zone_id: zoneId,
+                delivery_date: date,
+                window,
+                capacity_total: 20,
+                capacity_reserved: 0,
+              },
+            });
+          }
       }
     }
   }

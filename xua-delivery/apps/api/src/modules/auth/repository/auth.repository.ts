@@ -8,6 +8,7 @@ const SAFE_SELECT = {
   phone: true,
   role: true,
   is_b2b: true,
+  distributor_id: true,
   created_at: true,
   updated_at: true,
 } as const;

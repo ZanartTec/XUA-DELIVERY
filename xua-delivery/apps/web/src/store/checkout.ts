@@ -8,6 +8,7 @@ interface CheckoutState {
   // Schedule step
   selectedDate: string | null;
   selectedWindow: TimeWindow | null;
+  selectedSlotId: string | null;
   instructions: string;
   selectedAddressId: string | null;
 
@@ -18,8 +19,9 @@ interface CheckoutState {
   paymentMethod: PaymentMethod;
 
   // Actions
-  setSelectedDate: (date: string) => void;
-  setSelectedWindow: (window: TimeWindow) => void;
+  setSelectedDate: (date: string | null) => void;
+  setSelectedWindow: (window: TimeWindow | null) => void;
+  setSelectedSlotId: (id: string | null) => void;
   setInstructions: (text: string) => void;
   setSelectedAddressId: (id: string | null) => void;
   setSelectedDistributorId: (id: string | null) => void;
@@ -32,6 +34,7 @@ interface CheckoutState {
 const initialState = {
   selectedDate: null,
   selectedWindow: null as TimeWindow | null,
+  selectedSlotId: null as string | null,
   instructions: "",
   selectedAddressId: null,
   selectedDistributorId: null as string | null,
@@ -45,6 +48,7 @@ export const useCheckoutStore = create<CheckoutState>()(
 
       setSelectedDate: (date) => set({ selectedDate: date }),
       setSelectedWindow: (window) => set({ selectedWindow: window }),
+      setSelectedSlotId: (id) => set({ selectedSlotId: id }),
       setInstructions: (text) => set({ instructions: text }),
       setSelectedAddressId: (id) => set({ selectedAddressId: id }),
       setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),

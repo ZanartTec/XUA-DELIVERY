@@ -153,8 +153,8 @@ export const distributorRepository = {
    */
   async findAvailableForZone(
     zoneId: string,
-    date: string,
-    window: string,
+    date?: string,
+    window?: string,
   ): Promise<
     Array<{
       id: string;
@@ -164,39 +164,74 @@ export const distributorRepository = {
     }>
   > {
     const prisma = getPrisma();
-    const windowLower = window.toLowerCase();
 
+    // Se date e window estão presentes, filtra por capacidade disponível
+    if (date && window) {
+      const windowLower = window.toLowerCase();
+      const rows = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          avg_nps: number | null;
+          next_available_date: Date | null;
+        }>
+      >`
+        SELECT
+          d.id,
+          d.name,
+          ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps,
+          MIN(dc_next.delivery_date) AS next_available_date
+        FROM "03_mst_distributors" d
+        JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
+        JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+        JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+        JOIN "07_cfg_delivery_capacity" dc
+          ON dc.zone_id = z2.id
+          AND dc.delivery_date = ${date}::date
+          AND dc."window" = ${windowLower}::"delivery_window"
+          AND dc.capacity_reserved < dc.capacity_total
+        LEFT JOIN "07_cfg_delivery_capacity" dc_next
+          ON dc_next.zone_id = z2.id
+          AND dc_next.delivery_date >= ${date}::date
+          AND dc_next.capacity_reserved < dc_next.capacity_total
+        LEFT JOIN "09_trn_orders" o
+          ON o.distributor_id = d.id AND o.nps_score IS NOT NULL
+        WHERE d.is_active = true
+          AND d.allows_consumer_choice = true
+          AND (
+            (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+            OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+          )
+        GROUP BY d.id, d.name
+        ORDER BY avg_nps DESC NULLS LAST, d.name ASC
+      `;
+
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        avg_nps: r.avg_nps,
+        next_available_date: r.next_available_date
+          ? new Date(r.next_available_date).toISOString().split("T")[0]
+          : null,
+      }));
+    }
+
+    // Sem date/window: lista todas distribuidoras ativas na zona (sem filtro de capacidade)
     const rows = await prisma.$queryRaw<
       Array<{
         id: string;
         name: string;
         avg_nps: number | null;
-        next_available_date: Date | null;
       }>
     >`
       SELECT
         d.id,
         d.name,
-        ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps,
-        MIN(dc_next.delivery_date) AS next_available_date
+        ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps
       FROM "03_mst_distributors" d
-      -- Zonas da distribuidora que cobrem a mesma área da zona informada
       JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
       JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
-      -- Coverage da zona original
       JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
-      -- Capacidade para a data/janela solicitada
-      JOIN "07_cfg_delivery_capacity" dc
-        ON dc.zone_id = z2.id
-        AND dc.delivery_date = ${date}::date
-        AND dc."window" = ${windowLower}::"delivery_window"
-        AND dc.capacity_reserved < dc.capacity_total
-      -- Próxima disponibilidade (LEFT JOIN para não excluir se não tiver futura)
-      LEFT JOIN "07_cfg_delivery_capacity" dc_next
-        ON dc_next.zone_id = z2.id
-        AND dc_next.delivery_date >= ${date}::date
-        AND dc_next.capacity_reserved < dc_next.capacity_total
-      -- NPS média (LEFT JOIN em pedidos entregues)
       LEFT JOIN "09_trn_orders" o
         ON o.distributor_id = d.id AND o.nps_score IS NOT NULL
       WHERE d.is_active = true
@@ -213,9 +248,7 @@ export const distributorRepository = {
       id: r.id,
       name: r.name,
       avg_nps: r.avg_nps,
-      next_available_date: r.next_available_date
-        ? new Date(r.next_available_date).toISOString().split("T")[0]
-        : null,
+      next_available_date: null,
     }));
   },
 
