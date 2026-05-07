@@ -234,8 +234,7 @@ export default function CheckoutSchedulePage() {
   const isClient = useIsClient();
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
   const items = useCartStore((s) => s.items);
-  const deliveryFeeCents = 500;
-  const totalCents = isClient ? getSubtotalCents() + deliveryFeeCents : 0;
+  const totalCents = isClient ? getSubtotalCents() : 0;
   const itemCount = isClient ? items.reduce((acc, i) => acc + i.quantity, 0) : 0;
 
   const effectiveDate = selectedDate;

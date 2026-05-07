@@ -310,7 +310,6 @@ model Order {
   preferred_time_start       Int?
   preferred_time_end         Int?
   subtotal_cents             Int            @default(0)
-  delivery_fee_cents         Int            @default(0)
   deposit_cents              Int            @default(0)
   deposit_amount_cents       Int            @default(0)
   total_cents                Int            @default(0)

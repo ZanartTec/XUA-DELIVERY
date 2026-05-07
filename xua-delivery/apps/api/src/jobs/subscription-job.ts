@@ -50,7 +50,6 @@ export async function runSubscriptionJob(): Promise<{ processed: number }> {
             delivery_date: todayDate,
             delivery_window: sub.delivery_window ?? "08:00-12:00",
             subtotal_cents: 0,
-            delivery_fee_cents: 0,
             deposit_cents: 0,
             total_cents: 0,
             collected_empty_qty: 0,

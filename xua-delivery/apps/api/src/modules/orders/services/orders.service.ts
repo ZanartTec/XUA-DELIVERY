@@ -89,7 +89,6 @@ export const orderService = {
       (acc, i) => acc + i.unit_price_cents * i.quantity,
       0
     );
-    const deliveryFeeCents = 500; // R$ 5,00 padrão
 
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const previousOrdersCount = await tx.order.count({
@@ -102,7 +101,7 @@ export const orderService = {
       const depositAmountCents = isFirstPurchase
         ? depositService.getDepositAmountCents()
         : 0;
-      const totalCents = subtotalCents + deliveryFeeCents + depositAmountCents;
+      const totalCents = subtotalCents + depositAmountCents;
 
       // Valida agenda da distribuidora (dias ativos, datas bloqueadas, lead_time)
       await scheduleService.validateDeliveryDate(
@@ -133,7 +132,6 @@ export const orderService = {
           preferred_time_start: data.preferredTimeStart ?? null,
           preferred_time_end: data.preferredTimeEnd ?? null,
           subtotal_cents: subtotalCents,
-          delivery_fee_cents: deliveryFeeCents,
           deposit_cents: depositAmountCents,
           total_cents: totalCents,
           rating: null,

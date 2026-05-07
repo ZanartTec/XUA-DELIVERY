@@ -109,11 +109,10 @@ function PaymentContent() {
   }, []);
 
   const subtotal = mounted ? getSubtotalCents() : 0;
-  const deliveryFeeCents = 500;
   const depositCents = depositPreview.isFirstPurchase
     ? depositPreview.depositAmountCents
     : 0;
-  const totalCents = subtotal + deliveryFeeCents + depositCents;
+  const totalCents = subtotal + depositCents;
 
   // Load deposit preview + addresses
   useEffect(() => {
@@ -436,12 +435,6 @@ function PaymentContent() {
               <span className="text-[#434656]">Subtotal</span>
               <span className="text-[#191c1d]">
                 {mounted ? formatCurrency(subtotal) : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[#434656]">Taxa de entrega</span>
-              <span className="text-[#191c1d]">
-                {formatCurrency(deliveryFeeCents)}
               </span>
             </div>
             {!previewLoading && depositCents > 0 && (

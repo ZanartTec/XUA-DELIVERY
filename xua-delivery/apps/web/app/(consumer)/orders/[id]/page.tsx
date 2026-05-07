@@ -374,10 +374,6 @@ export default function OrderDetailPage() {
               <span>Subtotal</span>
               <span>{formatCurrency(order.subtotal_cents)}</span>
             </div>
-            <div className="flex justify-between text-[#737688]">
-              <span>Taxa de entrega</span>
-              <span>{formatCurrency(order.delivery_fee_cents)}</span>
-            </div>
             {order.deposit_cents > 0 && (
               <div className="flex justify-between text-[#737688]">
                 <span>Caução</span>

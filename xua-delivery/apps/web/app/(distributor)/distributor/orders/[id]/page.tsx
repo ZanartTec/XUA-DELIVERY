@@ -382,10 +382,6 @@ export default function DistributorOrderDetailPage() {
                 <span className="shrink-0">Subtotal</span>
                 <span className="shrink-0">{formatCurrency(order.subtotal_cents)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2 text-white/72">
-                <span className="shrink-0">Taxa de entrega</span>
-                <span className="shrink-0">{formatCurrency(order.delivery_fee_cents)}</span>
-              </div>
               {order.deposit_cents > 0 ? (
                 <div className="flex items-center justify-between gap-2 text-white/72">
                   <span className="shrink-0">Caução</span>

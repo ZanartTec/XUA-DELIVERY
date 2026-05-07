@@ -29,8 +29,7 @@ export default function CartPage() {
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
 
   const subtotal = mounted ? getSubtotalCents() : 0;
-  const deliveryFeeCents = 500;
-  const totalCents = subtotal + deliveryFeeCents;
+  const totalCents = subtotal;
   const isEmpty = mounted ? items.length === 0 : true;
 
   const gallonCount = items
@@ -213,12 +212,6 @@ export default function CartPage() {
               <span>Subtotal</span>
               <span className="font-medium text-[#191c1d]">
                 {formatCurrency(subtotal)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm text-[#444] mt-2">
-              <span>Taxa de Entrega</span>
-              <span className="font-medium text-[#191c1d]">
-                {formatCurrency(deliveryFeeCents)}
               </span>
             </div>
             <div className="my-3 h-px bg-[#e1e3e4]" />
