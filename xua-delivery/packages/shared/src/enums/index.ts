@@ -41,6 +41,22 @@ export const SubscriptionStatus = {
 } as const;
 export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
 
+export const UserSubscriptionStatus = {
+  PENDING_PAYMENT: "pending_payment",
+  ACTIVE: "active",
+  PAUSED: "paused",
+  CANCELLED: "cancelled",
+  COMPLETED: "completed",
+} as const;
+export type UserSubscriptionStatus = (typeof UserSubscriptionStatus)[keyof typeof UserSubscriptionStatus];
+
+export const DeliveryDateStatus = {
+  PENDING: "pending",
+  DELIVERED: "delivered",
+  CANCELLED: "cancelled",
+} as const;
+export type DeliveryDateStatus = (typeof DeliveryDateStatus)[keyof typeof DeliveryDateStatus];
+
 export const PaymentKind = {
   ORDER: "order",
   SUBSCRIPTION: "subscription",

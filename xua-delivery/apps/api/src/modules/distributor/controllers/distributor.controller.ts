@@ -42,6 +42,20 @@ export const distributorController = {
   },
 
   /**
+   * GET /api/distributor/all
+   * Lista todas as distribuidoras ativas — exclusivo para ops.
+   */
+  async listAll(_req: Request, res: Response): Promise<void> {
+    try {
+      const distributors = await distributorRepository.findAllActive();
+      res.json({ distributors });
+    } catch (err) {
+      log.error({ err }, "Erro ao listar distribuidoras");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
    * GET /api/distributor/kpis?period=7d
    * Retorna KPIs do distribuidor autenticado.
    */

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Prisma } from "@prisma/client";
-import { AuditEventType, ActorType, SourceApp, PaymentKind, PaymentStatus } from "@prisma/client";
+import { AuditEventType, ActorType, SourceApp, PaymentKind, PaymentStatus, UserSubscriptionStatus } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { logger } from "../../../infra/logger/index.js";
@@ -61,16 +61,17 @@ export const paymentsController = {
     const body =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-    const { event, payment_id, order_id, status: rawStatus } = body as {
+    const { event, payment_id, order_id, user_subscription_id, status: rawStatus } = body as {
       event: string;
       payment_id: string;
-      order_id: string;
+      order_id?: string;
+      user_subscription_id?: string;
       status: string;
     };
 
     const paymentStatus = rawStatus as PaymentStatus;
 
-    if (!event || !payment_id || !order_id) {
+    if (!event || !payment_id || (!order_id && !user_subscription_id)) {
       res.status(400).json({ error: "Payload inválido" });
       return;
     }
@@ -98,24 +99,34 @@ export const paymentsController = {
           await tx.payment.create({
             data: {
               external_id: payment_id,
-              order_id,
+              order_id: order_id ?? null,
+              user_subscription_id: user_subscription_id ?? null,
               status: paymentStatus,
-              kind: PaymentKind.ORDER,
+              kind: user_subscription_id ? PaymentKind.SUBSCRIPTION : PaymentKind.ORDER,
               amount_cents: body.amount_cents ?? 0,
             },
           });
         }
 
         if (rawStatus === "approved") {
-          await tx.order.update({
-            where: { id: order_id },
-            data: { payment_status: "paid" },
-          });
+          if (user_subscription_id) {
+            await tx.userSubscription.update({
+              where: { id: user_subscription_id },
+              data: { status: UserSubscriptionStatus.ACTIVE },
+            });
+          } else if (order_id) {
+            await tx.order.update({
+              where: { id: order_id },
+              data: { payment_status: "paid" },
+            });
+          }
         } else if (rawStatus === "refunded") {
-          await tx.order.update({
-            where: { id: order_id },
-            data: { payment_status: "refunded" },
-          });
+          if (order_id) {
+            await tx.order.update({
+              where: { id: order_id },
+              data: { payment_status: "refunded" },
+            });
+          }
         }
 
         await auditRepository.emit(

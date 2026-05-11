@@ -146,6 +146,24 @@ enum IdempotencyStatus {
   @@map("idempotency_status")
 }
 
+enum UserSubscriptionStatus {
+  PENDING_PAYMENT  @map("pending_payment")
+  ACTIVE           @map("active")
+  PAUSED           @map("paused")
+  CANCELLED        @map("cancelled")
+  COMPLETED        @map("completed")
+
+  @@map("user_subscription_status")
+}
+
+enum DeliveryDateStatus {
+  PENDING    @map("pending")
+  DELIVERED  @map("delivered")
+  CANCELLED  @map("cancelled")
+
+  @@map("delivery_date_status")
+}
+
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
@@ -169,6 +187,7 @@ model Consumer {
   push_tokens            ConsumerPushToken[]
   subscriptions          Subscription[]
   deposits               Deposit[]
+  user_subscriptions     UserSubscription[]
 
   @@map("01_mst_consumers")
 }
@@ -189,9 +208,10 @@ model Address {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  consumer Consumer  @relation(fields: [consumer_id], references: [id])
-  zone     Zone?     @relation(fields: [zone_id], references: [id])
-  orders   Order[]
+  consumer            Consumer           @relation(fields: [consumer_id], references: [id])
+  zone                Zone?              @relation(fields: [zone_id], references: [id])
+  orders              Order[]
+  user_subscriptions  UserSubscription[]
 
   @@map("02_mst_addresses")
 }
@@ -215,7 +235,9 @@ model Distributor {
   reconciliations Reconciliation[]
   schedules       DistributorSchedule[]
   blocked_dates   DistributorBlockedDate[]
-  time_slots      TimeSlot[]
+  time_slots                     TimeSlot[]
+  subscription_plan_distributors SubscriptionPlanDistributor[]
+  user_subscriptions             UserSubscription[]
 
   @@map("03_mst_distributors")
 }
@@ -260,7 +282,8 @@ model Product {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  order_items OrderItem[]
+  order_items         OrderItem[]
+  subscription_plans  SubscriptionPlan[]
 
   @@map("06_mst_products")
 }
@@ -342,7 +365,8 @@ model Order {
   deposits    Deposit[]
   otps        OrderOtp[]
   audit_events AuditEvent[]
-  subscription_orders SubscriptionOrder[]
+  subscription_orders         SubscriptionOrder[]
+  subscription_delivery_date  SubscriptionDeliveryDate?
 
   @@map("09_trn_orders")
 }
@@ -403,7 +427,8 @@ model SubscriptionOrder {
 
 model Payment {
   id                   String        @id @default(uuid()) @db.Uuid
-  order_id             String        @db.Uuid
+  order_id             String?       @db.Uuid
+  user_subscription_id String?       @db.Uuid
   kind                 PaymentKind   @default(ORDER)
   status               PaymentStatus @default(CREATED)
   amount_cents         Int           @default(0)
@@ -415,8 +440,9 @@ model Payment {
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
 
-  order        Order                @relation(fields: [order_id], references: [id])
-  transactions PaymentTransaction[]
+  order             Order?             @relation(fields: [order_id], references: [id])
+  user_subscription UserSubscription?  @relation(fields: [user_subscription_id], references: [id])
+  transactions      PaymentTransaction[]
 
   @@map("13_trn_payments")
 }
@@ -603,10 +629,87 @@ model TimeSlot {
   sort_order     Int            @default(0)
   created_at     DateTime       @default(now())
 
-  distributor    Distributor      @relation(fields: [distributor_id], references: [id])
-  capacity_slots DeliveryCapacity[]
-  orders         Order[]
-  subscriptions  Subscription[]
+  distributor                 Distributor               @relation(fields: [distributor_id], references: [id])
+  capacity_slots              DeliveryCapacity[]
+  orders                      Order[]
+  subscriptions               Subscription[]
+  subscription_delivery_dates SubscriptionDeliveryDate[]
 
   @@map("24_cfg_time_slots")
+}
+
+// ─── Subscription Plans (novo modelo pré-definido pela ops) ────
+
+model SubscriptionPlan {
+  id                             String   @id @default(uuid()) @db.Uuid
+  name                           String
+  description                    String?
+  product_id                     String   @db.Uuid
+  quantity                       Int
+  discount_percentage            Int      @default(0)
+  unit_price_with_discount_cents Int
+  valid_from                     DateTime @db.Date
+  valid_until                    DateTime @db.Date
+  is_active                      Boolean  @default(true)
+  created_at                     DateTime @default(now())
+  updated_at                     DateTime @updatedAt
+
+  product            Product                      @relation(fields: [product_id], references: [id])
+  distributors       SubscriptionPlanDistributor[]
+  user_subscriptions UserSubscription[]
+
+  @@map("25_cfg_subscription_plans")
+}
+
+model SubscriptionPlanDistributor {
+  plan_id        String @db.Uuid
+  distributor_id String @db.Uuid
+
+  plan        SubscriptionPlan @relation(fields: [plan_id], references: [id])
+  distributor Distributor      @relation(fields: [distributor_id], references: [id])
+
+  @@id([plan_id, distributor_id])
+  @@map("26_piv_subscription_plan_distributors")
+}
+
+model UserSubscription {
+  id                               String                 @id @default(uuid()) @db.Uuid
+  consumer_id                      String                 @db.Uuid
+  plan_id                          String                 @db.Uuid
+  distributor_id                   String                 @db.Uuid
+  address_id                       String                 @db.Uuid
+  total_quantity                   Int
+  remaining_quantity               Int
+  start_date                       DateTime               @db.Date
+  end_date                         DateTime               @db.Date
+  status                           UserSubscriptionStatus @default(PENDING_PAYMENT)
+  low_balance_notification_sent_at DateTime?
+  created_at                       DateTime               @default(now())
+  updated_at                       DateTime               @updatedAt
+
+  consumer       Consumer                   @relation(fields: [consumer_id], references: [id])
+  plan           SubscriptionPlan           @relation(fields: [plan_id], references: [id])
+  distributor    Distributor                @relation(fields: [distributor_id], references: [id])
+  address        Address                    @relation(fields: [address_id], references: [id])
+  delivery_dates SubscriptionDeliveryDate[]
+  payments       Payment[]
+
+  @@map("27_trn_user_subscriptions")
+}
+
+model SubscriptionDeliveryDate {
+  id                         String             @id @default(uuid()) @db.Uuid
+  user_subscription_id       String             @db.Uuid
+  delivery_date              DateTime           @db.Date
+  time_slot_id               String             @db.Uuid
+  quantity_for_this_delivery Int
+  status                     DeliveryDateStatus @default(PENDING)
+  order_id                   String?            @db.Uuid @unique
+  created_at                 DateTime           @default(now())
+
+  user_subscription UserSubscription @relation(fields: [user_subscription_id], references: [id])
+  time_slot         TimeSlot         @relation(fields: [time_slot_id], references: [id])
+  order             Order?           @relation(fields: [order_id], references: [id])
+
+  @@map("28_trn_subscription_delivery_dates")
 }

@@ -1,0 +1,114 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+export interface SubscriptionWizardState {
+  // Step 1 — Plan
+  selectedPlanId: string | null;
+
+  // Step 2 — Distributor
+  selectedDistributorId: string | null;
+
+  // Step 3 — Address
+  selectedAddressId: string | null;
+
+  // Step 4 — Calendar
+  /** ISO date strings selected by the consumer (e.g. "2026-06-10") */
+  selectedDates: string[];
+
+  /** time_slot_id per date (key = ISO date string) */
+  timeSlotsByDate: Record<string, string>;
+
+  /** quantity of products per date (key = ISO date string) */
+  quantitiesByDate: Record<string, number>;
+
+  // Step 5 — Payment
+  paymentMethod: "pix" | "credit" | "cash";
+
+  // Actions
+  setPlan: (planId: string | null) => void;
+  setDistributor: (distributorId: string | null) => void;
+  setAddress: (addressId: string | null) => void;
+  toggleDate: (date: string) => void;
+  setDates: (dates: string[]) => void;
+  setTimeSlotForDate: (date: string, timeSlotId: string) => void;
+  setQuantityForDate: (date: string, quantity: number) => void;
+  setPaymentMethod: (method: "pix" | "credit" | "cash") => void;
+  reset: () => void;
+}
+
+const initialState: Omit<
+  SubscriptionWizardState,
+  | "setPlan"
+  | "setDistributor"
+  | "setAddress"
+  | "toggleDate"
+  | "setDates"
+  | "setTimeSlotForDate"
+  | "setPaymentMethod"
+  | "reset"
+> = {
+  selectedPlanId: null,
+  selectedDistributorId: null,
+  selectedAddressId: null,
+  selectedDates: [],
+  timeSlotsByDate: {},
+  quantitiesByDate: {},
+  paymentMethod: "pix",
+};
+
+export const useSubscriptionStore = create<SubscriptionWizardState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+
+      setPlan: (planId) =>
+        set({ selectedPlanId: planId, selectedDistributorId: null }),
+
+      setDistributor: (distributorId) =>
+        set({ selectedDistributorId: distributorId }),
+
+      setAddress: (addressId) => set({ selectedAddressId: addressId }),
+
+      toggleDate: (date) =>
+        set((state) => {
+          const already = state.selectedDates.includes(date);
+          if (already) {
+            const next = state.selectedDates.filter((d) => d !== date);
+            const slots = { ...state.timeSlotsByDate };
+            const quantities = { ...state.quantitiesByDate };
+            delete slots[date];
+            delete quantities[date];
+            return { selectedDates: next, timeSlotsByDate: slots, quantitiesByDate: quantities };
+          }
+          return { selectedDates: [...state.selectedDates, date] };
+        }),
+
+      setDates: (dates) =>
+        set((state) => {
+          // Remove slot and quantity entries for dates no longer selected
+          const slots: Record<string, string> = {};
+          const quantities: Record<string, number> = {};
+          for (const d of dates) {
+            if (state.timeSlotsByDate[d]) slots[d] = state.timeSlotsByDate[d];
+            if (state.quantitiesByDate[d]) quantities[d] = state.quantitiesByDate[d];
+          }
+          return { selectedDates: dates, timeSlotsByDate: slots, quantitiesByDate: quantities };
+        }),
+
+      setTimeSlotForDate: (date, timeSlotId) =>
+        set((state) => ({
+          timeSlotsByDate: { ...state.timeSlotsByDate, [date]: timeSlotId },
+        })),
+
+      setQuantityForDate: (date, quantity) =>
+        set((state) => ({
+          quantitiesByDate: { ...state.quantitiesByDate, [date]: quantity },
+        })),
+
+      setPaymentMethod: (method) => set({ paymentMethod: method }),
+
+      reset: () => set(initialState),
+    }),
+    { name: "xua-subscription-wizard" }
+  )
+);

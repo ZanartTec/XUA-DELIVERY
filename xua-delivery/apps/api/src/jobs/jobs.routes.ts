@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { internalJobAuth } from "./internal-job-auth.js";
 import { runSubscriptionJob } from "./subscription-job.js";
 import { runOtpCleanupJob } from "./otp-cleanup-job.js";
+import { runSubscriptionExpiryJob } from "./subscription-expiry-job.js";
 import { logger } from "../infra/logger/index.js";
 
 const router = Router();
@@ -39,6 +40,23 @@ router.post("/otp-cleanup", async (_req: Request, res: Response): Promise<void> 
   } catch (error) {
     const durationMs = Date.now() - start;
     logger.error({ error, durationMs }, "otp-cleanup-job: falhou");
+    res.status(500).json({ error: "Job failed" });
+  }
+});
+
+/** POST /api/internal/jobs/subscription-expiry */
+router.post("/subscription-expiry", async (_req: Request, res: Response): Promise<void> => {
+  const start = Date.now();
+  logger.info("subscription-expiry-job: início");
+
+  try {
+    const result = await runSubscriptionExpiryJob();
+    const durationMs = Date.now() - start;
+    logger.info({ ...result, durationMs }, "subscription-expiry-job: concluído");
+    res.json({ ok: true, ...result, durationMs });
+  } catch (error) {
+    const durationMs = Date.now() - start;
+    logger.error({ error, durationMs }, "subscription-expiry-job: falhou");
     res.status(500).json({ error: "Job failed" });
   }
 });

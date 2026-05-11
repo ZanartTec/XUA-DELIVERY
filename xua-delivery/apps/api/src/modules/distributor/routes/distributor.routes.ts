@@ -64,4 +64,7 @@ router.delete(
   distributorController.deleteTimeSlot,
 );
 
+// Lista todas as distribuidoras ativas — exclusivo para ops
+router.get("/all", requireRole("ops"), distributorController.listAll);
+
 export { router as distributorRoutes };
