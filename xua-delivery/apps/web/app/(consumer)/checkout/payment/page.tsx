@@ -403,7 +403,7 @@ function PaymentContent() {
 
         {/* CTA Button */}
         <Button
-          className="w-full h-14 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-bold text-lg shadow-lg hover:shadow-[#C8F708]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-14 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-bold text-lg shadow-lg hover:shadow-[#00E0FF]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={
             !mounted || loading || previewLoading || !!previewError || !selectedAddress
           }

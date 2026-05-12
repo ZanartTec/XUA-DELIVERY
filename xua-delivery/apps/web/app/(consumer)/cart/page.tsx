@@ -230,7 +230,7 @@ export default function CartPage() {
           {/* CTA Button */}
           <div className="mx-4 mt-4">
             <Link href="/checkout/distributor" className="block">
-              <Button className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all">
+              <Button className="w-full h-12 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all">
                 Continuar para Agendamento
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>

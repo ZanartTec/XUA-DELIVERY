@@ -27,7 +27,7 @@ export function CategoryFilter({ selected, onChange }: CategoryFilterProps) {
           className={cn(
             "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors",
             selected === cat.value
-              ? "bg-[#C8F708] text-[#1a2600]"
+              ? "bg-[#00E0FF] text-[#001735]"
               : "bg-[#f3f4f5] text-[#434656] hover:bg-[#e7e8e9]"
           )}
         >

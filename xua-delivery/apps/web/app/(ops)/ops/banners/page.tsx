@@ -511,7 +511,7 @@ export default function OpsBannersPage() {
         {!creating && (
           <Button
             size="sm"
-            className="rounded-xl bg-[#C8F708] text-[#1a2600] hover:bg-[#C8F708]/90 shadow-none font-semibold"
+            className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
             onClick={() => {
               setCreating(true);
               setEditId(null);
@@ -543,7 +543,7 @@ export default function OpsBannersPage() {
           <Button
             disabled={saving}
             onClick={handleCreate}
-            className="rounded-xl bg-[#C8F708] text-[#1a2600] hover:bg-[#C8F708]/90 shadow-none font-semibold"
+            className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
           >
             <Save className="mr-1 h-4 w-4" />
             {saving ? "Salvando..." : "Criar banner"}
@@ -611,7 +611,7 @@ export default function OpsBannersPage() {
                     <Button
                       disabled={saving}
                       onClick={() => handleUpdate(banner.id)}
-                      className="rounded-xl bg-[#C8F708] text-[#1a2600] hover:bg-[#C8F708]/90 shadow-none font-semibold"
+                      className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
                     >
                       <Save className="mr-1 h-4 w-4" />
                       {saving ? "Salvando..." : "Salvar"}
@@ -645,7 +645,7 @@ export default function OpsBannersPage() {
                     className={
                       banner.is_active
                         ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"
-                        : "h-7 text-xs rounded-xl bg-[#C8F708] text-[#1a2600] hover:bg-[#C8F708]/90 shadow-none"
+                        : "h-7 text-xs rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none"
                     }
                     onClick={() => toggleActive(banner)}
                   >

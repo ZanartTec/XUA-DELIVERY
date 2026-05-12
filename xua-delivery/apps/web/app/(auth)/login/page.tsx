@@ -105,7 +105,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="nome@exemplo.com"
-                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#C8F708] focus-visible:ring-1 focus-visible:ring-[#C8F708]/60"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
                 {...register("email")}
               />
               {errors.email && (
@@ -130,7 +130,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#C8F708] focus-visible:ring-1 focus-visible:ring-[#C8F708]/60"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
                 {...register("password")}
               />
               {errors.password && (
@@ -141,7 +141,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#C8F708] text-[#1a2600] text-base font-semibold transition-all hover:bg-[#C8F708]/90 active:scale-[0.98] disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-[#001735] text-base font-semibold transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98] disabled:opacity-60"
             >
               {isSubmitting ? "Entrando..." : "Entrar"}
               {!isSubmitting && <ArrowRight className="h-4 w-4" />}

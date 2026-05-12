@@ -190,7 +190,7 @@ export default function CheckoutDistributorPage() {
         <div className="sticky bottom-0 mx-4 mt-5 mb-4">
           <Button
             onClick={handleContinue}
-            className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all"
+            className="w-full h-12 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all"
           >
             Continuar para Agendamento
           </Button>

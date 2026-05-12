@@ -21,7 +21,7 @@ export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
           onClick={() => onChange(p.value)}
           className={`px-3 py-1 text-sm rounded-md transition-colors ${
             value === p.value
-              ? "bg-[#C8F708] text-[#1a2600] font-semibold"
+              ? "bg-[#00E0FF] text-[#001735] font-semibold"
               : "hover:bg-muted"
           }`}
         >

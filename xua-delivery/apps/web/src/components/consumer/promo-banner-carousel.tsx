@@ -121,7 +121,7 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
           {slide.cta_text && slide.cta_url && (
             <a
               href={slide.cta_url}
-              className="mt-3 inline-flex items-center rounded-lg bg-[#C8F708] px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#1a2600] transition-colors hover:bg-[#C8F708]/90"
+              className="mt-3 inline-flex items-center rounded-lg bg-[#00E0FF] px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#001735] transition-colors hover:bg-[#00E0FF]/90"
             >
               {slide.cta_text}
             </a>

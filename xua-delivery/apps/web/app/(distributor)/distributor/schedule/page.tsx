@@ -321,7 +321,7 @@ export default function DistributorSchedulePage() {
             size="sm"
             onClick={saveWeekdays}
             disabled={saving || loading}
-            className="bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600]"
+            className="bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
           </Button>
@@ -531,7 +531,7 @@ export default function DistributorSchedulePage() {
                 size="sm"
                 onClick={addTimeSlot}
                 disabled={!slotForm.label || savingSlot}
-                className="bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600]"
+                className="bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
               >
                 {savingSlot ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
               </Button>

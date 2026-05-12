@@ -236,7 +236,7 @@ export default function ProfilePage() {
                 }}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   consumer.auto_assign_distributor
-                    ? "bg-[#C8F708]"
+                    ? "bg-[#00E0FF]"
                     : "bg-[#c4c6cf]"
                 } ${assignToggleLoading ? "opacity-50" : ""}`}
               >
@@ -316,7 +316,7 @@ export default function ProfilePage() {
                       {addr.zip_code}
                     </p>
                     {addr.is_default && (
-                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#C8F708]/20 text-[#1a2600] text-[10px] font-bold uppercase tracking-wider rounded-full">
+                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#00E0FF]/20 text-[#001735] text-[10px] font-bold uppercase tracking-wider rounded-full">
                         Principal
                       </span>
                     )}

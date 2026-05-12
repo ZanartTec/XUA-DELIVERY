@@ -81,8 +81,8 @@ export function PaymentMethodSelector({
               <p className="text-xs text-[#434656]">{pm.sublabel}</p>
             </div>
             {selected && (
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#C8F708]">
-                <Check className="h-3.5 w-3.5 text-[#1a2600]" />
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#00E0FF]">
+                <Check className="h-3.5 w-3.5 text-[#001735]" />
               </div>
             )}
           </button>

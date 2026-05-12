@@ -372,7 +372,7 @@ export default function CheckoutSchedulePage() {
                       ? "bg-[#f0f2f4] text-[#c4c6cf] opacity-50 cursor-not-allowed"
                       : "active:scale-95",
                     !disabled && selected
-                      ? "bg-[#C8F708] text-[#1a2600] shadow-[0_4px_12px_rgba(200,247,8,0.3)]"
+                      ? "bg-[#00E0FF] text-[#001735] shadow-[0_4px_12px_rgba(0,224,255,0.3)]"
                       : !disabled
                         ? "bg-white border border-[#e1e3e4] text-[#191c1d] hover:border-primary/30"
                         : "",
@@ -381,7 +381,7 @@ export default function CheckoutSchedulePage() {
                   <span
                     className={cn(
                       "text-[9px] font-bold uppercase tracking-wider",
-                      selected && !disabled ? "text-[#1a2600]/70" : "text-[#737688]",
+                      selected && !disabled ? "text-[#001735]/70" : "text-[#737688]",
                     )}
                   >
                     {info.top}
@@ -390,7 +390,7 @@ export default function CheckoutSchedulePage() {
                   <span
                     className={cn(
                       "text-[10px] capitalize",
-                      selected && !disabled ? "text-[#1a2600]/60" : "text-[#737688]",
+                      selected && !disabled ? "text-[#001735]/60" : "text-[#737688]",
                     )}
                   >
                     {info.month}
@@ -446,13 +446,13 @@ export default function CheckoutSchedulePage() {
                 <div
                   className={cn(
                     "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                    selected ? "bg-[#C8F708]/15" : "bg-[#f0f2f4]",
+                    selected ? "bg-[#00E0FF]/15" : "bg-[#f0f2f4]",
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-5 w-5",
-                      selected ? "text-[#1a2600]" : "text-[#737688]",
+                      selected ? "text-[#001735]" : "text-[#737688]",
                     )}
                   />
                 </div>
@@ -471,7 +471,7 @@ export default function CheckoutSchedulePage() {
                   className={cn(
                     "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
                     selected
-                      ? "border-[#C8F708] bg-[#C8F708]"
+                      ? "border-[#00E0FF] bg-[#00E0FF]"
                       : "border-[#c4c6cf] bg-transparent",
                   )}
                 >
@@ -533,7 +533,7 @@ export default function CheckoutSchedulePage() {
           </div>
         </div>
         <Button
-          className="w-full h-12 rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
           disabled={!effectiveDate || !selectedWindow || !selectedAddress || (hasTimeSlots && !selectedSlotId)}
           onClick={handleContinue}
         >

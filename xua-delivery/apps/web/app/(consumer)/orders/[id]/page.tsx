@@ -223,7 +223,7 @@ export default function OrderDetailPage() {
           <div className="relative mt-6 pb-2">
             <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
               <div
-                className={`h-full bg-[#C8F708] rounded-full transition-all ${pct}`}
+                className={`h-full bg-[#00E0FF] rounded-full transition-all ${pct}`}
               />
             </div>
             <div className="relative flex justify-between">
@@ -231,7 +231,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 1
-                      ? "bg-[#C8F708] text-[#1a2600]"
+                      ? "bg-[#00E0FF] text-[#001735]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -239,7 +239,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 1 ? "text-[#1a2600]" : "text-[#737688]"
+                    step >= 1 ? "text-[#001735]" : "text-[#737688]"
                   }`}
                 >
                   Confirmado
@@ -249,7 +249,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 2
-                      ? "bg-[#C8F708] text-[#1a2600]"
+                      ? "bg-[#00E0FF] text-[#001735]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -257,7 +257,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 2 ? "text-[#1a2600]" : "text-[#737688]"
+                    step >= 2 ? "text-[#001735]" : "text-[#737688]"
                   }`}
                 >
                   A caminho
@@ -267,7 +267,7 @@ export default function OrderDetailPage() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
                     step >= 3
-                      ? "bg-[#C8F708] text-[#1a2600]"
+                      ? "bg-[#00E0FF] text-[#001735]"
                       : "bg-[#e1e3e4] text-[#737688]"
                   }`}
                 >
@@ -275,7 +275,7 @@ export default function OrderDetailPage() {
                 </div>
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 3 ? "text-[#1a2600]" : "text-[#737688]"
+                    step >= 3 ? "text-[#001735]" : "text-[#737688]"
                   }`}
                 >
                   Entregue

@@ -105,20 +105,20 @@ export function DistributorSelector({
             className={cn(
               "flex w-full items-start gap-4 rounded-2xl p-4 transition-all active:scale-[0.98]",
               isSelected
-                ? "bg-white border-2 border-[#C8F708] shadow-[0_2px_12px_rgba(200,247,8,0.15)]"
+                ? "bg-white border-2 border-[#00E0FF] shadow-[0_2px_12px_rgba(0,224,255,0.15)]"
                 : "bg-white border border-[#e1e3e4] hover:border-primary/30",
             )}
           >
             <div
               className={cn(
                 "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
-                isSelected ? "bg-[#C8F708]/15" : "bg-[#5697E9]/15",
+                isSelected ? "bg-[#00E0FF]/15" : "bg-[#5697E9]/15",
               )}
             >
               <Building2
                 className={cn(
                   "h-5 w-5",
-                  isSelected ? "text-[#1a2600]" : "text-[#5697E9]",
+                  isSelected ? "text-[#001735]" : "text-[#5697E9]",
                 )}
               />
             </div>
@@ -149,7 +149,7 @@ export function DistributorSelector({
               className={cn(
                 "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors mt-1",
                 isSelected
-                  ? "border-[#C8F708] bg-[#C8F708]"
+                  ? "border-[#00E0FF] bg-[#00E0FF]"
                   : "border-[#c4c6cf] bg-transparent",
               )}
             >

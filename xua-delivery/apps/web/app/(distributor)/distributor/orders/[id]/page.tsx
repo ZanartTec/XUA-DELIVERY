@@ -436,7 +436,7 @@ export default function DistributorOrderDetailPage() {
                         className={cn(
                           "flex h-7 w-7 sm:h-10 sm:w-10 items-center justify-center rounded-full border text-[11px] sm:text-sm font-semibold",
                           isDone
-                            ? "border-[#C8F708] bg-[#C8F708] text-[#1a2600]"
+                            ? "border-[#00E0FF] bg-[#00E0FF] text-[#001735]"
                             : isCurrent
                               ? "border-[#5697E9]/40 bg-[#5697E9]/10 text-[#1B4A9A]"
                               : "border-[#d9dde6] bg-[#f7f8fb] text-[#8a91a1]"
@@ -478,7 +478,7 @@ export default function DistributorOrderDetailPage() {
             <div className="mt-5 space-y-4">
               {canAccept ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] text-base font-semibold shadow-none hover:opacity-90"
+                  className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none hover:opacity-90"
                   disabled={actionLoading}
                   onClick={() => handleAction("accept")}
                 >
@@ -488,7 +488,7 @@ export default function DistributorOrderDetailPage() {
 
               {canProceedToChecklist ? (
                 <Button
-                  className="h-12 w-full rounded-[20px] bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] text-base font-semibold shadow-none active:scale-[0.98]"
+                  className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none active:scale-[0.98]"
                   onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                 >
                   Ir para checklist de despacho

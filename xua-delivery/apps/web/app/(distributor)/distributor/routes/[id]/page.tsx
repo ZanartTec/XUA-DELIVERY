@@ -169,7 +169,7 @@ export default function RouteDetailPage() {
                       <button
                         type="button"
                         onClick={() => window.open(stop.maps_url, "_blank", "noopener,noreferrer")}
-                        className="rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 px-3 py-2 text-sm font-semibold text-[#1a2600] transition-opacity active:scale-[0.98]"
+                        className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 px-3 py-2 text-sm font-semibold text-[#001735] transition-opacity active:scale-[0.98]"
                       >
                         Abrir no Google Maps
                       </button>

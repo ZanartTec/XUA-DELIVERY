@@ -419,7 +419,7 @@ function SubscriptionCard({
                 <button
                   type="button"
                   onClick={() => onAction(sub.id, "resume")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#C8F708] text-[#1a2600] text-sm font-semibold active:scale-[0.97] transition-all"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#00E0FF] text-[#001735] text-sm font-semibold active:scale-[0.97] transition-all"
                 >
                   <Play className="h-3.5 w-3.5" />
                   Retomar

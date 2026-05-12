@@ -237,8 +237,8 @@ export function AddressSheet({
                     </p>
                   </div>
                   {isSelected && (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#C8F708]">
-                      <Check className="h-3.5 w-3.5 text-[#1a2600]" />
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#00E0FF]">
+                      <Check className="h-3.5 w-3.5 text-[#001735]" />
                     </div>
                   )}
                 </button>
@@ -299,7 +299,7 @@ export function AddressSheet({
                   />
                 </div>
                 <Button
-                  className="w-full rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 font-semibold text-[#1a2600] shadow-none hover:opacity-90 active:scale-[0.98]"
+                  className="w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 font-semibold text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]"
                   onClick={handleAdd}
                   disabled={saving || !number}
                 >

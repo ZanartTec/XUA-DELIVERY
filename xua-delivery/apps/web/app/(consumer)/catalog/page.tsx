@@ -219,7 +219,7 @@ export default function CatalogPage() {
                   </div>
                   <Button
                     size="icon"
-                    className="h-9 w-9 rounded-full bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] shadow-none hover:opacity-90 active:scale-95"
+                    className="h-9 w-9 rounded-full bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-95"
                     disabled={!product.is_active}
                     onClick={() => handleAdd(product)}
                   >
@@ -248,7 +248,7 @@ export default function CatalogPage() {
           </div>
           <Link
             href="/subscription/manage"
-            className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-[#C8F708] px-4 text-sm font-bold text-[#1a2600] transition-opacity hover:opacity-90 active:scale-[0.98]"
+            className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-[#00E0FF] px-4 text-sm font-bold text-[#001735] transition-opacity hover:opacity-90 active:scale-[0.98]"
           >
             Saiba Mais
           </Link>

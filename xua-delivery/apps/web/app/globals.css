@@ -6,7 +6,7 @@
 
 :root {
   /* ═══ Xuá Delivery — Design System (Nova Identidade Visual) ═══ */
-  /* Primary: #1B4A9A | Secondary: #5697E9 | Accent: #C8F708        */
+  /* Primary: #1B4A9A | Secondary: #5697E9 | Accent: #00E0FF        */
   --background: #f8f9fa;
   --foreground: #191c1d;
   --card: #ffffff;
@@ -20,8 +20,8 @@
   --secondary-foreground: #001735;
   --muted: #f3f4f5;
   --muted-foreground: #434656;
-  --accent: #C8F708;
-  --accent-foreground: #1a2600;
+  --accent: #00E0FF;
+  --accent-foreground: #001735;
   --destructive: #ba1a1a;
   --border: #C0CDE4;
   --input: #e1e3e4;
@@ -126,8 +126,8 @@ body {
   --secondary-foreground: #DAEEFF;
   --muted: #252730;
   --muted-foreground: #c3c5d9;
-  --accent: #C8F708;
-  --accent-foreground: #111800;
+  --accent: #00E0FF;
+  --accent-foreground: #001735;
   --destructive: #ffb4ab;
   --border: rgba(255,255,255,0.1);
   --input: rgba(255,255,255,0.15);

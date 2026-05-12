@@ -44,7 +44,7 @@ export default function SupportPage() {
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 rounded-xl border-0 bg-[#e1e3e4]"
         />
-        <Button type="submit" disabled={loading} className="rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold shadow-none active:scale-[0.98]">
+        <Button type="submit" disabled={loading} className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]">
           {loading ? "..." : "Buscar"}
         </Button>
       </form>

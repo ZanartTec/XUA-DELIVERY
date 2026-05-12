@@ -96,7 +96,7 @@ export default function ZonesPage() {
                 />
               </div>
             </div>
-            <Button size="sm" onClick={() => saveZone(zone)} className="rounded-xl bg-[#C8F708] hover:bg-[#C8F708]/90 text-[#1a2600] font-semibold shadow-none active:scale-[0.98]">
+            <Button size="sm" onClick={() => saveZone(zone)} className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]">
               Salvar
             </Button>
           </div>

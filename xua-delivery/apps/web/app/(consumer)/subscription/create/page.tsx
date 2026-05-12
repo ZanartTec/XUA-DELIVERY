@@ -380,7 +380,7 @@ export default function SubscriptionCreatePage() {
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <p className="font-bold text-[#191c1d]">{plan.name}</p>
                     {plan.discount_percentage > 0 && (
-                      <Badge className="bg-[#C8F708] text-[#1a2600] text-[10px] font-bold">
+                      <Badge className="bg-[#00E0FF] text-[#001735] text-[10px] font-bold">
                         {plan.discount_percentage}% OFF
                       </Badge>
                     )}
