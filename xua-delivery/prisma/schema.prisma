@@ -332,6 +332,13 @@ model Order {
   time_slot_id               String?        @db.Uuid
   preferred_time_start       Int?
   preferred_time_end         Int?
+  // Snapshot imutável do horário no momento da criação do pedido.
+  // Garante que alterações futuras em TimeSlot não afetem o histórico.
+  scheduled_time_label         String?
+  scheduled_time_start_hour    Int?
+  scheduled_time_start_minute  Int?
+  scheduled_time_end_hour      Int?
+  scheduled_time_end_minute    Int?
   subtotal_cents             Int            @default(0)
   deposit_cents              Int            @default(0)
   deposit_amount_cents       Int            @default(0)

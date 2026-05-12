@@ -62,6 +62,84 @@ export class OrderServiceError extends Error {
 }
 
 /**
+ * Snapshot do horário de entrega gravado no próprio pedido (Order),
+ * de forma a não depender de TimeSlot que pode ser alterado/removido depois.
+ *
+ * Prioridade:
+ *   1. TimeSlot referenciado (label + faixa exatas configuradas pela distribuidora)
+ *   2. preferred_time_start/end (faixa customizada do consumidor)
+ *   3. Fallback determinístico por DeliveryWindow (MORNING 08:00-12:00, AFTERNOON 13:00-18:00)
+ */
+type ScheduledTimeSnapshot = {
+  label: string | null;
+  startHour: number | null;
+  startMinute: number | null;
+  endHour: number | null;
+  endMinute: number | null;
+};
+
+const WINDOW_FALLBACK: Record<DeliveryWindow, { label: string; startHour: number; endHour: number }> = {
+  [DeliveryWindow.MORNING]: { label: "Manhã (08:00–12:00)", startHour: 8, endHour: 12 },
+  [DeliveryWindow.AFTERNOON]: { label: "Tarde (13:00–18:00)", startHour: 13, endHour: 18 },
+};
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+async function resolveScheduledTimeSnapshot(
+  tx: TxClient,
+  input: {
+    timeSlotId: string | null;
+    distributorId: string;
+    deliveryWindow: DeliveryWindow;
+    preferredTimeStart: number | null;
+    preferredTimeEnd: number | null;
+  }
+): Promise<ScheduledTimeSnapshot> {
+  if (input.timeSlotId) {
+    const slot = await tx.timeSlot.findFirst({
+      where: { id: input.timeSlotId, distributor_id: input.distributorId },
+      select: {
+        label: true,
+        start_hour: true,
+        start_minute: true,
+        end_hour: true,
+        end_minute: true,
+      },
+    });
+    if (slot) {
+      return {
+        label: slot.label,
+        startHour: slot.start_hour,
+        startMinute: slot.start_minute,
+        endHour: slot.end_hour,
+        endMinute: slot.end_minute,
+      };
+    }
+  }
+
+  if (input.preferredTimeStart != null && input.preferredTimeEnd != null) {
+    return {
+      label: `${pad2(input.preferredTimeStart)}:00–${pad2(input.preferredTimeEnd)}:00`,
+      startHour: input.preferredTimeStart,
+      startMinute: 0,
+      endHour: input.preferredTimeEnd,
+      endMinute: 0,
+    };
+  }
+
+  const fb = WINDOW_FALLBACK[input.deliveryWindow];
+  return {
+    label: fb.label,
+    startHour: fb.startHour,
+    startMinute: 0,
+    endHour: fb.endHour,
+    endMinute: 0,
+  };
+}
+
+/**
  * OrderService — TODA lógica de negócio do pedido.
  * Padrão: transação Prisma → mutação + audit atômico → Socket.io pós-commit (seção 3.3).
  */
@@ -119,6 +197,16 @@ export const orderService = {
         data.timeSlotId,
       );
 
+      // Snapshot imutável do horário de entrega no momento da criação.
+      // Garante que alterações futuras em TimeSlot não afetem o histórico do pedido.
+      const scheduledSnapshot = await resolveScheduledTimeSnapshot(tx, {
+        timeSlotId: data.timeSlotId ?? null,
+        distributorId: data.distributorId,
+        deliveryWindow: data.deliveryWindow,
+        preferredTimeStart: data.preferredTimeStart ?? null,
+        preferredTimeEnd: data.preferredTimeEnd ?? null,
+      });
+
       const created = await orderRepository.create(
         {
           consumer_id: data.consumerId,
@@ -131,6 +219,11 @@ export const orderService = {
           time_slot_id: data.timeSlotId ?? null,
           preferred_time_start: data.preferredTimeStart ?? null,
           preferred_time_end: data.preferredTimeEnd ?? null,
+          scheduled_time_label: scheduledSnapshot.label,
+          scheduled_time_start_hour: scheduledSnapshot.startHour,
+          scheduled_time_start_minute: scheduledSnapshot.startMinute,
+          scheduled_time_end_hour: scheduledSnapshot.endHour,
+          scheduled_time_end_minute: scheduledSnapshot.endMinute,
           subtotal_cents: subtotalCents,
           deposit_cents: depositAmountCents,
           total_cents: totalCents,

@@ -87,6 +87,27 @@ function formatWindowLabel(window: OrderDetail["delivery_window"]) {
   return window === "MORNING" ? "Manhã" : "Tarde";
 }
 
+function pad2(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+/**
+ * Exibe o horário priorizando o snapshot imutável gravado no pedido.
+ * Fallback para janela genérica em pedidos antigos (pré-snapshot).
+ */
+function formatScheduledTime(order: OrderDetail) {
+  if (order.scheduled_time_label) return order.scheduled_time_label;
+  if (
+    order.scheduled_time_start_hour != null &&
+    order.scheduled_time_end_hour != null
+  ) {
+    const sm = order.scheduled_time_start_minute ?? 0;
+    const em = order.scheduled_time_end_minute ?? 0;
+    return `${pad2(order.scheduled_time_start_hour)}:${pad2(sm)}–${pad2(order.scheduled_time_end_hour)}:${pad2(em)}`;
+  }
+  return formatWindowLabel(order.delivery_window);
+}
+
 function formatShortOrderId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
@@ -243,7 +264,7 @@ export default function DistributorOrderDetailPage() {
               Pedido #{formatShortOrderId(order.id)}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[#5d6473]">
-              {order.consumer_name} • Entrega em {formatDate(order.delivery_date)} • Janela {formatWindowLabel(order.delivery_window)}
+              {order.consumer_name} • Entrega em {formatDate(order.delivery_date)} • Janela {formatScheduledTime(order)}
             </p>
           </div>
 
@@ -294,7 +315,7 @@ export default function DistributorOrderDetailPage() {
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
                 <div>
                   <p className="font-medium text-[#0d1b2f]">{formatDate(order.delivery_date)}</p>
-                  <p className="mt-1 text-[#5d6473]">Janela de entrega: {formatWindowLabel(order.delivery_window)}</p>
+                  <p className="mt-1 text-[#5d6473]">Janela de entrega: {formatScheduledTime(order)}</p>
                 </div>
               </div>
 

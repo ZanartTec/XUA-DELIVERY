@@ -43,6 +43,36 @@ function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
+function pad2(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+/**
+ * Exibe o horário de entrega priorizando o snapshot imutável gravado no pedido.
+ * Fallback para janela genérica em pedidos antigos (pré-snapshot).
+ */
+function formatDeliveryWindow(order: {
+  scheduled_time_label?: string | null;
+  scheduled_time_start_hour?: number | null;
+  scheduled_time_start_minute?: number | null;
+  scheduled_time_end_hour?: number | null;
+  scheduled_time_end_minute?: number | null;
+  delivery_window: string;
+}): string {
+  if (order.scheduled_time_label) return order.scheduled_time_label;
+  if (
+    order.scheduled_time_start_hour != null &&
+    order.scheduled_time_end_hour != null
+  ) {
+    const sm = order.scheduled_time_start_minute ?? 0;
+    const em = order.scheduled_time_end_minute ?? 0;
+    return `${pad2(order.scheduled_time_start_hour)}:${pad2(sm)}–${pad2(order.scheduled_time_end_hour)}:${pad2(em)}`;
+  }
+  return order.delivery_window === DeliveryWindow.MORNING
+    ? "Manhã (08:00–12:00)"
+    : "Tarde (13:00–18:00)";
+}
+
 function getProgress(status: string) {
   const s = status as OrderStatus;
   if (s === OrderStatus.DELIVERED) return { step: 3, pct: "w-full" };
@@ -306,9 +336,7 @@ export default function OrderDetailPage() {
             </div>
             <div>
               <p className="text-sm font-semibold text-[#191c1d]">
-                {order.delivery_window === DeliveryWindow.MORNING
-                  ? "Manhã (08:00–12:00)"
-                  : "Tarde (13:00–18:00)"}
+                {formatDeliveryWindow(order)}
               </p>
               <p className="text-xs text-[#737688]">Janela de entrega</p>
             </div>
