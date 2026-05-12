@@ -98,8 +98,12 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `16_sec_order_otps` | sec | OTPs de entrega: hash HMAC-SHA256, TTL 90min, max 5 tentativas, status `locked` |
 | `17_trn_reconciliations` | trn | Conciliação diária: saídas vs retornos, delta calculado, justificativa obrigatória se > 0 |
 | `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs, disputas e auditoria. Nunca UPDATE/DELETE. |
-| `22_cfg_distributor_schedule` | cfg | **[NOVO]** Agenda semanal por distribuidora. Cada dia da semana pode ser ativado/desativado com `lead_time_hours` (antecedência mínima para aceitar pedidos). Constraint `UNIQUE(distributor_id, day_of_week)`. |
-| `23_cfg_distributor_blocked_dates` | cfg | **[NOVO]** Datas bloqueadas por distribuidora (feriados, manutenção, etc.) com motivo opcional. Constraint `UNIQUE(distributor_id, blocked_date)`. |
+| `22_cfg_distributor_schedule` | cfg | Agenda semanal por distribuidora. Cada dia da semana pode ser ativado/desativado com `lead_time_hours`. Constraint `UNIQUE(distributor_id, day_of_week)`. |
+| `23_cfg_distributor_blocked_dates` | cfg | Datas bloqueadas por distribuidora (feriados, manutenção, etc.) com motivo opcional. Constraint `UNIQUE(distributor_id, blocked_date)`. |
+| `25_cfg_subscription_plans` | cfg | **[NOVO]** Planos de assinatura pré-definidos pela ops. Define produto, quantidade total, desconto, preço com desconto e período de validade. |
+| `26_piv_subscription_plan_distributors` | piv | **[NOVO]** Pivot N:N entre planos e distribuidoras. Apenas distribuidoras vinculadas ao plano aparecem para o consumidor durante a contratação. |
+| `27_trn_user_subscriptions` | trn | **[NOVO]** Assinatura contratada pelo consumidor a partir de um plano. Rastreia `total_quantity`, `remaining_quantity` e `status` (ciclo de vida completo). |
+| `28_trn_subscription_delivery_dates` | trn | **[NOVO]** Datas de entrega agendadas dentro de uma assinatura. Cada data tem quantidade, faixa horária, status e referência ao pedido gerado. |
 
 ### 2.2 Relacionamentos Principais
 
@@ -117,6 +121,11 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `09_trn_orders` | 1 : N | `18_aud_audit_events` | Todo evento gravado com timestamp |
 | `03_mst_distributors` | 1 : N | `22_cfg_distributor_schedule` | Agenda semanal (7 registros possíveis por distribuidora) |
 | `03_mst_distributors` | 1 : N | `23_cfg_distributor_blocked_dates` | Datas bloqueadas para a distribuidora |
+| `25_cfg_subscription_plans` | N : N | `03_mst_distributors` | Via `26_piv_subscription_plan_distributors` |
+| `27_trn_user_subscriptions` | N : 1 | `25_cfg_subscription_plans` | Cada assinatura do consumidor referencia um plano |
+| `27_trn_user_subscriptions` | 1 : N | `28_trn_subscription_delivery_dates` | Datas de entrega agendadas pelo consumidor no momento da contratação |
+| `27_trn_user_subscriptions` | 1 : N | `13_trn_payments` | Pagamento vinculado diretamente à assinatura (não ao pedido) |
+| `28_trn_subscription_delivery_dates` | 0..1 : 1 | `09_trn_orders` | Pedido gerado quando a data de entrega é processada |
 
 ### 2.3 Enums PostgreSQL
 
@@ -131,8 +140,10 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `deposit_status` | `held` \| `refund_initiated` \| `refunded` \| `forfeited` |
 | `actor_type` | `consumer` \| `distributor_user` \| `driver` \| `support` \| `ops` \| `system` |
 | `source_app` | `consumer_web` \| `distributor_web` \| `driver_web` \| `ops_console` \| `backend` |
+| `user_subscription_status` | `pending_payment` \| `active` \| `paused` \| `cancelled` \| `completed` |
+| `delivery_date_status` | `pending` \| `delivered` \| `cancelled` |
 
-> ⚠️ ENUMs criados **ANTES** de qualquer tabela (bloco 00 do schema). Única alteração: `source_app` agora usa `consumer_web`, `distributor_web`, `driver_web`. Demais tabelas e enums 100% idênticos.
+> ⚠️ ENUMs criados **ANTES** de qualquer tabela (bloco 00 do schema). Os enums `user_subscription_status` e `delivery_date_status` foram adicionados junto com as tabelas de assinatura v2 (tabelas 25–28).
 
 ### 2.4 Regras Críticas do Banco
 
@@ -376,25 +387,117 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 
 > **Milestone:** Entrega confirmada via OTP no navegador + sync offline testado com internet desligada
 
-### Semana 4 — Assinatura, Segurança, Testes e Go-Live
+### Semana 4 — Assinatura v2, Segurança, Testes e Go-Live
 
 | Dev A — Backend / Services | Dev B — Frontend / UI |
 |---|---|
-| Rate limiting: 100/min global, 30/min orders, 10/min auth/login | Página `/subscription/create`: qty + janela + Calendar próxima data + preview valor |
-| Headers segurança em `next.config.ts` (X-Frame-Options, CSP, HSTS) | Página `/subscription/manage`: cards active/paused + botões pausar/retomar/cancelar + Dialog confirmação |
+| Rate limiting: 100/min global, 30/min orders, 10/min auth/login | Página `/subscription/create`: wizard 5 etapas (Plano → Distribuidor → Endereço → Datas → Pagamento) |
+| Módulo `subscription-plans`: CRUD de planos (`GET/POST /api/subscription-plans`, `PATCH /api/subscription-plans/:id`) — apenas ops mutaciona | Página `/subscription/manage`: cards por assinatura com status, saldo restante, datas agendadas + ações pausar/retomar/cancelar |
+| Módulo `user-subscriptions`: `POST /api/user-subscriptions` cria assinatura com validações (plano ativo, distribuidor vinculado, soma de quantidades = plan.quantity, datas dentro do período válido) | Página `/ops/subscription-plans`: CRUD de planos com seletor multi-distribuidoras, configuração de preço, datas de validade e produto |
+| `subscription-expiry-job.ts`: job HTTP cron que notifica via push quando `remaining_quantity ≤ 3` e `low_balance_notification_sent_at` for nulo (idempotente) | `useSubscriptionStore` (Zustand + persist): estado do wizard (`selectedPlanId`, `selectedDistributorId`, `selectedAddressId`, `selectedDates`, `timeSlotsByDate`, `quantitiesByDate`, `paymentMethod`) |
+| Headers segurança em `next.config.ts` (X-Frame-Options, CSP, HSTS) | Componente `SubscriptionCalendar`: seleção de múltiplas datas dentro do período válido do plano |
 | Validação HMAC assinatura do webhook do gateway | Página `/orders`: histórico paginado + filtro status + "Repetir pedido" que copia carrinho |
-| Schemas Zod para todos os 24 event_types do audit | Componente `NpsForm`: 5 estrelas clicáveis + textarea + nota 1–2 abre link suporte |
+| Schemas Zod para todos os event_types do audit | Componente `NpsForm`: 5 estrelas clicáveis + textarea + nota 1–2 abre link suporte |
 | Testes de carga: 50 checkouts simultâneos no mesmo slot | Página `/profile`: dados + lista endereços (padrão marcado) + badge caução (retida/devolvida) |
-| Dockerfile multi-stage + graceful shutdown `SIGTERM` no `server.ts` | Página `/distributor/reconciliation`: tabela saídas/retornos + delta + textarea justificativa obrigatória |
-| Script smoke-test automatizado (verifica health, auth, checkout) | Página `/distributor/kpis`: 3 KpiCards (Recharts) + indicador meta atingida/não + seletor período |
-| Seed produção: distribuidor piloto + zona + 30 dias capacidade | Tratamento global: `ErrorBoundary` + mensagens pt-BR + toast reconexão Socket.io |
-| Deploy único: `docker compose up` ou `railway up` + README completo | `manifest.json` (PWA) + Service Worker registrado + teste dispositivo real + ícones |
+| Dockerfile multi-stage + graceful shutdown `SIGTERM` | `manifest.json` (PWA) + Service Worker + teste em dispositivo real |
 
-> **Milestone:** Plataforma em produção — pedido real pago, entregue via OTP, KPIs no dashboard, PWA offline
+> **Milestone:** Plataforma em produção — pedido real pago, entregue via OTP, KPIs no dashboard, assinatura v2 contratável pelo consumidor
 
 ---
 
-## 5. Tecnologias Recomendadas
+## 5. Módulo de Assinaturas v2 — Planos Pré-definidos
+
+> **Atenção:** o sistema anterior de assinaturas (`11_trn_subscriptions`) era baseado em recorrência automática via cron. A versão 2 substitui o wizard livre por planos pré-configurados pela ops. Ambos coexistem no banco.
+
+### 5.1 Visão Geral do Fluxo
+
+```
+Ops cria SubscriptionPlan  →  Consumer escolhe plano  →  Seleciona distribuidor do plano
+→  Seleciona endereço  →  Distribui qtd pelas datas  →  Escolhe pagamento
+→  POST /api/user-subscriptions  →  UserSubscription criada (PENDING_PAYMENT → ACTIVE)
+```
+
+### 5.2 Endpoints
+
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| `GET` | `/api/subscription-plans` | qualquer auth | Lista planos. `?activeOnly=true` (padrão) filtra apenas ativos |
+| `GET` | `/api/subscription-plans/:id` | qualquer auth | Detalhes de um plano |
+| `POST` | `/api/subscription-plans` | ops only | Cria plano com `distributor_ids[]` |
+| `PATCH` | `/api/subscription-plans/:id` | ops only | Atualiza plano (campos parciais + `distributor_ids`) |
+| `GET` | `/api/user-subscriptions` | consumer | Lista assinaturas do consumidor autenticado |
+| `POST` | `/api/user-subscriptions` | consumer | Cria assinatura a partir de um plano |
+| `GET` | `/api/user-subscriptions/:id` | consumer | Detalhes de uma assinatura |
+| `PATCH` | `/api/user-subscriptions/:id/cancel` | consumer | Cancela assinatura |
+| `PATCH` | `/api/user-subscriptions/:id/pause` | consumer | Pausa assinatura |
+| `PATCH` | `/api/user-subscriptions/:id/resume` | consumer | Retoma assinatura pausada |
+
+### 5.3 Payload de Criação — `POST /api/user-subscriptions`
+
+```json
+{
+  "plan_id": "uuid",
+  "distributor_id": "uuid",
+  "address_id": "uuid",
+  "delivery_dates": [
+    { "date": "2026-06-10", "time_slot_id": "uuid", "quantity": 2 },
+    { "date": "2026-06-24", "time_slot_id": "uuid", "quantity": 1 }
+  ],
+  "payment_method": "pix"
+}
+```
+
+### 5.4 Regras de Validação (service)
+
+1. **Plano ativo:** `plan.is_active === true`.
+2. **Distribuidor vinculado:** `distributor_id` deve constar em `SubscriptionPlanDistributor` para o plano.
+3. **Soma de quantidades:** soma de `delivery_dates[].quantity` deve ser exatamente `plan.quantity`.
+4. **Datas dentro do período:** toda data em `delivery_dates` deve estar entre `plan.valid_from` e `plan.valid_until`.
+
+### 5.5 Ciclo de Vida da Assinatura
+
+| Status | Descrição |
+|---|---|
+| `PENDING_PAYMENT` | Criada, aguardando confirmação de pagamento |
+| `ACTIVE` | Pagamento confirmado; entregas sendo processadas |
+| `PAUSED` | Consumidor pausou; entregas suspensas temporariamente |
+| `CANCELLED` | Cancelada (consumidor ou ops) |
+| `COMPLETED` | `remaining_quantity === 0`; todas as entregas realizadas |
+
+### 5.6 Job de Saldo Baixo (`subscription-expiry-job`)
+
+- Rota HTTP: `POST /api/internal/jobs/subscription-expiry` (protegida por `INTERNAL_JOB_SECRET`)
+- Gatilho: Render Cron Job (ou equivalente)
+- Critério: `status = ACTIVE AND remaining_quantity ≤ 3 AND low_balance_notification_sent_at IS NULL`
+- Ação: envia push notification → atualiza `low_balance_notification_sent_at = now()` (idempotente)
+
+### 5.7 Frontend — Wizard de Criação (`/subscription/create`)
+
+| Etapa | O que o consumidor faz |
+|---|---|
+| **0 — Plano** | Escolhe entre os planos ativos. Exibe nome, produto, quantidade, desconto e preço total. |
+| **1 — Distribuidor** | Seleciona uma das distribuidoras vinculadas ao plano escolhido. |
+| **2 — Endereço** | Abre `AddressSheet` para selecionar ou cadastrar endereço. |
+| **3 — Datas** | Usa `SubscriptionCalendar` para marcar datas. Para cada data: escolhe faixa horária e quantidade. Barra de progresso mostra produtos distribuídos vs. total do plano. |
+| **4 — Pagamento** | Escolhe método via `PaymentMethodSelector` (Pix / Cartão / Dinheiro). Exibe resumo final. |
+
+Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"`).
+
+### 5.8 Frontend — Gestão (`/subscription/manage`)
+
+- Lista todas as `UserSubscription` do consumidor com: status badge, plano, distribuidor, datas agendadas, saldo restante.
+- Ações por card: **Pausar**, **Retomar**, **Cancelar** (dialog de confirmação).
+- Detalhe das datas de entrega com status individual por entrega (`PENDING`, `DELIVERED`, `CANCELLED`).
+
+### 5.9 Frontend — Painel Ops (`/ops/subscription-plans`)
+
+- CRUD completo de planos: criar, editar, ativar/desativar.
+- Seletor multi-distribuidoras (`MultiSelect`).
+- Campos: nome, descrição, produto, quantidade, desconto %, preço com desconto, datas de vigência.
+
+---
+
+## 6. Tecnologias Recomendadas
 
 | Categoria | Tecnologia | Justificativa |
 |---|---|---|

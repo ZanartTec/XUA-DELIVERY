@@ -272,11 +272,70 @@ Relacionamentos principais:
 - Operação de distribuidores: `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `22_cfg_distributor_schedule`, `23_cfg_distributor_blocked_dates`, `24_cfg_time_slots`, `07_cfg_delivery_capacity`
 - Catálogo e vitrine: `06_mst_products`, `19_cfg_banners`
 - Pedidos: `09_trn_orders`, `10_trn_order_items`, `16_sec_order_otps`, `18_aud_audit_events`
-- Assinaturas: `11_trn_subscriptions`, `12_piv_subscription_orders`
+- Assinaturas legadas (recorrência simples): `11_trn_subscriptions`, `12_piv_subscription_orders`
+- Assinaturas v2 (planos pré-definidos): `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions`, `28_trn_subscription_delivery_dates`
 - Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`
 - Caução e operação física: `15_trn_deposits`, `17_trn_reconciliations`
 - Notificações: `08_sec_consumer_push_tokens`
 
+## Tabelas de assinaturas v2 (planos pré-definidos)
+
+### 25_cfg_subscription_plans
+
+Armazena os planos de assinatura criados pela área de operações. Cada plano define um produto, quantidade total de entregas, percentual de desconto, preço unitário já com desconto e o período de validade.
+
+O consumidor não cria um plano — ele escolhe um plano existente e cria uma assinatura (`27_trn_user_subscriptions`) a partir dele.
+
+Campos principais: `name`, `description`, `product_id`, `quantity`, `discount_percentage`, `unit_price_with_discount_cents`, `valid_from`, `valid_until`, `is_active`.
+
+Relacionamentos principais:
+- N:1 com `06_mst_products`
+- N:N com `03_mst_distributors` via `26_piv_subscription_plan_distributors`
+- 1:N com `27_trn_user_subscriptions`
+
+### 26_piv_subscription_plan_distributors
+
+Tabela pivot que vincula planos de assinatura a distribuidores. Um plano pode ser operado por uma ou mais distribuidoras, e o consumidor só pode escolher distribuidoras listadas aqui ao criar sua assinatura.
+
+Chave composta: `(plan_id, distributor_id)`.
+
+Relacionamentos principais:
+- N:1 com `25_cfg_subscription_plans`
+- N:1 com `03_mst_distributors`
+
+### 27_trn_user_subscriptions
+
+Representa a assinatura efetivamente contratada pelo consumidor. Guarda a referência ao plano escolhido, à distribuidora, ao endereço, à quantidade total de entregas, ao saldo restante e ao status atual.
+
+O pagamento é vinculado diretamente a este registro (não a um pedido). O campo `remaining_quantity` é decrementado a cada entrega confirmada. Quando chega a 3 ou menos, o job `subscription-expiry-job` envia uma notificação push.
+
+Campos principais: `consumer_id`, `plan_id`, `distributor_id`, `address_id`, `total_quantity`, `remaining_quantity`, `start_date`, `end_date`, `status`, `low_balance_notification_sent_at`.
+
+Status possíveis (`UserSubscriptionStatus`): `PENDING_PAYMENT` → `ACTIVE` → `PAUSED` / `CANCELLED` / `COMPLETED`.
+
+Relacionamentos principais:
+- N:1 com `01_mst_consumers`
+- N:1 com `25_cfg_subscription_plans`
+- N:1 com `03_mst_distributors`
+- N:1 com `02_mst_addresses`
+- 1:N com `28_trn_subscription_delivery_dates`
+- 1:N com `13_trn_payments`
+
+### 28_trn_subscription_delivery_dates
+
+Detalha cada data de entrega agendada dentro de uma assinatura. O consumidor distribui a quantidade total do plano entre múltiplas datas ao criar a assinatura, e cada data pode ter sua própria faixa horária e quantidade.
+
+Quando o pedido gerado para aquela data é entregue, o campo `order_id` é preenchido e o status passa a `DELIVERED`.
+
+Campos principais: `user_subscription_id`, `delivery_date`, `time_slot_id`, `quantity_for_this_delivery`, `status`, `order_id`.
+
+Status possíveis (`DeliveryDateStatus`): `PENDING`, `DELIVERED`, `CANCELLED`.
+
+Relacionamentos principais:
+- N:1 com `27_trn_user_subscriptions`
+- N:1 com `24_cfg_time_slots`
+- 0..1 com `09_trn_orders`
+
 ## Observação importante
 
-Parte da documentação antiga do projeto menciona 21 tabelas, mas o schema Prisma atual já inclui tabelas adicionais, como banners, chaves de idempotência, transações de pagamento e faixas horárias. Este documento reflete o estado atual do banco no repositório.
+Parte da documentação antiga do projeto menciona 21 tabelas, mas o schema Prisma atual já inclui tabelas adicionais. Com as tabelas de assinaturas v2, o total chega a **28 tabelas**. Este documento reflete o estado atual do banco no repositório.

@@ -1,4 +1,4 @@
-# FLUXOS XUÁ DELIVERY
+﻿# FLUXOS XUÁ DELIVERY
 
 ## Fluxo ponta a ponta com :
 
@@ -470,14 +470,12 @@ retornável 20L** com preço e condições para comprar.
     **caução quando existir)** para entender o total.
        - Aceite: breakdown completo; política de caução compreensível.
 
-**C. Assinatura** 7. **Como consumidor, quero contratar uma assinatura** para ter reposição
-contínua “sem ruptura” (proposta de valor).
+**C. Assinatura** 7. **Como consumidor, quero contratar uma assinatura a partir de planos pré-definidos** para ter reposição contínua "sem ruptura" (proposta de valor).
 
-- Aceite: plano configurável (frequência/quantidade); próxima entrega exibida.
+- Aceite: consumidor percorre wizard de 5 etapas (Plano → Distribuidor → Endereço → Datas → Pagamento); distribui a quantidade total do plano entre as datas de entrega escolhidas; soma de quantidades deve ser exatamente igual a plan.quantity.
 8. **Como consumidor, quero pausar/retomar/cancelar assinatura** sem precisar
     falar no WhatsApp.
-       - Aceite: regras de prazo (cutoff) por janela/dia; confirmação e registro do
-          evento.
+       - Aceite: cancelamento gera evento auditável com confirmação via dialog; pausa impede geração de novos pedidos.
 
 **D. Agendamento e SLA** 9. **Como consumidor, quero agendar entrega por janelas
 (manhã/tarde)** para ter previsibilidade.
@@ -675,7 +673,8 @@ Registrar eventos com:
     - agendamento manhã/tarde (capacidade)
 
 
-- assinatura (criar/pausar/cancelar) – versão simples
+- assinatura v2 (contratar a partir de planos pré-definidos pela ops; escolher distribuidor, endereço, datas e faixas horárias; pagar via Pix/cartão/dinheiro)
+- assinatura: pausar/retomar/cancelar com confirmação
 - pagamento in-app
 - status do pedido + push (principais estados)
 - histórico + repetir pedido
@@ -700,8 +699,8 @@ Registrar eventos com:
 
 **Técnico**
 
-- API core (pedidos, janelas, assinatura, pagamentos, eventos)
-- Modelo de dados (orders, subscriptions, events, inventory-lite)
+- API core (pedidos, janelas, assinatura v2 (planos + user-subscriptions), pagamentos, eventos)
+- Modelo de dados (orders, subscription_plans, user_subscriptions, subscription_delivery_dates, events, inventory-lite)
 - Observabilidade mínima (logs + métricas)
 
 **4.2. v1 (robustez operacional + eficiência de custo)**
@@ -798,18 +797,20 @@ pilares._
 - Campo “vazios para troca” no carrinho/checkout.
 - Persistência no pedido ( **expected_empty_return_qty** ).
 
-**C) Assinatura mensal (no MVP)**
+**C) Assinatura v2 — planos pré-definidos (no MVP)**
 
-6. **Como consumidor, quero criar uma assinatura mensal de garrafão 20L** para
-    reposição contínua sem ruptura.
+6. **Como consumidor, quero contratar uma assinatura escolhendo um plano pré-configurado pela ops** para ter reposição contínua sem precisar configurar frequência manualmente.
     **Aceite**
-       - Permite selecionar “mensal” e quantidade.
-       - Exibe próxima entrega/renovação.
+       - Wizard em 5 etapas: Plano → Distribuidor → Endereço → Datas → Pagamento.
+       - Plano exibe: nome, produto, quantidade total, desconto % e preço por unidade.
+       - Consumidor distribui a quantidade do plano entre as datas escolhidas (barra de progresso).
+       - Cada data permite escolher faixa horária e quantidade de produtos.
+       - Validação: soma das quantidades deve ser exatamente `plan.quantity`.
 7. **Como consumidor, quero pausar/retomar/cancelar assinatura** para ter
     flexibilidade.
     **Aceite**
-       - Cancelamento gera evento auditável e confirma política (cutoff).
-       - Pausa impede cobrança/geração de novos pedidos.
+       - Cancelamento gera evento auditável e confirma através de dialog.
+       - Pausa impede cobrança/geração de novos pedidos associados.
 
 **D) Janelas (manhã/tarde) e agendamento**
 
