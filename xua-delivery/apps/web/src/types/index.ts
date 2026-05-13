@@ -31,5 +31,5 @@ export type {
   AuditEventType,
 } from "./enums";
 
-// ─── JWT Payload — importado do shared (fonte de verdade) ──────────
+// --- JWT Payload — importado do shared (fonte de verdade) ----------
 export type { JwtPayload } from "@xua/shared/types";

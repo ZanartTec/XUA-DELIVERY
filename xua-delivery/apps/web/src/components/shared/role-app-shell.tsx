@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
@@ -29,6 +30,8 @@ import { useAuthStore } from "@/src/store/auth";
 import { OfflineBanner } from "@/src/components/shared/offline-banner";
 import { LogoutButton } from "@/src/components/shared/logout-button";
 import { CartNavItem } from "@/src/components/consumer/cart-nav-item";
+import { AddressSheet } from "@/src/components/consumer/address-sheet";
+import type { Address } from "@/src/types";
 
 interface RoleNavItem {
   href: string;
@@ -132,30 +135,62 @@ export function RoleAppShell({
   const resolvedName = storeUser?.name ?? userName ?? null;
   const firstName = resolvedName?.trim().split(/\s+/)[0];
 
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (role !== "consumer" || !storeUser?.id) return;
+    fetch(`/api/consumers/${storeUser.id}/addresses`)
+      .then((r) => r.json())
+      .then((data: { addresses?: Address[] }) => {
+        const list = data.addresses ?? [];
+        const def = list.find((a) => a.is_default) ?? list[0] ?? null;
+        setSelectedAddress(def);
+      })
+      .catch(() => {});
+  }, [role, storeUser?.id]);
+
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
       <OfflineBanner />
 
       {role === "consumer" ? (
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
-          <div className="flex h-16 items-center justify-between gap-3 px-4">
-            {/* Endereço de entrega */}
-            <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-              <MapPin className="h-4 w-4 shrink-0 text-primary" />
-              <div className="min-w-0">
-                <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
-                  Entregar em
-                </span>
-                <span className="flex items-center gap-0.5 text-sm font-medium text-[#191c1d] truncate">
-                  Rua das Águas, 123
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#737688]" />
-                </span>
-              </div>
-            </button>
+        <>
+          <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
+            <div className="flex h-16 items-center justify-between gap-3 px-4">
+              {/* Endereço de entrega */}
+              <button
+                onClick={() => setAddressSheetOpen(true)}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
+                    Entregar em
+                  </span>
+                  <span className="flex items-center gap-0.5 text-sm font-medium text-[#191c1d] truncate">
+                    {selectedAddress
+                      ? `${selectedAddress.street}, ${selectedAddress.number}`
+                      : "Selecione um endereço"}
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#737688]" />
+                  </span>
+                </div>
+              </button>
 
-            <img src="/logo-transparent.png" alt="Xuá" className="h-18 w-auto shrink-0" />
-          </div>
-        </header>
+              <img src="/logo-transparent.png" alt="Xuá" className="h-18 w-auto shrink-0" />
+            </div>
+          </header>
+
+          <AddressSheet
+            open={addressSheetOpen}
+            onOpenChange={setAddressSheetOpen}
+            selectedAddressId={selectedAddress?.id ?? null}
+            onSelect={(addr) => {
+              setSelectedAddress(addr);
+              setAddressSheetOpen(false);
+            }}
+          />
+        </>
       ) : (
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
           <div className="flex h-14 items-center justify-between gap-3 px-4">

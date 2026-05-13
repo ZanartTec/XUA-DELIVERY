@@ -6,7 +6,8 @@ import { useSocket } from "@/src/hooks/use-socket";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { formatCurrency, formatDate } from "@/src/lib/utils";
+import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -19,13 +20,71 @@ import {
   Calendar,
   Clock,
   ShieldCheck,
+  Package,
+  Building2,
+  CreditCard,
+  UserRound,
+  AlertTriangle,
 } from "lucide-react";
 import type { Order } from "@/src/types";
 
+interface PaymentSummary {
+  id: string;
+  kind: string;
+  status: string;
+  amount_cents: number;
+  provider?: string | null;
+  paid_at?: string | null;
+  created_at: string;
+}
+
+interface DepositSummary {
+  id: string;
+  amount_cents: number;
+  status: string;
+  refunded_at?: string | null;
+  created_at: string;
+}
+
+interface OtpSummary {
+  id: string;
+  status: string;
+  attempts: number;
+  expires_at: string;
+  created_at: string;
+}
+
 interface OrderDetail extends Order {
-  items: { product_name: string; qty: number; unit_price_cents: number }[];
+  items: {
+    product_name: string;
+    qty: number;
+    unit_price_cents: number;
+    subtotal_cents: number;
+    image_url: string | null;
+  }[];
   events: TimelineEvent[];
+  payments: PaymentSummary[];
+  deposits: DepositSummary[];
+  otps: OtpSummary[];
   otp_code?: string;
+  consumer_name: string;
+  consumer_email?: string | null;
+  consumer_phone?: string | null;
+  distributor_name: string;
+  distributor_phone?: string | null;
+  distributor_email?: string | null;
+  driver_name?: string | null;
+  driver_phone?: string | null;
+  zone_name: string;
+  sla_deadline?: string | null;
+  total_items_qty: number;
+  time_slot?: {
+    label: string;
+    start_hour: number;
+    start_minute: number;
+    end_hour: number;
+    end_minute: number;
+  } | null;
   address_line?: string;
   address_details?: {
     street: string;
@@ -38,13 +97,55 @@ interface OrderDetail extends Order {
   };
 }
 
-/* ── helpers ── */
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  CREATED: "Criado",
+  AUTHORIZED: "Autorizado",
+  CAPTURED: "Pago",
+  FAILED: "Falhou",
+  REFUNDED: "Reembolsado",
+};
+
+const PAYMENT_KIND_LABELS: Record<string, string> = {
+  ORDER: "Pedido",
+  SUBSCRIPTION: "Assinatura",
+  DEPOSIT: "Caução",
+};
+
+const DEPOSIT_STATUS_LABELS: Record<string, string> = {
+  HELD: "Retida",
+  REFUND_INITIATED: "Reembolso iniciado",
+  REFUNDED: "Reembolsada",
+  FORFEITED: "Retida definitivamente",
+};
+
+const OTP_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Ativo",
+  USED: "Usado",
+  EXPIRED: "Expirado",
+  LOCKED: "Bloqueado",
+};
+
+/* -- helpers -- */
 function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
 function pad2(n: number) {
   return n.toString().padStart(2, "0");
+}
+
+function formatOptional(value?: string | null) {
+  return value?.trim() ? value : "Não informado";
+}
+
+function formatDateTime(date?: string | Date | null) {
+  if (!date) return "Não informado";
+  return `${formatDate(date)} às ${formatTime(date)}`;
+}
+
+function labelFromMap(labels: Record<string, string>, value?: string | null) {
+  if (!value) return "Não informado";
+  return labels[value] ?? value.replaceAll("_", " ").toLowerCase();
 }
 
 /**
@@ -90,6 +191,7 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [nps, setNps] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
   const [npsSubmitted, setNpsSubmitted] = useState(false);
@@ -109,9 +211,18 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     fetch(`/api/orders/${id}`)
-      .then((r) => r.json())
-      .then((data) => setOrder(data.order ?? null))
-      .catch(() => {})
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error ?? `Erro ${response.status}`);
+        }
+        setOrder(data.order ?? null);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        setOrder(null);
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar pedido");
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -158,7 +269,7 @@ export default function OrderDetailPage() {
         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
           <Droplets className="h-10 w-10 text-red-400" />
         </div>
-        <p className="text-[#737688]">Pedido não encontrado.</p>
+        <p className="text-[#737688]">{loadError ?? "Pedido não encontrado."}</p>
         <Button
           variant="ghost"
           className="mt-4 text-primary"
@@ -172,6 +283,22 @@ export default function OrderDetailPage() {
 
   const isDelivered = order.status === "DELIVERED";
   const { step, pct } = getProgress(order.status);
+  const latestPayment = order.payments[0];
+  const latestDeposit = order.deposits[0];
+  const latestOtp = order.otps[0];
+  const hasDeliveryRecords = Boolean(
+    order.qty_20l_sent != null ||
+      order.qty_20l_returned != null ||
+      order.collected_empty_qty > 0 ||
+      order.returned_empty_qty != null ||
+      order.bottle_condition ||
+      order.empty_not_collected_reason ||
+      order.empty_not_collected_notes ||
+      order.cancellation_reason ||
+      order.accepted_at ||
+      order.dispatched_at ||
+      order.delivered_at
+  );
 
   return (
     <div className="pb-6">
@@ -194,7 +321,7 @@ export default function OrderDetailPage() {
         <StatusPill status={order.status} />
       </div>
 
-      {/* ── Active order card with progress ── */}
+      {/* -- Active order card with progress -- */}
       <div className="mx-6 mt-4 bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl" />
 
@@ -288,7 +415,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── OTP Card ── */}
+      {/* -- OTP Card -- */}
       {(otpCode ?? order.otp_code) && (
         <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] p-6 text-white shadow-[0_16px_40px_rgba(27,74,154,0.28)]">
           <div className="flex items-center gap-3 mb-4">
@@ -313,12 +440,23 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Delivery Info ── */}
+      {/* -- Delivery Info -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
           Informações da entrega
         </h3>
         <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
+              <Package className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#191c1d]">
+                {formatDate(order.created_at)} às {formatTime(order.created_at)}
+              </p>
+              <p className="text-xs text-[#737688]">Pedido realizado</p>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
               <Calendar className="h-4 w-4 text-[#5697E9]" />
@@ -344,7 +482,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── Delivery Address ── */}
+      {/* -- Delivery Address -- */}
       {(order.address_line ?? order.address_details) && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
@@ -374,7 +512,158 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Items ── */}
+      {/* -- Operation -- */}
+      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
+          Operação do pedido
+        </h3>
+        <div className="space-y-4 text-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+              <Building2 className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[#191c1d]">{order.distributor_name}</p>
+              <p className="text-xs text-[#737688]">
+                {order.zone_name} • {formatOptional(order.distributor_phone)}
+              </p>
+              {order.distributor_email && (
+                <p className="text-xs text-[#737688] break-all">{order.distributor_email}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+              <UserRound className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[#191c1d]">
+                {order.driver_name ?? "Motorista ainda não atribuído"}
+              </p>
+              <p className="text-xs text-[#737688]">
+                {order.driver_name ? formatOptional(order.driver_phone) : "Será exibido quando o pedido for despachado"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* -- Payment and deposit -- */}
+      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
+          Pagamento e caução
+        </h3>
+        <div className="space-y-4 text-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+              <CreditCard className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              {latestPayment ? (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[#191c1d]">
+                      {labelFromMap(PAYMENT_KIND_LABELS, latestPayment.kind)} • {labelFromMap(PAYMENT_STATUS_LABELS, latestPayment.status)}
+                    </p>
+                    <span className="font-bold text-primary">{formatCurrency(latestPayment.amount_cents)}</span>
+                  </div>
+                  <p className="text-xs text-[#737688]">
+                    {latestPayment.provider ?? "Provedor não informado"} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-[#191c1d]">
+                    {order.payment_status ? labelFromMap(PAYMENT_STATUS_LABELS, order.payment_status) : "Pagamento não registrado"}
+                  </p>
+                  <p className="text-xs text-[#737688]">Nenhum pagamento vinculado a este pedido no banco.</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              {latestDeposit ? (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[#191c1d]">{labelFromMap(DEPOSIT_STATUS_LABELS, latestDeposit.status)}</p>
+                    <span className="font-bold text-[#191c1d]">{formatCurrency(latestDeposit.amount_cents)}</span>
+                  </div>
+                  <p className="text-xs text-[#737688]">
+                    {latestDeposit.refunded_at ? `Reembolsada em ${formatDateTime(latestDeposit.refunded_at)}` : `Criada em ${formatDateTime(latestDeposit.created_at)}`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-[#191c1d]">
+                    {order.deposit_cents > 0 ? formatCurrency(order.deposit_cents) : "Sem caução"}
+                  </p>
+                  <p className="text-xs text-[#737688]">Nenhum registro de caução vinculado a este pedido.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* -- OTP status -- */}
+      {latestOtp && (
+        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
+            Código de confirmação
+          </h3>
+          <div className="flex items-start gap-3 text-sm">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[#191c1d]">{labelFromMap(OTP_STATUS_LABELS, latestOtp.status)}</p>
+              <p className="text-xs text-[#737688]">
+                {latestOtp.attempts} tentativa{latestOtp.attempts === 1 ? "" : "s"} • Expira em {formatDateTime(latestOtp.expires_at)}
+              </p>
+              {!order.otp_code && !otpCode && latestOtp.status === "ACTIVE" && (
+                <p className="mt-1 text-xs text-[#737688]">
+                  O código em claro é enviado em tempo real e não é salvo no banco por segurança.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -- Delivery records -- */}
+      {hasDeliveryRecords && (
+        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
+            Registros da entrega
+          </h3>
+          <div className="space-y-2 text-sm text-[#737688]">
+            {order.accepted_at && <p>Aceito em {formatDateTime(order.accepted_at)}</p>}
+            {order.dispatched_at && <p>Despachado em {formatDateTime(order.dispatched_at)}</p>}
+            {order.delivered_at && <p>Entregue em {formatDateTime(order.delivered_at)}</p>}
+            {order.qty_20l_sent != null && <p>Galões enviados: {order.qty_20l_sent}</p>}
+            {order.qty_20l_returned != null && <p>Galões retornados: {order.qty_20l_returned}</p>}
+            {order.collected_empty_qty > 0 && <p>Vasilhames coletados: {order.collected_empty_qty}</p>}
+            {order.returned_empty_qty != null && <p>Vasilhames devolvidos: {order.returned_empty_qty}</p>}
+            {order.bottle_condition && <p>Condição dos vasilhames: {order.bottle_condition}</p>}
+            {order.empty_not_collected_reason && <p>Motivo de não coleta: {order.empty_not_collected_reason}</p>}
+            {order.empty_not_collected_notes && <p>Observações: {order.empty_not_collected_notes}</p>}
+            {order.cancellation_reason && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-red-700">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>Motivo do cancelamento: {order.cancellation_reason}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* -- Items -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
           Itens do Pedido
@@ -383,8 +672,17 @@ export default function OrderDetailPage() {
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center">
-                  <Droplets className="h-4 w-4 text-primary" />
+                <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center overflow-hidden shrink-0">
+                  {getRenderableProductImageUrl(item.image_url) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={getRenderableProductImageUrl(item.image_url)!}
+                      alt={item.product_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Droplets className="h-4 w-4 text-primary" />
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-[#191c1d]">{item.product_name}</p>
@@ -392,7 +690,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <span className="font-heading font-bold text-[#191c1d]">
-                {formatCurrency(item.unit_price_cents * item.qty)}
+                {formatCurrency(item.subtotal_cents)}
               </span>
             </div>
           ))}
@@ -418,7 +716,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── Timeline ── */}
+      {/* -- Timeline -- */}
       {order.events.length > 0 && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
@@ -428,8 +726,34 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── NPS Rating ── */}
-      {isDelivered && !npsSubmitted && (
+      {/* -- NPS já avaliado -- */}
+      {isDelivered && order.nps_score != null && (
+        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-3">
+            Sua avaliação
+          </h3>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
+              <div
+                key={score}
+                className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                  score <= order.nps_score!
+                    ? "bg-primary text-white"
+                    : "bg-[#f3f4f5] text-[#b0b3c6]"
+                }`}
+              >
+                {score}
+              </div>
+            ))}
+          </div>
+          {order.nps_comment && (
+            <p className="mt-3 text-sm text-[#737688] italic">{order.nps_comment}</p>
+          )}
+        </div>
+      )}
+
+      {/* -- NPS Rating (ainda não avaliado) -- */}
+      {isDelivered && order.nps_score == null && !npsSubmitted && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
             Avalie sua entrega

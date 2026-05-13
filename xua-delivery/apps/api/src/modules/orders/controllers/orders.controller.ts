@@ -42,6 +42,9 @@ export const ordersController = {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
+    const statusGroup = req.query.statusGroup as string | undefined;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
 
     try {
       // SEC-08: Scope support — busca por telefone/email/id
@@ -67,8 +70,22 @@ export const ordersController = {
         return;
       }
 
-      const orders = await orderService.listOrders(user.sub, user.role, scope, statusParam);
-      res.json({ orders });
+      const result = await orderService.listOrders(
+        user.sub,
+        user.role,
+        scope,
+        statusParam,
+        page,
+        limit,
+        statusGroup
+      );
+
+      // Consumer returns paginated envelope; other roles return plain array
+      if (Array.isArray(result)) {
+        res.json({ orders: result });
+      } else {
+        res.json(result);
+      }
     } catch (error) {
       if (error instanceof OrderServiceError) {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
@@ -189,18 +206,17 @@ export const ordersController = {
     const id = req.params.id as string;
 
     try {
-      const order = await orderRepository.findById(id);
-      if (!order) {
+      const detail = await orderService.getOrderDetail(id);
+      if (!detail) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
       }
 
-      if (!(await orderPolicy.canAccess(order, user.sub, user.role))) {
+      if (!(await orderPolicy.canAccess(detail, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
 
-      const detail = await orderService.getOrderDetail(id);
       res.json({ order: detail });
     } catch (error) {
       logger.error({ error }, "Error fetching order");

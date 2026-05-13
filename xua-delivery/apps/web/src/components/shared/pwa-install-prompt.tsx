@@ -44,9 +44,9 @@ export function PwaInstallPrompt() {
 
   return (
     <>
-      {/* ──────────────────────────────────────────────────────────────
+      {/* --------------------------------------------------------------
           Banner flutuante acima da bottom navigation (4rem ≈ nav height)
-      ────────────────────────────────────────────────────────────── */}
+      -------------------------------------------------------------- */}
       <div
         className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 flex justify-center px-4 pointer-events-none"
         role="banner"
@@ -82,9 +82,9 @@ export function PwaInstallPrompt() {
         </div>
       </div>
 
-      {/* ──────────────────────────────────────────────────────────────
+      {/* --------------------------------------------------------------
           Sheet com instruções de instalação no iOS (Safari)
-      ────────────────────────────────────────────────────────────── */}
+      -------------------------------------------------------------- */}
       <Sheet open={isIosSheetOpen} onOpenChange={setIsIosSheetOpen}>
         <SheetContent
           side="bottom"

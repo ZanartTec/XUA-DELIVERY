@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 
 export interface FeaturedBanner {
   id: string;
@@ -33,7 +34,7 @@ export function FeaturedProductCard({
 }: FeaturedProductCardProps) {
   const title = banner?.title ?? name ?? "";
   const subtitle = banner?.subtitle ?? description ?? "";
-  const image = banner?.image_url ?? imageUrl;
+  const image = getRenderableProductImageUrl(banner?.image_url ?? imageUrl);
   const ctaText = banner?.cta_text ?? "Conferir agora";
   const ctaUrl = banner?.cta_url ?? href;
   const tag = banner?.tag ?? "Novo";

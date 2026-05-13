@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 
 interface CartItem {
   product_id: string;
@@ -44,7 +45,12 @@ export const useCartStore = create<CartState>()(
               ),
             };
           }
-          return { items: [...state.items, { ...item, quantity: 1 }] };
+          return {
+            items: [
+              ...state.items,
+              { ...item, image_url: getRenderableProductImageUrl(item.image_url), quantity: 1 },
+            ],
+          };
         }),
 
       removeItem: (productId) =>

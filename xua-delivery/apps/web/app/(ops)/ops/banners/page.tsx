@@ -102,7 +102,7 @@ function draftToPayload(d: BannerDraft) {
   };
 }
 
-/* ── Componentes auxiliares do formulário ── */
+/* -- Componentes auxiliares do formulário -- */
 
 function Field({
   label,
@@ -173,7 +173,7 @@ function ColorInput({
   );
 }
 
-/* ── Formulário principal ── */
+/* -- Formulário principal -- */
 
 function BannerForm({
   draft,
@@ -186,7 +186,7 @@ function BannerForm({
 
   return (
     <div className="space-y-5">
-      {/* ─ Tipo e posição ─ */}
+      {/* - Tipo e posição - */}
       <div>
         <SectionHeader
           icon={Layers}
@@ -218,7 +218,7 @@ function BannerForm({
         </div>
       </div>
 
-      {/* ─ Conteúdo ─ */}
+      {/* - Conteúdo - */}
       <div>
         <SectionHeader
           icon={Type}
@@ -263,7 +263,7 @@ function BannerForm({
         </div>
       </div>
 
-      {/* ─ Botão de ação (CTA) ─ */}
+      {/* - Botão de ação (CTA) - */}
       <div>
         <SectionHeader
           icon={Info}
@@ -290,7 +290,7 @@ function BannerForm({
         </div>
       </div>
 
-      {/* ─ Cores ─ */}
+      {/* - Cores - */}
       <div>
         <SectionHeader
           icon={Palette}
@@ -339,7 +339,7 @@ function BannerForm({
         </div>
       </div>
 
-      {/* ─ Imagens ─ */}
+      {/* - Imagens - */}
       <div>
         <SectionHeader
           icon={Image}

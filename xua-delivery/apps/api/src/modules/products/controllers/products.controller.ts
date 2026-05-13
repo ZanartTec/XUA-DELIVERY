@@ -1,85 +1,59 @@
-import type { Request, Response } from "express";
-import { logger } from "../../../infra/logger/index.js";
+import type { NextFunction, Request, Response } from "express";
+import { productCreateSchema, productUpdateSchema } from "@xua/shared/schemas/product";
 import { productsService } from "../services/products.service.js";
 
 export const productsController = {
-  /** GET /api/products */
-  async list(_req: Request, res: Response): Promise<void> {
+  /** GET /api/products — catálogo ativo */
+  async list(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const products = await productsService.listActive();
       res.json({ products });
-    } catch (error) {
-      logger.error({ error }, "Error listing products");
-      res.status(500).json({ error: "Erro interno" });
+    } catch (err) {
+      next(err);
     }
   },
 
   /** GET /api/products/all — somente ops */
-  async listAll(_req: Request, res: Response): Promise<void> {
+  async listAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const products = await productsService.listAll();
       res.json({ products });
-    } catch (error) {
-      logger.error({ error }, "Error listing all products");
-      res.status(500).json({ error: "Erro interno" });
-    }
-  },
-
-  /** PATCH /api/products/:id — somente ops */
-  async update(req: Request, res: Response): Promise<void> {
-    try {
-      const id = req.params.id as string;
-      const { name, description, image_url, price_cents, deposit_cents, is_active } = req.body as {
-        name?: string;
-        description?: string | null;
-        image_url?: string | null;
-        price_cents?: number;
-        deposit_cents?: number;
-        is_active?: boolean;
-      };
-
-      const product = await productsService.update(id, {
-        name,
-        description,
-        image_url,
-        price_cents,
-        deposit_cents,
-        is_active,
-      });
-      res.json({ product });
-    } catch (error) {
-      logger.error({ error }, "Error updating product");
-      res.status(500).json({ error: "Erro interno" });
+    } catch (err) {
+      next(err);
     }
   },
 
   /** POST /api/products — somente ops */
-  async create(req: Request, res: Response): Promise<void> {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = productCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
     try {
-      const { name, description, image_url, price_cents, deposit_cents } = req.body as {
-        name: string;
-        description?: string | null;
-        image_url?: string | null;
-        price_cents: number;
-        deposit_cents?: number;
-      };
-
-      if (!name || typeof price_cents !== "number") {
-        res.status(400).json({ error: "Nome e preço são obrigatórios" });
-        return;
-      }
-
-      const product = await productsService.create({
-        name,
-        description,
-        image_url,
-        price_cents,
-        deposit_cents,
-      });
+      const product = await productsService.create(parsed.data);
       res.status(201).json({ product });
-    } catch (error) {
-      logger.error({ error }, "Error creating product");
-      res.status(500).json({ error: "Erro interno" });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** PATCH /api/products/:id — somente ops */
+  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const id = req.params.id as string;
+
+    const parsed = productUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const product = await productsService.update(id, parsed.data);
+      res.json({ product });
+    } catch (err) {
+      next(err);
     }
   },
 };

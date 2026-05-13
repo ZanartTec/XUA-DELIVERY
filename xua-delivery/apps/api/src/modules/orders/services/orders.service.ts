@@ -1069,7 +1069,15 @@ export const orderService = {
   /**
    * Lista pedidos conforme role e scope do usuário.
    */
-  async listOrders(userId: string, role: string, scope?: string, statusParam?: string) {
+  async listOrders(
+    userId: string,
+    role: string,
+    scope?: string,
+    statusParam?: string,
+    page = 1,
+    limit = 10,
+    statusGroup?: string
+  ) {
     if (scope === "distributor") {
       if (role !== "distributor_admin") {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
@@ -1147,7 +1155,29 @@ export const orderService = {
     }
 
     if (role === "consumer") {
-      return orderRepository.findByConsumer(userId);
+      const validGroups = ["all", "active", "delivered", "cancelled"] as const;
+      type StatusGroup = (typeof validGroups)[number];
+      const group: StatusGroup = validGroups.includes(statusGroup as StatusGroup)
+        ? (statusGroup as StatusGroup)
+        : "all";
+
+      const safeLimit = Math.min(50, Math.max(1, limit));
+      const safePage = Math.max(1, page);
+
+      const { orders, total, summary } = await orderRepository.findByConsumerPaged(userId, {
+        statusGroup: group,
+        page: safePage,
+        limit: safeLimit,
+      });
+
+      return {
+        orders,
+        total,
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit),
+        limit: safeLimit,
+        summary,
+      };
     }
 
     if (role === "ops" || role === "support") {
@@ -1175,7 +1205,21 @@ export const orderService = {
     if (!result) return null;
 
     const subscriptionContext = buildDistributorOrderOriginContext(result);
-    const { items, audit_events, consumer, address, ...order } = result;
+    const {
+      items,
+      audit_events,
+      consumer,
+      address,
+      distributor,
+      zone,
+      time_slot,
+      driver,
+      payments,
+      deposits,
+      otps,
+      subscription_delivery_date: _subscriptionDeliveryDate,
+      ...order
+    } = result;
     const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
     const addressParts = [
       `${address.street}, ${address.number}`,
@@ -1196,6 +1240,21 @@ export const orderService = {
       consumer_name: consumer.name,
       consumer_email: consumer.email,
       consumer_phone: consumer.phone,
+      distributor_name: distributor.name,
+      distributor_phone: distributor.phone,
+      distributor_email: distributor.email,
+      driver_name: driver?.name ?? null,
+      driver_phone: driver?.phone ?? null,
+      zone_name: zone.name,
+      time_slot: time_slot
+        ? {
+            label: time_slot.label,
+            start_hour: time_slot.start_hour,
+            start_minute: time_slot.start_minute,
+            end_hour: time_slot.end_hour,
+            end_minute: time_slot.end_minute,
+          }
+        : null,
       address_line: addressParts.join(" - "),
       address_details: {
         street: address.street,
@@ -1219,6 +1278,32 @@ export const orderService = {
         status: e.event_type,
         timestamp: e.occurred_at,
         actor: e.actor_id,
+        actor_type: e.actor_type,
+        source_app: e.source_app,
+        payload: e.payload,
+      })),
+      payments: payments.map((payment) => ({
+        id: payment.id,
+        kind: payment.kind,
+        status: payment.status,
+        amount_cents: payment.amount_cents,
+        provider: payment.provider,
+        paid_at: payment.paid_at,
+        created_at: payment.created_at,
+      })),
+      deposits: deposits.map((deposit) => ({
+        id: deposit.id,
+        amount_cents: deposit.amount_cents,
+        status: deposit.status,
+        refunded_at: deposit.refunded_at,
+        created_at: deposit.created_at,
+      })),
+      otps: otps.map((otp) => ({
+        id: otp.id,
+        status: otp.status,
+        attempts: otp.attempts,
+        expires_at: otp.expires_at,
+        created_at: otp.created_at,
       })),
       otp_code: await redis.get(`otp:${orderId}`) ?? undefined,
     };
