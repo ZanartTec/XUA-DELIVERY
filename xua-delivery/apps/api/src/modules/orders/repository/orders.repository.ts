@@ -62,6 +62,77 @@ export const orderRepository = {
     });
   },
 
+  /**
+   * Lista pedidos paginados de um consumidor, aplicando filtros no banco.
+   * Retorna também contagens por grupo para os chips de filtro.
+   *
+   * @param statusGroup - "all" | "active" | "delivered" | "cancelled"
+   */
+  async findByConsumerPaged(
+    consumerId: string,
+    options: {
+      statusGroup?: "all" | "active" | "delivered" | "cancelled";
+      page: number;
+      limit: number;
+    },
+    tx?: TxClient
+  ): Promise<{ orders: Order[]; total: number; summary: Record<string, number> }> {
+    const prisma = tx ?? getPrisma();
+
+    const TERMINAL = [
+      "DELIVERED" as OrderStatus,
+      "CANCELLED" as OrderStatus,
+      "DELIVERY_FAILED" as OrderStatus,
+      "REJECTED_BY_DISTRIBUTOR" as OrderStatus,
+    ];
+
+    const whereFilter: Prisma.OrderWhereInput = (() => {
+      switch (options.statusGroup) {
+        case "active":
+          return { consumer_id: consumerId, status: { notIn: TERMINAL } };
+        case "delivered":
+          return { consumer_id: consumerId, status: "DELIVERED" as OrderStatus };
+        case "cancelled":
+          return {
+            consumer_id: consumerId,
+            status: { in: ["CANCELLED", "DELIVERY_FAILED", "REJECTED_BY_DISTRIBUTOR"] as OrderStatus[] },
+          };
+        default:
+          return { consumer_id: consumerId };
+      }
+    })();
+
+    const [orders, total, statusGroups] = await Promise.all([
+      prisma.order.findMany({
+        where: whereFilter,
+        orderBy: { created_at: "desc" },
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+      }),
+      prisma.order.count({ where: whereFilter }),
+      prisma.order.groupBy({
+        by: ["status"],
+        where: { consumer_id: consumerId },
+        _count: { id: true },
+      }),
+    ]);
+
+    // Compute summary counts from groupBy result
+    const summary: Record<string, number> = { all: 0, active: 0, delivered: 0, cancelled: 0 };
+    for (const row of statusGroups) {
+      const count = row._count.id;
+      summary.all += count;
+      if (TERMINAL.includes(row.status)) {
+        if (row.status === "DELIVERED") summary.delivered += count;
+        else summary.cancelled += count;
+      } else {
+        summary.active += count;
+      }
+    }
+
+    return { orders, total, summary };
+  },
+
   async findByDistributor(
     distributorId: string,
     statuses?: OrderStatus[],

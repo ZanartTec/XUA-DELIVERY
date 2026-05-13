@@ -977,7 +977,15 @@ export const orderService = {
   /**
    * Lista pedidos conforme role e scope do usuário.
    */
-  async listOrders(userId: string, role: string, scope?: string, statusParam?: string) {
+  async listOrders(
+    userId: string,
+    role: string,
+    scope?: string,
+    statusParam?: string,
+    page = 1,
+    limit = 10,
+    statusGroup?: string
+  ) {
     if (scope === "distributor") {
       if (role !== "distributor_admin") {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
@@ -1052,7 +1060,29 @@ export const orderService = {
     }
 
     if (role === "consumer") {
-      return orderRepository.findByConsumer(userId);
+      const validGroups = ["all", "active", "delivered", "cancelled"] as const;
+      type StatusGroup = (typeof validGroups)[number];
+      const group: StatusGroup = validGroups.includes(statusGroup as StatusGroup)
+        ? (statusGroup as StatusGroup)
+        : "all";
+
+      const safeLimit = Math.min(50, Math.max(1, limit));
+      const safePage = Math.max(1, page);
+
+      const { orders, total, summary } = await orderRepository.findByConsumerPaged(userId, {
+        statusGroup: group,
+        page: safePage,
+        limit: safeLimit,
+      });
+
+      return {
+        orders,
+        total,
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit),
+        limit: safeLimit,
+        summary,
+      };
     }
 
     if (role === "ops" || role === "support") {

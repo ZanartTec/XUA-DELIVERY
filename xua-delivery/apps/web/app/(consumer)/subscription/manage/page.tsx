@@ -243,7 +243,7 @@ export default function SubscriptionManagePage() {
         {others.length > 0 && (
           <div>
             <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground mb-2">
-              HistÃ³rico
+              Histórico
             </p>
             <div className="space-y-3">
               {others.map((sub) => (

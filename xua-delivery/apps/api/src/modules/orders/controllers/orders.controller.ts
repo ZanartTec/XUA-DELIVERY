@@ -42,6 +42,9 @@ export const ordersController = {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
+    const statusGroup = req.query.statusGroup as string | undefined;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
 
     try {
       // SEC-08: Scope support — busca por telefone/email/id
@@ -67,8 +70,22 @@ export const ordersController = {
         return;
       }
 
-      const orders = await orderService.listOrders(user.sub, user.role, scope, statusParam);
-      res.json({ orders });
+      const result = await orderService.listOrders(
+        user.sub,
+        user.role,
+        scope,
+        statusParam,
+        page,
+        limit,
+        statusGroup
+      );
+
+      // Consumer returns paginated envelope; other roles return plain array
+      if (Array.isArray(result)) {
+        res.json({ orders: result });
+      } else {
+        res.json(result);
+      }
     } catch (error) {
       if (error instanceof OrderServiceError) {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });

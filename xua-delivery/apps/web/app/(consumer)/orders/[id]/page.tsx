@@ -6,7 +6,7 @@ import { useSocket } from "@/src/hooks/use-socket";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { formatCurrency, formatDate } from "@/src/lib/utils";
+import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -19,11 +19,18 @@ import {
   Calendar,
   Clock,
   ShieldCheck,
+  Package,
 } from "lucide-react";
 import type { Order } from "@/src/types";
 
 interface OrderDetail extends Order {
-  items: { product_name: string; qty: number; unit_price_cents: number }[];
+  items: {
+    product_name: string;
+    qty: number;
+    unit_price_cents: number;
+    subtotal_cents: number;
+    image_url: string | null;
+  }[];
   events: TimelineEvent[];
   otp_code?: string;
   address_line?: string;
@@ -38,7 +45,7 @@ interface OrderDetail extends Order {
   };
 }
 
-/* ── helpers ── */
+/* -- helpers -- */
 function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
@@ -194,7 +201,7 @@ export default function OrderDetailPage() {
         <StatusPill status={order.status} />
       </div>
 
-      {/* ── Active order card with progress ── */}
+      {/* -- Active order card with progress -- */}
       <div className="mx-6 mt-4 bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl" />
 
@@ -288,7 +295,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── OTP Card ── */}
+      {/* -- OTP Card -- */}
       {(otpCode ?? order.otp_code) && (
         <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] p-6 text-white shadow-[0_16px_40px_rgba(27,74,154,0.28)]">
           <div className="flex items-center gap-3 mb-4">
@@ -313,12 +320,23 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Delivery Info ── */}
+      {/* -- Delivery Info -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
           Informações da entrega
         </h3>
         <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
+              <Package className="h-4 w-4 text-[#5697E9]" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#191c1d]">
+                {formatDate(order.created_at)} às {formatTime(order.created_at)}
+              </p>
+              <p className="text-xs text-[#737688]">Pedido realizado</p>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
               <Calendar className="h-4 w-4 text-[#5697E9]" />
@@ -344,7 +362,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── Delivery Address ── */}
+      {/* -- Delivery Address -- */}
       {(order.address_line ?? order.address_details) && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
@@ -374,7 +392,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Items ── */}
+      {/* -- Items -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
           Itens do Pedido
@@ -383,8 +401,17 @@ export default function OrderDetailPage() {
           {order.items.map((item, i) => (
             <div key={i} className="flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center">
-                  <Droplets className="h-4 w-4 text-primary" />
+                <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center overflow-hidden shrink-0">
+                  {item.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.image_url}
+                      alt={item.product_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Droplets className="h-4 w-4 text-primary" />
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-[#191c1d]">{item.product_name}</p>
@@ -418,7 +445,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ── Timeline ── */}
+      {/* -- Timeline -- */}
       {order.events.length > 0 && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
@@ -428,8 +455,34 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── NPS Rating ── */}
-      {isDelivered && !npsSubmitted && (
+      {/* -- NPS já avaliado -- */}
+      {isDelivered && order.nps_score != null && (
+        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-3">
+            Sua avaliação
+          </h3>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
+              <div
+                key={score}
+                className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                  score <= order.nps_score!
+                    ? "bg-primary text-white"
+                    : "bg-[#f3f4f5] text-[#b0b3c6]"
+                }`}
+              >
+                {score}
+              </div>
+            ))}
+          </div>
+          {order.nps_comment && (
+            <p className="mt-3 text-sm text-[#737688] italic">"{order.nps_comment}"</p>
+          )}
+        </div>
+      )}
+
+      {/* -- NPS Rating (ainda não avaliado) -- */}
+      {isDelivered && order.nps_score == null && !npsSubmitted && (
         <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
           <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
             Avalie sua entrega
