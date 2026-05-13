@@ -8,6 +8,7 @@ import { useAuthStore } from "@/src/store/auth";
 import { useCheckoutStore } from "@/src/store/checkout";
 import { formatCurrency } from "@/src/lib/utils";
 import { cn } from "@/src/lib/utils";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Button } from "@/src/components/ui/button";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import type { Address } from "@/src/types";
@@ -326,9 +327,9 @@ function PaymentContent() {
                   className="flex items-center gap-4"
                 >
                   <div className="h-16 w-16 shrink-0 rounded-lg bg-[#f8f9fa] overflow-hidden flex items-center justify-center">
-                    {item.image_url ? (
+                    {getRenderableProductImageUrl(item.image_url) ? (
                       <Image
-                        src={item.image_url}
+                        src={getRenderableProductImageUrl(item.image_url)!}
                         alt={item.product_name}
                         width={64}
                         height={64}

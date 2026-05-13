@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCartStore } from "@/src/store/cart";
 import { formatCurrency } from "@/src/lib/utils";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Button } from "@/src/components/ui/button";
 import {
   ShoppingCart,
@@ -18,8 +19,11 @@ import {
 } from "lucide-react";
 
 export default function CartPage() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const items = useCartStore((s) => s.items);
   const emptyBottlesQty = useCartStore((s) => s.emptyBottlesQty);
@@ -91,9 +95,9 @@ export default function CartPage() {
                 <div className="flex gap-4">
                   {/* Product Image */}
                   <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#5697E9]/10 to-[#5697E9]/05 overflow-hidden">
-                    {item.image_url ? (
+                    {getRenderableProductImageUrl(item.image_url) ? (
                       <Image
-                        src={item.image_url}
+                        src={getRenderableProductImageUrl(item.image_url)!}
                         alt={item.product_name}
                         width={80}
                         height={80}

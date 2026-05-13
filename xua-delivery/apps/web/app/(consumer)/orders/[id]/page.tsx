@@ -7,6 +7,7 @@ import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -402,10 +403,10 @@ export default function OrderDetailPage() {
             <div key={i} className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center overflow-hidden shrink-0">
-                  {item.image_url ? (
+                  {getRenderableProductImageUrl(item.image_url) ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={item.image_url}
+                      src={getRenderableProductImageUrl(item.image_url)!}
                       alt={item.product_name}
                       className="w-full h-full object-cover"
                     />
@@ -476,7 +477,7 @@ export default function OrderDetailPage() {
             ))}
           </div>
           {order.nps_comment && (
-            <p className="mt-3 text-sm text-[#737688] italic">"{order.nps_comment}"</p>
+            <p className="mt-3 text-sm text-[#737688] italic">{order.nps_comment}</p>
           )}
         </div>
       )}

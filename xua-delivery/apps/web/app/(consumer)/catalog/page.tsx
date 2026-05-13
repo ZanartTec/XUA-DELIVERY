@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { useCartStore } from "@/src/store/cart";
 import { formatCurrency } from "@/src/lib/utils";
+import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Droplets, Plus, PackageOpen } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -179,10 +180,10 @@ export default function CatalogPage() {
             >
               {/* Imagem */}
               <div className="relative h-36 bg-[#f3f4f5] flex items-center justify-center overflow-hidden">
-                {product.image_url ? (
+                {getRenderableProductImageUrl(product.image_url) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={product.image_url}
+                    src={getRenderableProductImageUrl(product.image_url)!}
                     alt={product.name}
                     className="h-full w-full object-cover transition-transform group-hover:scale-105"
                   />
