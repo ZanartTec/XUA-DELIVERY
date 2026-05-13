@@ -34,13 +34,6 @@ export const OtpStatus = {
 } as const;
 export type OtpStatus = (typeof OtpStatus)[keyof typeof OtpStatus];
 
-export const SubscriptionStatus = {
-  ACTIVE: "active",
-  PAUSED: "paused",
-  CANCELLED: "cancelled",
-} as const;
-export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
-
 export const UserSubscriptionStatus = {
   PENDING_PAYMENT: "pending_payment",
   ACTIVE: "active",

@@ -89,7 +89,3 @@ export const rescheduleSchema = z.object({
 });
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;
 
-export const subscriptionUpdateSchema = z.object({
-  action: z.enum(["pause", "resume", "cancel"]),
-});
-export type SubscriptionUpdateInput = z.infer<typeof subscriptionUpdateSchema>;

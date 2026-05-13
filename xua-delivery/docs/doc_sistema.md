@@ -2157,72 +2157,11 @@ line_total numeric(12,2) not null
 
 create index order_items_order_idx on order_items (order_id);
 
-**2.4. Assinaturas (mensal)**
+**2.4. Assinaturas v2 (planos pré-definidos)**
 
-**2.4.1. subscriptions**
+O modelo ativo de assinatura usa planos criados pela operação e assinaturas contratadas pelo consumidor. A estrutura atual é composta por `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions` e `28_trn_subscription_delivery_dates`.
 
-**sql**
-
-create table subscriptions (
-
-id uuid primary key,
-
-consumer_id uuid not null references consumers(id),
-
-address_id uuid not null references addresses(id),
-
-distributor_id text not null references distributors(id),
-
-zone_id text not null references zones(id),
-
-status text not null, _-- 'active'|'paused'|'cancelled'_
-
-created_at timestamptz not null default now(),
-
-updated_at timestamptz not null default now(),
-
-cadence text not null default 'monthly', _-- fixo MVP_
-
-sku text not null references products(sku),
-
-
-qty int not null check (qty > 0),
-
-next_run_date date not null,
-
-window_preference text, _-- opcional; 'morning'|'afternoon'|null_
-
-cancelled_at timestamptz
-
-);
-
-create index subscriptions_consumer_idx on subscriptions (consumer_id, created_at
-desc);
-
-create index subscriptions_status_idx on subscriptions (status);
-
-create index subscriptions_next_run_idx on subscriptions (next_run_date, status);
-
-**2.4.2. subscription_orders (ligação assinatura → pedidos)**
-
-**sql**
-
-create table subscription_orders (
-
-id uuid primary key,
-
-subscription_id uuid not null references subscriptions(id) on delete cascade,
-
-order_id uuid not null references orders(id) on delete cascade,
-
-created_at timestamptz not null default now(),
-
-unique (subscription_id, order_id)
-
-);
-
-create index subscription_orders_subscription_idx on subscription_orders
-(subscription_id);
+Cada entrega agendada em `28_trn_subscription_delivery_dates` pode gerar um pedido em `09_trn_orders` por meio do job interno de assinaturas. O vínculo com o pedido é feito por `order_id`, sem tabela pivot legada.
 
 **2.5. Pagamentos e caução**
 
@@ -3330,67 +3269,9 @@ create index order_items_order_idx on order_items (order_id);
 - Impedir regressão de estado (ex.: de **OUT_FOR_DELIVERY** para **PICKING** ) — isso
     normalmente é regra do serviço, mas dá para reforçar com trigger.
 
-**2.5. Assinaturas (mensal)**
+**2.5. Assinaturas v2 (planos pré-definidos)**
 
-**sql**
-
-create table subscriptions (
-
-id uuid primary key,
-
-
-consumer_id uuid not null references consumers(id),
-
-address_id uuid not null references addresses(id),
-
-distributor_id text not null references distributors(id),
-
-zone_id text not null references zones(id),
-
-status subscription_status not null default 'active',
-
-created_at timestamptz not null default now(),
-
-updated_at timestamptz not null default now(),
-
-cadence text not null default 'monthly', _-- fixo MVP_
-
-sku text not null references products(sku),
-
-qty int not null check (qty > 0),
-
-next_run_date date not null,
-
-window_preference delivery_window,
-
-cancelled_at timestamptz
-
-);
-
-create index subscriptions_consumer_idx on subscriptions (consumer_id, created_at
-desc);
-
-create index subscriptions_status_idx on subscriptions (status);
-
-create index subscriptions_next_run_idx on subscriptions (next_run_date, status);
-
-create table subscription_orders (
-
-id uuid primary key,
-
-subscription_id uuid not null references subscriptions(id) on delete cascade,
-
-order_id uuid not null references orders(id) on delete cascade,
-
-created_at timestamptz not null default now(),
-
-unique (subscription_id, order_id)
-
-);
-
-
-create index subscription_orders_subscription_idx on subscription_orders
-(subscription_id);
+O modelo ativo remove a recorrência simples e usa datas explícitas de entrega. O consumidor contrata um plano, distribui a quantidade total em datas de entrega e o job interno cria pedidos a partir de `28_trn_subscription_delivery_dates` pendentes.
 
 **2.6. Pagamentos (provider-neutral) + idempotência de webhook**
 

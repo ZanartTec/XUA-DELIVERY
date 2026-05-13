@@ -32,7 +32,8 @@ export const userSubscriptionsController = {
   async getOne(req: Request, res: Response): Promise<void> {
     try {
       const consumerId = req.user!.sub;
-      const sub = await userSubscriptionsService.getById(req.params.id, consumerId);
+      const id = req.params.id as string;
+      const sub = await userSubscriptionsService.getById(id, consumerId);
       res.json(sub);
     } catch (err) {
       handleError(err, res);
@@ -70,7 +71,8 @@ export const userSubscriptionsController = {
   async cancel(req: Request, res: Response): Promise<void> {
     try {
       const consumerId = req.user!.sub;
-      const sub = await userSubscriptionsService.cancel(req.params.id, consumerId);
+      const id = req.params.id as string;
+      const sub = await userSubscriptionsService.cancel(id, consumerId);
       res.json(sub);
     } catch (err) {
       handleError(err, res);
@@ -80,7 +82,8 @@ export const userSubscriptionsController = {
   async pause(req: Request, res: Response): Promise<void> {
     try {
       const consumerId = req.user!.sub;
-      const sub = await userSubscriptionsService.pause(req.params.id, consumerId);
+      const id = req.params.id as string;
+      const sub = await userSubscriptionsService.pause(id, consumerId);
       res.json(sub);
     } catch (err) {
       handleError(err, res);
@@ -90,7 +93,8 @@ export const userSubscriptionsController = {
   async resume(req: Request, res: Response): Promise<void> {
     try {
       const consumerId = req.user!.sub;
-      const sub = await userSubscriptionsService.resume(req.params.id, consumerId);
+      const id = req.params.id as string;
+      const sub = await userSubscriptionsService.resume(id, consumerId);
       res.json(sub);
     } catch (err) {
       handleError(err, res);

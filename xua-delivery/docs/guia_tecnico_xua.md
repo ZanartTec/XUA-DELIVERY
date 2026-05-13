@@ -90,8 +90,6 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `08_sec_consumer_push_tokens` | sec | Tokens Web Push API para notificações no navegador (substitui FCM Android) |
 | `09_trn_orders` | trn | Pedido principal — núcleo da máquina de estados (13 estados, trigger de proteção) |
 | `10_trn_order_items` | trn | Itens de cada pedido (SKU, qty, preço snapshot no momento da compra) |
-| `11_trn_subscriptions` | trn | Assinaturas mensais de reposição automática (cron diário 06h) |
-| `12_piv_subscription_orders` | piv | Pivot N:N: liga assinaturas → pedidos gerados automaticamente |
 | `13_trn_payments` | trn | Registro de cobranças — provider-neutral (troca de gateway sem migração de dados) |
 | `14_cfg_payment_webhook_events` | cfg | Idempotência de webhooks: `UNIQUE` + `ON CONFLICT DO NOTHING` |
 | `15_trn_deposits` | trn | Caução de vasilhame — Regra A: libera quando `DELIVERED` + `collected_empty_qty ≥ 1` |
@@ -117,7 +115,6 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `09_trn_orders` | 1 : 1 | `13_trn_payments` | Cada pedido gera exatamente uma cobrança |
 | `09_trn_orders` | 1 : 0..1 | `15_trn_deposits` | Caução apenas na primeira compra |
 | `09_trn_orders` | 1 : N | `16_sec_order_otps` | Novo OTP a cada tentativa de entrega |
-| `11_trn_subscriptions` | N : N | `09_trn_orders` | Via `12_piv_subscription_orders` |
 | `09_trn_orders` | 1 : N | `18_aud_audit_events` | Todo evento gravado com timestamp |
 | `03_mst_distributors` | 1 : N | `22_cfg_distributor_schedule` | Agenda semanal (7 registros possíveis por distribuidora) |
 | `03_mst_distributors` | 1 : N | `23_cfg_distributor_blocked_dates` | Datas bloqueadas para a distribuidora |
@@ -407,7 +404,7 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 
 ## 5. Módulo de Assinaturas v2 — Planos Pré-definidos
 
-> **Atenção:** o sistema anterior de assinaturas (`11_trn_subscriptions`) era baseado em recorrência automática via cron. A versão 2 substitui o wizard livre por planos pré-configurados pela ops. Ambos coexistem no banco.
+> **Atenção:** a assinatura oficial do sistema é a v2, baseada em planos pré-configurados pela ops. O modelo legado de recorrência simples foi removido do schema e do código ativo.
 
 ### 5.1 Visão Geral do Fluxo
 

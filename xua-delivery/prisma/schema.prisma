@@ -43,14 +43,6 @@ enum OtpStatus {
   @@map("otp_status")
 }
 
-enum SubscriptionStatus {
-  ACTIVE     @map("active")
-  PAUSED     @map("paused")
-  CANCELLED  @map("cancelled")
-
-  @@map("subscription_status")
-}
-
 enum PaymentKind {
   ORDER         @map("order")
   SUBSCRIPTION  @map("subscription")
@@ -185,7 +177,6 @@ model Consumer {
   addresses              Address[]
   orders                 Order[]            @relation("ConsumerOrders")
   push_tokens            ConsumerPushToken[]
-  subscriptions          Subscription[]
   deposits               Deposit[]
   user_subscriptions     UserSubscription[]
 
@@ -372,7 +363,6 @@ model Order {
   deposits    Deposit[]
   otps        OrderOtp[]
   audit_events AuditEvent[]
-  subscription_orders         SubscriptionOrder[]
   subscription_delivery_date  SubscriptionDeliveryDate?
 
   @@map("09_trn_orders")
@@ -392,44 +382,6 @@ model OrderItem {
   product Product @relation(fields: [product_id], references: [id])
 
   @@map("10_trn_order_items")
-}
-
-model Subscription {
-  id                    String             @id @default(uuid()) @db.Uuid
-  consumer_id           String             @db.Uuid
-  address_id            String?            @db.Uuid
-  product_id            String?            @db.Uuid
-  distributor_id        String?            @db.Uuid
-  zone_id               String?            @db.Uuid
-  time_slot_id          String?            @db.Uuid
-  quantity              Int                @default(1)
-  delivery_window       DeliveryWindow     @default(MORNING)
-  delivery_day_of_month Int?
-  status                SubscriptionStatus @default(ACTIVE)
-  next_delivery_date    DateTime?          @db.Date
-  qty_20l               Int?
-  weekday               Int?
-  weekdays              Int[]              @default([])
-  created_at            DateTime           @default(now())
-  updated_at            DateTime           @updatedAt
-
-  consumer            Consumer            @relation(fields: [consumer_id], references: [id])
-  time_slot           TimeSlot?           @relation(fields: [time_slot_id], references: [id])
-  subscription_orders SubscriptionOrder[]
-
-  @@map("11_trn_subscriptions")
-}
-
-model SubscriptionOrder {
-  subscription_id String   @db.Uuid
-  order_id        String   @db.Uuid
-  created_at      DateTime @default(now())
-
-  subscription Subscription @relation(fields: [subscription_id], references: [id])
-  order        Order        @relation(fields: [order_id], references: [id])
-
-  @@id([subscription_id, order_id])
-  @@map("12_piv_subscription_orders")
 }
 
 model Payment {
@@ -639,7 +591,6 @@ model TimeSlot {
   distributor                 Distributor               @relation(fields: [distributor_id], references: [id])
   capacity_slots              DeliveryCapacity[]
   orders                      Order[]
-  subscriptions               Subscription[]
   subscription_delivery_dates SubscriptionDeliveryDate[]
 
   @@map("24_cfg_time_slots")

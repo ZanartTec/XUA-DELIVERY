@@ -3,7 +3,6 @@ export {
   DeliveryWindow,
   OrderStatus,
   OtpStatus,
-  SubscriptionStatus,
   PaymentKind,
   PaymentStatus,
   DepositStatus,

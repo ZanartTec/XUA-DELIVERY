@@ -10,7 +10,8 @@ export const subscriptionPlansController = {
 
   async getOne(req: Request, res: Response): Promise<void> {
     try {
-      const plan = await subscriptionPlansService.getPlan(req.params.id);
+      const id = req.params.id as string;
+      const plan = await subscriptionPlansService.getPlan(id);
       res.json(plan);
     } catch (err: unknown) {
       if (err instanceof Error && err.message === "PLAN_NOT_FOUND") {
@@ -73,7 +74,8 @@ export const subscriptionPlansController = {
 
   async update(req: Request, res: Response): Promise<void> {
     try {
-      const plan = await subscriptionPlansService.updatePlan(req.params.id, req.body);
+      const id = req.params.id as string;
+      const plan = await subscriptionPlansService.updatePlan(id, req.body);
       res.json({ plan });
     } catch (err: unknown) {
       if (err instanceof Error && err.message === "PLAN_NOT_FOUND") {

@@ -141,7 +141,7 @@ function formatShortOrderId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
-function isSubscriptionOrder(order: OrderDetail) {
+function isFromSubscription(order: OrderDetail) {
   return order.order_origin === "subscription";
 }
 
@@ -287,8 +287,8 @@ export default function DistributorOrderDetailPage() {
   const rejectReady = rejectReason !== "" && (!rejectNeedsDetails || rejectDetails.trim().length >= 10);
   const currentStepIndex = getStatusStepIndex(order.status);
   const hasTerminalIssue = matchesStatuses(order.status, TERMINAL_ISSUE_STATUSES);
-  const subscriptionOrder = isSubscriptionOrder(order);
-  const OriginIcon = subscriptionOrder ? Repeat2 : ShoppingCart;
+  const fromSubscription = isFromSubscription(order);
+  const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
   const subscriptionProgress = formatSubscriptionProgress(order);
   const completedDeliveries = order.completed_deliveries ?? 0;
   const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
@@ -465,7 +465,7 @@ export default function DistributorOrderDetailPage() {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Origem do pedido</p>
                 <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">
-                  {subscriptionOrder ? "Assinatura" : "Carrinho"}
+                  {fromSubscription ? "Assinatura" : "Carrinho"}
                 </h2>
               </div>
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#edf4ff] text-[#0b2a59]">
@@ -473,7 +473,7 @@ export default function DistributorOrderDetailPage() {
               </div>
             </div>
 
-            {subscriptionOrder ? (
+            {fromSubscription ? (
               <div className="mt-5 space-y-3 text-sm text-[#334155]">
                 <div className="rounded-[18px] sm:rounded-[24px] bg-[#f7f8fb] px-3 py-3 sm:px-4 sm:py-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d8494]">Plano</p>

@@ -52,7 +52,7 @@ function formatScheduledTime(order: QueueOrder) {
   return order.delivery_window === "MORNING" ? "Manhã (08:00-12:00)" : "Tarde (13:00-18:00)";
 }
 
-function isSubscriptionOrder(order: QueueOrder) {
+function isFromSubscription(order: QueueOrder) {
   return order.order_origin === "subscription";
 }
 
@@ -168,8 +168,8 @@ function QueueSkeleton() {
 function OrderCard({ order }: { order: QueueOrder }) {
   const stage = getStageMeta(order.status);
   const StageIcon = stage.icon;
-  const subscriptionOrder = isSubscriptionOrder(order);
-  const OriginIcon = subscriptionOrder ? Repeat2 : ShoppingCart;
+  const fromSubscription = isFromSubscription(order);
+  const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
   const subscriptionProgress = formatSubscriptionProgress(order);
   const completedDeliveries = order.completed_deliveries ?? 0;
   const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
@@ -204,7 +204,7 @@ function OrderCard({ order }: { order: QueueOrder }) {
             <div className="space-y-1">
               <p className="text-sm font-semibold text-[#1f2937]">{order.consumer_name}</p>
               <p className="text-sm text-[#5d6473]">{order.item_summary}</p>
-              {subscriptionOrder ? (
+              {fromSubscription ? (
                 <p className="text-xs font-semibold text-[#1B4A9A]">
                   Plano {order.subscription_plan_name ?? "Assinatura"}
                 </p>
@@ -242,22 +242,22 @@ function OrderCard({ order }: { order: QueueOrder }) {
 
               <span className="inline-flex items-center gap-2 rounded-full bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#0b2a59]">
                 <OriginIcon className="h-3.5 w-3.5" />
-                {subscriptionOrder ? "Assinatura" : "Carrinho"}
+                {fromSubscription ? "Assinatura" : "Carrinho"}
               </span>
 
-              {subscriptionOrder && subscriptionProgress ? (
+              {fromSubscription && subscriptionProgress ? (
                 <span className="inline-flex items-center rounded-full bg-[#e7f7ef] px-3 py-1 text-xs font-semibold text-[#166534]">
                   {subscriptionProgress}
                 </span>
               ) : null}
 
-              {subscriptionOrder ? (
+              {fromSubscription ? (
                 <span className="inline-flex items-center rounded-full bg-[#f3f4f5] px-3 py-1 text-xs font-semibold text-[#5d6473]">
                   {completedDeliveries} concluída{completedDeliveries === 1 ? "" : "s"} • {remainingDeliveries} restante{remainingDeliveries === 1 ? "" : "s"}
                 </span>
               ) : null}
 
-              {subscriptionOrder && order.quantity_for_this_delivery != null ? (
+              {fromSubscription && order.quantity_for_this_delivery != null ? (
                 <span className="inline-flex items-center rounded-full bg-[#fff2dd] px-3 py-1 text-xs font-semibold text-[#7a4700]">
                   Qtd. desta: {order.quantity_for_this_delivery}
                 </span>

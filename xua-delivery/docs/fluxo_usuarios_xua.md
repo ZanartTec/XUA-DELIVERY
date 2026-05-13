@@ -145,13 +145,13 @@ Histórico de pedidos (/orders)
     └── 1 clique: copia itens + endereço + janela preferencial para /cart
     [Pedido cancelado] -> Badge cinza + motivo visível
 
-Assinatura mensal (/subscription/create)
-├── Selecionar quantidade (1–5 garrafões)
-├── Selecionar janela preferencial (manhã ou tarde)
-├── Calendário: próxima data de entrega calculada
-├── Preview: 'Você receberá X garrafões todo dia DD de cada mês'
-├── [Confirmar] -> POST /api/subscriptions
-└── [Automático] Cron diário 06h gera pedido na data configurada
+Assinatura v2 (/subscription/create)
+├── Selecionar plano pré-definido pela operação
+├── Selecionar distribuidora vinculada ao plano
+├── Selecionar endereço e datas de entrega
+├── Selecionar faixa horária por entrega
+├── [Confirmar] -> POST /api/user-subscriptions
+└── [Automático] Job diário gera pedido para cada entrega agendada pendente
 
 Gerenciar assinatura (/subscription/manage)
 ├── Card com status: ativa / pausada / cancelada

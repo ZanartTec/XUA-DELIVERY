@@ -4,7 +4,7 @@ Documento de referência do banco de dados do Xuá Delivery, gerado a partir do 
 
 ## Visão geral
 
-- O schema atual possui 24 tabelas mapeadas no Prisma.
+- O schema atual possui 22 tabelas mapeadas no Prisma.
 - A convenção de nomes segue o padrão `<ordem>_<tipo>_<nome>`.
 - Tipos usados no nome da tabela:
   - `mst`: cadastro mestre
@@ -26,8 +26,8 @@ Relacionamentos principais:
 - 1:N com `02_mst_addresses`
 - 1:N com `09_trn_orders`
 - 1:N com `08_sec_consumer_push_tokens`
-- 1:N com `11_trn_subscriptions`
 - 1:N com `15_trn_deposits`
+- 1:N com `27_trn_user_subscriptions`
 - N:1 com `03_mst_distributors` quando o usuário pertence a uma distribuidora
 
 ### 02_mst_addresses
@@ -165,7 +165,7 @@ Relacionamentos principais:
 - 1:N com `15_trn_deposits`
 - 1:N com `16_sec_order_otps`
 - 1:N com `18_aud_audit_events`
-- N:N com `11_trn_subscriptions` via `12_piv_subscription_orders`
+- 0..1:1 com `28_trn_subscription_delivery_dates` quando gerado por assinatura v2
 
 ### 10_trn_order_items
 
@@ -176,26 +176,6 @@ Esse snapshot protege o histórico do pedido contra mudanças futuras no cadastr
 Relacionamentos principais:
 - N:1 com `09_trn_orders`
 - N:1 com `06_mst_products`
-
-### 11_trn_subscriptions
-
-Armazena as assinaturas de reposição recorrente do consumidor. Define quantidade, janela, dia preferido e próxima data de entrega.
-
-Serve para automatizar pedidos recorrentes, normalmente criados por rotina agendada, sem o consumidor precisar refazer manualmente a compra todo mês.
-
-Relacionamentos principais:
-- N:1 com `01_mst_consumers`
-- N:N com `09_trn_orders` via `12_piv_subscription_orders`
-
-### 12_piv_subscription_orders
-
-Tabela de associação entre assinaturas e pedidos gerados a partir delas.
-
-Ela existe para permitir rastreabilidade completa do vínculo entre uma assinatura recorrente e cada pedido efetivamente criado.
-
-Relacionamentos principais:
-- N:1 com `11_trn_subscriptions`
-- N:1 com `09_trn_orders`
 
 ### 13_trn_payments
 
@@ -272,7 +252,6 @@ Relacionamentos principais:
 - Operação de distribuidores: `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `22_cfg_distributor_schedule`, `23_cfg_distributor_blocked_dates`, `24_cfg_time_slots`, `07_cfg_delivery_capacity`
 - Catálogo e vitrine: `06_mst_products`, `19_cfg_banners`
 - Pedidos: `09_trn_orders`, `10_trn_order_items`, `16_sec_order_otps`, `18_aud_audit_events`
-- Assinaturas legadas (recorrência simples): `11_trn_subscriptions`, `12_piv_subscription_orders`
 - Assinaturas v2 (planos pré-definidos): `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions`, `28_trn_subscription_delivery_dates`
 - Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`
 - Caução e operação física: `15_trn_deposits`, `17_trn_reconciliations`
