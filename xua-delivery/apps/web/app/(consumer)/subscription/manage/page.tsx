@@ -103,7 +103,8 @@ function deliveryDateStatusClass(s: DeliveryDateStatus): string {
 }
 
 function formatIsoDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
+  const datePart = iso.slice(0, 10); // "YYYY-MM-DD"
+  const [y, m, d] = datePart.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("pt-BR", {
     weekday: "short",
     day: "2-digit",
