@@ -1,4 +1,17 @@
-import type { Prisma, Order, OrderStatus, Consumer, Address, OrderItem } from "@prisma/client";
+import type {
+  Prisma,
+  Order,
+  OrderStatus,
+  Consumer,
+  Address,
+  OrderItem,
+  Distributor,
+  Zone,
+  TimeSlot,
+  Payment,
+  Deposit,
+  OrderOtp,
+} from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -14,6 +27,10 @@ export type OrderForQueue = Order & {
 export type OrderWithDetails = Order & {
   consumer: Pick<Consumer, "name" | "email" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
+  distributor: Pick<Distributor, "name" | "phone" | "email">;
+  zone: Pick<Zone, "name">;
+  time_slot: Pick<TimeSlot, "label" | "start_hour" | "start_minute" | "end_hour" | "end_minute"> | null;
+  driver: Pick<Consumer, "name" | "phone"> | null;
   items: {
     quantity: number;
     unit_price_cents: number;
@@ -21,7 +38,17 @@ export type OrderWithDetails = Order & {
     product_name: string;
     product: { image_url: string | null };
   }[];
-  audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
+  payments: Pick<Payment, "id" | "kind" | "status" | "amount_cents" | "provider" | "paid_at" | "created_at">[];
+  deposits: Pick<Deposit, "id" | "amount_cents" | "status" | "refunded_at" | "created_at">[];
+  otps: Pick<OrderOtp, "id" | "status" | "attempts" | "expires_at" | "created_at">[];
+  audit_events: {
+    event_type: string;
+    occurred_at: Date;
+    actor_id: string;
+    actor_type: string;
+    source_app: string;
+    payload: Prisma.JsonValue;
+  }[];
 };
 
 /**
@@ -229,11 +256,27 @@ export const orderRepository = {
     tx?: TxClient
   ): Promise<OrderWithDetails | null> {
     const prisma = getPrisma();
-    return (tx ?? prisma).order.findUnique({
+    const client = tx ?? prisma;
+    const order = await client.order.findUnique({
       where: { id },
       include: {
         consumer: {
           select: { name: true, email: true, phone: true },
+        },
+        distributor: {
+          select: { name: true, phone: true, email: true },
+        },
+        zone: {
+          select: { name: true },
+        },
+        time_slot: {
+          select: {
+            label: true,
+            start_hour: true,
+            start_minute: true,
+            end_hour: true,
+            end_minute: true,
+          },
         },
         address: {
           select: {
@@ -255,12 +298,62 @@ export const orderRepository = {
             product: { select: { image_url: true } },
           },
         },
-          audit_events: {
+        payments: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            kind: true,
+            status: true,
+            amount_cents: true,
+            provider: true,
+            paid_at: true,
+            created_at: true,
+          },
+        },
+        deposits: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            amount_cents: true,
+            status: true,
+            refunded_at: true,
+            created_at: true,
+          },
+        },
+        otps: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            status: true,
+            attempts: true,
+            expires_at: true,
+            created_at: true,
+          },
+        },
+        audit_events: {
           orderBy: { occurred_at: "asc" },
-          select: { event_type: true, occurred_at: true, actor_id: true },
+          select: {
+            event_type: true,
+            occurred_at: true,
+            actor_id: true,
+            actor_type: true,
+            source_app: true,
+            payload: true,
+          },
         },
       },
-      }) as Promise<OrderWithDetails | null>;
+    });
+
+    if (!order) return null;
+
+    const driver = order.driver_id
+      ? await client.consumer.findUnique({
+          where: { id: order.driver_id },
+          select: { name: true, phone: true },
+        })
+      : null;
+
+    return { ...order, driver } as OrderWithDetails;
   },
 
   async searchBySupport(

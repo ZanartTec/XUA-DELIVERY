@@ -206,18 +206,17 @@ export const ordersController = {
     const id = req.params.id as string;
 
     try {
-      const order = await orderRepository.findById(id);
-      if (!order) {
+      const detail = await orderService.getOrderDetail(id);
+      if (!detail) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
       }
 
-      if (!(await orderPolicy.canAccess(order, user.sub, user.role))) {
+      if (!(await orderPolicy.canAccess(detail, user.sub, user.role))) {
         res.status(403).json({ error: "Acesso negado" });
         return;
       }
 
-      const detail = await orderService.getOrderDetail(id);
       res.json({ order: detail });
     } catch (error) {
       logger.error({ error }, "Error fetching order");
