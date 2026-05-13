@@ -16,6 +16,8 @@ import {
   MapPin,
   Package2,
   Phone,
+  Repeat2,
+  ShoppingCart,
   Truck,
 } from "lucide-react";
 import type { Order } from "@/src/types";
@@ -49,6 +51,20 @@ interface OrderDetail extends Order {
   consumer_phone?: string | null;
   sla_deadline?: string | null;
   total_items_qty: number;
+  order_origin?: "cart" | "subscription";
+  user_subscription_id?: string | null;
+  subscription_delivery_date_id?: string | null;
+  subscription_plan_name?: string | null;
+  subscription_status?: string | null;
+  subscription_delivery_status?: string | null;
+  delivery_sequence?: number | null;
+  total_deliveries?: number | null;
+  completed_deliveries?: number | null;
+  remaining_deliveries?: number | null;
+  remaining_after_current?: number | null;
+  quantity_for_this_delivery?: number | null;
+  subscription_total_quantity?: number | null;
+  subscription_remaining_quantity?: number | null;
 }
 
 const REJECT_REASON_OPTIONS = [
@@ -83,8 +99,21 @@ const EVENT_LABELS: Record<string, string> = {
   ORDER_DELIVERED: "Pedido entregue",
 };
 
+const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: "Pagamento pendente",
+  pending_payment: "Pagamento pendente",
+  ACTIVE: "Ativa",
+  active: "Ativa",
+  PAUSED: "Pausada",
+  paused: "Pausada",
+  CANCELLED: "Cancelada",
+  cancelled: "Cancelada",
+  COMPLETED: "Concluída",
+  completed: "Concluída",
+};
+
 function formatWindowLabel(window: OrderDetail["delivery_window"]) {
-  return window === "MORNING" ? "Manhã" : "Tarde";
+  return window === "MORNING" ? "Manhã (08:00-12:00)" : "Tarde (13:00-18:00)";
 }
 
 function pad2(n: number) {
@@ -112,8 +141,22 @@ function formatShortOrderId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
+function isSubscriptionOrder(order: OrderDetail) {
+  return order.order_origin === "subscription";
+}
+
+function formatSubscriptionProgress(order: OrderDetail) {
+  if (order.delivery_sequence == null || order.total_deliveries == null) return null;
+  return `Entrega ${order.delivery_sequence}/${order.total_deliveries}`;
+}
+
 function formatEventLabel(status: string) {
   return EVENT_LABELS[status] ?? status.toLowerCase().replaceAll("_", " ");
+}
+
+function formatSubscriptionStatus(status?: string | null) {
+  if (!status) return "-";
+  return SUBSCRIPTION_STATUS_LABELS[status] ?? status.toLowerCase().replaceAll("_", " ");
 }
 
 function matchesStatuses(status: string, statuses: readonly string[]) {
@@ -244,6 +287,11 @@ export default function DistributorOrderDetailPage() {
   const rejectReady = rejectReason !== "" && (!rejectNeedsDetails || rejectDetails.trim().length >= 10);
   const currentStepIndex = getStatusStepIndex(order.status);
   const hasTerminalIssue = matchesStatuses(order.status, TERMINAL_ISSUE_STATUSES);
+  const subscriptionOrder = isSubscriptionOrder(order);
+  const OriginIcon = subscriptionOrder ? Repeat2 : ShoppingCart;
+  const subscriptionProgress = formatSubscriptionProgress(order);
+  const completedDeliveries = order.completed_deliveries ?? 0;
+  const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-5">
@@ -264,7 +312,7 @@ export default function DistributorOrderDetailPage() {
               Pedido #{formatShortOrderId(order.id)}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[#5d6473]">
-              {order.consumer_name} • Entrega em {formatDate(order.delivery_date)} • Janela {formatScheduledTime(order)}
+              {order.consumer_name} • Entrega em {formatDate(order.delivery_date)} • Horário {formatScheduledTime(order)}
             </p>
           </div>
 
@@ -315,7 +363,7 @@ export default function DistributorOrderDetailPage() {
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
                 <div>
                   <p className="font-medium text-[#0d1b2f]">{formatDate(order.delivery_date)}</p>
-                  <p className="mt-1 text-[#5d6473]">Janela de entrega: {formatScheduledTime(order)}</p>
+                  <p className="mt-1 text-[#5d6473]">Horário de entrega: {formatScheduledTime(order)}</p>
                 </div>
               </div>
 
@@ -410,6 +458,59 @@ export default function DistributorOrderDetailPage() {
                 </div>
               ) : null}
             </div>
+          </section>
+
+          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Origem do pedido</p>
+                <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">
+                  {subscriptionOrder ? "Assinatura" : "Carrinho"}
+                </h2>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#edf4ff] text-[#0b2a59]">
+                <OriginIcon className="h-5 w-5" />
+              </div>
+            </div>
+
+            {subscriptionOrder ? (
+              <div className="mt-5 space-y-3 text-sm text-[#334155]">
+                <div className="rounded-[18px] sm:rounded-[24px] bg-[#f7f8fb] px-3 py-3 sm:px-4 sm:py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d8494]">Plano</p>
+                  <p className="mt-1 font-semibold text-[#0d1b2f]">{order.subscription_plan_name ?? "Assinatura"}</p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-[18px] bg-[#edf4ff] px-3 py-3 text-[#0b2a59]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#4d668a]">Atual</p>
+                    <p className="mt-1 font-heading text-lg font-extrabold">{subscriptionProgress ?? "-"}</p>
+                  </div>
+                  <div className="rounded-[18px] bg-[#e7f7ef] px-3 py-3 text-[#166534]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#4f7a5e]">Feitas</p>
+                    <p className="mt-1 font-heading text-lg font-extrabold">{completedDeliveries}</p>
+                  </div>
+                  <div className="rounded-[18px] bg-[#fff2dd] px-3 py-3 text-[#7a4700]">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a0620a]">Restam</p>
+                    <p className="mt-1 font-heading text-lg font-extrabold">{remainingDeliveries}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d8494]">Qtd. desta</p>
+                    <p className="mt-1 font-semibold text-[#0d1b2f]">{order.quantity_for_this_delivery ?? "-"}</p>
+                  </div>
+                  <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7d8494]">Status</p>
+                    <p className="mt-1 font-semibold text-[#0d1b2f]">{formatSubscriptionStatus(order.subscription_status)}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 rounded-[18px] bg-[#f7f8fb] px-3 py-3 text-sm font-medium text-[#4b5565]">
+                Compra avulsa feita pelo carrinho.
+              </p>
+            )}
           </section>
 
           <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">

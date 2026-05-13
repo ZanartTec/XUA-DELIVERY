@@ -1,14 +1,56 @@
-import type { Prisma, Order, OrderStatus, Consumer, Address, OrderItem } from "@prisma/client";
+import type {
+  Prisma,
+  Order,
+  OrderStatus,
+  Consumer,
+  Address,
+  OrderItem,
+  DeliveryDateStatus,
+  UserSubscriptionStatus,
+} from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
 
 type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "phone"> };
 
+type SubscriptionDeliveryContext = {
+  id: string;
+  user_subscription_id: string;
+  delivery_date: Date;
+  quantity_for_this_delivery: number;
+  status: DeliveryDateStatus;
+  created_at: Date;
+  time_slot?: {
+    label: string;
+    start_hour: number;
+    start_minute: number;
+    end_hour: number;
+    end_minute: number;
+  } | null;
+  user_subscription: {
+    id: string;
+    status: UserSubscriptionStatus;
+    total_quantity: number;
+    remaining_quantity: number;
+    plan: { name: string; quantity: number };
+    delivery_dates: Array<{
+      id: string;
+      delivery_date: Date;
+      status: DeliveryDateStatus;
+      order_id: string | null;
+      created_at: Date;
+      quantity_for_this_delivery: number;
+      order: Pick<Order, "status"> | null;
+    }>;
+  };
+};
+
 export type OrderForQueue = Order & {
   consumer: Pick<Consumer, "name">;
   address: Pick<Address, "street" | "number" | "neighborhood">;
   items: Pick<OrderItem, "quantity" | "product_name">[];
+  subscription_delivery_date: SubscriptionDeliveryContext | null;
 };
 
 export type OrderWithDetails = Order & {
@@ -22,7 +64,49 @@ export type OrderWithDetails = Order & {
     product: { image_url: string | null };
   }[];
   audit_events: { event_type: string; occurred_at: Date; actor_id: string }[];
+  subscription_delivery_date: SubscriptionDeliveryContext | null;
 };
+
+const newSubscriptionDeliveryInclude = {
+  select: {
+    id: true,
+    user_subscription_id: true,
+    delivery_date: true,
+    quantity_for_this_delivery: true,
+    status: true,
+    created_at: true,
+    time_slot: {
+      select: {
+        label: true,
+        start_hour: true,
+        start_minute: true,
+        end_hour: true,
+        end_minute: true,
+      },
+    },
+    user_subscription: {
+      select: {
+        id: true,
+        status: true,
+        total_quantity: true,
+        remaining_quantity: true,
+        plan: { select: { name: true, quantity: true } },
+        delivery_dates: {
+          orderBy: [{ delivery_date: "asc" }, { created_at: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            delivery_date: true,
+            status: true,
+            order_id: true,
+            created_at: true,
+            quantity_for_this_delivery: true,
+            order: { select: { status: true } },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.SubscriptionDeliveryDateDefaultArgs;
 
 /**
  * OrderRepository — CRUD e queries de pedidos.
@@ -78,6 +162,7 @@ export const orderRepository = {
         consumer: { select: { name: true } },
         address: { select: { street: true, number: true, neighborhood: true } },
         items: { select: { quantity: true, product_name: true } },
+        subscription_delivery_date: newSubscriptionDeliveryInclude,
       },
     }) as unknown as Promise<OrderForQueue[]>;
   },
@@ -184,12 +269,13 @@ export const orderRepository = {
             product: { select: { image_url: true } },
           },
         },
-          audit_events: {
+        audit_events: {
           orderBy: { occurred_at: "asc" },
           select: { event_type: true, occurred_at: true, actor_id: true },
         },
+        subscription_delivery_date: newSubscriptionDeliveryInclude,
       },
-      }) as Promise<OrderWithDetails | null>;
+    }) as unknown as Promise<OrderWithDetails | null>;
   },
 
   async searchBySupport(

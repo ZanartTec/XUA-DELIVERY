@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
 import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
-import { ChevronRight, ClipboardList, Clock3, MapPin, Package2, Truck } from "lucide-react";
+import { ChevronRight, ClipboardList, Clock3, MapPin, Package2, Repeat2, ShoppingCart, Truck } from "lucide-react";
 import { useSocket } from "@/src/hooks/use-socket";
 import type { Order } from "@/src/types";
 import { OrderStatus } from "@/src/types/enums";
@@ -19,10 +19,46 @@ interface QueueOrder extends Order {
   item_summary: string;
   driver_name?: string | null;
   sla_deadline: string;
+  order_origin?: "cart" | "subscription";
+  user_subscription_id?: string | null;
+  subscription_delivery_date_id?: string | null;
+  subscription_plan_name?: string | null;
+  subscription_status?: string | null;
+  subscription_delivery_status?: string | null;
+  delivery_sequence?: number | null;
+  total_deliveries?: number | null;
+  completed_deliveries?: number | null;
+  remaining_deliveries?: number | null;
+  remaining_after_current?: number | null;
+  quantity_for_this_delivery?: number | null;
+  subscription_total_quantity?: number | null;
+  subscription_remaining_quantity?: number | null;
 }
 
-function formatWindowLabel(window: QueueOrder["delivery_window"]) {
-  return window === "MORNING" ? "Manhã" : "Tarde";
+function pad2(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function formatScheduledTime(order: QueueOrder) {
+  if (order.scheduled_time_label) return order.scheduled_time_label;
+  if (
+    order.scheduled_time_start_hour != null &&
+    order.scheduled_time_end_hour != null
+  ) {
+    const sm = order.scheduled_time_start_minute ?? 0;
+    const em = order.scheduled_time_end_minute ?? 0;
+    return `${pad2(order.scheduled_time_start_hour)}:${pad2(sm)}–${pad2(order.scheduled_time_end_hour)}:${pad2(em)}`;
+  }
+  return order.delivery_window === "MORNING" ? "Manhã (08:00-12:00)" : "Tarde (13:00-18:00)";
+}
+
+function isSubscriptionOrder(order: QueueOrder) {
+  return order.order_origin === "subscription";
+}
+
+function formatSubscriptionProgress(order: QueueOrder) {
+  if (order.delivery_sequence == null || order.total_deliveries == null) return null;
+  return `Entrega ${order.delivery_sequence}/${order.total_deliveries}`;
 }
 
 const SECTION_CONFIG = [
@@ -132,6 +168,11 @@ function QueueSkeleton() {
 function OrderCard({ order }: { order: QueueOrder }) {
   const stage = getStageMeta(order.status);
   const StageIcon = stage.icon;
+  const subscriptionOrder = isSubscriptionOrder(order);
+  const OriginIcon = subscriptionOrder ? Repeat2 : ShoppingCart;
+  const subscriptionProgress = formatSubscriptionProgress(order);
+  const completedDeliveries = order.completed_deliveries ?? 0;
+  const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
 
   return (
     <Link href={`/distributor/orders/${order.id}`} className="group block">
@@ -163,6 +204,11 @@ function OrderCard({ order }: { order: QueueOrder }) {
             <div className="space-y-1">
               <p className="text-sm font-semibold text-[#1f2937]">{order.consumer_name}</p>
               <p className="text-sm text-[#5d6473]">{order.item_summary}</p>
+              {subscriptionOrder ? (
+                <p className="text-xs font-semibold text-[#1B4A9A]">
+                  Plano {order.subscription_plan_name ?? "Assinatura"}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid gap-2 text-sm text-[#5d6473]">
@@ -174,8 +220,13 @@ function OrderCard({ order }: { order: QueueOrder }) {
               <div className="flex items-center gap-2">
                 <Package2 className="h-4 w-4 shrink-0 text-[#7d8494]" />
                 <span>
-                  {order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"} • Janela {formatWindowLabel(order.delivery_window)}
+                  {order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}
                 </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4 shrink-0 text-[#7d8494]" />
+                <span>Entrega {formatScheduledTime(order)}</span>
               </div>
 
               {order.driver_name ? (
@@ -189,6 +240,29 @@ function OrderCard({ order }: { order: QueueOrder }) {
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill status={order.status} className={stage.badgeClassName} />
 
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#0b2a59]">
+                <OriginIcon className="h-3.5 w-3.5" />
+                {subscriptionOrder ? "Assinatura" : "Carrinho"}
+              </span>
+
+              {subscriptionOrder && subscriptionProgress ? (
+                <span className="inline-flex items-center rounded-full bg-[#e7f7ef] px-3 py-1 text-xs font-semibold text-[#166534]">
+                  {subscriptionProgress}
+                </span>
+              ) : null}
+
+              {subscriptionOrder ? (
+                <span className="inline-flex items-center rounded-full bg-[#f3f4f5] px-3 py-1 text-xs font-semibold text-[#5d6473]">
+                  {completedDeliveries} concluída{completedDeliveries === 1 ? "" : "s"} • {remainingDeliveries} restante{remainingDeliveries === 1 ? "" : "s"}
+                </span>
+              ) : null}
+
+              {subscriptionOrder && order.quantity_for_this_delivery != null ? (
+                <span className="inline-flex items-center rounded-full bg-[#fff2dd] px-3 py-1 text-xs font-semibold text-[#7a4700]">
+                  Qtd. desta: {order.quantity_for_this_delivery}
+                </span>
+              ) : null}
+
               {order.status === OrderStatus.SENT_TO_DISTRIBUTOR ? (
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#fff2dd] px-3 py-1 text-xs font-semibold text-[#7a4700]">
                   <Clock3 className="h-3.5 w-3.5" />
@@ -197,7 +271,7 @@ function OrderCard({ order }: { order: QueueOrder }) {
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-full bg-[#f3f4f5] px-3 py-1 text-xs font-semibold text-[#5d6473]">
-                  {formatDate(order.delivery_date)} • {formatWindowLabel(order.delivery_window)}
+                  {formatDate(order.delivery_date)} • {formatScheduledTime(order)}
                 </span>
               )}
             </div>
@@ -358,7 +432,7 @@ export default function DistributorQueuePage() {
       </section>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as QueueTabValue)}>
-        <TabsList className="!h-auto !bg-white flex w-full flex-row overflow-x-auto rounded-[28px] p-1 shadow-[0_10px_28px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <TabsList className="h-auto! bg-white! flex w-full flex-row overflow-x-auto rounded-[28px] p-1 shadow-[0_10px_28px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TAB_CONFIG.map((tab) => {
             const count = orders.filter((order) => matchesStatuses(order.status, tab.statuses)).length;
 
@@ -366,7 +440,7 @@ export default function DistributorQueuePage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="!h-auto flex flex-1 shrink-0 flex-col items-center gap-0.5 rounded-[22px] px-2 py-2 text-center data-active:border-transparent data-active:bg-[#5697E9]/10 data-active:text-[#0b2a59] sm:items-start sm:gap-1 sm:px-3 sm:py-3 sm:text-left"
+                className="h-auto! flex flex-1 shrink-0 flex-col items-center gap-0.5 rounded-[22px] px-2 py-2 text-center data-active:border-transparent data-active:bg-[#5697E9]/10 data-active:text-[#0b2a59] sm:items-start sm:gap-1 sm:px-3 sm:py-3 sm:text-left"
               >
                 <span className="text-xs font-semibold sm:text-sm">{tab.label}</span>
                 <span className="hidden text-[11px] leading-tight text-current/70 sm:block">{tab.description}</span>

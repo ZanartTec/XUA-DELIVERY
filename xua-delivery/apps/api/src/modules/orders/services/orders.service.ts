@@ -1,8 +1,8 @@
-import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, PaymentKind, Prisma } from "@prisma/client";
+import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, PaymentKind, Prisma, DeliveryDateStatus } from "@prisma/client";
 import type { Order } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
-import { orderRepository } from "../repository/orders.repository.js";
+import { orderRepository, type OrderForQueue } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
@@ -85,6 +85,98 @@ const WINDOW_FALLBACK: Record<DeliveryWindow, { label: string; startHour: number
 
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
+}
+
+type NewSubscriptionDeliveryContext = NonNullable<OrderForQueue["subscription_delivery_date"]>;
+
+type DistributorOrderOriginContext = {
+  order_origin: "cart" | "subscription";
+  user_subscription_id: string | null;
+  subscription_delivery_date_id: string | null;
+  subscription_plan_name: string | null;
+  subscription_status: string | null;
+  subscription_delivery_status: string | null;
+  delivery_sequence: number | null;
+  total_deliveries: number | null;
+  completed_deliveries: number | null;
+  remaining_deliveries: number | null;
+  remaining_after_current: number | null;
+  quantity_for_this_delivery: number | null;
+  subscription_total_quantity: number | null;
+  subscription_remaining_quantity: number | null;
+};
+
+const CART_ORDER_CONTEXT: DistributorOrderOriginContext = {
+  order_origin: "cart",
+  user_subscription_id: null,
+  subscription_delivery_date_id: null,
+  subscription_plan_name: null,
+  subscription_status: null,
+  subscription_delivery_status: null,
+  delivery_sequence: null,
+  total_deliveries: null,
+  completed_deliveries: null,
+  remaining_deliveries: null,
+  remaining_after_current: null,
+  quantity_for_this_delivery: null,
+  subscription_total_quantity: null,
+  subscription_remaining_quantity: null,
+};
+
+function isCancelledDeliveryDate(status: unknown): boolean {
+  return status === DeliveryDateStatus.CANCELLED || status === "cancelled";
+}
+
+function sortSubscriptionDeliveryDates(
+  deliveryDates: NewSubscriptionDeliveryContext["user_subscription"]["delivery_dates"]
+) {
+  return [...deliveryDates].sort((a, b) => {
+    const dateDiff = new Date(a.delivery_date).getTime() - new Date(b.delivery_date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    const createdDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (createdDiff !== 0) return createdDiff;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function buildDistributorOrderOriginContext(order: {
+  subscription_delivery_date?: NewSubscriptionDeliveryContext | null;
+}): DistributorOrderOriginContext {
+  const subscriptionDeliveryDate = order.subscription_delivery_date;
+  if (!subscriptionDeliveryDate) return CART_ORDER_CONTEXT;
+
+  const userSubscription = subscriptionDeliveryDate.user_subscription;
+  const deliveryDates = sortSubscriptionDeliveryDates(userSubscription.delivery_dates).filter(
+    (deliveryDate) =>
+      deliveryDate.id === subscriptionDeliveryDate.id || !isCancelledDeliveryDate(deliveryDate.status)
+  );
+  const deliveryIndex = deliveryDates.findIndex(
+    (deliveryDate) => deliveryDate.id === subscriptionDeliveryDate.id
+  );
+  const deliverySequence = deliveryIndex >= 0 ? deliveryIndex + 1 : null;
+  const totalDeliveries = deliveryDates.length || null;
+  const completedDeliveries = deliverySequence == null ? null : Math.max(deliverySequence - 1, 0);
+  const remainingAfterCurrent =
+    deliverySequence == null || totalDeliveries == null
+      ? null
+      : Math.max(totalDeliveries - deliverySequence, 0);
+
+  return {
+    order_origin: "subscription",
+    user_subscription_id: userSubscription.id,
+    subscription_delivery_date_id: subscriptionDeliveryDate.id,
+    subscription_plan_name: userSubscription.plan.name,
+    subscription_status: userSubscription.status,
+    subscription_delivery_status: subscriptionDeliveryDate.status,
+    delivery_sequence: deliverySequence,
+    total_deliveries: totalDeliveries,
+    completed_deliveries: completedDeliveries,
+    remaining_deliveries: remainingAfterCurrent,
+    remaining_after_current: remainingAfterCurrent,
+    quantity_for_this_delivery: subscriptionDeliveryDate.quantity_for_this_delivery,
+    subscription_total_quantity: userSubscription.total_quantity,
+    subscription_remaining_quantity: userSubscription.remaining_quantity,
+  };
 }
 
 async function resolveScheduledTimeSnapshot(
@@ -1021,6 +1113,7 @@ export const orderService = {
       // Enriquecer com campos calculados esperados pelo frontend
       const SLA_MS = 15 * 60 * 1000; // 15 minutos de SLA de aceitação
       return orders.map((o) => {
+        const subscriptionContext = buildDistributorOrderOriginContext(o);
         const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
         const firstItem = o.items[0];
         const itemSummary = firstItem
@@ -1031,6 +1124,7 @@ export const orderService = {
 
         return {
           ...o,
+          ...subscriptionContext,
           consumer_name: o.consumer.name,
           address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
           total_items_qty: totalItemsQty,
@@ -1040,6 +1134,7 @@ export const orderService = {
           consumer: undefined,
           address: undefined,
           items: undefined,
+          subscription_delivery_date: undefined,
         };
       });
     }
@@ -1079,6 +1174,7 @@ export const orderService = {
     const result = await orderRepository.findByIdWithDetails(orderId);
     if (!result) return null;
 
+    const subscriptionContext = buildDistributorOrderOriginContext(result);
     const { items, audit_events, consumer, address, ...order } = result;
     const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
     const addressParts = [
@@ -1095,6 +1191,8 @@ export const orderService = {
 
     return {
       ...order,
+      ...subscriptionContext,
+      subscription_delivery_date: undefined,
       consumer_name: consumer.name,
       consumer_email: consumer.email,
       consumer_phone: consumer.phone,
