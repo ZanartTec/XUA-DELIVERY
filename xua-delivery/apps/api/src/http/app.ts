@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { healthHandler } from "./handlers/health";
 import { readinessHandler } from "./handlers/readiness";
-import { registerRoutes } from "./routs";
+import { registerRoutes } from "./routes";
 import { errorHandler } from "../middleware/error-handler";
 import { httpLogger } from "../middleware/http-logger";
 

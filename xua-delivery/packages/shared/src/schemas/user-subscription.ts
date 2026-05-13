@@ -1,0 +1,25 @@
+import { z } from "zod";
+
+const UUID = z.string().uuid("ID inválido");
+const DATE_ISO = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/, "Data inválida (YYYY-MM-DD)");
+
+export const userSubscriptionDeliveryDateSchema = z.object({
+  date: DATE_ISO,
+  time_slot_id: UUID,
+  quantity: z.number().int("Quantidade deve ser inteira").positive("Quantidade deve ser positiva"),
+});
+export type UserSubscriptionDeliveryDateInput = z.infer<
+  typeof userSubscriptionDeliveryDateSchema
+>;
+
+export const userSubscriptionCreateSchema = z.object({
+  plan_id: UUID,
+  distributor_id: UUID,
+  address_id: UUID,
+  delivery_dates: z
+    .array(userSubscriptionDeliveryDateSchema)
+    .min(1, "Informe ao menos uma data de entrega"),
+});
+export type UserSubscriptionCreateInput = z.infer<typeof userSubscriptionCreateSchema>;
