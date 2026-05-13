@@ -80,25 +80,25 @@ export default function OrdersPage() {
   return (
     <div className="pb-4">
       {/* Header */}
-      <div className="px-6 pt-6 mb-8">
-        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-primary mb-1">
+      <div className="px-5 pt-5 mb-4">
+        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-primary mb-0.5">
           Acompanhamento
         </p>
-        <h1 className="font-heading text-3xl font-extrabold tracking-tight text-[#191c1d]">
+        <h1 className="font-heading text-2xl font-extrabold tracking-tight text-[#191c1d]">
           Pedidos Ativos
         </h1>
       </div>
 
       {loading ? (
-        <div className="space-y-3 px-6">
+        <div className="space-y-3 px-5">
           {Array.from({ length: 3 }).map((_, i) => (
             <OrderSkeleton key={i} />
           ))}
         </div>
       ) : orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
-            <ClipboardList className="h-10 w-10 text-[#5697E9]/50" />
+        <div className="flex flex-col items-center justify-center py-16 text-center px-5">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#5697E9]/15">
+            <ClipboardList className="h-8 w-8 text-[#5697E9]/50" />
           </div>
           <p className="text-[#737688]">Nenhum pedido encontrado.</p>
         </div>
@@ -106,94 +106,95 @@ export default function OrdersPage() {
         <>
           {/* ── Active Orders ── */}
           {activeOrders.length > 0 && (
-            <div className="px-6 mb-10">
-              <div className="space-y-4">
+            <div className="px-5 mb-6">
+              <div className="space-y-5">
                 {activeOrders.map((order) => {
                   const { step, pct } = getProgress(order.status);
                   return (
-                    <Link key={order.id} href={`/orders/${order.id}`}>
-                      <div className="bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
+                    <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                      <div className="bg-[#f3f4f5] rounded-2xl p-4 relative overflow-hidden">
                         {/* decorative blur */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#5697E9]/8 rounded-full -mr-20 -mt-20 blur-3xl" />
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-[#5697E9]/8 rounded-full -mr-16 -mt-16 blur-3xl" />
 
                         <div className="relative z-10">
-                          {/* Product info + Track */}
-                          <div className="flex items-start justify-between mb-6">
-                            <div className="flex items-center gap-4">
-                              <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                                <Droplets className="h-7 w-7 text-primary" />
-                              </div>
-                              <div>
-                                <h3 className="font-heading text-lg font-bold text-[#191c1d]">
-                                  Pedido #{shortId(order.id)}
-                                </h3>
-                                <p className="text-sm text-[#737688] font-medium">
-                                  {formatDate(order.delivery_date)} •{" "}
-                                  <span className="text-primary">
-                                    {formatCurrency(order.total_cents)}
-                                  </span>
-                                </p>
-                              </div>
+                          {/* Product info */}
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                              <Droplets className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-heading text-base font-bold text-[#191c1d] leading-tight">
+                                Pedido #{shortId(order.id)}
+                              </h3>
+                              <p className="text-xs text-[#737688] font-medium truncate">
+                                {formatDate(order.delivery_date)} •{" "}
+                                <span className="text-primary">
+                                  {formatCurrency(order.total_cents)}
+                                </span>
+                              </p>
                             </div>
                           </div>
 
                           {/* Progress tracker */}
-                          <div className="relative mt-4 pb-2">
-                            <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
+                          <div className="relative pb-1">
+                            <div className="absolute top-3 left-0 w-full h-0.5 bg-[#e1e3e4] rounded-full">
                               <div
                                 className={`h-full bg-[#00E0FF] rounded-full transition-all ${pct}`}
                               />
                             </div>
                             <div className="relative flex justify-between">
-                              <div className="flex flex-col items-center gap-2">
+                              {/* Step 1 */}
+                              <div className="flex flex-col items-center gap-1.5">
                                 <div
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center ${
                                     step >= 1
                                       ? "bg-[#00E0FF] text-[#001735]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
-                                  <Check className="h-3.5 w-3.5" />
+                                  <Check className="h-3 w-3" />
                                 </div>
                                 <span
-                                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 1 ? "text-[#001735]" : "text-[#737688]"
+                                  className={`text-[9px] font-bold uppercase tracking-wide ${
+                                    step >= 1 ? "text-[#001735]" : "text-[#b0b3c6]"
                                   }`}
                                 >
                                   Confirmado
                                 </span>
                               </div>
-                              <div className="flex flex-col items-center gap-2">
+                              {/* Step 2 */}
+                              <div className="flex flex-col items-center gap-1.5">
                                 <div
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center ${
                                     step >= 2
                                       ? "bg-[#00E0FF] text-[#001735]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
-                                  <Truck className="h-3.5 w-3.5" />
+                                  <Truck className="h-3 w-3" />
                                 </div>
                                 <span
-                                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 2 ? "text-[#001735]" : "text-[#737688]"
+                                  className={`text-[9px] font-bold uppercase tracking-wide ${
+                                    step >= 2 ? "text-[#001735]" : "text-[#b0b3c6]"
                                   }`}
                                 >
                                   A caminho
                                 </span>
                               </div>
-                              <div className="flex flex-col items-center gap-2">
+                              {/* Step 3 */}
+                              <div className="flex flex-col items-center gap-1.5">
                                 <div
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f8f9fa]/50 ${
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center ${
                                     step >= 3
                                       ? "bg-[#00E0FF] text-[#001735]"
                                       : "bg-[#e1e3e4] text-[#737688]"
                                   }`}
                                 >
-                                  <Home className="h-3.5 w-3.5" />
+                                  <Home className="h-3 w-3" />
                                 </div>
                                 <span
-                                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    step >= 3 ? "text-[#001735]" : "text-[#737688]"
+                                  className={`text-[9px] font-bold uppercase tracking-wide ${
+                                    step >= 3 ? "text-[#001735]" : "text-[#b0b3c6]"
                                   }`}
                                 >
                                   Entregue
@@ -212,9 +213,9 @@ export default function OrdersPage() {
 
           {/* ── Past Deliveries ── */}
           {pastOrders.length > 0 && (
-            <section className="px-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading text-xl font-extrabold text-[#191c1d]">
+            <section className="px-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-heading text-lg font-extrabold text-[#191c1d]">
                   Entregas Anteriores
                 </h2>
               </div>
@@ -229,24 +230,24 @@ export default function OrdersPage() {
                   const day = d.getDate().toString().padStart(2, "0");
 
                   return (
-                    <Link key={order.id} href={`/orders/${order.id}`}>
-                      <div className="bg-white p-5 rounded-xl flex items-center justify-between group transition-all duration-300 hover:bg-[#f3f4f5] shadow-sm">
-                        <div className="flex items-center gap-5">
+                    <Link key={order.id} href={`/orders/${order.id}`} className="block">
+                      <div className="bg-white p-4 rounded-xl flex items-center justify-between group transition-all duration-200 hover:bg-[#f3f4f5] shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
                           {/* Date block */}
-                          <div className="text-center min-w-12.5">
-                            <p className="text-[10px] font-bold uppercase text-[#737688] mb-0.5">
+                          <div className="text-center w-10 shrink-0">
+                            <p className="text-[9px] font-bold uppercase text-[#737688]">
                               {month}
                             </p>
-                            <p className="text-xl font-heading font-black text-[#191c1d]">
+                            <p className="text-lg font-heading font-black text-[#191c1d] leading-tight">
                               {day}
                             </p>
                           </div>
-                          <div className="h-10 w-px bg-[#e1e3e4]" />
-                          <div>
-                            <p className="font-bold text-[#191c1d]">
+                          <div className="h-8 w-px bg-[#e1e3e4] shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-sm text-[#191c1d] truncate">
                               Pedido #{shortId(order.id)}
                             </p>
-                            <p className="text-xs text-[#737688] font-medium">
+                            <p className="text-xs text-[#737688] font-medium truncate">
                               {order.delivery_window === DeliveryWindow.MORNING
                                 ? "Manhã"
                                 : "Tarde"}{" "}
@@ -256,12 +257,11 @@ export default function OrdersPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <StatusPill status={order.status} />
-                          <span className="font-heading font-bold text-[#191c1d]">
+                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                          <span className="font-heading font-bold text-sm text-[#191c1d]">
                             {formatCurrency(order.total_cents)}
                           </span>
-                          <ChevronRight className="h-4 w-4 text-[#737688] group-hover:text-primary transition-colors" />
+                          <ChevronRight className="h-4 w-4 text-[#737688] group-hover:text-primary transition-colors shrink-0" />
                         </div>
                       </div>
                     </Link>
@@ -272,19 +272,19 @@ export default function OrdersPage() {
           )}
 
           {/* ── Upsell Banner ── */}
-          <div className="mx-6 mt-10 rounded-3xl overflow-hidden relative h-44 bg-[#191c1d] shadow-2xl">
+          <div className="mx-5 mt-6 rounded-2xl overflow-hidden relative h-36 bg-[#191c1d] shadow-xl">
             <div className="absolute inset-0 bg-linear-to-r from-[#191c1d] to-transparent" />
-            <div className="absolute inset-0 flex items-center px-8">
+            <div className="absolute inset-0 flex items-center px-6">
               <div className="max-w-xs relative z-10">
-                <h4 className="text-white font-heading text-lg font-extrabold mb-1.5">
+                <h4 className="text-white font-heading text-base font-extrabold mb-1">
                   Assine e Economize 15%
                 </h4>
-                <p className="text-[#b6c4ff] text-sm mb-3">
+                <p className="text-[#b6c4ff] text-xs mb-3">
                   Monte um plano recorrente para sua entrega semanal.
                 </p>
                 <Link
                   href="/subscription"
-                  className="inline-block bg-white text-[#191c1d] px-5 py-2 rounded-full font-bold text-xs uppercase tracking-widest active:scale-95 transition-transform"
+                  className="inline-block bg-white text-[#191c1d] px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest active:scale-95 transition-transform"
                 >
                   Ver Planos
                 </Link>
