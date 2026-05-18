@@ -1,4 +1,8 @@
-import redis, { ensureConnected } from "../../../infra/redis/client.js";
+import {
+  deleteCacheKey,
+  getCacheJson,
+  setCacheJson,
+} from "../../../infra/redis/cache.js";
 import { bannersRepository } from "../repository/banners.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import type { BannerType } from "@prisma/client";
@@ -9,27 +13,26 @@ const CACHE_KEY = "banners:active";
 const CACHE_TTL = 300; // 5 minutos
 
 async function invalidateCache() {
-  redis.del(CACHE_KEY).catch(() => {});
+  await deleteCacheKey(CACHE_KEY);
 }
 
 export const bannersService = {
   async listActive(type?: BannerType) {
-    await ensureConnected();
     // Cache only when no type filter (full list)
     if (!type) {
-      const cached = await redis.get(CACHE_KEY).catch(() => null);
+      const cached = await getCacheJson<
+        Awaited<ReturnType<typeof bannersRepository.findActive>>
+      >(CACHE_KEY);
       if (cached) {
         log.debug("Banners served from cache");
-        return JSON.parse(cached);
+        return cached;
       }
     }
 
     const banners = await bannersRepository.findActive(type);
 
     if (!type) {
-      redis
-        .set(CACHE_KEY, JSON.stringify(banners), "EX", CACHE_TTL)
-        .catch(() => {});
+      void setCacheJson(CACHE_KEY, banners, CACHE_TTL);
     }
 
     return banners;

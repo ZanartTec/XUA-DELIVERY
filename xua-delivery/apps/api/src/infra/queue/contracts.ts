@@ -1,0 +1,60 @@
+export const QUEUE_NAMES = {
+  internalJobs: "internal-jobs",
+  notifications: "notifications",
+  paymentWebhooks: "payment-webhooks",
+  payments: "payments",
+  paymentReconciliation: "payment-reconciliation",
+} as const;
+
+export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
+
+export const INTERNAL_JOB_NAMES = {
+  noop: "noop",
+  otpCleanup: "otp-cleanup",
+  subscriptionGeneration: "subscription-generation",
+  subscriptionExpiry: "subscription-expiry",
+} as const;
+
+export const PAYMENT_JOB_NAMES = {
+  processWebhook: "process-webhook",
+  chargePayment: "charge-payment",
+  reconcilePayment: "reconcile-payment",
+} as const;
+
+export type InternalJobName =
+  (typeof INTERNAL_JOB_NAMES)[keyof typeof INTERNAL_JOB_NAMES];
+export type PaymentJobName =
+  (typeof PAYMENT_JOB_NAMES)[keyof typeof PAYMENT_JOB_NAMES];
+
+export interface BaseJobPayload {
+  correlationId: string;
+  requestedAt: string;
+  source: "api" | "cron" | "worker" | "ops";
+}
+
+export interface InternalJobPayload extends BaseJobPayload {
+  jobName: InternalJobName;
+}
+
+export interface PaymentWebhookJobPayload extends BaseJobPayload {
+  jobName: typeof PAYMENT_JOB_NAMES.processWebhook;
+  webhookEventId: string;
+}
+
+export interface PaymentChargeJobPayload extends BaseJobPayload {
+  jobName: typeof PAYMENT_JOB_NAMES.chargePayment;
+  paymentId: string;
+  orderId?: string;
+}
+
+export interface PaymentReconciliationJobPayload extends BaseJobPayload {
+  jobName: typeof PAYMENT_JOB_NAMES.reconcilePayment;
+  paymentId?: string;
+  providerPaymentId?: string;
+}
+
+export type QueueJobPayload =
+  | InternalJobPayload
+  | PaymentWebhookJobPayload
+  | PaymentChargeJobPayload
+  | PaymentReconciliationJobPayload;

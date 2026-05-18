@@ -1,13 +1,8 @@
 import Redis from "ioredis";
 import { logger } from "../logger";
+import { getRedisUrl } from "./config";
 
-const REDIS_URL = process.env.REDIS_URL;
-if (!REDIS_URL) {
-  throw new Error(
-    "FATAL: REDIS_URL não definido. Defina a variável de ambiente antes de iniciar."
-  );
-}
-
+const REDIS_URL = getRedisUrl("cache");
 const redis = new Redis(REDIS_URL, {
   lazyConnect: true,
   maxRetriesPerRequest: 3,
