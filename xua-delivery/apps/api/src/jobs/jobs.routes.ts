@@ -9,6 +9,10 @@ import {
   dispatchOtpCleanup,
   isBullmqOtpCleanupEnabled,
 } from "./otp-cleanup-dispatch.js";
+import {
+  dispatchSubscription,
+  isBullmqSubscriptionEnabled,
+} from "./subscription-dispatch.js";
 import { logger } from "../infra/logger/index.js";
 
 const router = Router();
@@ -21,10 +25,71 @@ router.post("/subscription", async (_req: Request, res: Response): Promise<void>
   logger.info("subscription-job: início");
 
   try {
-    const result = await runSubscriptionJob();
+    const result = await dispatchSubscription({
+      useBullmq: isBullmqSubscriptionEnabled(),
+      source: "cron",
+      enqueue: enqueueInternalJob,
+      runSync: runSubscriptionJob,
+    });
     const durationMs = Date.now() - start;
-    logger.info({ ...result, durationMs }, "subscription-job: concluído");
-    res.json({ ok: true, ...result, durationMs });
+
+    if (result.mode === "queued") {
+      logger.info(
+        {
+          jobId: result.jobId,
+          correlationId: result.correlationId,
+          durationMs,
+        },
+        "subscription-job: enfileirado"
+      );
+      res.json({
+        ok: true,
+        enqueued: true,
+        jobId: result.jobId,
+        correlationId: result.correlationId,
+        durationMs,
+      });
+      return;
+    }
+
+    if (result.mode === "sync-fallback") {
+      logger.warn(
+        {
+          error: result.enqueueError,
+          processed: result.processed,
+          created: result.created,
+          failed: result.failed,
+          durationMs,
+        },
+        "subscription-job: falha ao enfileirar, executado em modo síncrono"
+      );
+      res.json({
+        ok: true,
+        processed: result.processed,
+        created: result.created,
+        failed: result.failed,
+        durationMs,
+        fallback: "sync",
+      });
+      return;
+    }
+
+    logger.info(
+      {
+        processed: result.processed,
+        created: result.created,
+        failed: result.failed,
+        durationMs,
+      },
+      "subscription-job: concluído"
+    );
+    res.json({
+      ok: true,
+      processed: result.processed,
+      created: result.created,
+      failed: result.failed,
+      durationMs,
+    });
   } catch (error) {
     const durationMs = Date.now() - start;
     logger.error({ error, durationMs }, "subscription-job: falhou");
