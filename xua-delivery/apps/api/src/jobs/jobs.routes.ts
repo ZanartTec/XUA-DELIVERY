@@ -13,6 +13,10 @@ import {
   dispatchSubscription,
   isBullmqSubscriptionEnabled,
 } from "./subscription-dispatch.js";
+import {
+  dispatchSubscriptionExpiry,
+  isBullmqSubscriptionExpiryEnabled,
+} from "./subscription-expiry-dispatch.js";
 import { logger } from "../infra/logger/index.js";
 
 const router = Router();
@@ -163,10 +167,71 @@ router.post("/subscription-expiry", async (_req: Request, res: Response): Promis
   logger.info("subscription-expiry-job: início");
 
   try {
-    const result = await runSubscriptionExpiryJob();
+    const result = await dispatchSubscriptionExpiry({
+      useBullmq: isBullmqSubscriptionExpiryEnabled(),
+      source: "cron",
+      enqueue: enqueueInternalJob,
+      runSync: runSubscriptionExpiryJob,
+    });
     const durationMs = Date.now() - start;
-    logger.info({ ...result, durationMs }, "subscription-expiry-job: concluído");
-    res.json({ ok: true, ...result, durationMs });
+
+    if (result.mode === "queued") {
+      logger.info(
+        {
+          jobId: result.jobId,
+          correlationId: result.correlationId,
+          durationMs,
+        },
+        "subscription-expiry-job: enfileirado"
+      );
+      res.json({
+        ok: true,
+        enqueued: true,
+        jobId: result.jobId,
+        correlationId: result.correlationId,
+        durationMs,
+      });
+      return;
+    }
+
+    if (result.mode === "sync-fallback") {
+      logger.warn(
+        {
+          error: result.enqueueError,
+          checked: result.checked,
+          notified: result.notified,
+          failed: result.failed,
+          durationMs,
+        },
+        "subscription-expiry-job: falha ao enfileirar, executado em modo síncrono"
+      );
+      res.json({
+        ok: true,
+        checked: result.checked,
+        notified: result.notified,
+        failed: result.failed,
+        durationMs,
+        fallback: "sync",
+      });
+      return;
+    }
+
+    logger.info(
+      {
+        checked: result.checked,
+        notified: result.notified,
+        failed: result.failed,
+        durationMs,
+      },
+      "subscription-expiry-job: concluído"
+    );
+    res.json({
+      ok: true,
+      checked: result.checked,
+      notified: result.notified,
+      failed: result.failed,
+      durationMs,
+    });
   } catch (error) {
     const durationMs = Date.now() - start;
     logger.error({ error, durationMs }, "subscription-expiry-job: falhou");
