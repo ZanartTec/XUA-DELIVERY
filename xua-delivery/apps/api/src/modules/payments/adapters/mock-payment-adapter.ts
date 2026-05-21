@@ -36,6 +36,7 @@ export class MockPaymentAdapter implements IPaymentGateway {
       providerPaymentId: externalId,
       status: "approved",
       externalReference: externalId,
+      orderReference: externalId,
       amountCents: 0,
       paidAt: new Date(),
       raw: { id: externalId, status: "approved" },

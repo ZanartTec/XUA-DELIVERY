@@ -46,6 +46,7 @@ export interface ProviderPaymentDetails {
   status: string;
   statusDetail?: string;
   externalReference?: string;
+  orderReference?: string;
   amountCents: number;
   paidAt?: Date;
   raw: unknown;

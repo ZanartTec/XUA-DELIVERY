@@ -19,6 +19,8 @@ import { orderService } from "../../modules/orders/index.js";
 import { getPaymentGateway, PAYMENT_PROVIDERS } from "../../modules/payments/gateway/payments.gateway.js";
 
 const log = createLogger("payment-jobs-worker");
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function paymentStatusFromMercadoPago(status: string): PaymentStatus {
   switch (status) {
@@ -79,6 +81,39 @@ function getResourceId(payload: Prisma.JsonValue): string | null {
   return id == null ? null : String(id);
 }
 
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_PATTERN.test(value));
+}
+
+async function resolveOrderId(
+  tx: Prisma.TransactionClient,
+  providerPayment: {
+    providerPaymentId: string;
+    orderReference?: string;
+    externalReference?: string;
+  }
+): Promise<string | null> {
+  if (isUuid(providerPayment.orderReference)) {
+    return providerPayment.orderReference;
+  }
+
+  if (isUuid(providerPayment.externalReference)) {
+    return providerPayment.externalReference;
+  }
+
+  const existing = await tx.payment.findFirst({
+    where: {
+      provider: PAYMENT_PROVIDERS.mercadoPago,
+      provider_payment_ref: providerPayment.providerPaymentId,
+      order_id: { not: null },
+    },
+    orderBy: { created_at: "desc" },
+    select: { order_id: true },
+  });
+
+  return existing?.order_id ?? null;
+}
+
 async function finishOrderAfterPaymentCaptured(orderId: string): Promise<void> {
   const prisma = getPrisma();
   const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -124,15 +159,18 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
 
   const providerPayment = await gateway.getPayment(providerPaymentId);
   const nextStatus = paymentStatusFromMercadoPago(providerPayment.status);
-  const orderId = providerPayment.externalReference;
-
-  if (!orderId) {
-    throw new Error(`PAYMENT_EXTERNAL_REFERENCE_MISSING:${providerPaymentId}`);
-  }
 
   let shouldFinalizeOrder = false;
+  let resolvedOrderId: string | null = null;
 
   await prisma.$transaction(async (tx) => {
+    const orderId = await resolveOrderId(tx, providerPayment);
+    if (!orderId) {
+      throw new Error(`PAYMENT_ORDER_REFERENCE_MISSING:${providerPaymentId}`);
+    }
+
+    resolvedOrderId = orderId;
+
     const existing = await tx.payment.findFirst({
       where: { order_id: orderId, provider: PAYMENT_PROVIDERS.mercadoPago },
       orderBy: { created_at: "desc" },
@@ -221,14 +259,18 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
     shouldFinalizeOrder = nextStatus === PaymentStatus.CAPTURED;
   });
 
+  if (!resolvedOrderId) {
+    throw new Error(`PAYMENT_ORDER_REFERENCE_MISSING:${providerPaymentId}`);
+  }
+
   if (shouldFinalizeOrder) {
-    await finishOrderAfterPaymentCaptured(orderId);
+    await finishOrderAfterPaymentCaptured(resolvedOrderId);
   }
 
   return {
     ok: true,
     providerPaymentId,
-    orderId,
+    orderId: resolvedOrderId,
     status: nextStatus,
   };
 }
