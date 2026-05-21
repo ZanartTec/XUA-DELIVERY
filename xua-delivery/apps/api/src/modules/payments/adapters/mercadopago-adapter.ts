@@ -24,6 +24,13 @@ interface MercadoPagoPaymentResponse {
   external_reference?: string;
   transaction_amount?: number;
   date_approved?: string;
+  metadata?: {
+    order_id?: string;
+  };
+}
+
+function extractOrderReference(payment: MercadoPagoPaymentResponse): string | undefined {
+  return payment.metadata?.order_id ?? payment.external_reference;
 }
 
 function getAccessToken(): string {
@@ -101,6 +108,7 @@ function sanitizePaymentResponse(payment: MercadoPagoPaymentResponse): Record<st
     status: payment.status,
     status_detail: payment.status_detail,
     external_reference: payment.external_reference,
+    order_reference: extractOrderReference(payment),
     transaction_amount: payment.transaction_amount,
     date_approved: payment.date_approved,
   };
@@ -250,6 +258,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       status: payment.status ?? "unknown",
       statusDetail: payment.status_detail,
       externalReference: payment.external_reference,
+      orderReference: extractOrderReference(payment),
       amountCents: Math.round(Number(payment.transaction_amount ?? 0) * 100),
       paidAt: payment.date_approved ? new Date(payment.date_approved) : undefined,
       raw: sanitizePaymentResponse(payment),
