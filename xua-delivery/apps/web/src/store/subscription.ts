@@ -44,6 +44,7 @@ const initialState: Omit<
   | "toggleDate"
   | "setDates"
   | "setTimeSlotForDate"
+  | "setQuantityForDate"
   | "setPaymentMethod"
   | "reset"
 > = {
