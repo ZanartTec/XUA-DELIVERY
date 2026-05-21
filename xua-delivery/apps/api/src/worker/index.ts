@@ -4,9 +4,10 @@ import { disconnectPrisma } from "../infra/prisma/client";
 import { disconnectRedis } from "../infra/redis/client";
 import { QUEUE_PREFIX } from "../infra/queue/config";
 import { createQueueRedisConnection } from "../infra/queue/connection";
-import { QUEUE_NAMES, type InternalJobPayload } from "../infra/queue/contracts";
+import { QUEUE_NAMES, type InternalJobPayload, type PaymentWebhookJobPayload } from "../infra/queue/contracts";
 import { closeQueueInfra } from "../infra/queue/queues";
 import { processInternalJob } from "./processors/internal-jobs.processor";
+import { processPaymentJob } from "./processors/payment-jobs.processor";
 
 const log = createLogger("worker");
 
@@ -26,6 +27,21 @@ const internalJobsWorker = new Worker<InternalJobPayload>(
 );
 
 const internalJobsEvents = new QueueEvents(QUEUE_NAMES.internalJobs, {
+  connection: createQueueRedisConnection(),
+  prefix: QUEUE_PREFIX,
+});
+
+const paymentWebhooksWorker = new Worker<PaymentWebhookJobPayload>(
+  QUEUE_NAMES.paymentWebhooks,
+  processPaymentJob,
+  {
+    connection: createQueueRedisConnection(),
+    prefix: QUEUE_PREFIX,
+    concurrency: parseConcurrency(process.env.PAYMENT_WEBHOOK_WORKER_CONCURRENCY),
+  }
+);
+
+const paymentWebhooksEvents = new QueueEvents(QUEUE_NAMES.paymentWebhooks, {
   connection: createQueueRedisConnection(),
   prefix: QUEUE_PREFIX,
 });
@@ -57,11 +73,40 @@ internalJobsEvents.on("failed", ({ jobId, failedReason }) => {
   log.warn({ jobId, failedReason }, "Internal job moved to failed state");
 });
 
+paymentWebhooksWorker.on("completed", (job) => {
+  log.info(
+    {
+      jobId: job.id,
+      jobName: job.name,
+      correlationId: job.data.correlationId,
+    },
+    "Payment webhook job completed"
+  );
+});
+
+paymentWebhooksWorker.on("failed", (job, err) => {
+  log.error(
+    {
+      err,
+      jobId: job?.id,
+      jobName: job?.name,
+      correlationId: job?.data.correlationId,
+    },
+    "Payment webhook job failed"
+  );
+});
+
+paymentWebhooksEvents.on("failed", ({ jobId, failedReason }) => {
+  log.warn({ jobId, failedReason }, "Payment webhook job moved to failed state");
+});
+
 log.info(
   {
     queue: QUEUE_NAMES.internalJobs,
+    paymentQueue: QUEUE_NAMES.paymentWebhooks,
     prefix: QUEUE_PREFIX,
-    concurrency: internalJobsWorker.opts.concurrency,
+    internalConcurrency: internalJobsWorker.opts.concurrency,
+    paymentConcurrency: paymentWebhooksWorker.opts.concurrency,
   },
   "XUA worker started"
 );
@@ -75,7 +120,9 @@ async function shutdown(signal: string): Promise<void> {
   log.info({ signal }, "Worker shutdown signal received");
 
   await internalJobsWorker.close();
+  await paymentWebhooksWorker.close();
   await internalJobsEvents.close();
+  await paymentWebhooksEvents.close();
   await closeQueueInfra();
   await disconnectPrisma();
   await disconnectRedis();

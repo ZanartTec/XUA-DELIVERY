@@ -1,0 +1,8 @@
+# Segredos e configuracoes locais da workspace
+.vscode/mcp.json
+.env*
+!.env.example
+
+# Credenciais locais de gateways de pagamento
+xua-delivery/docs/api-de-pagamento/credencias-teste.md
+

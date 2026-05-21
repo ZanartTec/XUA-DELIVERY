@@ -1,4 +1,10 @@
-import type { IPaymentGateway, PaymentResult, RefundResult } from "../gateway/payments.gateway.js";
+import type {
+  IPaymentGateway,
+  PaymentChargeMetadata,
+  PaymentResult,
+  ProviderPaymentDetails,
+  RefundResult,
+} from "../gateway/payments.gateway.js";
 import { randomUUID } from "crypto";
 
 /**
@@ -8,7 +14,7 @@ import { randomUUID } from "crypto";
 export class MockPaymentAdapter implements IPaymentGateway {
   async charge(
     amountCents: number,
-    _metadata: Record<string, string>
+    _metadata: PaymentChargeMetadata
   ): Promise<PaymentResult> {
     await new Promise((r) => setTimeout(r, 200));
     return {
@@ -22,6 +28,17 @@ export class MockPaymentAdapter implements IPaymentGateway {
     return {
       externalId,
       status: "refunded",
+    };
+  }
+
+  async getPayment(externalId: string): Promise<ProviderPaymentDetails> {
+    return {
+      providerPaymentId: externalId,
+      status: "approved",
+      externalReference: externalId,
+      amountCents: 0,
+      paidAt: new Date(),
+      raw: { id: externalId, status: "approved" },
     };
   }
 }
