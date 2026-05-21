@@ -3,11 +3,13 @@ services:
     name: xua-api
     runtime: node
     plan: starter
-    buildCommand: npm install && npx prisma generate
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
     startCommand: npx tsx apps/api/src/server/index.ts
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PAYMENT_PROVIDER
+        value: mercadopago
       - key: INTERNAL_JOB_SECRET
         generateValue: true
       - key: DATABASE_URL
@@ -16,8 +18,26 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: OTP_SECRET
+        sync: false
       - key: APP_ORIGIN
         sync: false
+      - key: INTERNAL_SECRET
+        sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      - key: MERCADOPAGO_NOTIFICATION_URL
+        sync: false
+      - key: MERCADOPAGO_BACK_URL_SUCCESS
+        sync: false
+      - key: MERCADOPAGO_BACK_URL_FAILURE
+        sync: false
+      - key: MERCADOPAGO_BACK_URL_PENDING
+        sync: false
+      - key: LOG_LEVEL
+        value: info
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
