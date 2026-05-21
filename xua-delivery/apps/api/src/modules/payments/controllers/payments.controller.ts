@@ -187,7 +187,7 @@ export const paymentsController = {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
-      logger.error({ error }, "Error creating Mercado Pago checkout payment");
+      logger.error({ err: error }, "Error creating Mercado Pago checkout payment");
       res.status(500).json({ error: "Erro interno" });
     }
   },
@@ -204,7 +204,7 @@ export const paymentsController = {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }
-      logger.error({ error }, "Error fetching payment status");
+      logger.error({ err: error }, "Error fetching payment status");
       res.status(500).json({ error: "Erro interno" });
     }
   },
@@ -267,7 +267,7 @@ export const paymentsController = {
 
       res.status(200).json({ ok: true });
     } catch (error) {
-      logger.error({ error, providerEventRef }, "Error accepting Mercado Pago webhook");
+      logger.error({ err: error, providerEventRef }, "Error accepting Mercado Pago webhook");
       res.status(500).json({ error: "Erro interno" });
     }
   },
