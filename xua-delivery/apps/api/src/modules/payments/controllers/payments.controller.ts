@@ -261,7 +261,7 @@ export const paymentsController = {
           webhookEventId: event.id,
           source: "api",
           correlationId,
-          jobId: `${PAYMENT_JOB_NAMES.processWebhook}:${event.id}`,
+          jobId: `${PAYMENT_JOB_NAMES.processWebhook}-${event.id}`,
         });
       }
 
