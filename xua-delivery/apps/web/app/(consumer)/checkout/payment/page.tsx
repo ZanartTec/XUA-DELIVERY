@@ -7,7 +7,6 @@ import { useCartStore } from "@/src/store/cart";
 import { useAuthStore } from "@/src/store/auth";
 import { useCheckoutStore } from "@/src/store/checkout";
 import { formatCurrency } from "@/src/lib/utils";
-import { cn } from "@/src/lib/utils";
 import { getRenderableProductImageUrl } from "@/src/lib/product-image";
 import { Button } from "@/src/components/ui/button";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
@@ -19,7 +18,6 @@ import {
   Zap,
   ShieldCheck,
   Banknote,
-  Tag,
   Info,
   FlaskConical,
 } from "lucide-react";
@@ -169,7 +167,6 @@ function PaymentContent() {
           delivery_window: deliveryWindow,
           ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
           ...(selectedDistributorId ? { distributor_id: selectedDistributorId } : {}),
-          // Mercado Pago: será usado quando integrar
           payment_method: paymentMethod,
         }),
       });
@@ -181,6 +178,34 @@ function PaymentContent() {
       }
 
       const { order } = await res.json();
+
+      if (paymentMethod === "pix" || paymentMethod === "credit") {
+        const paymentRes = await fetch("/api/payments/charge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: order.id,
+            payment_method: paymentMethod,
+          }),
+        });
+
+        const paymentBody = await paymentRes.json();
+        if (!paymentRes.ok) {
+          setError(paymentBody.error || "Erro ao iniciar pagamento");
+          return;
+        }
+
+        if (!paymentBody.redirectUrl) {
+          setError("Gateway não retornou o link de pagamento.");
+          return;
+        }
+
+        clearCart();
+        resetCheckout();
+        window.location.href = paymentBody.redirectUrl;
+        return;
+      }
+
       clearCart();
       resetCheckout();
       router.push(`/checkout/confirmation?orderId=${order.id}`);
@@ -190,12 +215,6 @@ function PaymentContent() {
       setLoading(false);
     }
   }
-
-  const windowLabels: Record<string, string> = {
-    morning: "Manhã",
-    afternoon: "Tarde",
-    evening: "Noite",
-  };
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-8rem)]">
@@ -298,16 +317,16 @@ function PaymentContent() {
           />
         </section>
 
-        {/* Test mode banner */}
-        <div className="flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 border border-amber-200/50">
-          <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        {/* Payment provider banner */}
+        <div className="flex items-start gap-3 rounded-xl bg-[#e7f9f2] px-4 py-3 border border-[#b7ead6]">
+          <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-[#008d5d]" />
           <div>
-            <p className="text-sm font-bold text-amber-800">
-              Modo de teste — pagamento simulado
+            <p className="text-sm font-bold text-[#00573d]">
+              Pagamento online via Mercado Pago
             </p>
-            <p className="mt-0.5 text-xs text-amber-700">
-              Nenhuma cobrança real será efetuada. O pedido será criado e
-              confirmado automaticamente simulando a aprovação do gateway PIX.
+            <p className="mt-0.5 text-xs text-[#006c49]">
+              Pix e cartão são finalizados no ambiente seguro do Mercado Pago.
+              O pedido avança após a confirmação do gateway.
             </p>
           </div>
         </div>
@@ -413,7 +432,7 @@ function PaymentContent() {
           {loading
             ? "Processando..."
             : mounted
-              ? `Simular pagamento de ${formatCurrency(totalCents)}`
+              ? `Finalizar pagamento de ${formatCurrency(totalCents)}`
               : "Carregando..."}
           {!loading && <ChevronRight className="h-5 w-5 ml-1" />}
         </Button>

@@ -7,6 +7,11 @@ interface RateLimitConfig {
   maxRequests: number;
 }
 
+function numberFromEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name] ?? fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
 /**
  * Rate limiter baseado em Redis (sliding window counter).
  * Retorna { allowed, remaining, retryAfterSeconds }.
@@ -39,4 +44,16 @@ export const RATE_LIMITS = {
   global: { windowSeconds: 60, maxRequests: 100 },
   auth: { windowSeconds: 60, maxRequests: 10 },
   orders: { windowSeconds: 60, maxRequests: 30 },
+  paymentCharge: {
+    windowSeconds: numberFromEnv("PAYMENT_CHARGE_RATE_LIMIT_WINDOW_SECONDS", 60),
+    maxRequests: numberFromEnv("PAYMENT_CHARGE_RATE_LIMIT_MAX", 12),
+  },
+  paymentStatus: {
+    windowSeconds: numberFromEnv("PAYMENT_STATUS_RATE_LIMIT_WINDOW_SECONDS", 60),
+    maxRequests: numberFromEnv("PAYMENT_STATUS_RATE_LIMIT_MAX", 120),
+  },
+  paymentWebhook: {
+    windowSeconds: numberFromEnv("PAYMENT_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS", 60),
+    maxRequests: numberFromEnv("PAYMENT_WEBHOOK_RATE_LIMIT_MAX", 600),
+  },
 } as const;

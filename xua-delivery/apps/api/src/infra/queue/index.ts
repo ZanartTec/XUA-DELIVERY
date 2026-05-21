@@ -13,4 +13,5 @@ export {
   type QueueName,
 } from "./contracts";
 export { enqueueInternalJob } from "./internal-jobs.producer";
+export { enqueuePaymentWebhookJob } from "./payment-jobs.producer";
 export { closeQueueInfra, getQueue, getQueueEvents } from "./queues";

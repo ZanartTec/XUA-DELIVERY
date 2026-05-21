@@ -41,6 +41,9 @@ yarn-error.log*
 # VS Code MCP (contém segredos locais)
 .vscode/mcp.json
 
+# Credenciais locais de gateways de pagamento
+docs/api-de-pagamento/credencias-teste.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,5 +1,68 @@
-**Diagnóstico Atual (com base no código real)**
-Sua base já tem uma fundação boa para pagamentos, mas ainda está em estágio inicial para produção de alto volume.
+## Implementação inicial — Mercado Pago Checkout Pro
+
+Status: primeira fatia implementada para pedidos avulsos com **Checkout Pro**, cobrindo **Pix** e **cartão de crédito**. O retorno do frontend é tratado apenas como UX; a confirmação financeira continua sendo o webhook do Mercado Pago.
+
+### Variáveis de ambiente
+
+Backend (`apps/api/.env`):
+
+```env
+PAYMENT_PROVIDER=mercadopago
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+MERCADOPAGO_PUBLIC_KEY=TEST-...
+MERCADOPAGO_WEBHOOK_SECRET=...
+MERCADOPAGO_NOTIFICATION_URL=https://seu-dominio.com/api/payments/webhook
+MERCADOPAGO_NOTIFICATION_SOURCE=webhooks
+
+# retorno do Checkout Pro
+MERCADOPAGO_BACK_URL_SUCCESS=https://seu-dominio.com/checkout/confirmation
+MERCADOPAGO_BACK_URL_FAILURE=https://seu-dominio.com/checkout/confirmation
+MERCADOPAGO_BACK_URL_PENDING=https://seu-dominio.com/checkout/confirmation
+
+# operação e proteção
+MERCADOPAGO_API_BASE_URL=https://api.mercadopago.com
+MERCADOPAGO_REQUEST_TIMEOUT_MS=10000
+MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS=600
+MERCADOPAGO_STATEMENT_DESCRIPTOR=XUA DELIVERY
+PAYMENT_CHARGE_RATE_LIMIT_WINDOW_SECONDS=60
+PAYMENT_CHARGE_RATE_LIMIT_MAX=12
+PAYMENT_STATUS_RATE_LIMIT_WINDOW_SECONDS=60
+PAYMENT_STATUS_RATE_LIMIT_MAX=120
+PAYMENT_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS=60
+PAYMENT_WEBHOOK_RATE_LIMIT_MAX=600
+```
+
+As credenciais de teste devem ficar apenas em `.env` local ou no secret manager do ambiente. Não mantenha access token, senhas de contas de teste ou cartões em arquivos de documentação versionáveis.
+
+### Fluxo implementado
+
+1. O consumidor cria o pedido no checkout.
+2. Para `pix` ou `credit`, o frontend chama `POST /api/payments/charge`.
+3. A API cria uma preference do Checkout Pro no Mercado Pago com `external_reference = order.id`.
+4. A API salva `Payment` e `PaymentTransaction` locais e devolve `redirectUrl`.
+5. O frontend redireciona o cliente para o Mercado Pago.
+6. O webhook público `POST /api/payments/webhook` valida `x-signature` e `x-request-id`, persiste o evento com headers saneados e enfileira processamento.
+7. O worker `npm run dev:worker -w @xua/api` processa a fila `payment-webhooks`, consulta `/v1/payments/{id}`, normaliza o status e atualiza `Payment`, `Order`, auditoria e transações.
+8. A página de confirmação consulta `GET /api/payments/status/:orderId` e faz polling curto enquanto o pagamento está pendente.
+
+### Endpoints adicionados
+
+- `POST /api/payments/charge`: autenticado como consumidor. Body: `{ "order_id": "uuid", "payment_method": "pix" | "credit" }`.
+- `GET /api/payments/status/:orderId`: autenticado como consumidor. Retorna pedido e último pagamento local.
+- `POST /api/payments/webhook`: público, autenticado pela assinatura oficial do Mercado Pago.
+
+### Observações operacionais
+
+- Rode também o worker da API; sem ele, o webhook fica salvo, mas o pedido não avança.
+- Cadastre `MERCADOPAGO_NOTIFICATION_URL` no painel/MCP do Mercado Pago apontando para `/api/payments/webhook`.
+- A assinatura do Mercado Pago depende de `data.id`, `x-request-id`, `ts` e `v1`; payloads sem esses dados são rejeitados.
+- Dinheiro continua fora do Mercado Pago e não foi alterado nesta fatia.
+- Próximas melhorias recomendadas: lock distribuído por pedido, conciliação periódica e migrations para índices/constraints financeiras adicionais.
+
+---
+
+**Diagnóstico inicial anterior à implementação**
+Antes desta primeira fatia, a base já tinha uma fundação boa para pagamentos, mas ainda estava em estágio inicial para produção de alto volume.
 
 1. O checkout ainda não chama gateway de pagamento; ele só cria pedido e redireciona para confirmação em xua-delivery/app/(consumer)/checkout/payment/page.tsx#L95/checkout/payment/page.tsx#L95), xua-delivery/app/(consumer)/checkout/payment/page.tsx#L117/checkout/payment/page.tsx#L117) e o próprio texto indica placeholder em xua-delivery/app/(consumer)/checkout/payment/page.tsx#L170/checkout/payment/page.tsx#L170).
 2. O gateway atual está mockado e sem adapter Mercado Pago em payment-gateway.ts, payment-gateway.ts, payment-gateway.ts.

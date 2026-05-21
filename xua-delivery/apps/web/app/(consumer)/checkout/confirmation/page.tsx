@@ -1,28 +1,127 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
-import { CheckCircle2, ShoppingCart } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, ShoppingCart } from "lucide-react";
+
+type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created";
+
+interface PaymentStatusResponse {
+  order: {
+    id: string;
+    status: string;
+    payment_status: string | null;
+    total_cents: number;
+  };
+  payment: {
+    id: string;
+    status: string;
+    provider: string | null;
+    paid_at: string | null;
+  } | null;
+}
+
+function getViewStatus(data: PaymentStatusResponse | null, fallback: string | null): PaymentViewStatus {
+  if (!data) {
+    if (fallback === "failure") return "failed";
+    if (fallback === "pending") return "pending";
+    return "loading";
+  }
+
+  if (data.payment?.status === "CAPTURED" || data.order.payment_status === "paid") return "approved";
+  if (data.payment?.status === "FAILED" || data.order.payment_status === "failed") return "failed";
+  if (data.payment?.status === "REFUNDED" || data.order.payment_status === "refunded") return "failed";
+  if (data.order.status === "PAYMENT_PENDING" || data.payment?.status === "CREATED") return "pending";
+  return "created";
+}
+
+function isTerminalPaymentStatus(status: PaymentViewStatus): boolean {
+  return status === "approved" || status === "failed";
+}
 
 function ConfirmationContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
+  const paymentStatusParam = searchParams.get("paymentStatus");
+  const [statusData, setStatusData] = useState<PaymentStatusResponse | null>(null);
+  const [loading, setLoading] = useState(Boolean(orderId));
+  const [error, setError] = useState<string | null>(null);
+
+  const viewStatus = useMemo(
+    () => getViewStatus(statusData, paymentStatusParam),
+    [statusData, paymentStatusParam]
+  );
+
+  useEffect(() => {
+    if (!orderId) return;
+    let cancelled = false;
+    let attempts = 0;
+
+    async function loadStatus() {
+      try {
+        const res = await fetch(`/api/payments/status/${orderId}`);
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Erro ao buscar status");
+        if (!cancelled) {
+          setStatusData(body);
+          setError(null);
+          if (isTerminalPaymentStatus(getViewStatus(body, paymentStatusParam))) {
+            window.clearInterval(interval);
+          }
+        }
+      } catch {
+        if (!cancelled) setError("Não foi possível atualizar o status do pagamento.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 30) {
+        window.clearInterval(interval);
+        return;
+      }
+      void loadStatus();
+    }, 4000);
+    void loadStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [orderId, paymentStatusParam]);
+
+  const Icon = viewStatus === "approved" ? CheckCircle2 : viewStatus === "failed" ? AlertCircle : Clock3;
+  const iconClass = viewStatus === "approved" ? "text-green-600" : viewStatus === "failed" ? "text-red-600" : "text-[#32466e]";
+  const iconBg = viewStatus === "approved" ? "bg-green-100" : viewStatus === "failed" ? "bg-red-100" : "bg-[#d8e2ff]";
+  const title =
+    viewStatus === "approved"
+      ? "Pagamento aprovado!"
+      : viewStatus === "failed"
+        ? "Pagamento não aprovado"
+        : "Aguardando pagamento";
+  const message =
+    viewStatus === "approved"
+      ? "Seu pedido foi confirmado e seguirá para a distribuidora."
+      : viewStatus === "failed"
+        ? "Não recebemos a aprovação do Mercado Pago. Você pode acompanhar o pedido ou tentar novamente pelo suporte."
+        : "Recebemos seu pedido e estamos aguardando a confirmação do Mercado Pago.";
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6 px-4 text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-        <CheckCircle2 className="h-10 w-10 text-green-600" />
+      <div className={`flex h-20 w-20 items-center justify-center rounded-full ${iconBg}`}>
+        <Icon className={`h-10 w-10 ${iconClass}`} />
       </div>
       <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white/95 px-6 py-6 shadow-[0_4px_24px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <h1 className="text-xl font-bold font-heading text-green-700">Pedido confirmado!</h1>
-        <p className="text-sm text-muted-foreground">
-          Seu pedido foi criado com sucesso. Acompanhe o status em tempo real.
-        </p>
+        <h1 className="text-xl font-bold font-heading text-[#191c1d]">{loading ? "Atualizando status..." : title}</h1>
+        <p className="text-sm text-muted-foreground">{message}</p>
         {orderId && (
-          <p className="text-xs text-muted-foreground">Pedido #{orderId}</p>
+          <p className="break-all text-xs text-muted-foreground">Pedido #{orderId}</p>
         )}
+        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
       <div className="flex gap-3">
         <Link href={orderId ? `/orders/${orderId}` : "/orders"}>
