@@ -11,11 +11,12 @@ import { cn } from "@/src/lib/utils";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import { useIsClient } from "@/src/hooks/use-is-client";
 import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
+import { DeliveryAddressCard } from "@/src/components/consumer/delivery-address-card";
+import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
 import type { Address } from "@/src/types";
 import {
   ArrowLeft,
   ChevronRight,
-  Home,
   Sun,
   CloudSun,
   Droplets,
@@ -23,14 +24,6 @@ import {
 } from "lucide-react";
 
 type TimeWindow = "morning" | "afternoon";
-
-type AvailableDate = {
-  date: string;
-  weekday: number;
-  morning_available: boolean;
-  afternoon_available: boolean;
-  has_time_slots: boolean;
-};
 
 type DayItem = {
   date: Date;
@@ -115,11 +108,6 @@ export default function CheckoutSchedulePage() {
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [addressLoading, setAddressLoading] = useState(true);
 
-  // Available dates from API
-  const [availableDates, setAvailableDates] = useState<AvailableDate[] | null>(null);
-  const [datesLoading, setDatesLoading] = useState(false);
-  const [datesError, setDatesError] = useState<string | null>(null);
-
   // When user selects an address, persist its ID and redirect to distributor
   const handleAddressSelect = useCallback((addr: Address) => {
     setSelectedAddressLocal(addr);
@@ -155,32 +143,16 @@ export default function CheckoutSchedulePage() {
     void loadDefaultAddress();
   }, [loadDefaultAddress]);
 
-  // Fetch available dates whenever address (and thus zone) changes
   const zoneId = selectedAddress?.zone_id ?? null;
-  useEffect(() => {
-    if (!zoneId) {
-      setAvailableDates(null);
-      return;
-    }
-    let cancelled = false;
-    setDatesLoading(true);
-    setDatesError(null);
-    fetch(`/api/zones/${zoneId}/available-dates?days=${DAYS_AHEAD}${selectedDistributorId ? `&distributor_id=${selectedDistributorId}` : ""}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) setAvailableDates((data.dates ?? []) as AvailableDate[]);
-      })
-      .catch((err) => {
-        if (!cancelled) setDatesError(err instanceof Error ? err.message : "Erro ao carregar datas");
-      })
-      .finally(() => {
-        if (!cancelled) setDatesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [zoneId, selectedDistributorId]);
+  const {
+    availableDates,
+    loading: datesLoading,
+    error: datesError,
+  } = useAvailableDeliveryDates({
+    zoneId,
+    distributorId: selectedDistributorId,
+    days: DAYS_AHEAD,
+  });
 
   // Detect if current distributor has time slots configured
   const hasTimeSlots = useMemo(() => {
@@ -286,51 +258,12 @@ export default function CheckoutSchedulePage() {
         </p>
       </div>
 
-      {/* Delivering To */}
-      <div className="mx-4 mt-5">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
-            Entregando em
-          </p>
-          <button
-            type="button"
-            onClick={() => setAddressSheetOpen(true)}
-            className="text-xs font-semibold text-primary hover:underline"
-          >
-            Alterar
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => setAddressSheetOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
-        >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5697E9]/15">
-            <Home className="h-5 w-5 text-primary" />
-          </div>
-          {addressLoading ? (
-            <div className="flex-1 space-y-2 animate-pulse">
-              <div className="h-3 w-24 rounded bg-[#e1e3e4]" />
-              <div className="h-2.5 w-40 rounded bg-[#e1e3e4]" />
-            </div>
-          ) : selectedAddress ? (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#191c1d]">
-                {selectedAddress.label || "Endereço"}
-              </p>
-              <p className="text-xs text-[#737688] truncate">
-                {selectedAddress.street}, {selectedAddress.number}
-                {selectedAddress.complement ? ` — ${selectedAddress.complement}` : ""}
-              </p>
-            </div>
-          ) : (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-primary">Selecionar endereço</p>
-              <p className="text-xs text-[#737688]">Toque para adicionar</p>
-            </div>
-          )}
-        </button>
-      </div>
+      <DeliveryAddressCard
+        className="mx-4 mt-5"
+        address={selectedAddress}
+        loading={addressLoading}
+        onClick={() => setAddressSheetOpen(true)}
+      />
 
       {/* Select Delivery Day */}
       <div className="mx-4 mt-5">
@@ -412,6 +345,11 @@ export default function CheckoutSchedulePage() {
             zoneId={zoneId}
             date={effectiveDate}
             distributorId={selectedDistributorId ?? undefined}
+            selectedSlotId={selectedSlotId}
+            onSelectSlot={(_, slot) => {
+              setSelectedSlotId(slot.id);
+              setSelectedWindow(slot.window.toLowerCase() as TimeWindow);
+            }}
           />
         ) : (
         <div className="space-y-2">

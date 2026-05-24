@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+type SubscriptionPaymentMethod = "pix" | "credit";
+
 export interface SubscriptionWizardState {
   // Step 1 — Plan
   selectedPlanId: string | null;
@@ -22,7 +24,7 @@ export interface SubscriptionWizardState {
   quantitiesByDate: Record<string, number>;
 
   // Step 5 — Payment
-  paymentMethod: "pix" | "credit" | "cash";
+  paymentMethod: SubscriptionPaymentMethod;
 
   // Actions
   setPlan: (planId: string | null) => void;
@@ -32,7 +34,7 @@ export interface SubscriptionWizardState {
   setDates: (dates: string[]) => void;
   setTimeSlotForDate: (date: string, timeSlotId: string) => void;
   setQuantityForDate: (date: string, quantity: number) => void;
-  setPaymentMethod: (method: "pix" | "credit" | "cash") => void;
+  setPaymentMethod: (method: SubscriptionPaymentMethod) => void;
   reset: () => void;
 }
 
@@ -63,12 +65,42 @@ export const useSubscriptionStore = create<SubscriptionWizardState>()(
       ...initialState,
 
       setPlan: (planId) =>
-        set({ selectedPlanId: planId, selectedDistributorId: null }),
+        set((state) =>
+          state.selectedPlanId === planId
+            ? { selectedPlanId: planId }
+            : {
+                selectedPlanId: planId,
+                selectedDistributorId: null,
+                selectedDates: [],
+                timeSlotsByDate: {},
+                quantitiesByDate: {},
+              }
+        ),
 
       setDistributor: (distributorId) =>
-        set({ selectedDistributorId: distributorId }),
+        set((state) =>
+          state.selectedDistributorId === distributorId
+            ? { selectedDistributorId: distributorId }
+            : {
+                selectedDistributorId: distributorId,
+                selectedDates: [],
+                timeSlotsByDate: {},
+                quantitiesByDate: {},
+              }
+        ),
 
-      setAddress: (addressId) => set({ selectedAddressId: addressId }),
+      setAddress: (addressId) =>
+        set((state) =>
+          state.selectedAddressId === addressId
+            ? { selectedAddressId: addressId }
+            : {
+                selectedAddressId: addressId,
+                selectedDistributorId: null,
+                selectedDates: [],
+                timeSlotsByDate: {},
+                quantitiesByDate: {},
+              }
+        ),
 
       toggleDate: (date) =>
         set((state) => {

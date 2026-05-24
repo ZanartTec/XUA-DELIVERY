@@ -18,7 +18,15 @@ const defaultInclude = {
   payments: {
     orderBy: { created_at: "desc" as const },
     take: 1,
-    select: { id: true, status: true, amount_cents: true, created_at: true },
+    select: {
+      id: true,
+      status: true,
+      amount_cents: true,
+      payment_method: true,
+      provider: true,
+      external_id: true,
+      created_at: true,
+    },
   },
 } satisfies Prisma.UserSubscriptionInclude;
 

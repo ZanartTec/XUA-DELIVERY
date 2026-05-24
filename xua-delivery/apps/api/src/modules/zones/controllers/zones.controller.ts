@@ -6,6 +6,7 @@ import { zonesService } from "../services/zones.service.js";
 import { zonesRepository } from "../repository/zones.repository.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { timeslotRepository } from "../../distributor/repository/timeslot.repository.js";
+import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 
 export const zonesController = {
   // ─── Zone CRUD ────────────────────────────────────────────
@@ -106,17 +107,25 @@ export const zonesController = {
 
     try {
       let distributorId = parsed.data.distributor_id;
+      let scheduleZoneId = zoneId;
       if (!distributorId) {
         distributorId = (await zonesRepository.findDistributorId(zoneId)) ?? undefined;
         if (!distributorId) {
           res.status(404).json({ error: "Zona não encontrada" });
           return;
         }
+      } else {
+          const resolvedZoneId = await distributorRepository.resolveCoveredZone(distributorId, zoneId);
+          if (!resolvedZoneId) {
+          res.status(400).json({ error: "Distribuidora selecionada não atende esta zona" });
+          return;
+        }
+          scheduleZoneId = resolvedZoneId;
       }
 
       const dates = await scheduleService.getAvailableDates(
         distributorId,
-        zoneId,
+        scheduleZoneId,
         parsed.data.days
       );
       res.json({ distributor_id: distributorId, dates });

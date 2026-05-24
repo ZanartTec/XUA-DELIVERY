@@ -7,8 +7,9 @@ import { useCheckoutStore } from "@/src/store/checkout";
 import { useCartStore } from "@/src/store/cart";
 import { DistributorSelector } from "@/src/components/consumer/distributor-selector";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
+import { DeliveryAddressCard } from "@/src/components/consumer/delivery-address-card";
 import { Button } from "@/src/components/ui/button";
-import { ArrowLeft, Zap, Droplets, Building2, Home } from "lucide-react";
+import { ArrowLeft, Zap, Droplets, Building2 } from "lucide-react";
 import type { Address } from "@/src/types";
 
 export default function CheckoutDistributorPage() {
@@ -117,51 +118,12 @@ export default function CheckoutDistributorPage() {
         </p>
       </div>
 
-      {/* Delivering To */}
-      <div className="mx-4 mt-5">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
-            Entregando em
-          </p>
-          <button
-            type="button"
-            onClick={() => setAddressSheetOpen(true)}
-            className="text-xs font-semibold text-primary hover:underline"
-          >
-            Alterar
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => setAddressSheetOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
-        >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5697E9]/15">
-            <Home className="h-5 w-5 text-primary" />
-          </div>
-          {addressLoading ? (
-            <div className="flex-1 space-y-2 animate-pulse">
-              <div className="h-3 w-24 rounded bg-[#e1e3e4]" />
-              <div className="h-2.5 w-40 rounded bg-[#e1e3e4]" />
-            </div>
-          ) : selectedAddress ? (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#191c1d]">
-                {selectedAddress.label || "Endereço"}
-              </p>
-              <p className="text-xs text-[#737688] truncate">
-                {selectedAddress.street}, {selectedAddress.number}
-                {selectedAddress.complement ? ` — ${selectedAddress.complement}` : ""}
-              </p>
-            </div>
-          ) : (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-primary">Selecionar endereço</p>
-              <p className="text-xs text-[#737688]">Toque para adicionar</p>
-            </div>
-          )}
-        </button>
-      </div>
+      <DeliveryAddressCard
+        className="mx-4 mt-5"
+        address={selectedAddress}
+        loading={addressLoading}
+        onClick={() => setAddressSheetOpen(true)}
+      />
 
       {/* Distributor Selector */}
       <div className="mx-4 mt-5 flex-1">

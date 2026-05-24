@@ -14,8 +14,7 @@ const SP_TZ = "America/Sao_Paulo";
  */
 function nowInSaoPaulo(): Date {
   const now = new Date();
-  const sp = new Date(now.toLocaleString("en-US", { timeZone: SP_TZ }));
-  return sp;
+  return new Date(now.toLocaleString("en-US", { timeZone: SP_TZ }));
 }
 
 /** YYYY-MM-DD de um Date (usando os componentes locais). */
@@ -23,6 +22,14 @@ function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** YYYY-MM-DD de colunas DATE do banco, que chegam como meia-noite UTC. */
+function dbDateToISODate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -99,7 +106,7 @@ export const scheduleService = {
     const hasSchedule = scheduleMap.size > 0;
 
     // Set de datas bloqueadas
-    const blockedSet = new Set(blocked.map((b) => toISODate(new Date(b.blocked_date))));
+    const blockedSet = new Set(blocked.map((b) => dbDateToISODate(new Date(b.blocked_date))));
 
     // Index capacidade por "date|window" → tem_slot
     // Se não há nenhum slot cadastrado para a zona, ignora restrição de capacidade
@@ -107,7 +114,7 @@ export const scheduleService = {
     const hasCapacityConfig = capacitySlots.length > 0;
     const capacityMap = new Map<string, boolean>();
     for (const slot of capacitySlots) {
-      const dateIso = toISODate(new Date(slot.delivery_date));
+      const dateIso = dbDateToISODate(new Date(slot.delivery_date));
       const key = `${dateIso}|${slot.window.toLowerCase()}`;
       capacityMap.set(key, true);
     }
@@ -255,7 +262,7 @@ export const scheduleService = {
       })),
       blocked_dates: blocked.map((b) => ({
         id: b.id,
-        blocked_date: toISODate(new Date(b.blocked_date)),
+        blocked_date: dbDateToISODate(new Date(b.blocked_date)),
         reason: b.reason,
       })),
     };

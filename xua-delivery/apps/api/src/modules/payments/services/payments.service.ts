@@ -156,6 +156,7 @@ export const paymentService = {
           provider_payment_ref: result.providerPaymentRef ?? result.externalId,
           external_id: result.externalId,
           idempotency_key: idempotencyKey,
+          payment_method: paymentMethod,
         },
       });
 

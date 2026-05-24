@@ -14,12 +14,25 @@ export type UserSubscriptionDeliveryDateInput = z.infer<
   typeof userSubscriptionDeliveryDateSchema
 >;
 
+export const userSubscriptionPaymentMethodSchema = z.enum(["pix", "credit"]);
+export type UserSubscriptionPaymentMethod = z.infer<
+  typeof userSubscriptionPaymentMethodSchema
+>;
+
 export const userSubscriptionCreateSchema = z.object({
   plan_id: UUID,
   distributor_id: UUID,
   address_id: UUID,
+  payment_method: userSubscriptionPaymentMethodSchema,
   delivery_dates: z
     .array(userSubscriptionDeliveryDateSchema)
     .min(1, "Informe ao menos uma data de entrega"),
 });
 export type UserSubscriptionCreateInput = z.infer<typeof userSubscriptionCreateSchema>;
+
+export const userSubscriptionPaymentRetrySchema = z.object({
+  payment_method: userSubscriptionPaymentMethodSchema.optional(),
+});
+export type UserSubscriptionPaymentRetryInput = z.infer<
+  typeof userSubscriptionPaymentRetrySchema
+>;

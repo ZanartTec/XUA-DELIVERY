@@ -391,6 +391,7 @@ model Payment {
   kind                 PaymentKind   @default(ORDER)
   status               PaymentStatus @default(CREATED)
   amount_cents         Int           @default(0)
+  payment_method       String?
   provider             String?
   provider_payment_ref String?
   external_id          String?       @unique

@@ -7,6 +7,7 @@ import {
   PaymentKind,
   PaymentStatus,
   SourceApp,
+  UserSubscriptionStatus,
 } from "@prisma/client";
 import {
   PAYMENT_JOB_NAMES,
@@ -16,11 +17,19 @@ import { createLogger } from "../../infra/logger";
 import { getPrisma } from "../../infra/prisma/client";
 import { auditRepository } from "../../modules/audit/index.js";
 import { orderService } from "../../modules/orders/index.js";
-import { getPaymentGateway, PAYMENT_PROVIDERS } from "../../modules/payments/gateway/payments.gateway.js";
+import {
+  getPaymentGateway,
+  PAYMENT_PROVIDERS,
+  type ProviderPaymentDetails,
+} from "../../modules/payments/gateway/payments.gateway.js";
 
 const log = createLogger("payment-jobs-worker");
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type ResolvedPaymentTarget =
+  | { kind: "ORDER"; orderId: string }
+  | { kind: "SUBSCRIPTION"; subscriptionId: string };
 
 function paymentStatusFromMercadoPago(status: string): PaymentStatus {
   switch (status) {
@@ -85,33 +94,125 @@ function isUuid(value: string | null | undefined): value is string {
   return Boolean(value && UUID_PATTERN.test(value));
 }
 
-async function resolveOrderId(
+function paymentKindFromProvider(kind: string | null | undefined): PaymentKind | null {
+  switch (kind?.toUpperCase()) {
+    case PaymentKind.ORDER:
+      return PaymentKind.ORDER;
+    case PaymentKind.SUBSCRIPTION:
+      return PaymentKind.SUBSCRIPTION;
+    case PaymentKind.DEPOSIT:
+      return PaymentKind.DEPOSIT;
+    default:
+      return null;
+  }
+}
+
+function getUuidReferences(providerPayment: ProviderPaymentDetails): string[] {
+  return [providerPayment.orderReference, providerPayment.externalReference].filter(isUuid);
+}
+
+async function findExistingPayment(
   tx: Prisma.TransactionClient,
-  providerPayment: {
-    providerPaymentId: string;
-    orderReference?: string;
-    externalReference?: string;
-  }
-): Promise<string | null> {
-  if (isUuid(providerPayment.orderReference)) {
-    return providerPayment.orderReference;
-  }
+  providerPayment: ProviderPaymentDetails
+) {
+  const referenceIds = [
+    providerPayment.providerPaymentId,
+    providerPayment.externalReference,
+    providerPayment.orderReference,
+  ].filter((value): value is string => Boolean(value));
+  const uuidReferences = getUuidReferences(providerPayment);
 
-  if (isUuid(providerPayment.externalReference)) {
-    return providerPayment.externalReference;
-  }
-
-  const existing = await tx.payment.findFirst({
+  return tx.payment.findFirst({
     where: {
       provider: PAYMENT_PROVIDERS.mercadoPago,
-      provider_payment_ref: providerPayment.providerPaymentId,
-      order_id: { not: null },
+      OR: [
+        { provider_payment_ref: { in: referenceIds } },
+        { external_id: { in: referenceIds } },
+        ...(uuidReferences.length > 0
+          ? [
+              { order_id: { in: uuidReferences } },
+              { user_subscription_id: { in: uuidReferences } },
+            ]
+          : []),
+      ],
     },
     orderBy: { created_at: "desc" },
-    select: { order_id: true },
+  });
+}
+
+async function findOrderReference(
+  tx: Prisma.TransactionClient,
+  references: string[]
+): Promise<string | null> {
+  if (references.length === 0) return null;
+  const order = await tx.order.findFirst({
+    where: { id: { in: references } },
+    select: { id: true },
   });
 
-  return existing?.order_id ?? null;
+  return order?.id ?? null;
+}
+
+async function findSubscriptionReference(
+  tx: Prisma.TransactionClient,
+  references: string[]
+): Promise<string | null> {
+  if (references.length === 0) return null;
+  const subscription = await tx.userSubscription.findFirst({
+    where: { id: { in: references } },
+    select: { id: true },
+  });
+
+  return subscription?.id ?? null;
+}
+
+async function resolvePaymentTarget(
+  tx: Prisma.TransactionClient,
+  providerPayment: ProviderPaymentDetails,
+  existing: Awaited<ReturnType<typeof findExistingPayment>>
+): Promise<
+    ResolvedPaymentTarget | null
+  > {
+  if (existing?.order_id) {
+    return { kind: PaymentKind.ORDER, orderId: existing.order_id };
+  }
+
+  if (existing?.user_subscription_id) {
+    return { kind: PaymentKind.SUBSCRIPTION, subscriptionId: existing.user_subscription_id };
+  }
+
+  const references = getUuidReferences(providerPayment);
+  const kindHint = paymentKindFromProvider(providerPayment.paymentKind);
+
+  if (kindHint === PaymentKind.ORDER) {
+    const orderId = await findOrderReference(tx, references);
+    return orderId ? { kind: PaymentKind.ORDER, orderId } : null;
+  }
+
+  if (kindHint === PaymentKind.SUBSCRIPTION) {
+    const subscriptionId = await findSubscriptionReference(tx, references);
+    return subscriptionId ? { kind: PaymentKind.SUBSCRIPTION, subscriptionId } : null;
+  }
+
+  const orderId = await findOrderReference(tx, references);
+  if (orderId) return { kind: PaymentKind.ORDER, orderId };
+
+  const subscriptionId = await findSubscriptionReference(tx, references);
+  return subscriptionId ? { kind: PaymentKind.SUBSCRIPTION, subscriptionId } : null;
+}
+
+function buildProviderResponse(providerPayment: ProviderPaymentDetails): Prisma.InputJsonObject {
+  return {
+    providerPaymentId: providerPayment.providerPaymentId,
+    status: providerPayment.status,
+    statusDetail: providerPayment.statusDetail,
+    externalReference: providerPayment.externalReference,
+    orderReference: providerPayment.orderReference,
+    paymentKind: providerPayment.paymentKind,
+    paymentMethod: providerPayment.paymentMethod,
+    amountCents: providerPayment.amountCents,
+    providerSnapshot: providerPayment.raw,
+  } as Prisma.InputJsonObject;
 }
 
 async function finishOrderAfterPaymentCaptured(orderId: string): Promise<void> {
@@ -162,108 +263,213 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
 
   let shouldFinalizeOrder = false;
   let resolvedOrderId: string | null = null;
+  let resolvedSubscriptionId: string | null = null;
 
   await prisma.$transaction(async (tx) => {
-    const orderId = await resolveOrderId(tx, providerPayment);
-    if (!orderId) {
-      throw new Error(`PAYMENT_ORDER_REFERENCE_MISSING:${providerPaymentId}`);
+    const existing = await findExistingPayment(tx, providerPayment);
+    const target = await resolvePaymentTarget(tx, providerPayment, existing);
+    if (!target) {
+      throw new Error(`PAYMENT_REFERENCE_MISSING:${providerPaymentId}`);
     }
 
-    resolvedOrderId = orderId;
+    if (target.kind === PaymentKind.ORDER) {
+      const { orderId } = target;
+      resolvedOrderId = orderId;
 
-    const existing = await tx.payment.findFirst({
-      where: { order_id: orderId, provider: PAYMENT_PROVIDERS.mercadoPago },
-      orderBy: { created_at: "desc" },
-    });
+      const orderPayment = existing?.order_id === orderId
+        ? existing
+        : await tx.payment.findFirst({
+            where: { order_id: orderId, provider: PAYMENT_PROVIDERS.mercadoPago },
+            orderBy: { created_at: "desc" },
+          });
 
-    if (existing && existing.amount_cents > 0 && providerPayment.amountCents > 0 && existing.amount_cents !== providerPayment.amountCents) {
-      throw new Error(
-        `PAYMENT_AMOUNT_MISMATCH:${existing.amount_cents}:${providerPayment.amountCents}`
+      if (
+        orderPayment
+        && orderPayment.amount_cents > 0
+        && providerPayment.amountCents > 0
+        && orderPayment.amount_cents !== providerPayment.amountCents
+      ) {
+        throw new Error(
+          `PAYMENT_AMOUNT_MISMATCH:${orderPayment.amount_cents}:${providerPayment.amountCents}`
+        );
+      }
+
+      if (orderPayment && isInvalidRegression(orderPayment.status, nextStatus)) {
+        await tx.paymentWebhookEvent.update({
+          where: { id: event.id },
+          data: { processed_at: new Date(), processing_error: "IGNORED_STATUS_REGRESSION" },
+        });
+        return;
+      }
+
+      const payment = orderPayment
+        ? await tx.payment.update({
+            where: { id: orderPayment.id },
+            data: {
+              status: nextStatus,
+              provider_payment_ref: providerPayment.providerPaymentId,
+              payment_method: providerPayment.paymentMethod ?? orderPayment.payment_method,
+              paid_at: nextStatus === PaymentStatus.CAPTURED
+                ? providerPayment.paidAt ?? new Date()
+                : orderPayment.paid_at,
+            },
+          })
+        : await tx.payment.create({
+            data: {
+              order_id: orderId,
+              kind: PaymentKind.ORDER,
+              amount_cents: providerPayment.amountCents,
+              status: nextStatus,
+              provider: PAYMENT_PROVIDERS.mercadoPago,
+              provider_payment_ref: providerPayment.providerPaymentId,
+              external_id: providerPayment.providerPaymentId,
+              payment_method: providerPayment.paymentMethod,
+              paid_at: nextStatus === PaymentStatus.CAPTURED
+                ? providerPayment.paidAt ?? new Date()
+                : null,
+            },
+          });
+
+      await tx.paymentTransaction.create({
+        data: {
+          payment_id: payment.id,
+          action: `webhook:${event.event_type}`,
+          provider_status: providerPayment.status,
+          provider_response: buildProviderResponse(providerPayment),
+          idempotency_key: event.provider_event_ref,
+        },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { payment_status: paymentStatusToOrderPaymentStatus(nextStatus) },
+      });
+
+      await auditRepository.emit(
+        {
+          eventType: auditEventForPaymentStatus(nextStatus),
+          actor: { type: ActorType.SYSTEM, id: "mercadopago-webhook" },
+          orderId,
+          sourceApp: SourceApp.BACKEND,
+          payload: {
+            paymentId: payment.id,
+            providerPaymentId: providerPayment.providerPaymentId,
+            providerStatus: providerPayment.status,
+            nextStatus,
+            webhookEventId: event.id,
+          },
+        },
+        tx
+      );
+
+      shouldFinalizeOrder = nextStatus === PaymentStatus.CAPTURED;
+    } else if (target.kind === PaymentKind.SUBSCRIPTION) {
+      const { subscriptionId } = target;
+      resolvedSubscriptionId = subscriptionId;
+
+      const subscriptionPayment = existing?.user_subscription_id === subscriptionId
+        ? existing
+        : await tx.payment.findFirst({
+            where: {
+              user_subscription_id: subscriptionId,
+              provider: PAYMENT_PROVIDERS.mercadoPago,
+            },
+            orderBy: { created_at: "desc" },
+          });
+
+      if (
+        subscriptionPayment
+        && subscriptionPayment.amount_cents > 0
+        && providerPayment.amountCents > 0
+        && subscriptionPayment.amount_cents !== providerPayment.amountCents
+      ) {
+        throw new Error(
+          `PAYMENT_AMOUNT_MISMATCH:${subscriptionPayment.amount_cents}:${providerPayment.amountCents}`
+        );
+      }
+
+      if (subscriptionPayment && isInvalidRegression(subscriptionPayment.status, nextStatus)) {
+        await tx.paymentWebhookEvent.update({
+          where: { id: event.id },
+          data: { processed_at: new Date(), processing_error: "IGNORED_STATUS_REGRESSION" },
+        });
+        return;
+      }
+
+      const payment = subscriptionPayment
+        ? await tx.payment.update({
+            where: { id: subscriptionPayment.id },
+            data: {
+              status: nextStatus,
+              provider_payment_ref: providerPayment.providerPaymentId,
+              payment_method: providerPayment.paymentMethod ?? subscriptionPayment.payment_method,
+              paid_at: nextStatus === PaymentStatus.CAPTURED
+                ? providerPayment.paidAt ?? new Date()
+                : subscriptionPayment.paid_at,
+            },
+          })
+        : await tx.payment.create({
+            data: {
+              user_subscription_id: subscriptionId,
+              kind: PaymentKind.SUBSCRIPTION,
+              amount_cents: providerPayment.amountCents,
+              status: nextStatus,
+              provider: PAYMENT_PROVIDERS.mercadoPago,
+              provider_payment_ref: providerPayment.providerPaymentId,
+              external_id: providerPayment.providerPaymentId,
+              payment_method: providerPayment.paymentMethod,
+              paid_at: nextStatus === PaymentStatus.CAPTURED
+                ? providerPayment.paidAt ?? new Date()
+                : null,
+            },
+          });
+
+      await tx.paymentTransaction.create({
+        data: {
+          payment_id: payment.id,
+          action: `webhook:${event.event_type}`,
+          provider_status: providerPayment.status,
+          provider_response: buildProviderResponse(providerPayment),
+          idempotency_key: event.provider_event_ref,
+        },
+      });
+
+      if (nextStatus === PaymentStatus.CAPTURED) {
+        await tx.userSubscription.updateMany({
+          where: { id: subscriptionId, status: UserSubscriptionStatus.PENDING_PAYMENT },
+          data: { status: UserSubscriptionStatus.ACTIVE },
+        });
+      }
+
+      await auditRepository.emit(
+        {
+          eventType: auditEventForPaymentStatus(nextStatus),
+          actor: { type: ActorType.SYSTEM, id: "mercadopago-webhook" },
+          sourceApp: SourceApp.BACKEND,
+          payload: {
+            subscriptionId,
+            paymentId: payment.id,
+            providerPaymentId: providerPayment.providerPaymentId,
+            providerStatus: providerPayment.status,
+            nextStatus,
+            webhookEventId: event.id,
+          },
+        },
+        tx
       );
     }
-
-    if (existing && isInvalidRegression(existing.status, nextStatus)) {
-      await tx.paymentWebhookEvent.update({
-        where: { id: event.id },
-        data: { processed_at: new Date(), processing_error: "IGNORED_STATUS_REGRESSION" },
-      });
-      return;
-    }
-
-    const payment = existing
-      ? await tx.payment.update({
-          where: { id: existing.id },
-          data: {
-            status: nextStatus,
-            provider_payment_ref: providerPayment.providerPaymentId,
-            paid_at: nextStatus === PaymentStatus.CAPTURED ? providerPayment.paidAt ?? new Date() : existing.paid_at,
-          },
-        })
-      : await tx.payment.create({
-          data: {
-            order_id: orderId,
-            kind: PaymentKind.ORDER,
-            amount_cents: providerPayment.amountCents,
-            status: nextStatus,
-            provider: PAYMENT_PROVIDERS.mercadoPago,
-            provider_payment_ref: providerPayment.providerPaymentId,
-            external_id: providerPayment.providerPaymentId,
-            paid_at: nextStatus === PaymentStatus.CAPTURED ? providerPayment.paidAt ?? new Date() : null,
-          },
-        });
-
-    await tx.paymentTransaction.create({
-      data: {
-        payment_id: payment.id,
-        action: `webhook:${event.event_type}`,
-        provider_status: providerPayment.status,
-        provider_response: {
-          providerPaymentId: providerPayment.providerPaymentId,
-          status: providerPayment.status,
-          statusDetail: providerPayment.statusDetail,
-          externalReference: providerPayment.externalReference,
-          amountCents: providerPayment.amountCents,
-          providerSnapshot: providerPayment.raw,
-        } as Prisma.InputJsonObject,
-        idempotency_key: event.provider_event_ref,
-      },
-    });
-
-    await tx.order.update({
-      where: { id: orderId },
-      data: { payment_status: paymentStatusToOrderPaymentStatus(nextStatus) },
-    });
-
-    await auditRepository.emit(
-      {
-        eventType: auditEventForPaymentStatus(nextStatus),
-        actor: { type: ActorType.SYSTEM, id: "mercadopago-webhook" },
-        orderId,
-        sourceApp: SourceApp.BACKEND,
-        payload: {
-          paymentId: payment.id,
-          providerPaymentId: providerPayment.providerPaymentId,
-          providerStatus: providerPayment.status,
-          nextStatus,
-          webhookEventId: event.id,
-        },
-      },
-      tx
-    );
 
     await tx.paymentWebhookEvent.update({
       where: { id: event.id },
       data: { processed_at: new Date(), processing_error: null },
     });
-
-    shouldFinalizeOrder = nextStatus === PaymentStatus.CAPTURED;
   });
 
-  if (!resolvedOrderId) {
-    throw new Error(`PAYMENT_ORDER_REFERENCE_MISSING:${providerPaymentId}`);
+  if (!resolvedOrderId && !resolvedSubscriptionId) {
+    throw new Error(`PAYMENT_REFERENCE_MISSING:${providerPaymentId}`);
   }
 
-  if (shouldFinalizeOrder) {
+  if (shouldFinalizeOrder && resolvedOrderId) {
     await finishOrderAfterPaymentCaptured(resolvedOrderId);
   }
 
@@ -271,6 +477,7 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
     ok: true,
     providerPaymentId,
     orderId: resolvedOrderId,
+    subscriptionId: resolvedSubscriptionId,
     status: nextStatus,
   };
 }

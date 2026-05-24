@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------- */
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
@@ -13,21 +13,21 @@ import {
   ArrowRight,
   Check,
   CalendarDays,
-  MapPin,
   Truck,
   Droplets,
   Loader2,
-  Clock,
-  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/src/store/auth";
 import { useSubscriptionStore } from "@/src/store/subscription";
-import { SubscriptionCalendar } from "@/src/components/consumer/subscription-calendar";
+import { DeliveryDateCalendar } from "@/src/components/consumer/delivery-date-calendar";
+import { DeliveryAddressCard } from "@/src/components/consumer/delivery-address-card";
 import {
-  PaymentMethodSelector,
-  type PaymentMethod,
-} from "@/src/components/consumer/payment-method-selector";
+  TimeSlotOptions,
+  type DeliveryTimeSlot,
+} from "@/src/components/consumer/time-slot-picker";
+import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
+import { PaymentMethodSelector } from "@/src/components/consumer/payment-method-selector";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import type { Address } from "@/src/types";
 
@@ -51,24 +51,6 @@ interface SubscriptionPlan {
   }[];
 }
 
-interface TimeSlot {
-  id: string;
-  label: string;
-  start_hour: number;
-  start_minute: number;
-  end_hour: number;
-  end_minute: number;
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatSlot(slot: TimeSlot): string {
-  if (slot.label) return slot.label;
-  return `${pad(slot.start_hour)}:${pad(slot.start_minute)} – ${pad(slot.end_hour)}:${pad(slot.end_minute)}`;
-}
-
 function formatIsoDate(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("pt-BR", {
@@ -76,6 +58,27 @@ function formatIsoDate(iso: string): string {
     day: "2-digit",
     month: "short",
   });
+}
+
+const DEFAULT_AVAILABILITY_DAYS = 30;
+const MAX_AVAILABILITY_DAYS = 180;
+
+function getAvailabilityDays(validUntil?: string | null): number {
+  if (!validUntil) return DEFAULT_AVAILABILITY_DAYS;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const until = new Date(validUntil.slice(0, 10) + "T00:00:00");
+  const diff = Math.ceil((until.getTime() - today.getTime()) / 86400000) + 1;
+  return Math.max(1, Math.min(MAX_AVAILABILITY_DAYS, diff));
+}
+
+function isValidRedirectUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -141,12 +144,13 @@ export default function SubscriptionCreatePage() {
 
   // Data
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [timeSlots, setTimeSlots] = useState<DeliveryTimeSlot[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
 
   // UI
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [addressLoading, setAddressLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
 
@@ -163,10 +167,49 @@ export default function SubscriptionCreatePage() {
     [selectedPlan]
   );
 
+  const zoneId = selectedAddress?.zone_id ?? null;
+  const availabilityDays = useMemo(
+    () => getAvailabilityDays(selectedPlan?.valid_until),
+    [selectedPlan?.valid_until],
+  );
+  const {
+    availableDates,
+    loading: availableDatesLoading,
+    error: availableDatesError,
+  } = useAvailableDeliveryDates({
+    zoneId,
+    distributorId: selectedDistributorId,
+    days: availabilityDays,
+    enabled: Boolean(zoneId && selectedDistributorId && selectedPlan),
+  });
+
+  const availableDateByIso = useMemo(() => {
+    if (!availableDates) return new Map<string, NonNullable<typeof availableDates>[number]>();
+    return new Map(availableDates.map((date) => [date.date, date]));
+  }, [availableDates]);
+
+  const getAvailableTimeSlotsForDate = useCallback(
+    (date: string) => {
+      const availability = availableDateByIso.get(date);
+      if (!availability) return [];
+      return timeSlots.filter((slot) => {
+        const slotWindow = slot.window.toLowerCase();
+        if (slotWindow === "morning") return availability.morning_available;
+        if (slotWindow === "afternoon") return availability.afternoon_available;
+        return availability.morning_available || availability.afternoon_available;
+      });
+    },
+    [availableDateByIso, timeSlots],
+  );
+
   const allDatesHaveSlot = useMemo(() => {
     if (selectedDates.length === 0) return false;
-    return selectedDates.every((d) => !!timeSlotsByDate[d]);
-  }, [selectedDates, timeSlotsByDate]);
+    return selectedDates.every((date) => {
+      const selectedSlot = timeSlotsByDate[date];
+      if (!selectedSlot) return false;
+      return getAvailableTimeSlotsForDate(date).some((slot) => slot.id === selectedSlot);
+    });
+  }, [getAvailableTimeSlotsForDate, selectedDates, timeSlotsByDate]);
 
   const totalAssigned = useMemo(
     () => selectedDates.reduce((sum, d) => sum + (quantitiesByDate[d] ?? 1), 0),
@@ -192,6 +235,39 @@ export default function SubscriptionCreatePage() {
       .finally(() => setLoadingPlans(false));
   }, []);
 
+  const loadDefaultAddress = useCallback(async () => {
+    if (!user?.id) {
+      setAddressLoading(false);
+      return;
+    }
+
+    setAddressLoading(true);
+    try {
+      const res = await fetch(`/api/consumers/${user.id}/addresses`);
+      const data = await res.json();
+      const list: Address[] = data.addresses ?? [];
+      const fromStore = selectedAddressId
+        ? list.find((address) => address.id === selectedAddressId)
+        : null;
+      const address = fromStore ?? list.find((item) => item.is_default) ?? list[0] ?? null;
+
+      setSelectedAddress(address);
+      if (address && address.id !== selectedAddressId) setAddress(address.id);
+    } catch {
+      toast.error("Erro ao carregar endereço");
+    } finally {
+      setAddressLoading(false);
+    }
+  }, [selectedAddressId, setAddress, user?.id]);
+
+  useEffect(() => {
+    void loadDefaultAddress();
+  }, [loadDefaultAddress]);
+
+  useEffect(() => {
+    if ((paymentMethod as string) === "cash") setPaymentMethod("pix");
+  }, [paymentMethod, setPaymentMethod]);
+
   // ---------------------------------------------------------------------------
   // Load time slots when address + distributor are set
   // ---------------------------------------------------------------------------
@@ -204,32 +280,32 @@ export default function SubscriptionCreatePage() {
     fetch(`/api/distributors/${selectedDistributorId}/public-schedule`)
       .then((r) => r.json())
       .then((d) => {
-        const slots: TimeSlot[] = d.time_slots ?? [];
+        const slots: DeliveryTimeSlot[] = d.time_slots ?? [];
         setTimeSlots(slots);
-        if (slots.length === 1) {
-          selectedDates.forEach((date) => {
-            if (!timeSlotsByDate[date]) {
-              setTimeSlotForDate(date, slots[0].id);
-            }
-          });
-        }
       })
       .catch(() => toast.error("Erro ao carregar horários"))
       .finally(() => setLoadingSlots(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDistributorId]);
 
-  // Auto-assign single slot when dates change
   useEffect(() => {
-    if (timeSlots.length === 1) {
-      selectedDates.forEach((date) => {
-        if (!timeSlotsByDate[date]) {
-          setTimeSlotForDate(date, timeSlots[0].id);
-        }
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDates, timeSlots]);
+    if (!availableDates) return;
+    const validDates = new Set(
+      availableDates
+        .filter((date) => date.morning_available || date.afternoon_available)
+        .map((date) => date.date),
+    );
+    const nextDates = selectedDates.filter((date) => validDates.has(date));
+    if (nextDates.length !== selectedDates.length) setDates(nextDates);
+  }, [availableDates, selectedDates, setDates]);
+
+  useEffect(() => {
+    selectedDates.forEach((date) => {
+      const slotsForDate = getAvailableTimeSlotsForDate(date);
+      if (slotsForDate.length === 1 && timeSlotsByDate[date] !== slotsForDate[0].id) {
+        setTimeSlotForDate(date, slotsForDate[0].id);
+      }
+    });
+  }, [getAvailableTimeSlotsForDate, selectedDates, setTimeSlotForDate, timeSlotsByDate]);
 
   // ---------------------------------------------------------------------------
   // Submission
@@ -246,6 +322,8 @@ export default function SubscriptionCreatePage() {
       toast.error("Preencha todas as etapas antes de confirmar");
       return;
     }
+
+    const subscriptionPaymentMethod = paymentMethod === "credit" ? "credit" : "pix";
     setSubmitting(true);
     try {
       const delivery_dates = selectedDates.map((date) => ({
@@ -261,15 +339,25 @@ export default function SubscriptionCreatePage() {
           distributor_id: selectedDistributorId,
           address_id: selectedAddressId,
           delivery_dates,
-          payment_method: paymentMethod,
+          payment_method: subscriptionPaymentMethod,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Erro ao criar assinatura");
       }
+
+      const redirectUrl = typeof data.redirectUrl === "string" ? data.redirectUrl : null;
+      if (redirectUrl && !isValidRedirectUrl(redirectUrl)) {
+        throw new Error("URL de pagamento inválida");
+      }
+
       reset();
-      toast.success("Assinatura criada com sucesso!");
+      toast.success(redirectUrl ? "Redirecionando para o pagamento..." : "Assinatura criada com sucesso!");
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
       router.push("/subscription/manage");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar assinatura");
@@ -364,10 +452,7 @@ export default function SubscriptionCreatePage() {
             <button
               key={plan.id}
               type="button"
-              onClick={() => {
-                setPlan(plan.id);
-                setDates([]);
-              }}
+              onClick={() => setPlan(plan.id)}
               className={cn(
                 "relative w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.98]",
                 selected
@@ -474,41 +559,13 @@ export default function SubscriptionCreatePage() {
   function renderAddressStep() {
     return (
       <div className="space-y-4">
-        <button
-          type="button"
+        <DeliveryAddressCard
+          address={selectedAddress}
+          loading={addressLoading}
+          label="Endereço de entrega"
+          emptyTitle="Selecionar ou adicionar endereço"
           onClick={() => setAddressSheetOpen(true)}
-          className={cn(
-            "flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all",
-            selectedAddressId
-              ? "border-2 border-primary bg-white"
-              : "border border-[#d9dde3] bg-white hover:border-primary/40"
-          )}
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8eef8]">
-            <MapPin className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            {selectedAddress ? (
-              <>
-                <p className="font-semibold text-[#191c1d] text-sm">
-                  {selectedAddress.label ?? selectedAddress.street}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedAddress.street}, {selectedAddress.number}
-                  {selectedAddress.complement
-                    ? ` — ${selectedAddress.complement}`
-                    : ""}
-                  , {selectedAddress.neighborhood}
-                </p>
-              </>
-            ) : (
-              <p className="font-medium text-[#191c1d] text-sm">
-                Selecionar ou adicionar endereço
-              </p>
-            )}
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
+        />
 
         <AddressSheet
           open={addressSheetOpen}
@@ -518,7 +575,6 @@ export default function SubscriptionCreatePage() {
             setAddress(addr.id);
             setSelectedAddress(addr);
             setAddressSheetOpen(false);
-            setDates([]);
           }}
         />
       </div>
@@ -530,6 +586,13 @@ export default function SubscriptionCreatePage() {
   // ---------------------------------------------------------------------------
   function renderCalendarStep() {
     if (!selectedPlan) return null;
+    if (!zoneId) {
+      return (
+        <p className="text-center text-sm text-muted-foreground py-16">
+          Selecione um endereço válido antes de escolher as datas.
+        </p>
+      );
+    }
     const remaining = selectedPlan.quantity - totalAssigned;
     const progressPct = Math.min(100, (totalAssigned / selectedPlan.quantity) * 100);
 
@@ -585,11 +648,14 @@ export default function SubscriptionCreatePage() {
           )}
         </div>
 
-        <SubscriptionCalendar
+        <DeliveryDateCalendar
           selectedDates={selectedDates}
           maxDates={selectedPlan.quantity}
           fromDate={selectedPlan.valid_from}
           toDate={selectedPlan.valid_until ?? undefined}
+          availableDates={availableDates}
+          loading={availableDatesLoading}
+          error={availableDatesError}
           onToggleDate={toggleDate}
         />
 
@@ -609,60 +675,56 @@ export default function SubscriptionCreatePage() {
             ) : (
               [...selectedDates]
                 .sort()
-                .map((date) => (
-                  <div
-                    key={date}
-                    className="rounded-xl border border-[#d9dde3] bg-white p-3 space-y-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
-                      <p className="flex-1 text-sm font-medium text-[#191c1d]">
-                        {formatIsoDate(date)}
-                      </p>
-                      {timeSlots.length === 1 ? (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5" />
-                          {formatSlot(timeSlots[0])}
-                        </span>
-                      ) : (
-                        <select
-                          value={timeSlotsByDate[date] ?? ""}
-                          onChange={(e) =>
-                            setTimeSlotForDate(date, e.target.value)
-                          }
-                          className="rounded-lg border border-[#d9dde3] bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="">Selecione…</option>
-                          {timeSlots.map((slot) => (
-                            <option key={slot.id} value={slot.id}>
-                              {formatSlot(slot)}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                    {/* Quantity per date */}
-                    <div className="flex items-center gap-2 pl-7">
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        Qtd. nesta entrega:
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={selectedPlan.quantity}
-                        value={quantitiesByDate[date] ?? 1}
-                        onChange={(e) => {
-                          const val = Math.max(1, parseInt(e.target.value, 10) || 1);
-                          setQuantityForDate(date, val);
-                        }}
-                        className="w-16 rounded-lg border border-[#d9dde3] bg-white px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                .map((date) => {
+                  const slotsForDate = getAvailableTimeSlotsForDate(date);
+                  const selectedSlotId = slotsForDate.some(
+                    (slot) => slot.id === timeSlotsByDate[date],
+                  )
+                    ? timeSlotsByDate[date]
+                    : null;
+
+                  return (
+                    <div
+                      key={date}
+                      className="rounded-xl border border-[#d9dde3] bg-white p-3 space-y-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+                        <p className="flex-1 text-sm font-medium text-[#191c1d]">
+                          {formatIsoDate(date)}
+                        </p>
+                      </div>
+
+                      <TimeSlotOptions
+                        slots={slotsForDate}
+                        selectedSlotId={selectedSlotId}
+                        label="Horário desta entrega"
+                        emptyMessage="Nenhum horário disponível para esta data."
+                        onSelectSlot={(slotId) => setTimeSlotForDate(date, slotId)}
                       />
-                      <span className="text-xs text-muted-foreground">
-                        {selectedPlan.product.name}
-                      </span>
+
+                      <div className="flex items-center gap-2 pl-7">
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          Qtd. nesta entrega:
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={selectedPlan.quantity}
+                          value={quantitiesByDate[date] ?? 1}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            setQuantityForDate(date, val);
+                          }}
+                          className="w-16 rounded-lg border border-[#d9dde3] bg-white px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {selectedPlan.product.name}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
             )}
           </div>
         )}
@@ -709,8 +771,11 @@ export default function SubscriptionCreatePage() {
         )}
 
         <PaymentMethodSelector
-          value={paymentMethod as PaymentMethod}
-          onChange={setPaymentMethod}
+          value={paymentMethod}
+          onChange={(method) => {
+            if (method !== "cash") setPaymentMethod(method);
+          }}
+          disabledMethods={["cash"]}
         />
       </div>
     );

@@ -1,5 +1,6 @@
 import type {
   IPaymentGateway,
+  PaymentMethod,
   PaymentChargeMetadata,
   PaymentResult,
   ProviderPaymentDetails,
@@ -26,6 +27,8 @@ interface MercadoPagoPaymentResponse {
   date_approved?: string;
   metadata?: {
     order_id?: string;
+    payment_method?: PaymentMethod;
+    kind?: string;
   };
 }
 
@@ -70,18 +73,29 @@ function getBackUrl(
   envName: string,
   legacyEnvName: string,
   status: "success" | "failure" | "pending",
-  orderId: string
+  orderId: string,
+  kind?: string
 ): string {
-  const explicit = process.env[envName] ?? process.env[legacyEnvName];
+  const isSubscription = kind?.toUpperCase() === "SUBSCRIPTION";
+  const explicit = isSubscription
+    ? process.env[`MERCADOPAGO_SUBSCRIPTION_BACK_URL_${status.toUpperCase()}`]
+    : process.env[envName] ?? process.env[legacyEnvName];
+
   if (explicit) {
-    return withQueryParams(explicit, { orderId, paymentStatus: status });
+    return withQueryParams(explicit, {
+      [isSubscription ? "subscriptionId" : "orderId"]: orderId,
+      paymentStatus: status,
+    });
   }
 
   const origin = process.env.APP_ORIGIN ?? "http://localhost:3001";
-  return withQueryParams(`${origin}/checkout/confirmation`, {
-    orderId,
-    paymentStatus: status,
-  });
+  return withQueryParams(
+    `${origin}${isSubscription ? "/subscription/manage" : "/checkout/confirmation"}`,
+    {
+      [isSubscription ? "subscriptionId" : "orderId"]: orderId,
+      paymentStatus: status,
+    }
+  );
 }
 
 function getNotificationUrl(): string | undefined {
@@ -109,6 +123,8 @@ function sanitizePaymentResponse(payment: MercadoPagoPaymentResponse): Record<st
     status_detail: payment.status_detail,
     external_reference: payment.external_reference,
     order_reference: extractOrderReference(payment),
+    payment_method: payment.metadata?.payment_method,
+    kind: payment.metadata?.kind,
     transaction_amount: payment.transaction_amount,
     date_approved: payment.date_approved,
   };
@@ -163,8 +179,10 @@ export class MercadoPagoAdapter implements IPaymentGateway {
     amountCents: number,
     metadata: PaymentChargeMetadata
   ): Promise<PaymentResult> {
+    const isSubscription = metadata.kind?.toUpperCase() === "SUBSCRIPTION";
     const description =
-      metadata.description ?? `Pedido Xuá #${metadata.orderId.slice(0, 8)}`;
+      metadata.description
+      ?? `${isSubscription ? "Assinatura Xuá" : "Pedido Xuá"} #${metadata.orderId.slice(0, 8)}`;
     const items = metadata.items?.length
       ? metadata.items.map((item) => ({
           id: item.id,
@@ -199,19 +217,22 @@ export class MercadoPagoAdapter implements IPaymentGateway {
               "MERCADOPAGO_BACK_URL_SUCCESS",
               "MERCADOPAGO_SUCCESS_URL",
               "success",
-              metadata.orderId
+              metadata.orderId,
+              metadata.kind
             ),
             failure: getBackUrl(
               "MERCADOPAGO_BACK_URL_FAILURE",
               "MERCADOPAGO_FAILURE_URL",
               "failure",
-              metadata.orderId
+              metadata.orderId,
+              metadata.kind
             ),
             pending: getBackUrl(
               "MERCADOPAGO_BACK_URL_PENDING",
               "MERCADOPAGO_PENDING_URL",
               "pending",
-              metadata.orderId
+              metadata.orderId,
+              metadata.kind
             ),
           },
           auto_return: "approved",
@@ -259,6 +280,8 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       statusDetail: payment.status_detail,
       externalReference: payment.external_reference,
       orderReference: extractOrderReference(payment),
+      paymentKind: payment.metadata?.kind,
+      paymentMethod: payment.metadata?.payment_method,
       amountCents: Math.round(Number(payment.transaction_amount ?? 0) * 100),
       paidAt: payment.date_approved ? new Date(payment.date_approved) : undefined,
       raw: sanitizePaymentResponse(payment),

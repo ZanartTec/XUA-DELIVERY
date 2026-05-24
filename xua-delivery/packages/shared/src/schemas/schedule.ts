@@ -22,7 +22,7 @@ export type BlockDateInput = z.infer<typeof blockDateSchema>;
 
 export const availableDatesQuerySchema = z.object({
   distributor_id: z.string().uuid("distributor_id inválido").optional(),
-  days: z.coerce.number().int().min(1).max(30).default(14),
+  days: z.coerce.number().int().min(1).max(180).default(14),
 });
 export type AvailableDatesQuery = z.infer<typeof availableDatesQuerySchema>;
 

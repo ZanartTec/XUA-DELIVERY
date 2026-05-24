@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Repeat,
@@ -11,14 +11,13 @@ import {
   Droplets,
   CalendarDays,
   ChevronRight,
-  Clock,
+  CreditCard,
   MapPin,
   Truck,
   Loader2,
 } from "lucide-react";
-import { cn, formatCurrency } from "@/src/lib/utils";
+import { cn } from "@/src/lib/utils";
 import { toast } from "sonner";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +53,15 @@ interface UserSubscription {
     neighborhood: string;
   };
   delivery_dates: DeliveryDate[];
+  payments?: Array<{
+    id: string;
+    status: string;
+    amount_cents: number;
+    payment_method: "pix" | "credit" | null;
+    provider: string | null;
+    external_id: string | null;
+    created_at: string;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,7 +74,7 @@ function statusLabel(s: UserSubscriptionStatus): string {
     ACTIVE: "Ativa",
     PAUSED: "Pausada",
     CANCELLED: "Cancelada",
-    COMPLETED: "ConcluÃ­da",
+    COMPLETED: "Concluída",
   };
   return map[s] ?? s;
 }
@@ -116,6 +124,24 @@ function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
+function isValidRedirectUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeSubscriptionsPayload(data: unknown): UserSubscription[] {
+  if (Array.isArray(data)) return data as UserSubscription[];
+  if (data && typeof data === "object" && "subscriptions" in data) {
+    const { subscriptions } = data as { subscriptions?: unknown };
+    if (Array.isArray(subscriptions)) return subscriptions as UserSubscription[];
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -124,14 +150,26 @@ export default function SubscriptionManagePage() {
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  const loadSubscriptions = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    try {
+      const res = await fetch("/api/user-subscriptions");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao carregar assinaturas");
+      setSubscriptions(normalizeSubscriptionsPayload(data));
+    } catch {
+      setSubscriptions([]);
+      toast.error("Erro ao carregar assinaturas");
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/user-subscriptions")
-      .then((r) => r.json())
-      .then((d) => setSubscriptions(d.subscriptions ?? d ?? []))
-      .catch(() => toast.error("Erro ao carregar assinaturas"))
-      .finally(() => setLoading(false));
-  }, []);
+    void loadSubscriptions();
+  }, [loadSubscriptions]);
 
   async function doAction(
     id: string,
@@ -153,11 +191,44 @@ export default function SubscriptionManagePage() {
       if (!res.ok) throw new Error();
     } catch {
       toast.error("Erro ao atualizar assinatura");
-      // Revert by refetching
-      fetch("/api/user-subscriptions")
-        .then((r) => r.json())
-        .then((d) => setSubscriptions(d.subscriptions ?? d ?? []))
-        .catch(() => {});
+      void loadSubscriptions(false);
+    }
+  }
+
+  async function resumePayment(id: string) {
+    setPayingId(id);
+    try {
+      const subscription = subscriptions.find((item) => item.id === id);
+      const paymentMethod = subscription?.payments?.[0]?.payment_method === "credit"
+        ? "credit"
+        : "pix";
+      const res = await fetch(`/api/user-subscriptions/${id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payment_method: paymentMethod }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Erro ao retomar pagamento");
+
+      if (data.subscription && typeof data.subscription === "object") {
+        setSubscriptions((prev) =>
+          prev.map((sub) => (sub.id === id ? (data.subscription as UserSubscription) : sub))
+        );
+      }
+
+      const redirectUrl = typeof data.redirectUrl === "string" ? data.redirectUrl : null;
+      if (redirectUrl) {
+        if (!isValidRedirectUrl(redirectUrl)) throw new Error("URL de pagamento inválida");
+        toast.success("Redirecionando para o pagamento...");
+        window.location.href = redirectUrl;
+        return;
+      }
+
+      toast.success("Pagamento confirmado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao retomar pagamento");
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -183,7 +254,7 @@ export default function SubscriptionManagePage() {
         <div className="flex items-end justify-between">
           <div>
             <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground">
-              RecorrÃªncia
+              Recorrência
             </p>
             <h1 className="text-2xl font-extrabold tracking-tight text-[#191c1d] font-heading">
               Assinaturas
@@ -205,7 +276,7 @@ export default function SubscriptionManagePage() {
               Sem assinaturas
             </h2>
             <p className="text-sm text-muted-foreground mb-5">
-              Crie sua primeira assinatura e receba Ã¡gua pura sem precisar
+              Crie sua primeira assinatura e receba água pura sem precisar
               pedir.
             </p>
             <Link href="/subscription/create">
@@ -233,6 +304,8 @@ export default function SubscriptionManagePage() {
                     setExpandedId((id) => (id === sub.id ? null : sub.id))
                   }
                   onAction={doAction}
+                  onResumePayment={resumePayment}
+                  paying={payingId === sub.id}
                 />
               ))}
             </div>
@@ -255,6 +328,8 @@ export default function SubscriptionManagePage() {
                     setExpandedId((id) => (id === sub.id ? null : sub.id))
                   }
                   onAction={doAction}
+                  onResumePayment={resumePayment}
+                  paying={payingId === sub.id}
                 />
               ))}
             </div>
@@ -274,11 +349,15 @@ function SubscriptionCard({
   expanded,
   onToggleExpand,
   onAction,
+  onResumePayment,
+  paying,
 }: {
   sub: UserSubscription;
   expanded: boolean;
   onToggleExpand: () => void;
   onAction: (id: string, action: "pause" | "resume" | "cancel") => void;
+  onResumePayment: (id: string) => void;
+  paying: boolean;
 }) {
   const progress =
     sub.total_quantity > 0
@@ -321,7 +400,7 @@ function SubscriptionCard({
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              #{shortId(sub.id)} Â· {sub.plan.product.name}
+              #{shortId(sub.id)} · {sub.plan.product.name}
             </p>
 
             {/* Progress bar */}
@@ -363,11 +442,18 @@ function SubscriptionCard({
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span>
                 {sub.address.street}, {sub.address.number}
-                {sub.address.complement ? ` â€” ${sub.address.complement}` : ""},{" "}
+                {sub.address.complement ? ` — ${sub.address.complement}` : ""},{" "}
                 {sub.address.neighborhood}
               </span>
             </div>
           </div>
+
+          {isPending && (
+            <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+              <CreditCard className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Pagamento pendente para ativar esta assinatura.</span>
+            </div>
+          )}
 
           {/* Delivery dates */}
           {sub.delivery_dates.length > 0 && (
@@ -406,6 +492,21 @@ function SubscriptionCard({
           {/* Actions */}
           {!isTerminal && (
             <div className="flex gap-2 pt-1">
+              {isPending && (
+                <button
+                  type="button"
+                  disabled={paying}
+                  onClick={() => onResumePayment(sub.id)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#00E0FF] text-[#001735] text-sm font-semibold active:scale-[0.97] transition-all disabled:cursor-not-allowed disabled:opacity-70 disabled:active:scale-100"
+                >
+                  {paying ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-3.5 w-3.5" />
+                  )}
+                  Retomar pagamento
+                </button>
+              )}
               {isActive && (
                 <button
                   type="button"

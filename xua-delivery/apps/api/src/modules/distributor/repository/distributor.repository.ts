@@ -253,6 +253,33 @@ export const distributorRepository = {
   },
 
   /**
+   * Resolve a zone da distribuidora que cobre a mesma área geográfica da
+   * zone original, sem exigir capacidade para uma data específica.
+   */
+  async resolveCoveredZone(
+    distributorId: string,
+    zoneId: string,
+  ): Promise<string | null> {
+    const prisma = getPrisma();
+
+    const rows = await prisma.$queryRaw<Array<{ zone_id: string }>>`
+      SELECT z2.id AS zone_id
+      FROM "04_mst_zones" z2
+      JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+      JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+      WHERE z2.distributor_id = ${distributorId}::uuid
+        AND z2.is_active = true
+        AND (
+          (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+          OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+        )
+      LIMIT 1
+    `;
+
+    return rows[0]?.zone_id ?? null;
+  },
+
+  /**
    * Valida que o distributor_id pertence a uma zona que cobre a mesma
    * área geográfica do zoneId informado e tem capacidade para data/janela.
    */
