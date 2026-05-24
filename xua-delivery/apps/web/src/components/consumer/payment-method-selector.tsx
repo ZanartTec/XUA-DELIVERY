@@ -42,27 +42,32 @@ const PAYMENT_METHODS: {
 interface PaymentMethodSelectorProps {
   value: PaymentMethod | null;
   onChange: (method: PaymentMethod) => void;
+  disabledMethods?: PaymentMethod[];
 }
 
 export function PaymentMethodSelector({
   value,
   onChange,
+  disabledMethods = [],
 }: PaymentMethodSelectorProps) {
   return (
     <div className="space-y-3">
       {PAYMENT_METHODS.map((pm) => {
         const selected = value === pm.value;
+        const disabled = disabledMethods.includes(pm.value);
         const Icon = pm.icon;
         return (
           <button
             key={pm.value}
             type="button"
+            disabled={disabled}
             onClick={() => onChange(pm.value)}
             className={cn(
               "relative flex w-full items-center gap-4 rounded-xl p-4 transition-all active:scale-[0.98]",
               selected
                 ? "bg-white border-2 border-primary shadow-[0_2px_12px_rgba(27,74,154,0.08)]"
-                : "bg-white border border-[#e1e3e4] hover:bg-[#e7e8e9]"
+                : "bg-white border border-[#e1e3e4] hover:bg-[#e7e8e9]",
+              disabled && "cursor-not-allowed opacity-50 hover:bg-white active:scale-100"
             )}
           >
             <div

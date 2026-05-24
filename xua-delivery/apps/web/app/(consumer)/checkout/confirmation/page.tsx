@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle, CheckCircle2, Clock3, ShoppingCart } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, CreditCard, ShoppingCart } from "lucide-react";
 
 type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created";
 
@@ -56,12 +56,13 @@ function ConfirmationContent() {
 
   useEffect(() => {
     if (!orderId) return;
+    const oid = orderId;
     let cancelled = false;
     let attempts = 0;
 
     async function loadStatus() {
       try {
-        const res = await fetch(`/api/payments/status/${orderId}`);
+        const res = await fetch(`/api/payments/status/${encodeURIComponent(oid)}`);
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || "Erro ao buscar status");
         if (!cancelled) {
@@ -109,6 +110,7 @@ function ConfirmationContent() {
       : viewStatus === "failed"
         ? "Não recebemos a aprovação do Mercado Pago. Você pode acompanhar o pedido ou tentar novamente pelo suporte."
         : "Recebemos seu pedido e estamos aguardando a confirmação do Mercado Pago.";
+  const canResumePayment = Boolean(orderId && viewStatus === "pending");
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6 px-4 text-center">
@@ -123,9 +125,16 @@ function ConfirmationContent() {
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
+        {canResumePayment && (
+          <Link href={`/checkout/payment?orderId=${encodeURIComponent(orderId!)}`}>
+            <Button className="gap-1.5 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]">
+              <CreditCard className="h-4 w-4" /> Retomar pagamento
+            </Button>
+          </Link>
+        )}
         <Link href={orderId ? `/orders/${orderId}` : "/orders"}>
-          <Button className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]">
+          <Button variant={canResumePayment ? "outline" : "default"} className={canResumePayment ? "rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]" : "rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]"}>
             Ver pedido
           </Button>
         </Link>

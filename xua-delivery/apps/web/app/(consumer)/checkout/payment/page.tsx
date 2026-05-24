@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useCartStore } from "@/src/store/cart";
 import { useAuthStore } from "@/src/store/auth";
@@ -26,8 +26,64 @@ import {
   type PaymentMethod,
 } from "@/src/components/consumer/payment-method-selector";
 
+interface RetryOrderItem {
+  product_name: string;
+  qty?: number;
+  unit_price_cents?: number;
+  subtotal_cents?: number;
+  image_url?: string | null;
+}
+
+interface RetryOrder {
+  id: string;
+  status: string;
+  payment_status: string | null;
+  subtotal_cents: number;
+  deposit_cents: number;
+  total_cents: number;
+  address_line?: string | null;
+  address_details?: {
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+  } | null;
+  items: RetryOrderItem[];
+}
+
+function canRetryPayment(order: RetryOrder): boolean {
+  const paymentStatus = order.payment_status?.toLowerCase();
+  const pendingPayment = !paymentStatus || paymentStatus === "pending";
+  return (
+    pendingPayment &&
+    (order.status === "CREATED" || order.status === "PAYMENT_PENDING")
+  );
+}
+
+function isValidRedirectUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function formatOrderAddress(order: RetryOrder): string {
+  if (order.address_line) return order.address_line;
+  const address = order.address_details;
+  if (!address) return "Endereço do pedido";
+  const complement = address.complement ? ` — ${address.complement}` : "";
+  return `${address.street}, ${address.number}${complement} — ${address.neighborhood}, ${address.city}/${address.state}`;
+}
+
 function PaymentContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const retryOrderId = searchParams.get("orderId");
+  const isRetryMode = Boolean(retryOrderId);
   const user = useAuthStore((s) => s.user);
 
   // Read schedule data from persisted checkout store
@@ -49,8 +105,11 @@ function PaymentContent() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(!isRetryMode);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [retryOrder, setRetryOrder] = useState<RetryOrder | null>(null);
+  const [retryLoading, setRetryLoading] = useState(isRetryMode);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const [depositPreview, setDepositPreview] = useState({
     isFirstPurchase: false,
     depositAmountCents: 0,
@@ -59,27 +118,76 @@ function PaymentContent() {
   // Address
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
-  const [addressLoading, setAddressLoading] = useState(true);
+  const [addressLoading, setAddressLoading] = useState(!isRetryMode);
 
   // Keep store in sync when user changes address in payment page
   const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
-  function handleAddressSelect(addr: Address) {
-    setSelectedAddress(addr);
-    setSelectedAddressId(addr.id);
-  }
+  const handleAddressSelect = useCallback(
+    (addr: Address) => {
+      setSelectedAddress(addr);
+      setSelectedAddressId(addr.id);
+    },
+    [setSelectedAddressId],
+  );
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const subtotal = mounted ? getSubtotalCents() : 0;
-  const depositCents = depositPreview.isFirstPurchase
+  useEffect(() => {
+    if (isRetryMode && paymentMethod === "cash") {
+      setPaymentMethod("pix");
+    }
+  }, [isRetryMode, paymentMethod, setPaymentMethod]);
+
+  const subtotal = retryOrder ? retryOrder.subtotal_cents : mounted ? getSubtotalCents() : 0;
+  const depositCents = retryOrder
+    ? retryOrder.deposit_cents
+    : depositPreview.isFirstPurchase
     ? depositPreview.depositAmountCents
     : 0;
-  const totalCents = subtotal + depositCents;
+  const totalCents = retryOrder ? retryOrder.total_cents : subtotal + depositCents;
+  const displayItems = useMemo(
+    () =>
+      retryOrder
+        ? retryOrder.items.map((item, index) => {
+            const quantity = item.qty ?? 1;
+            return {
+              key: `${item.product_name}-${index}`,
+              product_name: item.product_name,
+              quantity,
+              image_url: item.image_url ?? null,
+              amount_cents: item.subtotal_cents ?? (item.unit_price_cents ?? 0) * quantity,
+            };
+          })
+        : items.map((item) => ({
+            key: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            image_url: item.image_url ?? null,
+            amount_cents: item.unit_price_cents * item.quantity,
+          })),
+    [retryOrder, items],
+  );
+  const paymentMethodUnavailable = isRetryMode && paymentMethod === "cash";
+  const confirmDisabled =
+    !mounted ||
+    loading ||
+    previewLoading ||
+    retryLoading ||
+    !!previewError ||
+    !!retryError ||
+    paymentMethodUnavailable ||
+    (isRetryMode ? !retryOrder : !selectedAddress);
 
   // Load deposit preview + addresses
   useEffect(() => {
+    if (isRetryMode) {
+      setPreviewLoading(false);
+      setAddressLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadData() {
@@ -143,9 +251,98 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, storedAddressId]);
+  }, [isRetryMode, user?.id, storedAddressId]);
+
+  useEffect(() => {
+    if (!retryOrderId) {
+      setRetryOrder(null);
+      setRetryLoading(false);
+      setRetryError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const orderId = retryOrderId;
+    async function loadRetryOrder() {
+      setRetryLoading(true);
+      setRetryError(null);
+      try {
+        const encodedOrderId = encodeURIComponent(orderId);
+        const res = await fetch(`/api/orders/${encodedOrderId}`);
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Erro ao carregar pedido");
+        const order = body.order as RetryOrder | undefined;
+        if (!order) throw new Error("Pedido não encontrado");
+        if (!canRetryPayment(order)) {
+          router.replace(`/orders/${encodedOrderId}`);
+          return;
+        }
+        if (!cancelled) setRetryOrder(order);
+      } catch (err) {
+        if (!cancelled) {
+          setRetryOrder(null);
+          setRetryError(err instanceof Error ? err.message : "Não foi possível carregar o pedido.");
+        }
+      } finally {
+        if (!cancelled) setRetryLoading(false);
+      }
+    }
+
+    void loadRetryOrder();
+    return () => {
+      cancelled = true;
+    };
+  }, [retryOrderId, router]);
+
+  async function startCheckoutPayment(orderId: string): Promise<boolean> {
+    if (paymentMethod !== "pix" && paymentMethod !== "credit") {
+      setError("Selecione Pix ou cartão para pagar online pelo Mercado Pago.");
+      return false;
+    }
+
+    const paymentRes = await fetch("/api/payments/charge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: orderId,
+        payment_method: paymentMethod,
+      }),
+    });
+
+    const paymentBody = await paymentRes.json();
+    if (!paymentRes.ok) {
+      setError(paymentBody.error || "Erro ao iniciar pagamento");
+      return false;
+    }
+
+    const redirectUrl = String(paymentBody.redirectUrl ?? "");
+    if (!isValidRedirectUrl(redirectUrl)) {
+      setError("Gateway não retornou o link de pagamento válido.");
+      return false;
+    }
+
+    window.location.href = redirectUrl;
+    return true;
+  }
 
   async function handleConfirm() {
+    if (isRetryMode) {
+      if (!retryOrderId || !retryOrder) {
+        setError("Não foi possível retomar o pagamento deste pedido.");
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        await startCheckoutPayment(retryOrderId);
+      } catch {
+        setError("Erro de conexão. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!selectedAddress) {
       setError("Selecione um endereço de entrega.");
       return;
@@ -180,29 +377,10 @@ function PaymentContent() {
       const { order } = await res.json();
 
       if (paymentMethod === "pix" || paymentMethod === "credit") {
-        const paymentRes = await fetch("/api/payments/charge", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order_id: order.id,
-            payment_method: paymentMethod,
-          }),
-        });
-
-        const paymentBody = await paymentRes.json();
-        if (!paymentRes.ok) {
-          setError(paymentBody.error || "Erro ao iniciar pagamento");
-          return;
-        }
-
-        if (!paymentBody.redirectUrl) {
-          setError("Gateway não retornou o link de pagamento.");
-          return;
-        }
-
+        const started = await startCheckoutPayment(order.id);
+        if (!started) return;
         clearCart();
         resetCheckout();
-        window.location.href = paymentBody.redirectUrl;
         return;
       }
 
@@ -246,7 +424,9 @@ function PaymentContent() {
             Finalize seu pedido
           </h2>
           <p className="text-sm text-[#434656]">
-            Confirme os detalhes abaixo para receber sua água mineral.
+            {isRetryMode
+              ? "Retome o pagamento deste pedido sem criar uma nova compra."
+              : "Confirme os detalhes abaixo para receber sua água mineral."}
           </p>
         </div>
 
@@ -256,23 +436,36 @@ function PaymentContent() {
             <h3 className="font-heading font-bold text-lg text-[#191c1d]">
               Endereço de Entrega
             </h3>
-            <button
-              type="button"
-              onClick={() => setAddressSheetOpen(true)}
-              className="text-sm font-semibold text-primary hover:underline"
-            >
-              Alterar
-            </button>
+            {!isRetryMode && (
+              <button
+                type="button"
+                onClick={() => setAddressSheetOpen(true)}
+                className="text-sm font-semibold text-primary hover:underline"
+              >
+                Alterar
+              </button>
+            )}
           </div>
           <button
             type="button"
+            disabled={isRetryMode}
             onClick={() => setAddressSheetOpen(true)}
-            className="w-full flex gap-4 items-start rounded-xl bg-[#f3f4f5] p-5 text-left transition-all active:scale-[0.98] hover:bg-[#e7e8e9]"
+            className="w-full flex gap-4 items-start rounded-xl bg-[#f3f4f5] p-5 text-left transition-all active:scale-[0.98] hover:bg-[#e7e8e9] disabled:cursor-default disabled:hover:bg-[#f3f4f5] disabled:active:scale-100"
           >
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#d8e2ff]">
               <MapPin className="h-5 w-5 text-[#32466e]" />
             </div>
-            {addressLoading ? (
+            {retryLoading ? (
+              <div className="flex-1 space-y-2 animate-pulse">
+                <div className="h-4 w-40 rounded bg-[#e1e3e4]" />
+                <div className="h-3 w-56 rounded bg-[#e1e3e4]" />
+              </div>
+            ) : retryOrder ? (
+              <div className="min-w-0">
+                <p className="font-bold text-[#191c1d]">Endereço do pedido</p>
+                <p className="text-sm text-[#434656]">{formatOrderAddress(retryOrder)}</p>
+              </div>
+            ) : addressLoading ? (
               <div className="flex-1 space-y-2 animate-pulse">
                 <div className="h-4 w-32 rounded bg-[#e1e3e4]" />
                 <div className="h-3 w-48 rounded bg-[#e1e3e4]" />
@@ -312,9 +505,15 @@ function PaymentContent() {
             Forma de Pagamento
           </h3>
           <PaymentMethodSelector
-            value={paymentMethod as PaymentMethod | null}
+            value={paymentMethod}
             onChange={setPaymentMethod}
+            disabledMethods={isRetryMode ? ["cash"] : []}
           />
+          {isRetryMode && (
+            <p className="text-xs text-[#434656]">
+              Retomada disponível para Pix e cartão pelo Mercado Pago.
+            </p>
+          )}
         </section>
 
         {/* Payment provider banner */}
@@ -340,40 +539,43 @@ function PaymentContent() {
           {/* Items */}
           <div className="space-y-4">
             {mounted &&
-              items.map((item) => (
-                <div
-                  key={item.product_id}
-                  className="flex items-center gap-4"
-                >
-                  <div className="h-16 w-16 shrink-0 rounded-lg bg-[#f8f9fa] overflow-hidden flex items-center justify-center">
-                    {getRenderableProductImageUrl(item.image_url) ? (
-                      <Image
-                        src={getRenderableProductImageUrl(item.image_url)!}
-                        alt={item.product_name}
-                        width={64}
-                        height={64}
-                        className="object-cover h-full w-full"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-[#e1e3e4] flex items-center justify-center">
-                        <Banknote className="h-6 w-6 text-[#737688]" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
+              displayItems.map((item) => {
+                const imageUrl = getRenderableProductImageUrl(item.image_url);
+                return (
+                  <div
+                    key={item.key}
+                    className="flex items-center gap-4"
+                  >
+                    <div className="h-16 w-16 shrink-0 rounded-lg bg-[#f8f9fa] overflow-hidden flex items-center justify-center">
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt={item.product_name}
+                          width={64}
+                          height={64}
+                          className="object-cover h-full w-full"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-[#e1e3e4] flex items-center justify-center">
+                          <Banknote className="h-6 w-6 text-[#737688]" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#191c1d]">
+                        {item.product_name}
+                      </p>
+                      <p className="text-xs text-[#434656]">
+                        {item.quantity}{" "}
+                        {item.quantity === 1 ? "Unidade" : "Unidades"}
+                      </p>
+                    </div>
                     <p className="text-sm font-bold text-[#191c1d]">
-                      {item.product_name}
-                    </p>
-                    <p className="text-xs text-[#434656]">
-                      {item.quantity}{" "}
-                      {item.quantity === 1 ? "Unidade" : "Unidades"}
+                      {formatCurrency(item.amount_cents)}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-[#191c1d]">
-                    {formatCurrency(item.unit_price_cents * item.quantity)}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
           </div>
 
           <hr className="my-4 border-0 h-px bg-[#c3c5d9]/15" />
@@ -420,19 +622,22 @@ function PaymentContent() {
             {previewError}
           </div>
         )}
+        {retryError && (
+          <div className="rounded-xl bg-destructive/10 px-4 py-2.5 text-center text-sm text-destructive">
+            {retryError}
+          </div>
+        )}
 
         {/* CTA Button */}
         <Button
           className="w-full h-14 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-bold text-lg shadow-lg hover:shadow-[#00E0FF]/20 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
-          disabled={
-            !mounted || loading || previewLoading || !!previewError || !selectedAddress
-          }
+          disabled={confirmDisabled}
           onClick={handleConfirm}
         >
           {loading
             ? "Processando..."
             : mounted
-              ? `Finalizar pagamento de ${formatCurrency(totalCents)}`
+              ? `${isRetryMode ? "Retomar pagamento" : "Finalizar pagamento"} de ${formatCurrency(totalCents)}`
               : "Carregando..."}
           {!loading && <ChevronRight className="h-5 w-5 ml-1" />}
         </Button>
@@ -467,5 +672,9 @@ function PaymentContent() {
 }
 
 export default function CheckoutPaymentPage() {
-  return <PaymentContent />;
+  return (
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center px-4"><p className="text-muted-foreground">Carregando...</p></div>}>
+      <PaymentContent />
+    </Suspense>
+  );
 }
