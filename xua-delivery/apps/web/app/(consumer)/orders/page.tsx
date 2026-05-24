@@ -292,17 +292,17 @@ export default function OrdersPage() {
                   );
                 })}
               </div>
-
-              {/* Paginação */}
-              {totalPages > 1 && (
-                <div className="mt-5">
-                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-                  <p className="mt-2 text-center text-xs text-[#b0b3c6]">
-                    Página {page} de {totalPages} • {data?.total ?? 0} pedidos
-                  </p>
-                </div>
-              )}
             </section>
+          )}
+
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="mt-5 px-5">
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <p className="mt-2 text-center text-xs text-[#b0b3c6]">
+                Página {page} de {totalPages} • {data?.total ?? 0} pedidos
+              </p>
+            </div>
           )}
 
           {/* -- Upsell Banner -- */}

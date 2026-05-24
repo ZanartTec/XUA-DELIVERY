@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSocket } from "@/src/hooks/use-socket";
 import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
@@ -282,6 +283,9 @@ export default function OrderDetailPage() {
   }
 
   const isDelivered = order.status === "DELIVERED";
+  const canResumePayment =
+    (order.status === "CREATED" || order.status === "PAYMENT_PENDING") &&
+    (!order.payment_status || order.payment_status.toLowerCase() === "pending");
   const { step, pct } = getProgress(order.status);
   const latestPayment = order.payments[0];
   const latestDeposit = order.deposits[0];
@@ -414,6 +418,31 @@ export default function OrderDetailPage() {
 
         </div>
       </div>
+
+      {/* -- Resume Payment Banner -- */}
+      {canResumePayment && (
+        <div className="mx-6 mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+              <CreditCard className="h-4 w-4 text-amber-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-amber-900">Pagamento pendente</p>
+              <p className="mt-0.5 text-xs text-amber-700">
+                Este pedido aguarda confirmação do pagamento. Retome para concluir.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            className="mt-4 h-11 w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-bold shadow-none transition-all active:scale-[0.98]"
+          >
+            <Link href={`/checkout/payment?orderId=${encodeURIComponent(order.id)}`}>
+              <CreditCard className="mr-2 h-4 w-4" /> Retomar pagamento
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* -- OTP Card -- */}
       {(otpCode ?? order.otp_code) && (
