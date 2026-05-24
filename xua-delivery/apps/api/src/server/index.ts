@@ -6,7 +6,7 @@ import { disconnectPrisma } from "../infra/prisma/client";
 import { disconnectRedis } from "../infra/redis/client";
 
 const PORT = Number(process.env.PORT) || 4000;
-const HOSTNAME = process.env.HOSTNAME ?? "0.0.0.0";
+const HOST = process.env.HOST ?? "0.0.0.0";
 
 const app = createApp();
 const server = http.createServer(app);
@@ -14,8 +14,8 @@ const server = http.createServer(app);
 // Socket.IO integrado ao mesmo servidor HTTP
 const io = createSocketGateway(server);
 
-server.listen(PORT, HOSTNAME, () => {
-  logger.info({ port: PORT, hostname: HOSTNAME }, "XUA API server started");
+server.listen(PORT, HOST, () => {
+  logger.info({ port: PORT, host: HOST }, "XUA API server started");
 });
 
 // ── Graceful shutdown ────────────────────────────────────────────────
