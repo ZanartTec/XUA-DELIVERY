@@ -2,7 +2,6 @@ import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { kpiController } from "../controllers/kpi.controller.js";
-import { reconciliationController } from "../controllers/reconciliation.controller.js";
 import { auditController } from "../controllers/audit.controller.js";
 import { opsInventoryReadController } from "../controllers/inventory-read.controller.js";
 
@@ -17,18 +16,6 @@ router.get(
   kpiController.get
 );
 
-// Reconciliação — distributor_admin somente
-router.get(
-  "/reconciliations",
-  requireRole("distributor_admin"),
-  reconciliationController.get
-);
-router.post(
-  "/reconciliations",
-  requireRole("distributor_admin"),
-  reconciliationController.close
-);
-
 // Audit export — ops somente
 router.get("/audit/export", requireRole("ops"), auditController.exportCsv);
 
@@ -39,16 +26,6 @@ router.get("/inventory/balances", requireRole("ops"), opsInventoryReadController
 router.get("/inventory/balances/:id", requireRole("ops"), opsInventoryReadController.getBalance);
 router.get("/inventory/movements", requireRole("ops"), opsInventoryReadController.listMovements);
 router.get("/inventory/movements/:id", requireRole("ops"), opsInventoryReadController.getMovement);
-router.get(
-  "/inventory/reconciliations",
-  requireRole("ops"),
-  opsInventoryReadController.listReconciliations
-);
-router.get(
-  "/inventory/reconciliations/:id",
-  requireRole("ops"),
-  opsInventoryReadController.getReconciliation
-);
 router.get(
   "/inventory/reconciliation-sessions",
   requireRole("ops"),

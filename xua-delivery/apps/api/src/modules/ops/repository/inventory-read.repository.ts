@@ -67,19 +67,6 @@ export type OpsInventoryMovementRow = {
   inventory_item: OpsInventoryItemRead;
 };
 
-export type OpsInventoryReconciliationRow = {
-  id: string;
-  distributor_id: string;
-  reconciliation_date: Date;
-  full_out: number;
-  empty_returned: number;
-  delta: number;
-  justification: string | null;
-  closed_by: string;
-  created_at: Date;
-  distributor: OpsDistributorRead;
-};
-
 export type OpsInventoryBalanceListParams = {
   distributorId?: string;
   search?: string;
@@ -94,14 +81,6 @@ export type OpsInventoryMovementListParams = OpsInventoryBalanceListParams & {
   movementType?: InventoryMovementType;
   start?: Date;
   end?: Date;
-};
-
-export type OpsInventoryReconciliationListParams = {
-  distributorId?: string;
-  start?: Date;
-  end?: Date;
-  limit: number;
-  offset: number;
 };
 
 function balanceItemWhere(params: {
@@ -285,66 +264,6 @@ export const opsInventoryReadRepository = {
         occurred_at: true,
         distributor: { select: DISTRIBUTOR_READ_SELECT },
         inventory_item: { select: INVENTORY_ITEM_READ_SELECT },
-      },
-    });
-  },
-
-  async listReconciliations(
-    params: OpsInventoryReconciliationListParams
-  ): Promise<{ reconciliations: OpsInventoryReconciliationRow[]; total: number }> {
-    const prisma = getPrisma();
-    const where: Prisma.ReconciliationWhereInput = {
-      ...(params.distributorId ? { distributor_id: params.distributorId } : {}),
-      ...(params.start || params.end
-        ? {
-            reconciliation_date: {
-              ...(params.start ? { gte: params.start } : {}),
-              ...(params.end ? { lte: params.end } : {}),
-            },
-          }
-        : {}),
-    };
-
-    const [reconciliations, total] = await Promise.all([
-      prisma.reconciliation.findMany({
-        where,
-        select: {
-          id: true,
-          distributor_id: true,
-          reconciliation_date: true,
-          full_out: true,
-          empty_returned: true,
-          delta: true,
-          justification: true,
-          closed_by: true,
-          created_at: true,
-          distributor: { select: DISTRIBUTOR_READ_SELECT },
-        },
-        orderBy: [{ reconciliation_date: "desc" }, { id: "desc" }],
-        skip: params.offset,
-        take: params.limit,
-      }),
-      prisma.reconciliation.count({ where }),
-    ]);
-
-    return { reconciliations, total };
-  },
-
-  async findReconciliationById(id: string): Promise<OpsInventoryReconciliationRow | null> {
-    const prisma = getPrisma();
-    return prisma.reconciliation.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        distributor_id: true,
-        reconciliation_date: true,
-        full_out: true,
-        empty_returned: true,
-        delta: true,
-        justification: true,
-        closed_by: true,
-        created_at: true,
-        distributor: { select: DISTRIBUTOR_READ_SELECT },
       },
     });
   },

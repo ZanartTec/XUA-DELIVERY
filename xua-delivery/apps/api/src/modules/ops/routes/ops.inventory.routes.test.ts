@@ -10,8 +10,6 @@ const mocks = vi.hoisted(() => ({
     getBalance: vi.fn(),
     listMovements: vi.fn(),
     getMovement: vi.fn(),
-    listReconciliations: vi.fn(),
-    getReconciliation: vi.fn(),
   },
   reconciliationSessionService: {
     listSessionsForOps: vi.fn(),
@@ -47,10 +45,6 @@ vi.mock("../../../middleware/auth.js", () => ({
 
 vi.mock("../controllers/kpi.controller.js", () => ({
   kpiController: { get: vi.fn() },
-}));
-
-vi.mock("../controllers/reconciliation.controller.js", () => ({
-  reconciliationController: { get: vi.fn(), close: vi.fn() },
 }));
 
 vi.mock("../controllers/audit.controller.js", () => ({
@@ -216,24 +210,6 @@ beforeEach(() => {
     ],
     pagination: { limit: 20, offset: 0, total: 1 },
   });
-
-  mocks.service.listReconciliations.mockResolvedValue({
-    reconciliations: [
-      {
-        id: "reconciliation-a",
-        distributor_id: distributorA,
-        distributor_name: "XUA Centro",
-        reconciliation_date: "2026-05-26T00:00:00.000Z",
-        full_out: 12,
-        empty_returned: 10,
-        delta: 2,
-        justification: "Ajuste operacional",
-        closed_by: "dist-admin-1",
-        created_at: occurredAt,
-      },
-    ],
-    pagination: { limit: 20, offset: 0, total: 1 },
-  });
   mocks.reconciliationSessionService.listSessionsForOps.mockResolvedValue({
     sessions: [
       {
@@ -289,10 +265,10 @@ describe("opsRoutes inventory", () => {
       "/api/ops/inventory/movements?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "ops"
     );
-    const reconciliations = await getJson<{
-      reconciliations: Array<{ distributor_id: string }>;
+    const sessions = await getJson<{
+      sessions: Array<{ distributor_id: string }>;
     }>(
-      "/api/ops/inventory/reconciliations?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
+      "/api/ops/inventory/reconciliation-sessions?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "ops"
     );
 
@@ -305,8 +281,8 @@ describe("opsRoutes inventory", () => {
     expect(movements.status).toBe(200);
     expect(movements.body.movements[0].distributor_id).toBe(distributorA);
 
-    expect(reconciliations.status).toBe(200);
-    expect(reconciliations.body.reconciliations[0].distributor_id).toBe(distributorA);
+    expect(sessions.status).toBe(200);
+    expect(sessions.body.sessions[0].distributor_id).toBe(distributorA);
   });
 
   it("nega support e distributor_admin nos endpoints globais de inventory", async () => {
@@ -315,7 +291,6 @@ describe("opsRoutes inventory", () => {
       "/api/ops/inventory/balances?limit=20&offset=0",
       "/api/ops/inventory/items?limit=100&offset=0",
       "/api/ops/inventory/movements?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
-      "/api/ops/inventory/reconciliations?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "/api/ops/inventory/reconciliation-sessions?limit=20&offset=0",
     ];
 
@@ -326,6 +301,29 @@ describe("opsRoutes inventory", () => {
         expect(response.body).toEqual({ error: "Acesso negado" });
       }
     }
+  });
+
+  it("nao monta mais o endpoint legado de conciliacao diaria", async () => {
+    const response = await fetch(`${baseUrl}/api/ops/reconciliations`, {
+      headers: { "x-test-role": "distributor_admin" },
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("nao expõe mais a leitura legacy da tabela de reconciliacoes no OPS inventory", async () => {
+    const listResponse = await fetch(
+      `${baseUrl}/api/ops/inventory/reconciliations?start=2026-05-01&end=2026-05-31&limit=5&offset=0`,
+      {
+        headers: { "x-test-role": "ops" },
+      }
+    );
+    const detailResponse = await fetch(`${baseUrl}/api/ops/inventory/reconciliations/legacy-id`, {
+      headers: { "x-test-role": "ops" },
+    });
+
+    expect(listResponse.status).toBe(404);
+    expect(detailResponse.status).toBe(404);
   });
 
   it("lista distribuidoras ativas para filtros OPS sem depender de saldos", async () => {
@@ -414,22 +412,6 @@ describe("opsRoutes inventory", () => {
       end: "2026-05-15",
       limit: 15,
       offset: 30,
-    });
-  });
-
-  it("aplica filtro de distribuidora e periodo no endpoint de reconciliacoes", async () => {
-    const response = await getJson<Record<string, unknown>>(
-      `/api/ops/inventory/reconciliations?distributor_id=${distributorA}&start=2026-05-01&end=2026-05-31&limit=5&offset=0`,
-      "ops"
-    );
-
-    expect(response.status).toBe(200);
-    expect(mocks.service.listReconciliations).toHaveBeenCalledWith({
-      distributor_id: distributorA,
-      start: "2026-05-01",
-      end: "2026-05-31",
-      limit: 5,
-      offset: 0,
     });
   });
 

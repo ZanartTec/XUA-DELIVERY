@@ -2,7 +2,6 @@ import type {
   InventoryItemFilterInput,
   OpsInventoryBalanceQueryInput,
   OpsInventoryMovementQueryInput,
-  OpsInventoryReconciliationQueryInput,
 } from "@xua/shared/schemas/inventory";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 import type { InventoryItemCatalogRow } from "../../inventory/repository/inventory.repository.js";
@@ -11,7 +10,6 @@ import type {
   OpsInventoryBalanceRow,
   OpsInventoryDistributorRow,
   OpsInventoryMovementRow,
-  OpsInventoryReconciliationRow,
 } from "../repository/inventory-read.repository.js";
 
 function toPeriodDate(value: string | undefined, boundary: "start" | "end"): Date | undefined {
@@ -134,21 +132,6 @@ function movementResponse(row: OpsInventoryMovementRow) {
   };
 }
 
-function reconciliationResponse(row: OpsInventoryReconciliationRow) {
-  return {
-    id: row.id,
-    distributor_id: row.distributor_id,
-    distributor_name: row.distributor.name,
-    reconciliation_date: row.reconciliation_date,
-    full_out: row.full_out,
-    empty_returned: row.empty_returned,
-    delta: row.delta,
-    justification: row.justification,
-    closed_by: row.closed_by,
-    created_at: row.created_at,
-  };
-}
-
 export const opsInventoryReadService = {
   async listDistributors() {
     const distributors = await opsInventoryReadRepository.listDistributors();
@@ -215,25 +198,5 @@ export const opsInventoryReadService = {
   async getMovement(id: string) {
     const movement = await opsInventoryReadRepository.findMovementById(id);
     return movement ? { movement: movementResponse(movement) } : null;
-  },
-
-  async listReconciliations(query: OpsInventoryReconciliationQueryInput) {
-    const { reconciliations, total } = await opsInventoryReadRepository.listReconciliations({
-      distributorId: query.distributor_id,
-      start: toPeriodDate(query.start, "start"),
-      end: toPeriodDate(query.end, "end"),
-      limit: query.limit,
-      offset: query.offset,
-    });
-
-    return {
-      reconciliations: reconciliations.map(reconciliationResponse),
-      pagination: pagination(query.limit, query.offset, total),
-    };
-  },
-
-  async getReconciliation(id: string) {
-    const reconciliation = await opsInventoryReadRepository.findReconciliationById(id);
-    return reconciliation ? { reconciliation: reconciliationResponse(reconciliation) } : null;
   },
 };

@@ -4,12 +4,29 @@ import type { JwtPayload } from "@xua/shared/types";
 import { isUserRole } from "@xua/shared/constants/roles";
 import type { UserRole } from "@xua/shared/constants/roles";
 
-const JWT_SECRET_RAW = process.env.JWT_SECRET;
-if (!JWT_SECRET_RAW) {
-  throw new Error(
-    "FATAL: JWT_SECRET não definido. Defina a variável de ambiente antes de iniciar."
-  );
+function validateJwtSecret(raw: string | undefined): string {
+  if (!raw) {
+    throw new Error(
+      "FATAL: JWT_SECRET não definido. Defina a variável de ambiente antes de iniciar."
+    );
+  }
+
+  const normalized = raw.trim();
+  if (normalized.length < 32) {
+    throw new Error(
+      "FATAL: JWT_SECRET inválido. Use pelo menos 32 caracteres aleatórios antes de iniciar."
+    );
+  }
+
+  if (normalized.toLowerCase().includes("troque-por-uma-chave-segura")) {
+    throw new Error(
+      "FATAL: JWT_SECRET está com valor placeholder. Configure um segredo real antes de iniciar."
+    );
+  }
+
+  return normalized;
 }
+const JWT_SECRET_RAW = validateJwtSecret(process.env.JWT_SECRET);
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 const JWT_ISSUER = "xua-delivery";

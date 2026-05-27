@@ -77,7 +77,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         match: ["/distributor/queue", "/distributor/orders", "/distributor/routes"],
       },
       {
-        href: "/distributor/reconciliation",
+        href: "/distributor/inventory/reconciliation",
         label: "Concilia",
         icon: ArrowLeftRight,
       },

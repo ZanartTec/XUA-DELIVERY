@@ -8,7 +8,6 @@ import {
 import {
   opsInventoryBalanceQuerySchema,
   opsInventoryMovementQuerySchema,
-  opsInventoryReconciliationQuerySchema,
 } from "@xua/shared/schemas/inventory";
 
 const mocks = vi.hoisted(() => ({
@@ -17,8 +16,6 @@ const mocks = vi.hoisted(() => ({
     findBalanceById: vi.fn(),
     listMovements: vi.fn(),
     findMovementById: vi.fn(),
-    listReconciliations: vi.fn(),
-    findReconciliationById: vi.fn(),
   },
 }));
 
@@ -32,7 +29,6 @@ const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236301";
 const inventoryItemId = "7e1d7b55-3f52-4d10-aac3-74387c236302";
 const balanceId = "7e1d7b55-3f52-4d10-aac3-74387c236303";
 const movementId = "7e1d7b55-3f52-4d10-aac3-74387c236304";
-const reconciliationId = "7e1d7b55-3f52-4d10-aac3-74387c236305";
 const occurredAt = new Date("2026-05-26T10:30:00.000Z");
 const updatedAt = new Date("2026-05-26T11:00:00.000Z");
 
@@ -92,35 +88,13 @@ function movementRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function reconciliationRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: reconciliationId,
-    distributor_id: distributorId,
-    reconciliation_date: new Date("2026-05-26T00:00:00.000Z"),
-    full_out: 12,
-    empty_returned: 10,
-    delta: 2,
-    justification: "Divergencia validada pela operacao",
-    closed_by: "distributor-admin-1",
-    created_at: occurredAt,
-    distributor: distributor(),
-    ...overrides,
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.repository.listBalances.mockResolvedValue({ balances: [balanceRow()], total: 1 });
   mocks.repository.findBalanceById.mockResolvedValue(balanceRow());
   mocks.repository.listMovements.mockResolvedValue({ movements: [movementRow()], total: 1 });
   mocks.repository.findMovementById.mockResolvedValue(movementRow());
-  mocks.repository.listReconciliations.mockResolvedValue({
-    reconciliations: [reconciliationRow()],
-    total: 1,
-  });
-  mocks.repository.findReconciliationById.mockResolvedValue(reconciliationRow());
 });
-
 describe("opsInventoryReadService.listBalances", () => {
   it("lista saldos globais com filtros, paginacao obrigatoria e distribuidora", async () => {
     const query = opsInventoryBalanceQuerySchema.parse({
@@ -230,82 +204,6 @@ describe("opsInventoryReadService.listMovements", () => {
 
     expect(
       opsInventoryMovementQuerySchema.safeParse({
-        start: "2026-01-01",
-        end: "2026-03-01",
-        limit: "10",
-        offset: "0",
-      }).success
-    ).toBe(false);
-  });
-});
-
-describe("opsInventoryReadService.reconciliations", () => {
-  it("lista reconciliacoes read-only com filtro por distribuidora e periodo", async () => {
-    const query = opsInventoryReconciliationQuerySchema.parse({
-      distributor_id: distributorId,
-      start: "2026-05-26",
-      end: "2026-05-26",
-      limit: "10",
-      offset: "0",
-    });
-
-    const result = await opsInventoryReadService.listReconciliations(query);
-
-    expect(mocks.repository.listReconciliations).toHaveBeenCalledWith({
-      distributorId,
-      start: new Date("2026-05-26T00:00:00.000Z"),
-      end: new Date("2026-05-26T23:59:59.999Z"),
-      limit: 10,
-      offset: 0,
-    });
-    expect(result).toEqual({
-      reconciliations: [
-        {
-          id: reconciliationId,
-          distributor_id: distributorId,
-          distributor_name: "XUA Centro",
-          reconciliation_date: new Date("2026-05-26T00:00:00.000Z"),
-          full_out: 12,
-          empty_returned: 10,
-          delta: 2,
-          justification: "Divergencia validada pela operacao",
-          closed_by: "distributor-admin-1",
-          created_at: occurredAt,
-        },
-      ],
-      pagination: { limit: 10, offset: 0, total: 1 },
-    });
-  });
-
-  it("retorna detalhe por id quando aplicavel", async () => {
-    await expect(opsInventoryReadService.getReconciliation(reconciliationId)).resolves.toEqual({
-      reconciliation: {
-        id: reconciliationId,
-        distributor_id: distributorId,
-        distributor_name: "XUA Centro",
-        reconciliation_date: new Date("2026-05-26T00:00:00.000Z"),
-        full_out: 12,
-        empty_returned: 10,
-        delta: 2,
-        justification: "Divergencia validada pela operacao",
-        closed_by: "distributor-admin-1",
-        created_at: occurredAt,
-      },
-    });
-
-    expect(mocks.repository.findReconciliationById).toHaveBeenCalledWith(reconciliationId);
-  });
-
-  it("exige periodo limitado para consulta global de reconciliacoes", () => {
-    expect(
-      opsInventoryReconciliationQuerySchema.safeParse({
-        limit: "10",
-        offset: "0",
-      }).success
-    ).toBe(false);
-
-    expect(
-      opsInventoryReconciliationQuerySchema.safeParse({
         start: "2026-01-01",
         end: "2026-03-01",
         limit: "10",
