@@ -156,6 +156,15 @@ enum DeliveryDateStatus {
   @@map("delivery_date_status")
 }
 
+enum InventoryItemType {
+  SELLABLE_PRODUCT
+  RETURNABLE_FULL
+  RETURNABLE_EMPTY
+  SUPPLY
+
+  @@map("inventory_item_type")
+}
+
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
@@ -273,10 +282,29 @@ model Product {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
+  inventory_items     InventoryItem[]
   order_items         OrderItem[]
   subscription_plans  SubscriptionPlan[]
 
   @@map("06_mst_products")
+}
+
+model InventoryItem {
+  id                  String            @id @default(uuid()) @db.Uuid
+  code                String            @unique
+  name                String
+  type                InventoryItemType
+  product_id          String?           @db.Uuid
+  unit_label          String
+  low_stock_threshold Int?
+  is_active           Boolean           @default(true)
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+
+  product Product? @relation(fields: [product_id], references: [id])
+
+  @@index([product_id])
+  @@map("29_mst_inventory_items")
 }
 
 model DeliveryCapacity {

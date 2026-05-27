@@ -251,6 +251,21 @@ export const BannerType = {
 } as const;
 export type BannerType = EnumValue<typeof BannerType>;
 
+export const INVENTORY_ITEM_TYPE_VALUES = [
+  "SELLABLE_PRODUCT",
+  "RETURNABLE_FULL",
+  "RETURNABLE_EMPTY",
+  "SUPPLY",
+] as const;
+
+export const InventoryItemType = {
+  SELLABLE_PRODUCT: "SELLABLE_PRODUCT",
+  RETURNABLE_FULL: "RETURNABLE_FULL",
+  RETURNABLE_EMPTY: "RETURNABLE_EMPTY",
+  SUPPLY: "SUPPLY",
+} as const;
+export type InventoryItemType = EnumValue<typeof InventoryItemType>;
+
 export const BOTTLE_CONDITION_VALUES = ["ok", "damaged", "dirty"] as const;
 export type BottleCondition = (typeof BOTTLE_CONDITION_VALUES)[number];
 

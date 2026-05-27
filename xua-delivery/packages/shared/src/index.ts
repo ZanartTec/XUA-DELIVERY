@@ -10,5 +10,6 @@ export * from "./schemas/distributor";
 export * from "./schemas/schedule";
 export * from "./schemas/product";
 export * from "./schemas/banner";
+export * from "./schemas/inventory";
 export * from "./schemas/subscription-plan";
 export * from "./schemas/user-subscription";

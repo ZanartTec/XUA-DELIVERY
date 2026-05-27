@@ -18,6 +18,8 @@ import {
   DepositStatus,
   IDEMPOTENCY_STATUS_VALUES,
   IdempotencyStatus,
+  INVENTORY_ITEM_TYPE_VALUES,
+  InventoryItemType,
   ORDER_STATUS_VALUES,
   OrderStatus,
   OTP_STATUS_VALUES,
@@ -53,6 +55,7 @@ const EXPECTED_ENUMS = {
   },
   DeliveryDateStatus: { values: DELIVERY_DATE_STATUS_VALUES, object: DeliveryDateStatus },
   BannerType: { values: BANNER_TYPE_VALUES, object: BannerType },
+  InventoryItemType: { values: INVENTORY_ITEM_TYPE_VALUES, object: InventoryItemType },
 } satisfies Record<string, { values: readonly string[]; object: Record<string, string> }>;
 
 function parsePrismaEnums(schema: string): Map<string, string[]> {
