@@ -266,6 +266,50 @@ export const InventoryItemType = {
 } as const;
 export type InventoryItemType = EnumValue<typeof InventoryItemType>;
 
+export const INVENTORY_MOVEMENT_TYPE_VALUES = [
+  "INITIAL_LOAD",
+  "ORDER_ACCEPT_OUT",
+  "ORDER_CANCEL_RETURN",
+  "DELIVERY_FAILED_RETURN",
+  "EMPTY_RETURN_IN",
+  "RECONCILIATION_ADJUSTMENT",
+  "MANUAL_CORRECTION",
+  "LOSS_WRITE_OFF",
+  "PURCHASE_IN",
+] as const;
+
+export const InventoryMovementType = {
+  INITIAL_LOAD: "INITIAL_LOAD",
+  ORDER_ACCEPT_OUT: "ORDER_ACCEPT_OUT",
+  ORDER_CANCEL_RETURN: "ORDER_CANCEL_RETURN",
+  DELIVERY_FAILED_RETURN: "DELIVERY_FAILED_RETURN",
+  EMPTY_RETURN_IN: "EMPTY_RETURN_IN",
+  RECONCILIATION_ADJUSTMENT: "RECONCILIATION_ADJUSTMENT",
+  MANUAL_CORRECTION: "MANUAL_CORRECTION",
+  LOSS_WRITE_OFF: "LOSS_WRITE_OFF",
+  PURCHASE_IN: "PURCHASE_IN",
+} as const;
+export type InventoryMovementType = EnumValue<typeof InventoryMovementType>;
+
+export const INVENTORY_REFERENCE_TYPE_VALUES = [
+  "ORDER",
+  "RECONCILIATION_SESSION",
+  "INITIAL_LOAD",
+  "MANUAL_ADJUSTMENT",
+  "PURCHASE",
+  "SYSTEM",
+] as const;
+
+export const InventoryReferenceType = {
+  ORDER: "ORDER",
+  RECONCILIATION_SESSION: "RECONCILIATION_SESSION",
+  INITIAL_LOAD: "INITIAL_LOAD",
+  MANUAL_ADJUSTMENT: "MANUAL_ADJUSTMENT",
+  PURCHASE: "PURCHASE",
+  SYSTEM: "SYSTEM",
+} as const;
+export type InventoryReferenceType = EnumValue<typeof InventoryReferenceType>;
+
 export const BOTTLE_CONDITION_VALUES = ["ok", "damaged", "dirty"] as const;
 export type BottleCondition = (typeof BOTTLE_CONDITION_VALUES)[number];
 

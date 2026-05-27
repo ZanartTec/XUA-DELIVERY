@@ -165,6 +165,31 @@ enum InventoryItemType {
   @@map("inventory_item_type")
 }
 
+enum InventoryMovementType {
+  INITIAL_LOAD
+  ORDER_ACCEPT_OUT
+  ORDER_CANCEL_RETURN
+  DELIVERY_FAILED_RETURN
+  EMPTY_RETURN_IN
+  RECONCILIATION_ADJUSTMENT
+  MANUAL_CORRECTION
+  LOSS_WRITE_OFF
+  PURCHASE_IN
+
+  @@map("inventory_movement_type")
+}
+
+enum InventoryReferenceType {
+  ORDER
+  RECONCILIATION_SESSION
+  INITIAL_LOAD
+  MANUAL_ADJUSTMENT
+  PURCHASE
+  SYSTEM
+
+  @@map("inventory_reference_type")
+}
+
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
@@ -238,6 +263,8 @@ model Distributor {
   time_slots                     TimeSlot[]
   subscription_plan_distributors SubscriptionPlanDistributor[]
   user_subscriptions             UserSubscription[]
+  inventory_balances             DistributorInventoryBalance[]
+  inventory_movements            InventoryMovement[]
 
   @@map("03_mst_distributors")
 }
@@ -301,10 +328,54 @@ model InventoryItem {
   created_at          DateTime          @default(now())
   updated_at          DateTime          @updatedAt
 
-  product Product? @relation(fields: [product_id], references: [id])
+  product            Product?                     @relation(fields: [product_id], references: [id])
+  distributor_balances DistributorInventoryBalance[]
+  inventory_movements InventoryMovement[]
 
   @@index([product_id])
   @@map("29_mst_inventory_items")
+}
+
+model DistributorInventoryBalance {
+  id                String   @id @default(uuid()) @db.Uuid
+  distributor_id    String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  quantity_on_hand  Int      @default(0)
+  last_movement_at  DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  distributor    Distributor   @relation(fields: [distributor_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@unique([distributor_id, inventory_item_id])
+  @@index([distributor_id])
+  @@index([inventory_item_id])
+  @@map("30_trn_distributor_inventory_balances")
+}
+
+model InventoryMovement {
+  id                String                 @id @default(uuid()) @db.Uuid
+  distributor_id    String                 @db.Uuid
+  inventory_item_id String                 @db.Uuid
+  quantity_delta    Int
+  movement_type     InventoryMovementType
+  actor_type        ActorType
+  actor_id          String
+  source_app        SourceApp
+  reference_type    InventoryReferenceType?
+  reference_id      String?
+  metadata          Json                   @default("{}")
+  occurred_at       DateTime               @default(now())
+
+  distributor    Distributor   @relation(fields: [distributor_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@unique([distributor_id, inventory_item_id, movement_type, reference_type, reference_id])
+  @@index([distributor_id, occurred_at])
+  @@index([inventory_item_id, occurred_at])
+  @@index([reference_type, reference_id])
+  @@map("31_trn_inventory_movements")
 }
 
 model DeliveryCapacity {

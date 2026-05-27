@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { INVENTORY_ITEM_TYPE_VALUES } from "../enums";
+import {
+  INVENTORY_ITEM_TYPE_VALUES,
+  INVENTORY_MOVEMENT_TYPE_VALUES,
+  INVENTORY_REFERENCE_TYPE_VALUES,
+} from "../enums";
 
 const UUID = z.string().uuid("ID inválido");
 const CODE = z
@@ -16,6 +20,12 @@ const BOOLEAN_QUERY = z.enum(["true", "false"]).transform((value) => value === "
 
 export const inventoryItemTypeSchema = z.enum(INVENTORY_ITEM_TYPE_VALUES);
 export type InventoryItemTypeInput = z.infer<typeof inventoryItemTypeSchema>;
+
+export const inventoryMovementTypeSchema = z.enum(INVENTORY_MOVEMENT_TYPE_VALUES);
+export type InventoryMovementTypeInput = z.infer<typeof inventoryMovementTypeSchema>;
+
+export const inventoryReferenceTypeSchema = z.enum(INVENTORY_REFERENCE_TYPE_VALUES);
+export type InventoryReferenceTypeInput = z.infer<typeof inventoryReferenceTypeSchema>;
 
 export const inventoryItemCreateSchema = z.object({
   code: CODE,
