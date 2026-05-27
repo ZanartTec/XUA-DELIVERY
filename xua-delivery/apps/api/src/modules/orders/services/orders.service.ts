@@ -5,14 +5,18 @@ import {
   AuditEventType,
   DeliveryDateStatus,
   DeliveryWindow,
+  InventoryMovementType,
+  InventoryReferenceType,
   OrderStatus,
   PaymentKind,
   SourceApp,
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
-import { orderRepository, type OrderForQueue } from "../repository/orders.repository.js";
+import { orderRepository, type OrderForQueue, type OrderWithItems } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
+import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
+import { inventoryService, InventoryServiceError } from "../../inventory/services/inventory.service.js";
 import { capacityService } from "../../distributor/services/capacity.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
@@ -68,6 +72,213 @@ export class OrderServiceError extends Error {
     super(message);
     this.name = "OrderServiceError";
   }
+}
+
+type OrderInventoryLine = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  inventoryItemId: string;
+  inventoryItemCode: string;
+  inventoryItemName: string;
+};
+
+type StockReturnOptions = {
+  returnToStock?: boolean;
+};
+
+const CANCEL_AUTO_RETURN_STATUSES = new Set<string>([
+  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+  OrderStatus.READY_FOR_DISPATCH,
+]);
+
+const CANCEL_EXPLICIT_RETURN_STATUSES = new Set<string>([
+  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+  OrderStatus.READY_FOR_DISPATCH,
+  OrderStatus.OUT_FOR_DELIVERY,
+]);
+
+function translateInventoryError(error: unknown): never {
+  if (error instanceof InventoryServiceError) {
+    throw new OrderServiceError(error.code, error.message);
+  }
+
+  throw error;
+}
+
+function aggregateOrderItems(order: OrderWithItems): Array<{
+  productId: string;
+  productName: string;
+  quantity: number;
+}> {
+  const byProduct = new Map<string, { productId: string; productName: string; quantity: number }>();
+
+  for (const item of order.items) {
+    const current = byProduct.get(item.product_id);
+    if (current) {
+      current.quantity += item.quantity;
+      continue;
+    }
+
+    byProduct.set(item.product_id, {
+      productId: item.product_id,
+      productName: item.product_name,
+      quantity: item.quantity,
+    });
+  }
+
+  return [...byProduct.values()];
+}
+
+async function resolveOrderInventoryLines(
+  order: OrderWithItems,
+  tx: TxClient
+): Promise<OrderInventoryLine[]> {
+  const lines = aggregateOrderItems(order);
+  if (lines.length === 0) {
+    throw new OrderServiceError("ORDER_ITEM_NOT_FOUND", "Pedido sem itens para movimentar estoque");
+  }
+
+  const inventoryItems = await inventoryRepository.findActiveInventoryItemsByProductIds(
+    lines.map((line) => line.productId),
+    tx
+  );
+
+  const inventoryItemsByProduct = new Map<string, typeof inventoryItems>();
+  for (const inventoryItem of inventoryItems) {
+    if (!inventoryItem.product_id) continue;
+    inventoryItemsByProduct.set(inventoryItem.product_id, [
+      ...(inventoryItemsByProduct.get(inventoryItem.product_id) ?? []),
+      inventoryItem,
+    ]);
+  }
+
+  return lines.map((line) => {
+    const mappedItems = inventoryItemsByProduct.get(line.productId) ?? [];
+
+    if (mappedItems.length === 0) {
+      log.warn(
+        { orderId: order.id, distributorId: order.distributor_id, productId: line.productId },
+        "Order inventory mapping missing"
+      );
+      throw new OrderServiceError(
+        "INVENTORY_ITEM_NOT_FOUND",
+        "Produto sem item de estoque ativo vinculado"
+      );
+    }
+
+    if (mappedItems.length > 1) {
+      log.warn(
+        {
+          orderId: order.id,
+          distributorId: order.distributor_id,
+          productId: line.productId,
+          inventoryItemIds: mappedItems.map((item) => item.id),
+        },
+        "Order inventory mapping is ambiguous"
+      );
+      throw new OrderServiceError(
+        "INVENTORY_ITEM_CONFLICT",
+        "Produto vinculado a mais de um item de estoque ativo"
+      );
+    }
+
+    const inventoryItem = mappedItems[0];
+    return {
+      ...line,
+      inventoryItemId: inventoryItem.id,
+      inventoryItemCode: inventoryItem.code,
+      inventoryItemName: inventoryItem.name,
+    };
+  });
+}
+
+async function assertStockAvailableForOrder(
+  order: OrderWithItems,
+  lines: OrderInventoryLine[],
+  tx: TxClient
+): Promise<void> {
+  for (const line of lines) {
+    const balance = await inventoryRepository.findBalanceForUpdate(
+      order.distributor_id,
+      line.inventoryItemId,
+      tx
+    );
+    const quantityOnHand = balance?.quantity_on_hand ?? 0;
+
+    if (quantityOnHand < line.quantity) {
+      log.warn(
+        {
+          orderId: order.id,
+          distributorId: order.distributor_id,
+          productId: line.productId,
+          inventoryItemId: line.inventoryItemId,
+          requestedQuantity: line.quantity,
+          quantityOnHand,
+        },
+        "Order acceptance rejected because stock is unavailable"
+      );
+
+      throw new OrderServiceError("STOCK_UNAVAILABLE", "Saldo insuficiente para aceitar pedido");
+    }
+  }
+}
+
+async function applyOrderInventoryMovements(params: {
+  order: OrderWithItems;
+  lines: OrderInventoryLine[];
+  movementType: InventoryMovementType;
+  quantityDirection: 1 | -1;
+  actor: { type: ActorType; id: string };
+  sourceApp: SourceApp;
+  metadata: Record<string, unknown>;
+  tx: TxClient;
+}): Promise<void> {
+  for (const line of params.lines) {
+    try {
+      await inventoryService.applyMovement(
+        {
+          distributorId: params.order.distributor_id,
+          inventoryItemId: line.inventoryItemId,
+          quantityDelta: params.quantityDirection * line.quantity,
+          movementType: params.movementType,
+          actor: params.actor,
+          sourceApp: params.sourceApp,
+          reference: { type: InventoryReferenceType.ORDER, id: params.order.id },
+          metadata: {
+            ...params.metadata,
+            order_id: params.order.id,
+            distributor_id: params.order.distributor_id,
+            product_id: line.productId,
+            product_name: line.productName,
+            inventory_item_id: line.inventoryItemId,
+            inventory_item_code: line.inventoryItemCode,
+            quantity: line.quantity,
+          },
+        },
+        params.tx
+      );
+    } catch (error) {
+      translateInventoryError(error);
+    }
+  }
+}
+
+function shouldReturnCancelledOrderToStock(
+  previousStatus: string,
+  options?: StockReturnOptions
+): boolean {
+  if (options?.returnToStock === false) return false;
+  if (options?.returnToStock === true) return CANCEL_EXPLICIT_RETURN_STATUSES.has(previousStatus);
+  return CANCEL_AUTO_RETURN_STATUSES.has(previousStatus);
+}
+
+function inventoryAuditLines(lines: OrderInventoryLine[]) {
+  return lines.map((line) => ({
+    product_id: line.productId,
+    inventory_item_id: line.inventoryItemId,
+    quantity: line.quantity,
+  }));
 }
 
 /**
@@ -493,9 +704,27 @@ export const orderService = {
   async acceptOrder(orderId: string, distributorUserId: string): Promise<Order> {
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
+      const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
+
+      const inventoryLines = await resolveOrderInventoryLines(current, tx);
+      await assertStockAvailableForOrder(current, inventoryLines, tx);
+
+      await applyOrderInventoryMovements({
+        order: current,
+        lines: inventoryLines,
+        movementType: InventoryMovementType.ORDER_ACCEPT_OUT,
+        quantityDirection: -1,
+        actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+        sourceApp: SourceApp.DISTRIBUTOR_WEB,
+        metadata: {
+          origin: "order_acceptance",
+          previous_status: current.status,
+          new_status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+        },
+        tx,
+      });
 
       const updated = await orderRepository.updateStatus(
         orderId,
@@ -510,6 +739,10 @@ export const orderService = {
           actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
+          payload: {
+            inventory_movement_type: InventoryMovementType.ORDER_ACCEPT_OUT,
+            inventory_items: inventoryAuditLines(inventoryLines),
+          },
         },
         tx
       );
@@ -768,12 +1001,41 @@ export const orderService = {
   /**
    * Registra falha na entrega: OUT_FOR_DELIVERY → DELIVERY_FAILED
    */
-  async markDeliveryFailed(orderId: string, driverId: string, reason: string): Promise<Order> {
+  async markDeliveryFailed(
+    orderId: string,
+    driverId: string,
+    reason: string,
+    options?: StockReturnOptions
+  ): Promise<Order> {
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
+      const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.DELIVERY_FAILED);
+
+      const shouldReturnToStock = options?.returnToStock === true;
+      const inventoryLines = shouldReturnToStock
+        ? await resolveOrderInventoryLines(current, tx)
+        : [];
+
+      if (shouldReturnToStock) {
+        await applyOrderInventoryMovements({
+          order: current,
+          lines: inventoryLines,
+          movementType: InventoryMovementType.DELIVERY_FAILED_RETURN,
+          quantityDirection: 1,
+          actor: { type: ActorType.DRIVER, id: driverId },
+          sourceApp: SourceApp.DRIVER_WEB,
+          metadata: {
+            origin: "delivery_failed_return",
+            previous_status: current.status,
+            new_status: OrderStatus.DELIVERY_FAILED,
+            reason,
+            physical_return_confirmed: true,
+          },
+          tx,
+        });
+      }
 
       const updated = await orderRepository.updateStatus(
         orderId,
@@ -788,7 +1050,15 @@ export const orderService = {
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
-          payload: { reason, type: "DELIVERY_FAILED" },
+          payload: {
+            reason,
+            type: "DELIVERY_FAILED",
+            physical_return_confirmed: shouldReturnToStock,
+            inventory_movement_type: shouldReturnToStock
+              ? InventoryMovementType.DELIVERY_FAILED_RETURN
+              : null,
+            inventory_items: inventoryAuditLines(inventoryLines),
+          },
         },
         tx
       );
@@ -852,7 +1122,8 @@ export const orderService = {
     orderId: string,
     actorId: string,
     actorType: "consumer" | "ops" | "distributor" | "driver",
-    reason: string
+    reason: string,
+    options?: StockReturnOptions
   ): Promise<Order> {
     const actorMap: Record<string, ActorType> = {
       consumer: ActorType.CONSUMER,
@@ -871,9 +1142,33 @@ export const orderService = {
 
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
+      const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.CANCELLED);
+
+      const shouldReturnToStock = shouldReturnCancelledOrderToStock(current.status, options);
+      const inventoryLines = shouldReturnToStock
+        ? await resolveOrderInventoryLines(current, tx)
+        : [];
+
+      if (shouldReturnToStock) {
+        await applyOrderInventoryMovements({
+          order: current,
+          lines: inventoryLines,
+          movementType: InventoryMovementType.ORDER_CANCEL_RETURN,
+          quantityDirection: 1,
+          actor: { type: actor, id: actorId },
+          sourceApp,
+          metadata: {
+            origin: "order_cancellation_return",
+            previous_status: current.status,
+            new_status: OrderStatus.CANCELLED,
+            reason,
+            physical_return_confirmed: true,
+          },
+          tx,
+        });
+      }
 
       const updated = await orderRepository.updateStatus(
         orderId,
@@ -888,7 +1183,15 @@ export const orderService = {
           actor: { type: actor, id: actorId },
           orderId,
           sourceApp,
-          payload: { reason },
+          payload: {
+            reason,
+            previous_status: current.status,
+            physical_return_confirmed: shouldReturnToStock,
+            inventory_movement_type: shouldReturnToStock
+              ? InventoryMovementType.ORDER_CANCEL_RETURN
+              : null,
+            inventory_items: inventoryAuditLines(inventoryLines),
+          },
         },
         tx
       );
@@ -976,6 +1279,48 @@ export const orderService = {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
       }
 
+      let emptyReturnInventoryItem: Awaited<
+        ReturnType<typeof inventoryRepository.findActiveReturnableEmptyItem>
+      > = null;
+
+      if (data.returnedQty > 0) {
+        emptyReturnInventoryItem = await inventoryRepository.findActiveReturnableEmptyItem(tx);
+        if (emptyReturnInventoryItem) {
+          try {
+            await inventoryService.applyMovement(
+              {
+                distributorId: current.distributor_id,
+                inventoryItemId: emptyReturnInventoryItem.id,
+                quantityDelta: data.returnedQty,
+                movementType: InventoryMovementType.EMPTY_RETURN_IN,
+                actor: { type: ActorType.DRIVER, id: driverId },
+                sourceApp: SourceApp.DRIVER_WEB,
+                reference: { type: InventoryReferenceType.ORDER, id: orderId },
+                metadata: {
+                  origin: "bottle_exchange",
+                  order_id: orderId,
+                  distributor_id: current.distributor_id,
+                  driver_id: driverId,
+                  returned_empty_qty: data.returnedQty,
+                  collected_empty_qty: data.collectedQty,
+                  bottle_condition: data.condition ?? null,
+                  inventory_item_id: emptyReturnInventoryItem.id,
+                  inventory_item_code: emptyReturnInventoryItem.code,
+                },
+              },
+              tx
+            );
+          } catch (error) {
+            translateInventoryError(error);
+          }
+        } else {
+          log.warn(
+            { orderId, distributorId: current.distributor_id, returnedQty: data.returnedQty },
+            "Bottle exchange recorded without returnable empty inventory item"
+          );
+        }
+      }
+
       const updated = await orderRepository.update(
         orderId,
         {
@@ -992,7 +1337,14 @@ export const orderService = {
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
-          payload: data,
+          payload: {
+            ...data,
+            inventory_movement_type:
+              data.returnedQty > 0 && emptyReturnInventoryItem
+                ? InventoryMovementType.EMPTY_RETURN_IN
+                : null,
+            inventory_item_id: emptyReturnInventoryItem?.id ?? null,
+          },
         },
         tx
       );

@@ -1,11 +1,15 @@
 import type {
+  InventoryItemFilterInput,
   OpsInventoryBalanceQueryInput,
   OpsInventoryMovementQueryInput,
   OpsInventoryReconciliationQueryInput,
 } from "@xua/shared/schemas/inventory";
+import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
+import type { InventoryItemCatalogRow } from "../../inventory/repository/inventory.repository.js";
 import { opsInventoryReadRepository } from "../repository/inventory-read.repository.js";
 import type {
   OpsInventoryBalanceRow,
+  OpsInventoryDistributorRow,
   OpsInventoryMovementRow,
   OpsInventoryReconciliationRow,
 } from "../repository/inventory-read.repository.js";
@@ -41,12 +45,44 @@ function toItem(row: OpsInventoryBalanceRow | OpsInventoryMovementRow) {
   };
 }
 
+function distributorResponse(row: OpsInventoryDistributorRow) {
+  return {
+    id: row.id,
+    name: row.name,
+  };
+}
+
+function inventoryItemResponse(item: InventoryItemCatalogRow) {
+  return {
+    id: item.id,
+    code: item.code,
+    name: item.name,
+    type: item.type,
+    product_id: item.product_id,
+    unit_label: item.unit_label,
+    low_stock_threshold: item.low_stock_threshold,
+    is_active: item.is_active,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  };
+}
+
 function sanitizeMovementMetadata(metadata: unknown): Record<string, string | number | boolean | null> {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return {};
   }
 
-  const allowedKeys = ["origin", "batch_id", "batch_hash", "batch_version", "session_id"];
+  const allowedKeys = [
+    "origin",
+    "batch_id",
+    "batch_hash",
+    "batch_version",
+    "session_id",
+    "snapshot_quantity",
+    "current_quantity",
+    "counted_quantity",
+    "delta",
+  ];
   const source = metadata as Record<string, unknown>;
 
   return allowedKeys.reduce<Record<string, string | number | boolean | null>>((safe, key) => {
@@ -114,10 +150,36 @@ function reconciliationResponse(row: OpsInventoryReconciliationRow) {
 }
 
 export const opsInventoryReadService = {
+  async listDistributors() {
+    const distributors = await opsInventoryReadRepository.listDistributors();
+    return { distributors: distributors.map(distributorResponse) };
+  },
+
+  async listItems(query: InventoryItemFilterInput) {
+    const { items, total } = await inventoryRepository.listInventoryItems({
+      search: query.q,
+      code: query.code,
+      name: query.name,
+      type: query.type,
+      productId: query.product_id,
+      isActive: query.is_active,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      items: items.map(inventoryItemResponse),
+      pagination: pagination(query.limit, query.offset, total),
+    };
+  },
+
   async listBalances(query: OpsInventoryBalanceQueryInput) {
     const { balances, total } = await opsInventoryReadRepository.listBalances({
       distributorId: query.distributor_id,
       inventoryItemId: query.inventory_item_id,
+      ...(query.q ? { search: query.q } : {}),
+      ...(query.item_type ? { itemType: query.item_type } : {}),
+      ...(query.stock_status ? { stockStatus: query.stock_status } : {}),
       limit: query.limit,
       offset: query.offset,
     });

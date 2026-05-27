@@ -7,8 +7,10 @@ import {
 } from "@xua/shared/enums";
 import {
   inventoryBalanceQuerySchema,
+  inventoryItemFilterSchema,
   inventoryInitialLoadSchema,
   inventoryMovementQuerySchema,
+  inventoryReconciliationSessionQuerySchema,
 } from "@xua/shared/schemas/inventory";
 import { createHash } from "crypto";
 
@@ -23,7 +25,11 @@ const mocks = vi.hoisted(() => ({
     findInitialLoadMovementsByBatch: vi.fn(),
     findInitialLoadMovementForItem: vi.fn(),
     listBalances: vi.fn(),
+    listInventoryItems: vi.fn(),
     listMovements: vi.fn(),
+  },
+  reconciliationSessionService: {
+    listSessionsForDistributor: vi.fn(),
   },
   inventoryService: {
     applyMovement: vi.fn(),
@@ -48,6 +54,10 @@ vi.mock("../../inventory/services/inventory.service.js", () => ({
 
 vi.mock("../../inventory/repository/inventory.repository.js", () => ({
   inventoryRepository: mocks.inventoryRepository,
+}));
+
+vi.mock("../../inventory/services/reconciliation-session.service.js", () => ({
+  inventoryReconciliationSessionService: mocks.reconciliationSessionService,
 }));
 
 const { distributorService, DistributorServiceError } = await import("./distributor.service.js");
@@ -128,6 +138,22 @@ function movementRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function inventoryItemRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: inventoryItemId,
+    code: "WATER20L",
+    name: "Agua 20L",
+    type: "SELLABLE_PRODUCT",
+    product_id: null,
+    unit_label: "un",
+    low_stock_threshold: 5,
+    is_active: true,
+    created_at: occurredAt,
+    updated_at: occurredAt,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback: (transaction: typeof tx) => unknown) =>
@@ -140,9 +166,17 @@ beforeEach(() => {
     balances: [balanceRow()],
     total: 1,
   });
+  mocks.inventoryRepository.listInventoryItems.mockResolvedValue({
+    items: [inventoryItemRow()],
+    total: 1,
+  });
   mocks.inventoryRepository.listMovements.mockResolvedValue({
     movements: [movementRow()],
     total: 1,
+  });
+  mocks.reconciliationSessionService.listSessionsForDistributor.mockResolvedValue({
+    sessions: [{ id: "session-1", distributor_id: distributorId, status: "OPEN" }],
+    pagination: { limit: 20, offset: 0, total: 1 },
   });
   mocks.inventoryService.applyMovement.mockImplementation(
     async (input: { inventoryItemId: string; quantityDelta: number }) => ({
@@ -255,6 +289,60 @@ describe("distributorService.listInventoryMovements", () => {
       ],
       pagination: { limit: 10, offset: 0, total: 1 },
     });
+  });
+});
+
+describe("distributorService.listInventoryItems", () => {
+  it("exige vinculo de distribuidora antes de listar catalogo ativo", async () => {
+    const query = inventoryItemFilterSchema.parse({ q: "agua", limit: "100", offset: "0" });
+
+    const result = await distributorService.listInventoryItems({ actorUserId, query });
+
+    expect(mocks.repository.resolveDistributorId).toHaveBeenCalledWith(actorUserId);
+    expect(mocks.inventoryRepository.listInventoryItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        search: "agua",
+        isActive: true,
+        limit: 100,
+        offset: 0,
+      })
+    );
+    expect(result).toEqual({
+      items: [inventoryItemRow()],
+      pagination: { limit: 100, offset: 0, total: 1 },
+    });
+  });
+
+  it("bloqueia listagem de catalogo quando usuario nao esta vinculado", async () => {
+    mocks.repository.resolveDistributorId.mockResolvedValue(null);
+    const query = inventoryItemFilterSchema.parse({});
+
+    await expect(
+      distributorService.listInventoryItems({ actorUserId, query })
+    ).rejects.toMatchObject({ code: "DISTRIBUTOR_NOT_LINKED" });
+
+    expect(mocks.inventoryRepository.listInventoryItems).not.toHaveBeenCalled();
+  });
+});
+
+describe("distributorService.listInventoryReconciliationSessions", () => {
+  it("lista sessoes somente para a distribuidora resolvida", async () => {
+    const query = inventoryReconciliationSessionQuerySchema.parse({
+      status: "OPEN",
+      limit: "20",
+      offset: "0",
+    });
+
+    const result = await distributorService.listInventoryReconciliationSessions({
+      actorUserId,
+      query,
+    });
+
+    expect(mocks.reconciliationSessionService.listSessionsForDistributor).toHaveBeenCalledWith({
+      distributorId,
+      query,
+    });
+    expect(result.pagination).toEqual({ limit: 20, offset: 0, total: 1 });
   });
 });
 

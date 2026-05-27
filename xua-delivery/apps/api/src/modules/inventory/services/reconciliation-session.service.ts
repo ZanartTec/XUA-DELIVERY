@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type {
+  InventoryReconciliationSessionQueryInput,
   InventoryReconciliationSessionCloseInput,
   OpsInventoryReconciliationSessionQueryInput,
 } from "@xua/shared/schemas/inventory";
@@ -152,6 +153,7 @@ function requireJustificationIfNeeded(
 function reconciliationMetadata(input: {
   sessionId: string;
   snapshotQuantity: number;
+  currentQuantity: number;
   countedQuantity: number;
   delta: number;
 }) {
@@ -159,6 +161,7 @@ function reconciliationMetadata(input: {
     origin: "inventory_reconciliation_session_close",
     session_id: input.sessionId,
     snapshot_quantity: input.snapshotQuantity,
+    current_quantity: input.currentQuantity,
     counted_quantity: input.countedQuantity,
     delta: input.delta,
   };
@@ -233,6 +236,25 @@ export const inventoryReconciliationSessionService = {
     return session ? { session: sessionDetailResponse(session) } : null;
   },
 
+  async listSessionsForDistributor(input: {
+    distributorId: string;
+    query: InventoryReconciliationSessionQueryInput;
+  }) {
+    const { sessions, total } = await reconciliationSessionRepository.listSessions({
+      distributorId: input.distributorId,
+      status: input.query.status,
+      start: toPeriodDate(input.query.start, "start"),
+      end: toPeriodDate(input.query.end, "end"),
+      limit: input.query.limit,
+      offset: input.query.offset,
+    });
+
+    return {
+      sessions: sessions.map(sessionListResponse),
+      pagination: pagination(input.query.limit, input.query.offset, total),
+    };
+  },
+
   async closeSession(input: {
     distributorId: string;
     sessionId: string;
@@ -276,14 +298,29 @@ export const inventoryReconciliationSessionService = {
       }
 
       const countByItemId = assertCloseCountsMatchSession(session, input.payload);
-      const deltas = session.items.map((item) => {
+      const deltas: Array<{
+        item: (typeof session.items)[number];
+        countedQuantity: number;
+        currentQuantity: number;
+        delta: number;
+      }> = [];
+
+      for (const item of session.items) {
         const countedQuantity = countByItemId.get(item.inventory_item_id)!;
-        return {
+        const currentBalance = await inventoryRepository.findBalanceForUpdate(
+          input.distributorId,
+          item.inventory_item_id,
+          tx
+        );
+
+        const currentQuantity = currentBalance?.quantity_on_hand ?? 0;
+        deltas.push({
           item,
           countedQuantity,
-          delta: countedQuantity - item.snapshot_quantity,
-        };
-      });
+          currentQuantity,
+          delta: countedQuantity - currentQuantity,
+        });
+      }
       const justification = requireJustificationIfNeeded(deltas, input.payload.justification);
       let adjustedCount = 0;
 
@@ -306,6 +343,7 @@ export const inventoryReconciliationSessionService = {
               metadata: reconciliationMetadata({
                 sessionId: input.sessionId,
                 snapshotQuantity: itemDelta.item.snapshot_quantity,
+                currentQuantity: itemDelta.currentQuantity,
                 countedQuantity: itemDelta.countedQuantity,
                 delta: itemDelta.delta,
               }),

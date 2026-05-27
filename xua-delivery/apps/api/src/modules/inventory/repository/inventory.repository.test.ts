@@ -154,9 +154,11 @@ function filterMovements(where: {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.prisma.distributorInventoryBalance.findMany.mockImplementation(({ where, skip, take }) =>
-    filterBalances(where).slice(skip, skip + take)
-  );
+  mocks.prisma.distributorInventoryBalance.findMany.mockImplementation(({ where, skip, take }) => {
+    const start = skip ?? 0;
+    const end = take == null ? undefined : start + take;
+    return filterBalances(where).slice(start, end);
+  });
   mocks.prisma.distributorInventoryBalance.count.mockImplementation(({ where }) =>
     filterBalances(where).length
   );
@@ -196,6 +198,30 @@ describe("inventoryRepository leitura distribuidor", () => {
 
     expect(result.total).toBe(1);
     expect(result.balances[0]?.id).toBe("balance-a-1");
+  });
+
+  it("filtra stock_status apos consulta ORM mantendo escopo da distribuidora", async () => {
+    const lowStock = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "LOW_STOCK",
+      limit: 50,
+      offset: 0,
+    });
+    const okStock = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "OK",
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(lowStock.total).toBe(1);
+    expect(lowStock.balances.map((balance) => balance.id)).toEqual(["balance-a-1"]);
+    expect(okStock.total).toBe(1);
+    expect(okStock.balances.map((balance) => balance.id)).toEqual(["balance-a-2"]);
+    expect(mocks.prisma.distributorInventoryBalance.count).not.toHaveBeenCalled();
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { distributor_id: distributorA } })
+    );
   });
 
   it("lista apenas movimentos da distribuidora solicitada e aplica filtros", async () => {

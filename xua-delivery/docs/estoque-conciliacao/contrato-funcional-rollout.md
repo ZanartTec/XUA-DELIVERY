@@ -3,7 +3,7 @@
 Status: contrato funcional para validação antes da implementação técnica.
 Data: 26/05/2026.
 Escopo: regras de negócio, papéis, rollout e convivência com a conciliação legada do XUA Delivery.
-Documento relacionado: `docs/estoque-conciliacao/plano-features-modulos.md`.
+Documentos relacionados: `docs/estoque-conciliacao/plano-features-modulos.md` e `docs/estoque-conciliacao/fechamento-operacional-rollout.md`.
 
 ---
 

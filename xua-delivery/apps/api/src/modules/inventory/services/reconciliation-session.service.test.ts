@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   inventoryRepository: {
     findDistributor: vi.fn(),
+    findBalanceForUpdate: vi.fn(),
   },
   reconciliationRepository: {
     findOpenSession: vi.fn(),
@@ -114,6 +115,12 @@ beforeEach(() => {
     callback(tx)
   );
   mocks.inventoryRepository.findDistributor.mockResolvedValue({ id: distributorId, is_active: true });
+  mocks.inventoryRepository.findBalanceForUpdate.mockImplementation(
+    async (_distributorId: string, inventoryItemId: string) => ({
+      inventory_item_id: inventoryItemId,
+      quantity_on_hand: inventoryItemId === itemA ? 10 : 3,
+    })
+  );
   mocks.reconciliationRepository.findOpenSession.mockResolvedValue(null);
   mocks.reconciliationRepository.listSnapshotBalances.mockResolvedValue([
     { inventory_item_id: itemA, quantity_on_hand: 10 },
@@ -242,6 +249,7 @@ describe("inventoryReconciliationSessionService.closeSession", () => {
           origin: "inventory_reconciliation_session_close",
           session_id: sessionId,
           snapshot_quantity: 10,
+          current_quantity: 10,
           counted_quantity: 12,
           delta: 2,
         },
@@ -258,6 +266,31 @@ describe("inventoryReconciliationSessionService.closeSession", () => {
       tx
     );
     expect(result.adjusted_count).toBe(1);
+  });
+
+  it("nao fecha nem edita itens quando ajuste de inventory falha", async () => {
+    const payload = inventoryReconciliationSessionCloseSchema.parse({
+      justification: "Contagem física validada",
+      counts: [
+        { inventory_item_id: itemA, counted_quantity: 12 },
+        { inventory_item_id: itemB, counted_quantity: 3 },
+      ],
+    });
+    const inventoryError = new Error("ledger indisponivel");
+    mocks.inventoryService.applyMovement.mockRejectedValueOnce(inventoryError);
+
+    await expect(
+      inventoryReconciliationSessionService.closeSession({
+        distributorId,
+        sessionId,
+        actorUserId,
+        payload,
+      })
+    ).rejects.toThrow(inventoryError);
+
+    expect(mocks.inventoryService.applyMovement).toHaveBeenCalledTimes(1);
+    expect(mocks.reconciliationRepository.updateItemClose).not.toHaveBeenCalled();
+    expect(mocks.reconciliationRepository.closeSession).not.toHaveBeenCalled();
   });
 
   it("fecha sessao sem divergencia sem criar movimentos de ajuste", async () => {
@@ -291,6 +324,50 @@ describe("inventoryReconciliationSessionService.closeSession", () => {
     expect(mocks.reconciliationRepository.updateItemClose).toHaveBeenCalledTimes(2);
     expect(mocks.reconciliationRepository.closeSession).toHaveBeenCalledWith(
       expect.objectContaining({ justification: null }),
+      tx
+    );
+    expect(result.adjusted_count).toBe(0);
+  });
+
+  it("calcula ajuste contra saldo atual quando o snapshot ficou defasado", async () => {
+    const payload = inventoryReconciliationSessionCloseSchema.parse({
+      counts: [
+        { inventory_item_id: itemA, counted_quantity: 8 },
+        { inventory_item_id: itemB, counted_quantity: 3 },
+      ],
+    });
+    mocks.inventoryRepository.findBalanceForUpdate.mockImplementation(
+      async (_distributorId: string, inventoryItemId: string) => ({
+        inventory_item_id: inventoryItemId,
+        quantity_on_hand: inventoryItemId === itemA ? 8 : 3,
+      })
+    );
+    mocks.reconciliationRepository.closeSession.mockResolvedValueOnce(
+      sessionRead({
+        status: InventoryReconciliationStatus.CLOSED,
+        closed_by: actorUserId,
+        closed_at: closedAt,
+        items: [
+          sessionItem({ inventory_item_id: itemA, snapshot_quantity: 10, counted_quantity: 8, delta: 0 }),
+          sessionItem({ inventory_item_id: itemB, snapshot_quantity: 3, counted_quantity: 3, delta: 0 }),
+        ],
+      })
+    );
+
+    const result = await inventoryReconciliationSessionService.closeSession({
+      distributorId,
+      sessionId,
+      actorUserId,
+      payload,
+    });
+
+    expect(mocks.inventoryService.applyMovement).not.toHaveBeenCalled();
+    expect(mocks.reconciliationRepository.updateItemClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: `session-item-${itemA}`,
+        countedQuantity: 8,
+        delta: 0,
+      }),
       tx
     );
     expect(result.adjusted_count).toBe(0);

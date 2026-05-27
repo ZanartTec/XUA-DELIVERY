@@ -20,6 +20,13 @@ router.get(
   distributorController.listInventoryBalances,
 );
 
+// Lista itens de estoque disponíveis para a distribuidora autenticada
+router.get(
+  "/inventory/items",
+  requireRole("distributor_admin"),
+  distributorController.listInventoryItems,
+);
+
 // Lista movimentos de estoque da distribuidora autenticada
 router.get(
   "/inventory/movements",
@@ -38,6 +45,12 @@ router.post(
   "/inventory/reconciliation-sessions",
   requireRole("distributor_admin"),
   distributorController.openInventoryReconciliationSession,
+);
+
+router.get(
+  "/inventory/reconciliation-sessions",
+  requireRole("distributor_admin"),
+  distributorController.listInventoryReconciliationSessions,
 );
 
 router.get(

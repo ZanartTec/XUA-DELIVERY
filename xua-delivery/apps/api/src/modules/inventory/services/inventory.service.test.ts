@@ -248,6 +248,27 @@ describe("inventoryService.applyMovement", () => {
     });
   });
 
+  it("resolve corrida idempotente quando createMovementOnce retorna null", async () => {
+    const existingMovement = movement(5);
+    const existingBalance = balance(15);
+    mocks.repository.findMovementByReference
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existingMovement);
+    mocks.repository.createMovementOnce.mockResolvedValue(null);
+    mocks.repository.findBalance.mockResolvedValue(existingBalance);
+
+    const result = await inventoryService.applyMovement(baseInput(5), tx as never);
+
+    expect(mocks.repository.createMovementOnce).toHaveBeenCalledTimes(1);
+    expect(mocks.repository.findMovementByReference).toHaveBeenCalledTimes(2);
+    expect(mocks.repository.upsertBalance).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      movement: existingMovement,
+      balance: existingBalance,
+      idempotentReplay: true,
+    });
+  });
+
   it("rejeita replay idempotente com payload divergente", async () => {
     const existingMovement = movement(-2, {
       movement_type: InventoryMovementType.ORDER_ACCEPT_OUT,

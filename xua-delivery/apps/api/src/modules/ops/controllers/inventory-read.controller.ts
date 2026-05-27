@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
 import {
+  inventoryItemFilterSchema,
   opsInventoryBalanceQuerySchema,
   opsInventoryMovementQuerySchema,
   opsInventoryReadIdParamSchema,
@@ -25,6 +26,30 @@ function parseId(req: Request, res: Response): string | null {
 }
 
 export const opsInventoryReadController = {
+  async listDistributors(_req: Request, res: Response): Promise<void> {
+    try {
+      res.json(await opsInventoryReadService.listDistributors());
+    } catch (error) {
+      logger.error({ error }, "Error listing ops inventory distributors");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  async listItems(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryItemFilterSchema.safeParse(req.query);
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error.issues[0].message);
+      return;
+    }
+
+    try {
+      res.json(await opsInventoryReadService.listItems(parsed.data));
+    } catch (error) {
+      logger.error({ error }, "Error listing ops inventory items");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
   async listBalances(req: Request, res: Response): Promise<void> {
     const parsed = opsInventoryBalanceQuerySchema.safeParse(req.query);
     if (!parsed.success) {

@@ -4,7 +4,9 @@ import { createLogger } from "../../../infra/logger/index.js";
 import { createHash } from "crypto";
 import type {
   InventoryBalanceQueryInput,
+  InventoryItemFilterInput,
   InventoryInitialLoadInput,
+  InventoryReconciliationSessionQueryInput,
   InventoryReconciliationSessionCloseInput,
   InventoryMovementQueryInput,
 } from "@xua/shared/schemas/inventory";
@@ -52,6 +54,16 @@ type ListInventoryBalancesInput = {
 type ListInventoryMovementsInput = {
   actorUserId: string;
   query: InventoryMovementQueryInput;
+};
+
+type ListInventoryItemsInput = {
+  actorUserId: string;
+  query: InventoryItemFilterInput;
+};
+
+type ListInventoryReconciliationSessionsInput = {
+  actorUserId: string;
+  query: InventoryReconciliationSessionQueryInput;
 };
 
 type CloseInventoryReconciliationSessionInput = {
@@ -297,6 +309,9 @@ export const distributorService = {
     const { balances, total } = await inventoryRepository.listBalances({
       distributorId,
       inventoryItemId: query.inventory_item_id,
+      ...(query.q ? { search: query.q } : {}),
+      ...(query.item_type ? { itemType: query.item_type } : {}),
+      ...(query.stock_status ? { stockStatus: query.stock_status } : {}),
       limit: query.limit,
       offset: query.offset,
     });
@@ -371,6 +386,32 @@ export const distributorService = {
     };
   },
 
+  async listInventoryItems({ actorUserId, query }: ListInventoryItemsInput) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    const { items, total } = await inventoryRepository.listInventoryItems({
+      search: query.q,
+      code: query.code,
+      name: query.name,
+      type: query.type,
+      productId: query.product_id,
+      isActive: query.is_active ?? true,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      items,
+      pagination: pagination(query.limit, query.offset, total),
+    };
+  },
+
   async openInventoryReconciliationSession({ actorUserId }: { actorUserId: string }) {
     const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
     if (!distributorId) {
@@ -401,6 +442,24 @@ export const distributorService = {
     return inventoryReconciliationSessionService.getSessionForDistributor({
       distributorId,
       sessionId,
+    });
+  },
+
+  async listInventoryReconciliationSessions({
+    actorUserId,
+    query,
+  }: ListInventoryReconciliationSessionsInput) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    return inventoryReconciliationSessionService.listSessionsForDistributor({
+      distributorId,
+      query,
     });
   },
 

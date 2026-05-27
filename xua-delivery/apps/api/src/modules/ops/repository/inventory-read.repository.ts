@@ -6,6 +6,7 @@ import type {
   InventoryItemType,
   SourceApp,
 } from "@xua/shared/enums";
+import type { InventoryStockStatusFilterInput } from "@xua/shared/schemas/inventory";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 const DISTRIBUTOR_READ_SELECT = {
@@ -35,6 +36,8 @@ export type OpsDistributorRead = {
   id: string;
   name: string;
 };
+
+export type OpsInventoryDistributorRow = OpsDistributorRead;
 
 export type OpsInventoryBalanceRow = {
   id: string;
@@ -79,7 +82,10 @@ export type OpsInventoryReconciliationRow = {
 
 export type OpsInventoryBalanceListParams = {
   distributorId?: string;
+  search?: string;
   inventoryItemId?: string;
+  itemType?: InventoryItemType;
+  stockStatus?: InventoryStockStatusFilterInput;
   limit: number;
   offset: number;
 };
@@ -98,15 +104,80 @@ export type OpsInventoryReconciliationListParams = {
   offset: number;
 };
 
+function balanceItemWhere(params: {
+  search?: string;
+  itemType?: InventoryItemType;
+}): Prisma.InventoryItemWhereInput | undefined {
+  const where: Prisma.InventoryItemWhereInput = {
+    ...(params.search
+      ? {
+          OR: [
+            { code: { contains: params.search, mode: "insensitive" } },
+            { name: { contains: params.search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(params.itemType ? { type: params.itemType } : {}),
+  };
+
+  return Object.keys(where).length > 0 ? where : undefined;
+}
+
+function matchesStockStatus(
+  balance: OpsInventoryBalanceRow,
+  stockStatus: InventoryStockStatusFilterInput
+): boolean {
+  const threshold = balance.inventory_item.low_stock_threshold;
+  const isLowStock = threshold !== null && balance.quantity_on_hand <= threshold;
+  return stockStatus === "LOW_STOCK" ? isLowStock : !isLowStock;
+}
+
 export const opsInventoryReadRepository = {
+  async listDistributors(): Promise<OpsInventoryDistributorRow[]> {
+    const prisma = getPrisma();
+    return prisma.distributor.findMany({
+      where: { is_active: true },
+      select: DISTRIBUTOR_READ_SELECT,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+  },
+
   async listBalances(
     params: OpsInventoryBalanceListParams
   ): Promise<{ balances: OpsInventoryBalanceRow[]; total: number }> {
     const prisma = getPrisma();
+    const inventoryItemWhere = balanceItemWhere({
+      search: params.search,
+      itemType: params.itemType,
+    });
     const where: Prisma.DistributorInventoryBalanceWhereInput = {
       ...(params.distributorId ? { distributor_id: params.distributorId } : {}),
       ...(params.inventoryItemId ? { inventory_item_id: params.inventoryItemId } : {}),
+      ...(inventoryItemWhere ? { inventory_item: inventoryItemWhere } : {}),
     };
+
+    if (params.stockStatus) {
+      const balances = await prisma.distributorInventoryBalance.findMany({
+        where,
+        select: {
+          id: true,
+          distributor_id: true,
+          inventory_item_id: true,
+          quantity_on_hand: true,
+          last_movement_at: true,
+          updated_at: true,
+          distributor: { select: DISTRIBUTOR_READ_SELECT },
+          inventory_item: { select: INVENTORY_ITEM_READ_SELECT },
+        },
+        orderBy: [{ distributor_id: "asc" }, { inventory_item_id: "asc" }],
+      });
+      const filtered = balances.filter((balance) => matchesStockStatus(balance, params.stockStatus!));
+
+      return {
+        balances: filtered.slice(params.offset, params.offset + params.limit),
+        total: filtered.length,
+      };
+    }
 
     const [balances, total] = await Promise.all([
       prisma.distributorInventoryBalance.findMany({

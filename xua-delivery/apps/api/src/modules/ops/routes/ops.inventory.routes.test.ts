@@ -4,6 +4,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 const mocks = vi.hoisted(() => ({
   service: {
+    listDistributors: vi.fn(),
+    listItems: vi.fn(),
     listBalances: vi.fn(),
     getBalance: vi.fn(),
     listMovements: vi.fn(),
@@ -114,6 +116,31 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+
+  mocks.service.listDistributors.mockResolvedValue({
+    distributors: [
+      { id: distributorA, name: "XUA Centro" },
+      { id: distributorB, name: "XUA Sul" },
+    ],
+  });
+
+  mocks.service.listItems.mockResolvedValue({
+    items: [
+      {
+        id: itemA,
+        code: "WATER20L",
+        name: "Agua 20L",
+        type: "SELLABLE_PRODUCT",
+        product_id: null,
+        unit_label: "un",
+        low_stock_threshold: 5,
+        is_active: true,
+        created_at: occurredAt,
+        updated_at: occurredAt,
+      },
+    ],
+    pagination: { limit: 100, offset: 0, total: 1 },
+  });
 
   mocks.service.listBalances.mockResolvedValue({
     balances: [
@@ -245,6 +272,13 @@ beforeEach(() => {
 });
 
 describe("opsRoutes inventory", () => {
+  it("exige autenticacao antes de expor filtros globais de inventory", async () => {
+    const response = await fetch(`${baseUrl}/api/ops/inventory/distributors`);
+
+    expect(response.status).toBe(401);
+    expect(mocks.service.listDistributors).not.toHaveBeenCalled();
+  });
+
   it("permite OPS nas listagens globais e retorna multiplas distribuidoras", async () => {
     const balances = await getJson<{
       balances: Array<{ distributor_id: string }>;
@@ -277,7 +311,9 @@ describe("opsRoutes inventory", () => {
 
   it("nega support e distributor_admin nos endpoints globais de inventory", async () => {
     const paths = [
+      "/api/ops/inventory/distributors",
       "/api/ops/inventory/balances?limit=20&offset=0",
+      "/api/ops/inventory/items?limit=100&offset=0",
       "/api/ops/inventory/movements?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "/api/ops/inventory/reconciliations?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "/api/ops/inventory/reconciliation-sessions?limit=20&offset=0",
@@ -290,6 +326,52 @@ describe("opsRoutes inventory", () => {
         expect(response.body).toEqual({ error: "Acesso negado" });
       }
     }
+  });
+
+  it("lista distribuidoras ativas para filtros OPS sem depender de saldos", async () => {
+    const response = await getJson<{ distributors: Array<{ id: string; name: string }> }>(
+      "/api/ops/inventory/distributors",
+      "ops"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.service.listDistributors).toHaveBeenCalledWith();
+    expect(response.body.distributors).toEqual([
+      { id: distributorA, name: "XUA Centro" },
+      { id: distributorB, name: "XUA Sul" },
+    ]);
+  });
+
+  it("lista itens de inventory para filtros OPS", async () => {
+    const response = await getJson<{ items: Array<{ id: string; code: string }> }>(
+      "/api/ops/inventory/items?is_active=true&limit=100&offset=0",
+      "ops"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.service.listItems).toHaveBeenCalledWith({
+      is_active: true,
+      limit: 100,
+      offset: 0,
+    });
+    expect(response.body.items[0]).toMatchObject({ id: itemA, code: "WATER20L" });
+  });
+
+  it("mantem OPS inventory read-only sem rotas de escrita de itens", async () => {
+    const postResponse = await fetch(`${baseUrl}/api/ops/inventory/items`, {
+      method: "POST",
+      headers: { "x-test-role": "ops", "content-type": "application/json" },
+      body: JSON.stringify({ code: "NEW", name: "Novo", type: "SELLABLE_PRODUCT" }),
+    });
+    const patchResponse = await fetch(`${baseUrl}/api/ops/inventory/items/${itemA}`, {
+      method: "PATCH",
+      headers: { "x-test-role": "ops", "content-type": "application/json" },
+      body: JSON.stringify({ name: "Alterado" }),
+    });
+
+    expect(postResponse.status).toBe(404);
+    expect(patchResponse.status).toBe(404);
+    expect(mocks.service.listItems).not.toHaveBeenCalled();
   });
 
   it("encaminha filtros de distribuidora e item no endpoint de saldos", async () => {
@@ -305,6 +387,16 @@ describe("opsRoutes inventory", () => {
       limit: 10,
       offset: 5,
     });
+  });
+
+  it("rejeita query invalida antes de chamar service OPS", async () => {
+    const response = await getJson<{ error: string }>(
+      "/api/ops/inventory/balances?limit=9999&offset=0",
+      "ops"
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.service.listBalances).not.toHaveBeenCalled();
   });
 
   it("encaminha filtros de distribuidora, item e periodo no endpoint de movimentos", async () => {

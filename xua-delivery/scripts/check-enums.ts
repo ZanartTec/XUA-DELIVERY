@@ -21,9 +21,11 @@ import {
   INVENTORY_ITEM_TYPE_VALUES,
   INVENTORY_MOVEMENT_TYPE_VALUES,
   INVENTORY_REFERENCE_TYPE_VALUES,
+  INVENTORY_RECONCILIATION_STATUS_VALUES,
   InventoryItemType,
   InventoryMovementType,
   InventoryReferenceType,
+  InventoryReconciliationStatus,
   ORDER_STATUS_VALUES,
   OrderStatus,
   OTP_STATUS_VALUES,
@@ -67,6 +69,10 @@ const EXPECTED_ENUMS = {
   InventoryReferenceType: {
     values: INVENTORY_REFERENCE_TYPE_VALUES,
     object: InventoryReferenceType,
+  },
+  InventoryReconciliationStatus: {
+    values: INVENTORY_RECONCILIATION_STATUS_VALUES,
+    object: InventoryReconciliationStatus,
   },
 } satisfies Record<string, { values: readonly string[]; object: Record<string, string> }>;
 

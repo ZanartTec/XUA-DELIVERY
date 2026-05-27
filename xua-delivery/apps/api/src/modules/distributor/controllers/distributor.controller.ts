@@ -13,8 +13,11 @@ import { InventoryServiceError } from "../../inventory/services/inventory.servic
 import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
 import {
   inventoryBalanceQuerySchema,
+  inventoryItemFilterSchema,
   inventoryInitialLoadSchema,
   inventoryMovementQuerySchema,
+  inventoryReconciliationSessionOpenSchema,
+  inventoryReconciliationSessionQuerySchema,
   inventoryReconciliationSessionCloseSchema,
   opsInventoryReadIdParamSchema,
 } from "@xua/shared/schemas/inventory";
@@ -147,6 +150,35 @@ export const distributorController = {
   },
 
   /**
+   * GET /api/distributor/inventory/items
+   * Lista itens de estoque ativos para filtros, carga inicial e conciliação.
+   */
+  async listInventoryItems(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryItemFilterSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.listInventoryItems({
+        actorUserId: req.user!.sub,
+        query: parsed.data,
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao listar itens de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
    * GET /api/distributor/inventory/movements
    * Lista movimentos de estoque da distribuidora autenticada.
    */
@@ -227,6 +259,12 @@ export const distributorController = {
    * Abre sessão física de conciliação da distribuidora autenticada.
    */
   async openInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryReconciliationSessionOpenSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
     try {
       const result = await distributorService.openInventoryReconciliationSession({
         actorUserId: req.user!.sub,
@@ -250,6 +288,35 @@ export const distributorController = {
       }
 
       log.error({ err, userId: req.user?.sub }, "Erro ao abrir sessão de conciliação de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * GET /api/distributor/inventory/reconciliation-sessions
+   * Lista sessões físicas da distribuidora autenticada.
+   */
+  async listInventoryReconciliationSessions(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryReconciliationSessionQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.listInventoryReconciliationSessions({
+        actorUserId: req.user!.sub,
+        query: parsed.data,
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao listar sessões de conciliação de estoque");
       res.status(500).json({ error: "Erro interno" });
     }
   },

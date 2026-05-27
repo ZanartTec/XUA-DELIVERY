@@ -32,7 +32,9 @@ router.post(
 // Audit export — ops somente
 router.get("/audit/export", requireRole("ops"), auditController.exportCsv);
 
-// Inventory read-only — ops somente
+// Inventory OPS — leitura global
+router.get("/inventory/distributors", requireRole("ops"), opsInventoryReadController.listDistributors);
+router.get("/inventory/items", requireRole("ops"), opsInventoryReadController.listItems);
 router.get("/inventory/balances", requireRole("ops"), opsInventoryReadController.listBalances);
 router.get("/inventory/balances/:id", requireRole("ops"), opsInventoryReadController.getBalance);
 router.get("/inventory/movements", requireRole("ops"), opsInventoryReadController.listMovements);

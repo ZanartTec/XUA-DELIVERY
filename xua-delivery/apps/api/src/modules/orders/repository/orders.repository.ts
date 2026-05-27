@@ -57,6 +57,13 @@ export type OrderForQueue = Order & {
   subscription_delivery_date: SubscriptionDeliveryContext | null;
 };
 
+export type OrderWithItems = Order & {
+  items: Pick<
+    OrderItem,
+    "id" | "product_id" | "product_name" | "quantity" | "unit_price_cents" | "subtotal_cents"
+  >[];
+};
+
 export type OrderWithDetails = Order & {
   consumer: Pick<Consumer, "name" | "email" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
@@ -139,9 +146,26 @@ export const orderRepository = {
   async findByIdWithItems(
     id: string,
     tx?: TxClient
-  ): Promise<(Order & { items: { id: string; product_name: string; quantity: number; unit_price_cents: number; subtotal_cents: number }[] }) | null> {
+  ): Promise<OrderWithItems | null> {
     const prisma = getPrisma();
     return (tx ?? prisma).order.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+  },
+
+  async findByIdWithItemsForUpdate(id: string, tx: TxClient): Promise<OrderWithItems | null> {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM "09_trn_orders"
+      WHERE id = ${id}::uuid
+      FOR UPDATE
+      LIMIT 1
+    `;
+
+    if (!rows[0]) return null;
+
+    return tx.order.findUnique({
       where: { id },
       include: { items: true },
     });
