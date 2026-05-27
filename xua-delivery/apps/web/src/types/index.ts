@@ -29,7 +29,7 @@ export type {
   ActorType,
   SourceApp,
   AuditEventType,
-} from "./enums";
+} from "@xua/shared/enums";
 
 // --- JWT Payload — importado do shared (fonte de verdade) ----------
 export type { JwtPayload } from "@xua/shared/types";

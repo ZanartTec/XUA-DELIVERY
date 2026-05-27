@@ -1,4 +1,5 @@
-import type { Prisma, UserSubscriptionStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;

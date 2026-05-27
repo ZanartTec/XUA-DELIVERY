@@ -1,6 +1,6 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import type { Address, Consumer, Order, OrderItem, Zone } from "@prisma/client";
-import { ConsumerRole, OrderStatus } from "@prisma/client";
+import { ConsumerRole, OrderStatus } from "@xua/shared/enums";
 
 export type DistributorRouteStop = Order & {
   consumer: Pick<Consumer, "name" | "phone">;

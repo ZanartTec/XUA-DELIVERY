@@ -1,5 +1,6 @@
 import { createHmac, randomInt } from "crypto";
-import { OtpStatus, AuditEventType, ActorType, SourceApp, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { ActorType, AuditEventType, OtpStatus, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { otpRepository } from "../repository/otp.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";

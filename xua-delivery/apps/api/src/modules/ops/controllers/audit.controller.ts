@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
 import { auditExportSchema } from "@xua/shared/schemas/audit";
-import type { AuditEventType } from "@prisma/client";
+import type { AuditEventType } from "@xua/shared/enums";
 import { buildCsv } from "../../../utils/csv.js";
 import { auditExportService } from "../audit.service.js";
 

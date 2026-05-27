@@ -4,7 +4,7 @@ import {
   AuditEventType,
   ActorType,
   SourceApp,
-} from "@prisma/client";
+} from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { reconciliationRepository } from "../repository/reconciliation.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";

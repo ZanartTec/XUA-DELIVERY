@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { CheckoutPaymentMethod, DeliveryWindowInput } from "@xua/shared/enums";
 
-type TimeWindow = "morning" | "afternoon";
-type PaymentMethod = "pix" | "credit" | "cash";
+type TimeWindow = DeliveryWindowInput;
+type PaymentMethod = CheckoutPaymentMethod;
 
 interface CheckoutState {
   // Schedule step

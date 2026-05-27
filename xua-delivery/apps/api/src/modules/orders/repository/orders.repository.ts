@@ -1,12 +1,9 @@
 import type {
   Prisma,
   Order,
-  OrderStatus,
   Consumer,
   Address,
   OrderItem,
-  DeliveryDateStatus,
-  UserSubscriptionStatus,
   Distributor,
   Zone,
   TimeSlot,
@@ -14,6 +11,7 @@ import type {
   Deposit,
   OrderOtp,
 } from "@prisma/client";
+import type { DeliveryDateStatus, OrderStatus, UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;

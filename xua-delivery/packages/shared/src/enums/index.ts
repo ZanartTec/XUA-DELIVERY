@@ -1,12 +1,35 @@
-// ─── Enums independentes do Prisma — mesmos valores gerados pelo Prisma ───
-// Usados no web, shared e API (antes de ter acesso ao @prisma/client).
-// Mantenha sincronizado com prisma/schema.prisma.
+type EnumValue<T extends Record<string, string>> = T[keyof T];
+
+// Enums de dominio expostos pelo Prisma Client. O schema Prisma pode mapear
+// alguns valores para lowercase no banco, mas o contrato TypeScript permanece
+// com os nomes de enum abaixo.
+
+export const DELIVERY_WINDOW_VALUES = ["MORNING", "AFTERNOON"] as const;
+export const DELIVERY_WINDOW_INPUT_VALUES = ["morning", "afternoon"] as const;
 
 export const DeliveryWindow = {
-  MORNING: "morning",
-  AFTERNOON: "afternoon",
+  MORNING: "MORNING",
+  AFTERNOON: "AFTERNOON",
 } as const;
-export type DeliveryWindow = (typeof DeliveryWindow)[keyof typeof DeliveryWindow];
+export type DeliveryWindow = EnumValue<typeof DeliveryWindow>;
+export type DeliveryWindowInput = (typeof DELIVERY_WINDOW_INPUT_VALUES)[number];
+
+export const ORDER_STATUS_VALUES = [
+  "DRAFT",
+  "CREATED",
+  "PAYMENT_PENDING",
+  "CONFIRMED",
+  "SENT_TO_DISTRIBUTOR",
+  "ACCEPTED_BY_DISTRIBUTOR",
+  "REJECTED_BY_DISTRIBUTOR",
+  "PICKING",
+  "READY_FOR_DISPATCH",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "DELIVERY_FAILED",
+  "REDELIVERY_SCHEDULED",
+  "CANCELLED",
+] as const;
 
 export const OrderStatus = {
   DRAFT: "DRAFT",
@@ -24,74 +47,164 @@ export const OrderStatus = {
   REDELIVERY_SCHEDULED: "REDELIVERY_SCHEDULED",
   CANCELLED: "CANCELLED",
 } as const;
-export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+export type OrderStatus = EnumValue<typeof OrderStatus>;
+
+export const OTP_STATUS_VALUES = ["ACTIVE", "USED", "EXPIRED", "LOCKED"] as const;
 
 export const OtpStatus = {
-  ACTIVE: "active",
-  USED: "used",
-  EXPIRED: "expired",
-  LOCKED: "locked",
+  ACTIVE: "ACTIVE",
+  USED: "USED",
+  EXPIRED: "EXPIRED",
+  LOCKED: "LOCKED",
 } as const;
-export type OtpStatus = (typeof OtpStatus)[keyof typeof OtpStatus];
+export type OtpStatus = EnumValue<typeof OtpStatus>;
+
+export const CONSUMER_ROLE_VALUES = [
+  "CONSUMER",
+  "DISTRIBUTOR_ADMIN",
+  "DRIVER",
+  "SUPPORT",
+  "OPS",
+] as const;
+
+export const ConsumerRole = {
+  CONSUMER: "CONSUMER",
+  DISTRIBUTOR_ADMIN: "DISTRIBUTOR_ADMIN",
+  DRIVER: "DRIVER",
+  SUPPORT: "SUPPORT",
+  OPS: "OPS",
+} as const;
+export type ConsumerRole = EnumValue<typeof ConsumerRole>;
+
+export const USER_SUBSCRIPTION_STATUS_VALUES = [
+  "PENDING_PAYMENT",
+  "ACTIVE",
+  "PAUSED",
+  "CANCELLED",
+  "COMPLETED",
+] as const;
 
 export const UserSubscriptionStatus = {
-  PENDING_PAYMENT: "pending_payment",
-  ACTIVE: "active",
-  PAUSED: "paused",
-  CANCELLED: "cancelled",
-  COMPLETED: "completed",
+  PENDING_PAYMENT: "PENDING_PAYMENT",
+  ACTIVE: "ACTIVE",
+  PAUSED: "PAUSED",
+  CANCELLED: "CANCELLED",
+  COMPLETED: "COMPLETED",
 } as const;
-export type UserSubscriptionStatus = (typeof UserSubscriptionStatus)[keyof typeof UserSubscriptionStatus];
+export type UserSubscriptionStatus = EnumValue<typeof UserSubscriptionStatus>;
+
+export const DELIVERY_DATE_STATUS_VALUES = ["PENDING", "DELIVERED", "CANCELLED"] as const;
 
 export const DeliveryDateStatus = {
-  PENDING: "pending",
-  DELIVERED: "delivered",
-  CANCELLED: "cancelled",
+  PENDING: "PENDING",
+  DELIVERED: "DELIVERED",
+  CANCELLED: "CANCELLED",
 } as const;
-export type DeliveryDateStatus = (typeof DeliveryDateStatus)[keyof typeof DeliveryDateStatus];
+export type DeliveryDateStatus = EnumValue<typeof DeliveryDateStatus>;
+
+export const PAYMENT_KIND_VALUES = ["ORDER", "SUBSCRIPTION", "DEPOSIT"] as const;
 
 export const PaymentKind = {
-  ORDER: "order",
-  SUBSCRIPTION: "subscription",
-  DEPOSIT: "deposit",
+  ORDER: "ORDER",
+  SUBSCRIPTION: "SUBSCRIPTION",
+  DEPOSIT: "DEPOSIT",
 } as const;
-export type PaymentKind = (typeof PaymentKind)[keyof typeof PaymentKind];
+export type PaymentKind = EnumValue<typeof PaymentKind>;
+
+export const PAYMENT_STATUS_VALUES = [
+  "CREATED",
+  "AUTHORIZED",
+  "CAPTURED",
+  "FAILED",
+  "REFUNDED",
+] as const;
 
 export const PaymentStatus = {
-  CREATED: "created",
-  AUTHORIZED: "authorized",
-  CAPTURED: "captured",
-  FAILED: "failed",
-  REFUNDED: "refunded",
+  CREATED: "CREATED",
+  AUTHORIZED: "AUTHORIZED",
+  CAPTURED: "CAPTURED",
+  FAILED: "FAILED",
+  REFUNDED: "REFUNDED",
 } as const;
-export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+export type PaymentStatus = EnumValue<typeof PaymentStatus>;
+
+export const DEPOSIT_STATUS_VALUES = [
+  "HELD",
+  "REFUND_INITIATED",
+  "REFUNDED",
+  "FORFEITED",
+] as const;
 
 export const DepositStatus = {
-  HELD: "held",
-  REFUND_INITIATED: "refund_initiated",
-  REFUNDED: "refunded",
-  FORFEITED: "forfeited",
+  HELD: "HELD",
+  REFUND_INITIATED: "REFUND_INITIATED",
+  REFUNDED: "REFUNDED",
+  FORFEITED: "FORFEITED",
 } as const;
-export type DepositStatus = (typeof DepositStatus)[keyof typeof DepositStatus];
+export type DepositStatus = EnumValue<typeof DepositStatus>;
+
+export const ACTOR_TYPE_VALUES = [
+  "CONSUMER",
+  "DISTRIBUTOR_USER",
+  "DRIVER",
+  "SUPPORT",
+  "OPS",
+  "SYSTEM",
+] as const;
 
 export const ActorType = {
-  CONSUMER: "consumer",
-  DISTRIBUTOR_USER: "distributor_user",
-  DRIVER: "driver",
-  SUPPORT: "support",
-  OPS: "ops",
-  SYSTEM: "system",
+  CONSUMER: "CONSUMER",
+  DISTRIBUTOR_USER: "DISTRIBUTOR_USER",
+  DRIVER: "DRIVER",
+  SUPPORT: "SUPPORT",
+  OPS: "OPS",
+  SYSTEM: "SYSTEM",
 } as const;
-export type ActorType = (typeof ActorType)[keyof typeof ActorType];
+export type ActorType = EnumValue<typeof ActorType>;
+
+export const SOURCE_APP_VALUES = [
+  "CONSUMER_WEB",
+  "DISTRIBUTOR_WEB",
+  "DRIVER_WEB",
+  "OPS_CONSOLE",
+  "BACKEND",
+] as const;
 
 export const SourceApp = {
-  CONSUMER_WEB: "consumer_web",
-  DISTRIBUTOR_WEB: "distributor_web",
-  DRIVER_WEB: "driver_web",
-  OPS_CONSOLE: "ops_console",
-  BACKEND: "backend",
+  CONSUMER_WEB: "CONSUMER_WEB",
+  DISTRIBUTOR_WEB: "DISTRIBUTOR_WEB",
+  DRIVER_WEB: "DRIVER_WEB",
+  OPS_CONSOLE: "OPS_CONSOLE",
+  BACKEND: "BACKEND",
 } as const;
-export type SourceApp = (typeof SourceApp)[keyof typeof SourceApp];
+export type SourceApp = EnumValue<typeof SourceApp>;
+
+export const AUDIT_EVENT_TYPE_VALUES = [
+  "ORDER_CREATED",
+  "ORDER_PRICING_FINALIZED",
+  "ORDER_CONFIRMED",
+  "ORDER_CANCELLED",
+  "ORDER_RECEIVED_BY_DISTRIBUTOR",
+  "ORDER_ACCEPTED_BY_DISTRIBUTOR",
+  "ORDER_REJECTED_BY_DISTRIBUTOR",
+  "DISPATCH_CHECKLIST_COMPLETED",
+  "ORDER_DISPATCHED",
+  "OTP_GENERATED",
+  "OTP_SENT",
+  "OTP_VALIDATION_ATTEMPTED",
+  "ORDER_DELIVERED",
+  "BOTTLE_EXCHANGE_RECORDED",
+  "EMPTY_NOT_COLLECTED",
+  "REDELIVERY_REQUIRED",
+  "REDELIVERY_SCHEDULED",
+  "PAYMENT_CREATED",
+  "PAYMENT_CAPTURED",
+  "PAYMENT_FAILED",
+  "DEPOSIT_HELD",
+  "DEPOSIT_REFUND_INITIATED",
+  "DEPOSIT_REFUNDED",
+  "DAILY_RECONCILIATION_CLOSED",
+] as const;
 
 export const AuditEventType = {
   ORDER_CREATED: "ORDER_CREATED",
@@ -119,4 +232,50 @@ export const AuditEventType = {
   DEPOSIT_REFUNDED: "DEPOSIT_REFUNDED",
   DAILY_RECONCILIATION_CLOSED: "DAILY_RECONCILIATION_CLOSED",
 } as const;
-export type AuditEventType = (typeof AuditEventType)[keyof typeof AuditEventType];
+export type AuditEventType = EnumValue<typeof AuditEventType>;
+
+export const IDEMPOTENCY_STATUS_VALUES = ["PENDING", "PROCESSED", "FAILED"] as const;
+
+export const IdempotencyStatus = {
+  PENDING: "PENDING",
+  PROCESSED: "PROCESSED",
+  FAILED: "FAILED",
+} as const;
+export type IdempotencyStatus = EnumValue<typeof IdempotencyStatus>;
+
+export const BANNER_TYPE_VALUES = ["CAROUSEL", "FEATURED"] as const;
+
+export const BannerType = {
+  CAROUSEL: "CAROUSEL",
+  FEATURED: "FEATURED",
+} as const;
+export type BannerType = EnumValue<typeof BannerType>;
+
+export const BOTTLE_CONDITION_VALUES = ["ok", "damaged", "dirty"] as const;
+export type BottleCondition = (typeof BOTTLE_CONDITION_VALUES)[number];
+
+export const NON_COLLECTION_REASON_VALUES = [
+  "client_absent",
+  "no_access",
+  "no_empty_bottles",
+  "unsafe_location",
+  "other",
+] as const;
+export type NonCollectionReason = (typeof NON_COLLECTION_REASON_VALUES)[number];
+
+export const REJECT_ORDER_REASON_VALUES = [
+  "out_of_stock",
+  "delivery_area_issue",
+  "operational_capacity",
+  "other",
+] as const;
+export type RejectOrderReason = (typeof REJECT_ORDER_REASON_VALUES)[number];
+
+export const ONLINE_PAYMENT_METHOD_VALUES = ["pix", "credit"] as const;
+export type OnlinePaymentMethod = (typeof ONLINE_PAYMENT_METHOD_VALUES)[number];
+
+export const CHECKOUT_PAYMENT_METHOD_VALUES = ["pix", "credit", "cash"] as const;
+export type CheckoutPaymentMethod = (typeof CHECKOUT_PAYMENT_METHOD_VALUES)[number];
+
+export const USER_SUBSCRIPTION_PAYMENT_METHOD_VALUES = ONLINE_PAYMENT_METHOD_VALUES;
+export type UserSubscriptionPaymentMethodValue = (typeof USER_SUBSCRIPTION_PAYMENT_METHOD_VALUES)[number];

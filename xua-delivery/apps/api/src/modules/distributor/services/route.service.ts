@@ -1,4 +1,4 @@
-import { DeliveryWindow, OrderStatus } from "@prisma/client";
+import { DeliveryWindow, OrderStatus } from "@xua/shared/enums";
 import { distributorRepository } from "../repository/distributor.repository.js";
 
 function parseRouteId(routeId: string): Date {

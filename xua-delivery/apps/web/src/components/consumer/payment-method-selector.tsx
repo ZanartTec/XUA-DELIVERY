@@ -2,8 +2,9 @@
 
 import { cn } from "@/src/lib/utils";
 import { CreditCard, Banknote, WalletCards, Check } from "lucide-react";
+import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 
-export type PaymentMethod = "pix" | "credit" | "cash";
+export type PaymentMethod = CheckoutPaymentMethod;
 
 const PAYMENT_METHODS: {
   value: PaymentMethod;

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
-import type { Product, DeliveryWindow } from "@prisma/client";
+import type { Product } from "@prisma/client";
+import type { DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";

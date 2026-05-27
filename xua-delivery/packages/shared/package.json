@@ -12,6 +12,12 @@
     "./schemas/consumer": "./src/schemas/consumer.ts",
     "./schemas/zone": "./src/schemas/zone.ts",
     "./schemas/audit": "./src/schemas/audit.ts",
+    "./schemas/distributor": "./src/schemas/distributor.ts",
+    "./schemas/schedule": "./src/schemas/schedule.ts",
+    "./schemas/product": "./src/schemas/product.ts",
+    "./schemas/banner": "./src/schemas/banner.ts",
+    "./schemas/subscription-plan": "./src/schemas/subscription-plan.ts",
+    "./schemas/user-subscription": "./src/schemas/user-subscription.ts",
     "./constants/roles": "./src/constants/roles.ts",
     "./contracts/api": "./src/contracts/api.ts"
   },

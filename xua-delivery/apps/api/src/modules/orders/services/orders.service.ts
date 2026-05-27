@@ -1,5 +1,14 @@
-import { OrderStatus, AuditEventType, ActorType, SourceApp, DeliveryWindow, PaymentKind, Prisma, DeliveryDateStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
+import {
+  ActorType,
+  AuditEventType,
+  DeliveryDateStatus,
+  DeliveryWindow,
+  OrderStatus,
+  PaymentKind,
+  SourceApp,
+} from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
 import { orderRepository, type OrderForQueue } from "../repository/orders.repository.js";

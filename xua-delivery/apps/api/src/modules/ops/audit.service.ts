@@ -1,5 +1,5 @@
 import { getPrisma } from "../../infra/prisma/client.js";
-import type { AuditEventType } from "@prisma/client";
+import type { AuditEventType } from "@xua/shared/enums";
 import { createLogger } from "../../infra/logger";
 
 const log = createLogger("audit-export");
