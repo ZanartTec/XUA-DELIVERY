@@ -1,8 +1,73 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { createHash } from "crypto";
+import type { InventoryInitialLoadInput } from "@xua/shared/schemas/inventory";
+import {
+  ActorType,
+  InventoryMovementType,
+  InventoryReferenceType,
+  SourceApp,
+} from "@xua/shared/enums";
+import { inventoryService } from "../../inventory/services/inventory.service.js";
+import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 
 const log = createLogger("distributor-service");
+
+type CreateInitialInventoryLoadInput = {
+  actorUserId: string;
+  payload: InventoryInitialLoadInput;
+};
+
+type InitialInventoryLoadItemResult = {
+  inventory_item_id: string;
+  quantity: number;
+  movement_id: string | null;
+  balance_id: string | null;
+  quantity_on_hand: number | null;
+  idempotent_replay: boolean;
+  skipped: boolean;
+};
+
+type InitialInventoryLoadResult = {
+  distributor_id: string;
+  batch_id: string;
+  applied_count: number;
+  replayed_count: number;
+  skipped_count: number;
+  items: InitialInventoryLoadItemResult[];
+};
+
+function buildInitialLoadMetadata(
+  batchId: string,
+  payload: InventoryInitialLoadInput,
+  batchHash: string
+): Record<string, string | number> {
+  return {
+    origin: "distributor_initial_load_endpoint",
+    batch_id: batchId,
+    batch_hash: batchHash,
+    batch_version: payload.batch_version ?? "v1",
+    ...(payload.observation ? { observation: payload.observation } : {}),
+  };
+}
+
+function buildInitialLoadBatchHash(payload: InventoryInitialLoadInput): string {
+  const manifest = payload.items
+    .map((item) => ({ inventory_item_id: item.inventory_item_id, quantity: item.quantity }))
+    .sort((left, right) => left.inventory_item_id.localeCompare(right.inventory_item_id));
+
+  return createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
+}
+
+function movementBatchHash(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = (metadata as Record<string, unknown>).batch_hash;
+  return typeof value === "string" ? value : null;
+}
 
 export const distributorService = {
   /**
@@ -66,6 +131,119 @@ export const distributorService = {
       distributorId: zone.distributor_id,
       zoneId,
       mode: "auto",
+    };
+  },
+
+  async createInitialInventoryLoad({
+    actorUserId,
+    payload,
+  }: CreateInitialInventoryLoadInput): Promise<InitialInventoryLoadResult> {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    const batchId = payload.batch_id;
+    const batchHash = buildInitialLoadBatchHash(payload);
+    const metadata = buildInitialLoadMetadata(batchId, payload, batchHash);
+    const prisma = getPrisma();
+
+    const items = await prisma.$transaction(async (tx) => {
+      const results: InitialInventoryLoadItemResult[] = [];
+      const existingBatchMovements = await inventoryRepository.findInitialLoadMovementsByBatch(
+        distributorId,
+        batchId,
+        tx
+      );
+
+      if (existingBatchMovements.length > 0) {
+        const existingBatchHash = movementBatchHash(existingBatchMovements[0]!.metadata);
+        if (existingBatchHash !== batchHash) {
+          throw new DistributorServiceError(
+            "INITIAL_LOAD_BATCH_CONFLICT",
+            "Lote de carga inicial já existe com payload diferente"
+          );
+        }
+      }
+
+      for (const item of payload.items) {
+        if (item.quantity === 0) {
+          results.push({
+            inventory_item_id: item.inventory_item_id,
+            quantity: item.quantity,
+            movement_id: null,
+            balance_id: null,
+            quantity_on_hand: null,
+            idempotent_replay: false,
+            skipped: true,
+          });
+          continue;
+        }
+
+        const existingInitialLoad = await inventoryRepository.findInitialLoadMovementForItem(
+          distributorId,
+          item.inventory_item_id,
+          tx
+        );
+
+        if (existingInitialLoad && existingInitialLoad.reference_id !== batchId) {
+          throw new DistributorServiceError(
+            "INITIAL_LOAD_ALREADY_EXISTS",
+            "Item já possui carga inicial registrada; use ajuste ou conciliação para correções"
+          );
+        }
+
+        const result = await inventoryService.applyMovement(
+          {
+            distributorId,
+            inventoryItemId: item.inventory_item_id,
+            quantityDelta: item.quantity,
+            movementType: InventoryMovementType.INITIAL_LOAD,
+            actor: { type: ActorType.DISTRIBUTOR_USER, id: actorUserId },
+            sourceApp: SourceApp.DISTRIBUTOR_WEB,
+            reference: { type: InventoryReferenceType.INITIAL_LOAD, id: batchId },
+            metadata,
+          },
+          tx
+        );
+
+        results.push({
+          inventory_item_id: item.inventory_item_id,
+          quantity: item.quantity,
+          movement_id: result.movement.id,
+          balance_id: result.balance.id,
+          quantity_on_hand: result.balance.quantity_on_hand,
+          idempotent_replay: result.idempotentReplay,
+          skipped: false,
+        });
+      }
+
+      return results;
+    });
+
+    log.info(
+      {
+        distributorId,
+        actorUserId,
+        batchId,
+        itemCount: payload.items.length,
+        appliedCount: items.filter((item) => !item.skipped && !item.idempotent_replay).length,
+        replayedCount: items.filter((item) => item.idempotent_replay).length,
+        skippedCount: items.filter((item) => item.skipped).length,
+      },
+      "Initial inventory load applied"
+    );
+
+    return {
+      distributor_id: distributorId,
+      batch_id: batchId,
+      applied_count: items.filter((item) => !item.skipped && !item.idempotent_replay).length,
+      replayed_count: items.filter((item) => item.idempotent_replay).length,
+      skipped_count: items.filter((item) => item.skipped).length,
+      items,
     };
   },
 };

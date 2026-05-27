@@ -13,6 +13,13 @@ router.get("/kpis", requireRole("distributor_admin"), distributorController.getK
 // Lista motoristas disponíveis para despacho
 router.get("/drivers", requireRole("distributor_admin"), distributorController.getDrivers);
 
+// Registra carga inicial de estoque da distribuidora autenticada
+router.post(
+  "/inventory/initial-load",
+  requireRole("distributor_admin"),
+  distributorController.createInitialInventoryLoad,
+);
+
 // Lista de paradas agrupadas por zona/janela para uma data
 router.get("/routes/:id", requireRole("distributor_admin"), distributorController.getRouteById);
 

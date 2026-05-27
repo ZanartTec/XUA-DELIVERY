@@ -152,6 +152,28 @@ describe("inventoryService.applyMovement", () => {
     });
   });
 
+  it("mantem INITIAL_LOAD no extrato e soma delta ao saldo materializado", async () => {
+    const input = baseInput(4);
+    const createdMovement = movement(4, { id: "movement-initial-load-2" });
+    const updatedBalance = balance(14);
+    mocks.repository.findBalanceForUpdate.mockResolvedValue(balance(10));
+    mocks.repository.createMovementOnce.mockResolvedValue(createdMovement);
+    mocks.repository.upsertBalance.mockResolvedValue(updatedBalance);
+
+    const result = await inventoryService.applyMovement(input, tx as never);
+
+    expect(result.movement.movement_type).toBe(InventoryMovementType.INITIAL_LOAD);
+    expect(result.movement.quantity_delta).toBe(4);
+    expect(result.balance.quantity_on_hand).toBe(14);
+    expect(mocks.repository.upsertBalance).toHaveBeenCalledWith(
+      distributorId,
+      inventoryItemId,
+      4,
+      input.occurredAt,
+      tx
+    );
+  });
+
   it("aplica saida quando ha saldo suficiente", async () => {
     const outputMovement = movement(-3);
     const outputBalance = balance(7);

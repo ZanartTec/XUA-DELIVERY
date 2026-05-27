@@ -17,6 +17,18 @@ const NAME = z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max
 const UNIT_LABEL = z.string().trim().min(1, "Unidade é obrigatória").max(30);
 const LOW_STOCK_THRESHOLD = z.number().int().min(0, "Limite mínimo não pode ser negativo");
 const BOOLEAN_QUERY = z.enum(["true", "false"]).transform((value) => value === "true");
+const INITIAL_LOAD_BATCH_VERSION = z
+  .string()
+  .trim()
+  .min(1, "Versão do lote é obrigatória")
+  .max(60, "Versão do lote deve ter no máximo 60 caracteres")
+  .optional();
+const INITIAL_LOAD_OBSERVATION = z
+  .string()
+  .trim()
+  .min(1, "Observação não pode ser vazia")
+  .max(500, "Observação deve ter no máximo 500 caracteres")
+  .optional();
 
 export const inventoryItemTypeSchema = z.enum(INVENTORY_ITEM_TYPE_VALUES);
 export type InventoryItemTypeInput = z.infer<typeof inventoryItemTypeSchema>;
@@ -61,3 +73,42 @@ export const inventoryItemFilterSchema = z.object({
   is_active: BOOLEAN_QUERY.optional(),
 });
 export type InventoryItemFilterInput = z.infer<typeof inventoryItemFilterSchema>;
+
+export const inventoryInitialLoadSchema = z
+  .object({
+    batch_id: UUID,
+    batch_version: INITIAL_LOAD_BATCH_VERSION,
+    observation: INITIAL_LOAD_OBSERVATION,
+    items: z
+      .array(
+        z
+          .object({
+            inventory_item_id: UUID,
+            quantity: z
+              .number()
+              .int("Quantidade deve ser um inteiro")
+              .min(0, "Quantidade não pode ser negativa"),
+          })
+          .strict()
+      )
+      .min(1, "Informe ao menos um item")
+      .max(100, "Carga inicial deve ter no máximo 100 itens"),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const seen = new Set<string>();
+
+    data.items.forEach((item, index) => {
+      if (seen.has(item.inventory_item_id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["items", index, "inventory_item_id"],
+          message: "Item duplicado na carga inicial",
+        });
+        return;
+      }
+
+      seen.add(item.inventory_item_id);
+    });
+  });
+export type InventoryInitialLoadInput = z.infer<typeof inventoryInitialLoadSchema>;

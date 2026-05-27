@@ -8,7 +8,10 @@ import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { routeService } from "../services/route.service.js";
+import { distributorService, DistributorServiceError } from "../services/distributor.service.js";
+import { InventoryServiceError } from "../../inventory/services/inventory.service.js";
 import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
+import { inventoryInitialLoadSchema } from "@xua/shared/schemas/inventory";
 import {
   weekdayBulkSchema,
   blockDateSchema,
@@ -103,6 +106,53 @@ export const distributorController = {
       res.json({ drivers });
     } catch (err) {
       log.error({ err }, "Erro ao buscar motoristas");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * POST /api/distributor/inventory/initial-load
+   * Registra carga inicial de estoque para a distribuidora autenticada.
+   */
+  async createInitialInventoryLoad(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryInitialLoadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.createInitialInventoryLoad({
+        actorUserId: req.user!.sub,
+        payload: parsed.data,
+      });
+
+      res.status(result.applied_count > 0 ? 201 : 200).json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      if (
+        err instanceof DistributorServiceError &&
+        ["INITIAL_LOAD_BATCH_CONFLICT", "INITIAL_LOAD_ALREADY_EXISTS"].includes(err.code)
+      ) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+
+      if (err instanceof InventoryServiceError) {
+        if (err.code === "IDEMPOTENCY_CONFLICT") {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+
+        res.status(400).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao aplicar carga inicial de estoque");
       res.status(500).json({ error: "Erro interno" });
     }
   },

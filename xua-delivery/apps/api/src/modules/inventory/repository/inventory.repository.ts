@@ -9,6 +9,10 @@ import type {
   InventoryReferenceType,
   SourceApp,
 } from "@xua/shared/enums";
+import {
+  InventoryMovementType as InventoryMovementTypeValue,
+  InventoryReferenceType as InventoryReferenceTypeValue,
+} from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 export type TxClient = Prisma.TransactionClient;
@@ -116,6 +120,40 @@ export const inventoryRepository = {
         reference_type: lookup.referenceType,
         reference_id: lookup.referenceId,
       },
+    });
+  },
+
+  async findInitialLoadMovementsByBatch(
+    distributorId: string,
+    batchId: string,
+    tx?: TxClient
+  ): Promise<InventoryMovement[]> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryMovement.findMany({
+      where: {
+        distributor_id: distributorId,
+        movement_type: InventoryMovementTypeValue.INITIAL_LOAD,
+        reference_type: InventoryReferenceTypeValue.INITIAL_LOAD,
+        reference_id: batchId,
+      },
+      orderBy: { occurred_at: "asc" },
+    });
+  },
+
+  async findInitialLoadMovementForItem(
+    distributorId: string,
+    inventoryItemId: string,
+    tx?: TxClient
+  ): Promise<InventoryMovement | null> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryMovement.findFirst({
+      where: {
+        distributor_id: distributorId,
+        inventory_item_id: inventoryItemId,
+        movement_type: InventoryMovementTypeValue.INITIAL_LOAD,
+        reference_type: InventoryReferenceTypeValue.INITIAL_LOAD,
+      },
+      orderBy: { occurred_at: "asc" },
     });
   },
 
