@@ -2,7 +2,11 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { createHash } from "crypto";
-import type { InventoryInitialLoadInput } from "@xua/shared/schemas/inventory";
+import type {
+  InventoryBalanceQueryInput,
+  InventoryInitialLoadInput,
+  InventoryMovementQueryInput,
+} from "@xua/shared/schemas/inventory";
 import {
   ActorType,
   InventoryMovementType,
@@ -38,6 +42,16 @@ type InitialInventoryLoadResult = {
   items: InitialInventoryLoadItemResult[];
 };
 
+type ListInventoryBalancesInput = {
+  actorUserId: string;
+  query: InventoryBalanceQueryInput;
+};
+
+type ListInventoryMovementsInput = {
+  actorUserId: string;
+  query: InventoryMovementQueryInput;
+};
+
 function buildInitialLoadMetadata(
   batchId: string,
   payload: InventoryInitialLoadInput,
@@ -67,6 +81,22 @@ function movementBatchHash(metadata: unknown): string | null {
 
   const value = (metadata as Record<string, unknown>).batch_hash;
   return typeof value === "string" ? value : null;
+}
+
+function toPeriodDate(value: string | undefined, boundary: "start" | "end"): Date | undefined {
+  if (!value) return undefined;
+
+  const date = new Date(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const isStart = boundary === "start";
+    date.setUTCHours(isStart ? 0 : 23, isStart ? 0 : 59, isStart ? 0 : 59, isStart ? 0 : 999);
+  }
+
+  return date;
+}
+
+function pagination(limit: number, offset: number, total: number) {
+  return { limit, offset, total };
 }
 
 export const distributorService = {
@@ -244,6 +274,92 @@ export const distributorService = {
       replayed_count: items.filter((item) => item.idempotent_replay).length,
       skipped_count: items.filter((item) => item.skipped).length,
       items,
+    };
+  },
+
+  async listInventoryBalances({ actorUserId, query }: ListInventoryBalancesInput) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    const { balances, total } = await inventoryRepository.listBalances({
+      distributorId,
+      inventoryItemId: query.inventory_item_id,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      balances: balances.map((balance) => {
+        const lowStockThreshold = balance.inventory_item.low_stock_threshold;
+
+        return {
+          id: balance.id,
+          inventory_item_id: balance.inventory_item_id,
+          item: {
+            id: balance.inventory_item.id,
+            code: balance.inventory_item.code,
+            name: balance.inventory_item.name,
+            type: balance.inventory_item.type,
+            unit_label: balance.inventory_item.unit_label,
+          },
+          quantity_on_hand: balance.quantity_on_hand,
+          low_stock_threshold: lowStockThreshold,
+          is_low_stock:
+            lowStockThreshold != null && balance.quantity_on_hand <= lowStockThreshold,
+          last_movement_at: balance.last_movement_at,
+          updated_at: balance.updated_at,
+        };
+      }),
+      pagination: pagination(query.limit, query.offset, total),
+    };
+  },
+
+  async listInventoryMovements({ actorUserId, query }: ListInventoryMovementsInput) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    const { movements, total } = await inventoryRepository.listMovements({
+      distributorId,
+      inventoryItemId: query.inventory_item_id,
+      movementType: query.movement_type,
+      start: toPeriodDate(query.start, "start"),
+      end: toPeriodDate(query.end, "end"),
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      movements: movements.map((movement) => ({
+        id: movement.id,
+        inventory_item_id: movement.inventory_item_id,
+        item: {
+          id: movement.inventory_item.id,
+          code: movement.inventory_item.code,
+          name: movement.inventory_item.name,
+          type: movement.inventory_item.type,
+          unit_label: movement.inventory_item.unit_label,
+        },
+        quantity_delta: movement.quantity_delta,
+        movement_type: movement.movement_type,
+        actor_type: movement.actor_type,
+        actor_id: movement.actor_id,
+        source_app: movement.source_app,
+        reference_type: movement.reference_type,
+        reference_id: movement.reference_id,
+        metadata: movement.metadata,
+        occurred_at: movement.occurred_at,
+      })),
+      pagination: pagination(query.limit, query.offset, total),
     };
   },
 };

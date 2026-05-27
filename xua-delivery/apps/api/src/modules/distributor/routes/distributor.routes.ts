@@ -13,6 +13,20 @@ router.get("/kpis", requireRole("distributor_admin"), distributorController.getK
 // Lista motoristas disponíveis para despacho
 router.get("/drivers", requireRole("distributor_admin"), distributorController.getDrivers);
 
+// Lista saldos materializados da distribuidora autenticada
+router.get(
+  "/inventory/balances",
+  requireRole("distributor_admin"),
+  distributorController.listInventoryBalances,
+);
+
+// Lista movimentos de estoque da distribuidora autenticada
+router.get(
+  "/inventory/movements",
+  requireRole("distributor_admin"),
+  distributorController.listInventoryMovements,
+);
+
 // Registra carga inicial de estoque da distribuidora autenticada
 router.post(
   "/inventory/initial-load",

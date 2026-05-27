@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type {
   DistributorInventoryBalance,
+  InventoryItem,
   InventoryMovement,
 } from "@prisma/client";
 import type {
@@ -31,6 +32,15 @@ const INVENTORY_ITEM_SELECT = {
   is_active: true,
 } as const;
 
+const INVENTORY_ITEM_READ_SELECT = {
+  id: true,
+  code: true,
+  name: true,
+  type: true,
+  unit_label: true,
+  low_stock_threshold: true,
+} as const;
+
 type MovementReferenceLookup = {
   distributorId: string;
   inventoryItemId: string;
@@ -51,6 +61,48 @@ type CreateMovementData = {
   reference_id?: string | null;
   metadata?: Prisma.InputJsonValue;
   occurred_at: Date;
+};
+
+type InventoryItemRead = Pick<
+  InventoryItem,
+  "id" | "code" | "name" | "type" | "unit_label" | "low_stock_threshold"
+>;
+
+export type InventoryBalanceWithItem = Pick<
+  DistributorInventoryBalance,
+  "id" | "inventory_item_id" | "quantity_on_hand" | "last_movement_at" | "updated_at"
+> & {
+  inventory_item: InventoryItemRead;
+};
+
+export type InventoryMovementWithItem = Pick<
+  InventoryMovement,
+  | "id"
+  | "inventory_item_id"
+  | "quantity_delta"
+  | "movement_type"
+  | "actor_type"
+  | "actor_id"
+  | "source_app"
+  | "reference_type"
+  | "reference_id"
+  | "metadata"
+  | "occurred_at"
+> & {
+  inventory_item: InventoryItemRead;
+};
+
+export type InventoryBalanceListParams = {
+  distributorId: string;
+  inventoryItemId?: string;
+  limit: number;
+  offset: number;
+};
+
+export type InventoryMovementListParams = InventoryBalanceListParams & {
+  movementType?: InventoryMovementType;
+  start?: Date;
+  end?: Date;
 };
 
 function toJsonValue(value?: Prisma.InputJsonValue): Prisma.InputJsonValue {
@@ -121,6 +173,85 @@ export const inventoryRepository = {
         reference_id: lookup.referenceId,
       },
     });
+  },
+
+  async listBalances(
+    params: InventoryBalanceListParams,
+    tx?: TxClient
+  ): Promise<{ balances: InventoryBalanceWithItem[]; total: number }> {
+    const prisma = getPrisma();
+    const client = tx ?? prisma;
+    const where: Prisma.DistributorInventoryBalanceWhereInput = {
+      distributor_id: params.distributorId,
+      ...(params.inventoryItemId ? { inventory_item_id: params.inventoryItemId } : {}),
+    };
+
+    const [balances, total] = await Promise.all([
+      client.distributorInventoryBalance.findMany({
+        where,
+        select: {
+          id: true,
+          inventory_item_id: true,
+          quantity_on_hand: true,
+          last_movement_at: true,
+          updated_at: true,
+          inventory_item: { select: INVENTORY_ITEM_READ_SELECT },
+        },
+        orderBy: [{ inventory_item_id: "asc" }],
+        skip: params.offset,
+        take: params.limit,
+      }),
+      client.distributorInventoryBalance.count({ where }),
+    ]);
+
+    return { balances, total };
+  },
+
+  async listMovements(
+    params: InventoryMovementListParams,
+    tx?: TxClient
+  ): Promise<{ movements: InventoryMovementWithItem[]; total: number }> {
+    const prisma = getPrisma();
+    const client = tx ?? prisma;
+    const where: Prisma.InventoryMovementWhereInput = {
+      distributor_id: params.distributorId,
+      ...(params.inventoryItemId ? { inventory_item_id: params.inventoryItemId } : {}),
+      ...(params.movementType ? { movement_type: params.movementType } : {}),
+      ...(params.start || params.end
+        ? {
+            occurred_at: {
+              ...(params.start ? { gte: params.start } : {}),
+              ...(params.end ? { lte: params.end } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [movements, total] = await Promise.all([
+      client.inventoryMovement.findMany({
+        where,
+        select: {
+          id: true,
+          inventory_item_id: true,
+          quantity_delta: true,
+          movement_type: true,
+          actor_type: true,
+          actor_id: true,
+          source_app: true,
+          reference_type: true,
+          reference_id: true,
+          metadata: true,
+          occurred_at: true,
+          inventory_item: { select: INVENTORY_ITEM_READ_SELECT },
+        },
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+        skip: params.offset,
+        take: params.limit,
+      }),
+      client.inventoryMovement.count({ where }),
+    ]);
+
+    return { movements, total };
   },
 
   async findInitialLoadMovementsByBatch(

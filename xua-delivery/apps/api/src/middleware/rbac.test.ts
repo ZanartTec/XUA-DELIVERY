@@ -2,12 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { requireRole } from "./rbac.js";
 
 function responseMock() {
-  const res = {
+  return {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
   };
-
-  return res;
 }
 
 describe("requireRole", () => {

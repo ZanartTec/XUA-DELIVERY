@@ -69,6 +69,12 @@ ON "31_trn_inventory_movements"(
 CREATE INDEX "31_trn_inventory_movements_distributor_occurred_at_idx"
 ON "31_trn_inventory_movements"("distributor_id", "occurred_at");
 
+CREATE INDEX "31_trn_inventory_movements_distributor_item_occurred_at_idx"
+ON "31_trn_inventory_movements"("distributor_id", "inventory_item_id", "occurred_at");
+
+CREATE INDEX "31_trn_inventory_movements_distributor_type_occurred_at_idx"
+ON "31_trn_inventory_movements"("distributor_id", "movement_type", "occurred_at");
+
 CREATE INDEX "31_trn_inventory_movements_inventory_item_occurred_at_idx"
 ON "31_trn_inventory_movements"("inventory_item_id", "occurred_at");
 

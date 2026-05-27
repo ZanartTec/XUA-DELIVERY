@@ -17,6 +17,22 @@ const NAME = z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max
 const UNIT_LABEL = z.string().trim().min(1, "Unidade é obrigatória").max(30);
 const LOW_STOCK_THRESHOLD = z.number().int().min(0, "Limite mínimo não pode ser negativo");
 const BOOLEAN_QUERY = z.enum(["true", "false"]).transform((value) => value === "true");
+const LIMIT_QUERY = z.coerce
+  .number()
+  .int("limit deve ser inteiro")
+  .min(1, "limit deve ser maior que zero")
+  .max(100, "limit deve ser no máximo 100")
+  .default(50);
+const OFFSET_QUERY = z.coerce
+  .number()
+  .int("offset deve ser inteiro")
+  .min(0, "offset não pode ser negativo")
+  .default(0);
+const PERIOD_BOUNDARY = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(Date.parse(value)), "Data inválida")
+  .optional();
 const INITIAL_LOAD_BATCH_VERSION = z
   .string()
   .trim()
@@ -73,6 +89,34 @@ export const inventoryItemFilterSchema = z.object({
   is_active: BOOLEAN_QUERY.optional(),
 });
 export type InventoryItemFilterInput = z.infer<typeof inventoryItemFilterSchema>;
+
+export const inventoryBalanceQuerySchema = z
+  .object({
+    inventory_item_id: UUID.optional(),
+    limit: LIMIT_QUERY,
+    offset: OFFSET_QUERY,
+  })
+  .strict();
+export type InventoryBalanceQueryInput = z.infer<typeof inventoryBalanceQuerySchema>;
+
+export const inventoryMovementQuerySchema = z
+  .object({
+    inventory_item_id: UUID.optional(),
+    movement_type: inventoryMovementTypeSchema.optional(),
+    start: PERIOD_BOUNDARY,
+    end: PERIOD_BOUNDARY,
+    limit: LIMIT_QUERY,
+    offset: OFFSET_QUERY,
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (!data.start || !data.end) return true;
+      return Date.parse(data.start) <= Date.parse(data.end);
+    },
+    { message: "start deve ser anterior ou igual a end", path: ["end"] }
+  );
+export type InventoryMovementQueryInput = z.infer<typeof inventoryMovementQuerySchema>;
 
 export const inventoryInitialLoadSchema = z
   .object({

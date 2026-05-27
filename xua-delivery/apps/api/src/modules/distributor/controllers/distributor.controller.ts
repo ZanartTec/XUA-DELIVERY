@@ -11,7 +11,11 @@ import { routeService } from "../services/route.service.js";
 import { distributorService, DistributorServiceError } from "../services/distributor.service.js";
 import { InventoryServiceError } from "../../inventory/services/inventory.service.js";
 import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
-import { inventoryInitialLoadSchema } from "@xua/shared/schemas/inventory";
+import {
+  inventoryBalanceQuerySchema,
+  inventoryInitialLoadSchema,
+  inventoryMovementQuerySchema,
+} from "@xua/shared/schemas/inventory";
 import {
   weekdayBulkSchema,
   blockDateSchema,
@@ -106,6 +110,64 @@ export const distributorController = {
       res.json({ drivers });
     } catch (err) {
       log.error({ err }, "Erro ao buscar motoristas");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * GET /api/distributor/inventory/balances
+   * Lista saldos materializados da distribuidora autenticada.
+   */
+  async listInventoryBalances(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryBalanceQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.listInventoryBalances({
+        actorUserId: req.user!.sub,
+        query: parsed.data,
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao listar saldos de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * GET /api/distributor/inventory/movements
+   * Lista movimentos de estoque da distribuidora autenticada.
+   */
+  async listInventoryMovements(req: Request, res: Response): Promise<void> {
+    const parsed = inventoryMovementQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.listInventoryMovements({
+        actorUserId: req.user!.sub,
+        query: parsed.data,
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao listar movimentos de estoque");
       res.status(500).json({ error: "Erro interno" });
     }
   },

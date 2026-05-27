@@ -373,6 +373,8 @@ model InventoryMovement {
 
   @@unique([distributor_id, inventory_item_id, movement_type, reference_type, reference_id])
   @@index([distributor_id, occurred_at])
+  @@index([distributor_id, inventory_item_id, occurred_at])
+  @@index([distributor_id, movement_type, occurred_at])
   @@index([inventory_item_id, occurred_at])
   @@index([reference_type, reference_id])
   @@map("31_trn_inventory_movements")
