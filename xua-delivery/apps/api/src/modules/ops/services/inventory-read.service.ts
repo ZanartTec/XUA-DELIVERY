@@ -46,7 +46,7 @@ function sanitizeMovementMetadata(metadata: unknown): Record<string, string | nu
     return {};
   }
 
-  const allowedKeys = ["origin", "batch_id", "batch_hash", "batch_version"];
+  const allowedKeys = ["origin", "batch_id", "batch_hash", "batch_version", "session_id"];
   const source = metadata as Record<string, unknown>;
 
   return allowedKeys.reduce<Record<string, string | number | boolean | null>>((safe, key) => {

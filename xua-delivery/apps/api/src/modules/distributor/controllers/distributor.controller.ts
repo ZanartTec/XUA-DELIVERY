@@ -15,7 +15,10 @@ import {
   inventoryBalanceQuerySchema,
   inventoryInitialLoadSchema,
   inventoryMovementQuerySchema,
+  inventoryReconciliationSessionCloseSchema,
+  opsInventoryReadIdParamSchema,
 } from "@xua/shared/schemas/inventory";
+import { InventoryReconciliationSessionError } from "../../inventory/services/reconciliation-session.service.js";
 import {
   weekdayBulkSchema,
   blockDateSchema,
@@ -215,6 +218,128 @@ export const distributorController = {
       }
 
       log.error({ err, userId: req.user?.sub }, "Erro ao aplicar carga inicial de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * POST /api/distributor/inventory/reconciliation-sessions
+   * Abre sessão física de conciliação da distribuidora autenticada.
+   */
+  async openInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await distributorService.openInventoryReconciliationSession({
+        actorUserId: req.user!.sub,
+      });
+
+      res.status(201).json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      if (err instanceof InventoryReconciliationSessionError) {
+        if (err.code === "OPEN_SESSION_EXISTS") {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+
+        res.status(400).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao abrir sessão de conciliação de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * GET /api/distributor/inventory/reconciliation-sessions/:id
+   * Consulta sessão física da distribuidora autenticada.
+   */
+  async getInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+    const parsed = opsInventoryReadIdParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.getInventoryReconciliationSession({
+        actorUserId: req.user!.sub,
+        sessionId: parsed.data.id,
+      });
+
+      if (!result) {
+        res.status(404).json({ error: "Sessão de conciliação não encontrada" });
+        return;
+      }
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao consultar sessão de conciliação de estoque");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * POST /api/distributor/inventory/reconciliation-sessions/:id/close
+   * Fecha sessão física e aplica ajustes via ledger.
+   */
+  async closeInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+    const parsedParams = opsInventoryReadIdParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.issues[0].message });
+      return;
+    }
+
+    const parsedBody = inventoryReconciliationSessionCloseSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: parsedBody.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.closeInventoryReconciliationSession({
+        actorUserId: req.user!.sub,
+        sessionId: parsedParams.data.id,
+        payload: parsedBody.data,
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
+        res.status(403).json({ error: err.message });
+        return;
+      }
+
+      if (err instanceof InventoryReconciliationSessionError) {
+        if (err.code === "SESSION_NOT_FOUND") {
+          res.status(404).json({ error: err.message });
+          return;
+        }
+
+        if (["OPEN_SESSION_EXISTS", "SESSION_NOT_OPEN"].includes(err.code)) {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+
+        res.status(400).json({ error: err.message });
+        return;
+      }
+
+      if (err instanceof InventoryServiceError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao fechar sessão de conciliação de estoque");
       res.status(500).json({ error: "Erro interno" });
     }
   },

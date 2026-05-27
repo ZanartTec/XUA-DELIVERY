@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   INVENTORY_ITEM_TYPE_VALUES,
   INVENTORY_MOVEMENT_TYPE_VALUES,
+  INVENTORY_RECONCILIATION_STATUS_VALUES,
   INVENTORY_REFERENCE_TYPE_VALUES,
 } from "../enums";
 
@@ -64,6 +65,13 @@ export type InventoryMovementTypeInput = z.infer<typeof inventoryMovementTypeSch
 
 export const inventoryReferenceTypeSchema = z.enum(INVENTORY_REFERENCE_TYPE_VALUES);
 export type InventoryReferenceTypeInput = z.infer<typeof inventoryReferenceTypeSchema>;
+
+export const inventoryReconciliationStatusSchema = z.enum(
+  INVENTORY_RECONCILIATION_STATUS_VALUES
+);
+export type InventoryReconciliationStatusInput = z.infer<
+  typeof inventoryReconciliationStatusSchema
+>;
 
 export const inventoryItemCreateSchema = z.object({
   code: CODE,
@@ -219,6 +227,70 @@ export type OpsInventoryReconciliationQueryInput = z.infer<
 >;
 
 export const opsInventoryReadIdParamSchema = z.object({ id: UUID }).strict();
+
+export const inventoryReconciliationSessionCloseSchema = z
+  .object({
+    justification: z
+      .string()
+      .trim()
+      .min(5, "Justificativa deve ter ao menos 5 caracteres")
+      .max(500, "Justificativa deve ter no máximo 500 caracteres")
+      .optional(),
+    counts: z
+      .array(
+        z
+          .object({
+            inventory_item_id: UUID,
+            counted_quantity: z
+              .number()
+              .int("Contagem deve ser um inteiro")
+              .min(0, "Contagem não pode ser negativa"),
+          })
+          .strict()
+      )
+      .max(500, "Sessão de conciliação deve ter no máximo 500 contagens"),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const seen = new Set<string>();
+
+    data.counts.forEach((item, index) => {
+      if (seen.has(item.inventory_item_id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["counts", index, "inventory_item_id"],
+          message: "Item duplicado na conciliação",
+        });
+        return;
+      }
+
+      seen.add(item.inventory_item_id);
+    });
+  });
+export type InventoryReconciliationSessionCloseInput = z.infer<
+  typeof inventoryReconciliationSessionCloseSchema
+>;
+
+export const opsInventoryReconciliationSessionQuerySchema = z
+  .object({
+    distributor_id: UUID.optional(),
+    status: inventoryReconciliationStatusSchema.optional(),
+    start: PERIOD_BOUNDARY,
+    end: PERIOD_BOUNDARY,
+    limit: REQUIRED_LIMIT_QUERY,
+    offset: REQUIRED_OFFSET_QUERY,
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (!data.start || !data.end) return true;
+      return Date.parse(data.start) <= Date.parse(data.end);
+    },
+    { message: "start deve ser anterior ou igual a end", path: ["end"] }
+  );
+export type OpsInventoryReconciliationSessionQueryInput = z.infer<
+  typeof opsInventoryReconciliationSessionQuerySchema
+>;
 
 export const inventoryInitialLoadSchema = z
   .object({

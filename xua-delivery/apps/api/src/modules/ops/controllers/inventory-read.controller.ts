@@ -4,9 +4,11 @@ import {
   opsInventoryBalanceQuerySchema,
   opsInventoryMovementQuerySchema,
   opsInventoryReadIdParamSchema,
+  opsInventoryReconciliationSessionQuerySchema,
   opsInventoryReconciliationQuerySchema,
 } from "@xua/shared/schemas/inventory";
 import { opsInventoryReadService } from "../services/inventory-read.service.js";
+import { inventoryReconciliationSessionService } from "../../inventory/services/reconciliation-session.service.js";
 
 function sendValidationError(res: Response, message: string): void {
   res.status(400).json({ error: message });
@@ -118,6 +120,39 @@ export const opsInventoryReadController = {
       res.json(result);
     } catch (error) {
       logger.error({ error }, "Error fetching ops inventory reconciliation");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  async listReconciliationSessions(req: Request, res: Response): Promise<void> {
+    const parsed = opsInventoryReconciliationSessionQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      sendValidationError(res, parsed.error.issues[0].message);
+      return;
+    }
+
+    try {
+      res.json(await inventoryReconciliationSessionService.listSessionsForOps(parsed.data));
+    } catch (error) {
+      logger.error({ error }, "Error listing ops inventory reconciliation sessions");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  async getReconciliationSession(req: Request, res: Response): Promise<void> {
+    const id = parseId(req, res);
+    if (!id) return;
+
+    try {
+      const result = await inventoryReconciliationSessionService.getSessionForOps(id);
+      if (!result) {
+        res.status(404).json({ error: "Sessão de conciliação não encontrada" });
+        return;
+      }
+
+      res.json(result);
+    } catch (error) {
+      logger.error({ error }, "Error fetching ops inventory reconciliation session");
       res.status(500).json({ error: "Erro interno" });
     }
   },

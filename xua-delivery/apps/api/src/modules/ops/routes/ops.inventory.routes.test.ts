@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
     listReconciliations: vi.fn(),
     getReconciliation: vi.fn(),
   },
+  reconciliationSessionService: {
+    listSessionsForOps: vi.fn(),
+    getSessionForOps: vi.fn(),
+  },
 }));
 
 vi.mock("../../../middleware/auth.js", () => ({
@@ -55,12 +59,17 @@ vi.mock("../services/inventory-read.service.js", () => ({
   opsInventoryReadService: mocks.service,
 }));
 
+vi.mock("../../inventory/services/reconciliation-session.service.js", () => ({
+  inventoryReconciliationSessionService: mocks.reconciliationSessionService,
+}));
+
 const { opsRoutes } = await import("../index.js");
 
 const distributorA = "7e1d7b55-3f52-4d10-aac3-74387c236701";
 const distributorB = "7e1d7b55-3f52-4d10-aac3-74387c236702";
 const itemA = "7e1d7b55-3f52-4d10-aac3-74387c236703";
 const itemB = "7e1d7b55-3f52-4d10-aac3-74387c236704";
+const sessionId = "7e1d7b55-3f52-4d10-aac3-74387c236705";
 const occurredAt = new Date("2026-05-26T10:30:00.000Z").toISOString();
 
 let server: ReturnType<express.Application["listen"]>;
@@ -198,6 +207,41 @@ beforeEach(() => {
     ],
     pagination: { limit: 20, offset: 0, total: 1 },
   });
+  mocks.reconciliationSessionService.listSessionsForOps.mockResolvedValue({
+    sessions: [
+      {
+        id: sessionId,
+        distributor_id: distributorA,
+        distributor_name: "XUA Centro",
+        status: "OPEN",
+        opened_by: "dist-admin-1",
+        closed_by: null,
+        justification: null,
+        opened_at: occurredAt,
+        closed_at: null,
+        created_at: occurredAt,
+        updated_at: occurredAt,
+        item_count: 2,
+      },
+    ],
+    pagination: { limit: 20, offset: 0, total: 1 },
+  });
+  mocks.reconciliationSessionService.getSessionForOps.mockResolvedValue({
+    session: {
+      id: sessionId,
+      distributor_id: distributorA,
+      distributor_name: "XUA Centro",
+      status: "OPEN",
+      opened_by: "dist-admin-1",
+      closed_by: null,
+      justification: null,
+      opened_at: occurredAt,
+      closed_at: null,
+      created_at: occurredAt,
+      updated_at: occurredAt,
+      items: [],
+    },
+  });
 });
 
 describe("opsRoutes inventory", () => {
@@ -236,6 +280,7 @@ describe("opsRoutes inventory", () => {
       "/api/ops/inventory/balances?limit=20&offset=0",
       "/api/ops/inventory/movements?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
       "/api/ops/inventory/reconciliations?start=2026-05-26&end=2026-05-26&limit=20&offset=0",
+      "/api/ops/inventory/reconciliation-sessions?limit=20&offset=0",
     ];
 
     for (const role of ["support", "distributor_admin"] as const) {
@@ -293,6 +338,41 @@ describe("opsRoutes inventory", () => {
       end: "2026-05-31",
       limit: 5,
       offset: 0,
+    });
+  });
+
+  it("lista e detalha sessoes fisicas de conciliacao para OPS", async () => {
+    const listResponse = await getJson<{
+      sessions: Array<{ id: string; distributor_id: string; distributor_name: string }>;
+    }>(
+      `/api/ops/inventory/reconciliation-sessions?distributor_id=${distributorA}&status=OPEN&start=2026-05-01&end=2026-05-31&limit=20&offset=0`,
+      "ops"
+    );
+    const detailResponse = await getJson<{
+      session: { id: string; distributor_id: string; distributor_name: string };
+    }>(`/api/ops/inventory/reconciliation-sessions/${sessionId}`, "ops");
+
+    expect(listResponse.status).toBe(200);
+    expect(mocks.reconciliationSessionService.listSessionsForOps).toHaveBeenCalledWith({
+      distributor_id: distributorA,
+      status: "OPEN",
+      start: "2026-05-01",
+      end: "2026-05-31",
+      limit: 20,
+      offset: 0,
+    });
+    expect(listResponse.body.sessions[0]).toMatchObject({
+      id: sessionId,
+      distributor_id: distributorA,
+      distributor_name: "XUA Centro",
+    });
+
+    expect(detailResponse.status).toBe(200);
+    expect(mocks.reconciliationSessionService.getSessionForOps).toHaveBeenCalledWith(sessionId);
+    expect(detailResponse.body.session).toMatchObject({
+      id: sessionId,
+      distributor_id: distributorA,
+      distributor_name: "XUA Centro",
     });
   });
 });

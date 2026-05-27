@@ -47,5 +47,15 @@ router.get(
   requireRole("ops"),
   opsInventoryReadController.getReconciliation
 );
+router.get(
+  "/inventory/reconciliation-sessions",
+  requireRole("ops"),
+  opsInventoryReadController.listReconciliationSessions
+);
+router.get(
+  "/inventory/reconciliation-sessions/:id",
+  requireRole("ops"),
+  opsInventoryReadController.getReconciliationSession
+);
 
 export { router as opsRoutes };

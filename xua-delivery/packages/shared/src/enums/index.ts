@@ -310,6 +310,14 @@ export const InventoryReferenceType = {
 } as const;
 export type InventoryReferenceType = EnumValue<typeof InventoryReferenceType>;
 
+export const INVENTORY_RECONCILIATION_STATUS_VALUES = ["OPEN", "CLOSED"] as const;
+
+export const InventoryReconciliationStatus = {
+  OPEN: "OPEN",
+  CLOSED: "CLOSED",
+} as const;
+export type InventoryReconciliationStatus = EnumValue<typeof InventoryReconciliationStatus>;
+
 export const BOTTLE_CONDITION_VALUES = ["ok", "damaged", "dirty"] as const;
 export type BottleCondition = (typeof BOTTLE_CONDITION_VALUES)[number];
 

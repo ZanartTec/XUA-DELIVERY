@@ -34,6 +34,24 @@ router.post(
   distributorController.createInitialInventoryLoad,
 );
 
+router.post(
+  "/inventory/reconciliation-sessions",
+  requireRole("distributor_admin"),
+  distributorController.openInventoryReconciliationSession,
+);
+
+router.get(
+  "/inventory/reconciliation-sessions/:id",
+  requireRole("distributor_admin"),
+  distributorController.getInventoryReconciliationSession,
+);
+
+router.post(
+  "/inventory/reconciliation-sessions/:id/close",
+  requireRole("distributor_admin"),
+  distributorController.closeInventoryReconciliationSession,
+);
+
 // Lista de paradas agrupadas por zona/janela para uma data
 router.get("/routes/:id", requireRole("distributor_admin"), distributorController.getRouteById);
 

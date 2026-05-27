@@ -5,6 +5,7 @@ import { createHash } from "crypto";
 import type {
   InventoryBalanceQueryInput,
   InventoryInitialLoadInput,
+  InventoryReconciliationSessionCloseInput,
   InventoryMovementQueryInput,
 } from "@xua/shared/schemas/inventory";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@xua/shared/enums";
 import { inventoryService } from "../../inventory/services/inventory.service.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
+import { inventoryReconciliationSessionService } from "../../inventory/services/reconciliation-session.service.js";
 
 const log = createLogger("distributor-service");
 
@@ -50,6 +52,12 @@ type ListInventoryBalancesInput = {
 type ListInventoryMovementsInput = {
   actorUserId: string;
   query: InventoryMovementQueryInput;
+};
+
+type CloseInventoryReconciliationSessionInput = {
+  actorUserId: string;
+  sessionId: string;
+  payload: InventoryReconciliationSessionCloseInput;
 };
 
 function buildInitialLoadMetadata(
@@ -361,6 +369,60 @@ export const distributorService = {
       })),
       pagination: pagination(query.limit, query.offset, total),
     };
+  },
+
+  async openInventoryReconciliationSession({ actorUserId }: { actorUserId: string }) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    return inventoryReconciliationSessionService.openSession({ distributorId, actorUserId });
+  },
+
+  async getInventoryReconciliationSession({
+    actorUserId,
+    sessionId,
+  }: {
+    actorUserId: string;
+    sessionId: string;
+  }) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    return inventoryReconciliationSessionService.getSessionForDistributor({
+      distributorId,
+      sessionId,
+    });
+  },
+
+  async closeInventoryReconciliationSession({
+    actorUserId,
+    sessionId,
+    payload,
+  }: CloseInventoryReconciliationSessionInput) {
+    const distributorId = await distributorRepository.resolveDistributorId(actorUserId);
+    if (!distributorId) {
+      throw new DistributorServiceError(
+        "DISTRIBUTOR_NOT_LINKED",
+        "Usuário não vinculado a nenhuma distribuidora"
+      );
+    }
+
+    return inventoryReconciliationSessionService.closeSession({
+      distributorId,
+      sessionId,
+      actorUserId,
+      payload,
+    });
   },
 };
 

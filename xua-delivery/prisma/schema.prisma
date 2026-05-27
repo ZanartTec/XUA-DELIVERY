@@ -190,6 +190,13 @@ enum InventoryReferenceType {
   @@map("inventory_reference_type")
 }
 
+enum InventoryReconciliationStatus {
+  OPEN
+  CLOSED
+
+  @@map("inventory_reconciliation_status")
+}
+
 // ─── Models (19 tabelas — seção 2.1) ───────────────────────────
 
 model Consumer {
@@ -265,6 +272,7 @@ model Distributor {
   user_subscriptions             UserSubscription[]
   inventory_balances             DistributorInventoryBalance[]
   inventory_movements            InventoryMovement[]
+  inventory_reconciliation_sessions InventoryReconciliationSession[]
 
   @@map("03_mst_distributors")
 }
@@ -331,6 +339,7 @@ model InventoryItem {
   product            Product?                     @relation(fields: [product_id], references: [id])
   distributor_balances DistributorInventoryBalance[]
   inventory_movements InventoryMovement[]
+  inventory_reconciliation_items InventoryReconciliationItem[]
 
   @@index([product_id])
   @@map("29_mst_inventory_items")
@@ -370,6 +379,7 @@ model InventoryMovement {
 
   distributor    Distributor   @relation(fields: [distributor_id], references: [id])
   inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+  reconciliation_item InventoryReconciliationItem? @relation("InventoryReconciliationAdjustment")
 
   @@unique([distributor_id, inventory_item_id, movement_type, reference_type, reference_id])
   @@index([distributor_id, occurred_at])
@@ -382,6 +392,47 @@ model InventoryMovement {
   @@index([inventory_item_id, movement_type, occurred_at])
   @@index([reference_type, reference_id])
   @@map("31_trn_inventory_movements")
+}
+
+model InventoryReconciliationSession {
+  id             String                        @id @default(uuid()) @db.Uuid
+  distributor_id String                        @db.Uuid
+  status         InventoryReconciliationStatus @default(OPEN)
+  opened_by      String
+  closed_by      String?
+  justification  String?
+  opened_at      DateTime                      @default(now())
+  closed_at      DateTime?
+  created_at     DateTime                      @default(now())
+  updated_at     DateTime                      @updatedAt
+
+  distributor Distributor                  @relation(fields: [distributor_id], references: [id])
+  items       InventoryReconciliationItem[]
+
+  @@index([distributor_id, status])
+  @@index([status, opened_at])
+  @@index([distributor_id, opened_at])
+  @@map("32_trn_inventory_reconciliation_sessions")
+}
+
+model InventoryReconciliationItem {
+  id                     String   @id @default(uuid()) @db.Uuid
+  session_id             String   @db.Uuid
+  inventory_item_id      String   @db.Uuid
+  snapshot_quantity      Int
+  counted_quantity       Int?
+  delta                  Int?
+  adjustment_movement_id String?  @unique @db.Uuid
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  session             InventoryReconciliationSession @relation(fields: [session_id], references: [id])
+  inventory_item      InventoryItem                  @relation(fields: [inventory_item_id], references: [id])
+  adjustment_movement InventoryMovement?             @relation("InventoryReconciliationAdjustment", fields: [adjustment_movement_id], references: [id])
+
+  @@unique([session_id, inventory_item_id])
+  @@index([inventory_item_id])
+  @@map("33_trn_inventory_reconciliation_items")
 }
 
 model DeliveryCapacity {
