@@ -375,7 +375,11 @@ model InventoryMovement {
   @@index([distributor_id, occurred_at])
   @@index([distributor_id, inventory_item_id, occurred_at])
   @@index([distributor_id, movement_type, occurred_at])
+  @@index([movement_type, occurred_at])
+  @@index([occurred_at])
+  @@index([occurred_at, id])
   @@index([inventory_item_id, occurred_at])
+  @@index([inventory_item_id, movement_type, occurred_at])
   @@index([reference_type, reference_id])
   @@map("31_trn_inventory_movements")
 }
@@ -569,6 +573,8 @@ model Reconciliation {
 
   distributor Distributor @relation(fields: [distributor_id], references: [id])
 
+  @@index([distributor_id, reconciliation_date, id])
+  @@index([reconciliation_date, id])
   @@map("17_trn_reconciliations")
 }
 

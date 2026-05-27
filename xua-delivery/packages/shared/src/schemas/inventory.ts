@@ -28,11 +28,21 @@ const OFFSET_QUERY = z.coerce
   .int("offset deve ser inteiro")
   .min(0, "offset não pode ser negativo")
   .default(0);
+const REQUIRED_LIMIT_QUERY = z.coerce
+  .number()
+  .int("limit deve ser inteiro")
+  .min(1, "limit deve ser maior que zero")
+  .max(100, "limit deve ser no máximo 100");
+const REQUIRED_OFFSET_QUERY = z.coerce
+  .number()
+  .int("offset deve ser inteiro")
+  .min(0, "offset não pode ser negativo");
 const PERIOD_BOUNDARY = z
   .string()
   .trim()
   .refine((value) => !Number.isNaN(Date.parse(value)), "Data inválida")
   .optional();
+const GLOBAL_OPS_PERIOD_MAX_DAYS = 31;
 const INITIAL_LOAD_BATCH_VERSION = z
   .string()
   .trim()
@@ -117,6 +127,98 @@ export const inventoryMovementQuerySchema = z
     { message: "start deve ser anterior ou igual a end", path: ["end"] }
   );
 export type InventoryMovementQueryInput = z.infer<typeof inventoryMovementQuerySchema>;
+
+export const opsInventoryBalanceQuerySchema = z
+  .object({
+    distributor_id: UUID.optional(),
+    inventory_item_id: UUID.optional(),
+    limit: REQUIRED_LIMIT_QUERY,
+    offset: REQUIRED_OFFSET_QUERY,
+  })
+  .strict();
+export type OpsInventoryBalanceQueryInput = z.infer<typeof opsInventoryBalanceQuerySchema>;
+
+export const opsInventoryMovementQuerySchema = z
+  .object({
+    distributor_id: UUID.optional(),
+    inventory_item_id: UUID.optional(),
+    movement_type: inventoryMovementTypeSchema.optional(),
+    start: PERIOD_BOUNDARY,
+    end: PERIOD_BOUNDARY,
+    limit: REQUIRED_LIMIT_QUERY,
+    offset: REQUIRED_OFFSET_QUERY,
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (!data.start || !data.end) return true;
+      return Date.parse(data.start) <= Date.parse(data.end);
+    },
+    { message: "start deve ser anterior ou igual a end", path: ["end"] }
+  )
+  .refine(
+    (data) => Boolean(data.distributor_id || (data.start && data.end)),
+    {
+      message: "start e end são obrigatórios para consulta global",
+      path: ["start"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.distributor_id || !data.start || !data.end) return true;
+      const start = Date.parse(data.start);
+      const end = Date.parse(data.end);
+      const days = Math.ceil((end - start) / 86_400_000) + 1;
+      return days <= GLOBAL_OPS_PERIOD_MAX_DAYS;
+    },
+    {
+      message: `Período global deve ter no máximo ${GLOBAL_OPS_PERIOD_MAX_DAYS} dias`,
+      path: ["end"],
+    }
+  );
+export type OpsInventoryMovementQueryInput = z.infer<typeof opsInventoryMovementQuerySchema>;
+
+export const opsInventoryReconciliationQuerySchema = z
+  .object({
+    distributor_id: UUID.optional(),
+    start: PERIOD_BOUNDARY,
+    end: PERIOD_BOUNDARY,
+    limit: REQUIRED_LIMIT_QUERY,
+    offset: REQUIRED_OFFSET_QUERY,
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (!data.start || !data.end) return true;
+      return Date.parse(data.start) <= Date.parse(data.end);
+    },
+    { message: "start deve ser anterior ou igual a end", path: ["end"] }
+  )
+  .refine(
+    (data) => Boolean(data.distributor_id || (data.start && data.end)),
+    {
+      message: "start e end são obrigatórios para consulta global",
+      path: ["start"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.distributor_id || !data.start || !data.end) return true;
+      const start = Date.parse(data.start);
+      const end = Date.parse(data.end);
+      const days = Math.ceil((end - start) / 86_400_000) + 1;
+      return days <= GLOBAL_OPS_PERIOD_MAX_DAYS;
+    },
+    {
+      message: `Período global deve ter no máximo ${GLOBAL_OPS_PERIOD_MAX_DAYS} dias`,
+      path: ["end"],
+    }
+  );
+export type OpsInventoryReconciliationQueryInput = z.infer<
+  typeof opsInventoryReconciliationQuerySchema
+>;
+
+export const opsInventoryReadIdParamSchema = z.object({ id: UUID }).strict();
 
 export const inventoryInitialLoadSchema = z
   .object({

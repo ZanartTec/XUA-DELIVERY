@@ -37,4 +37,33 @@ describe("requireRole", () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
   });
+
+  it("nega support nas leituras globais de inventory do ops", () => {
+    const req = {
+      user: { sub: "user-1", role: "support" },
+      originalUrl: "/api/ops/inventory/balances",
+    };
+    const res = responseMock();
+    const next = vi.fn();
+
+    requireRole("ops")(req as never, res as never, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "Acesso negado" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("permite ops nas leituras globais de inventory", () => {
+    const req = {
+      user: { sub: "user-1", role: "ops" },
+      originalUrl: "/api/ops/inventory/balances",
+    };
+    const res = responseMock();
+    const next = vi.fn();
+
+    requireRole("ops")(req as never, res as never, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });
