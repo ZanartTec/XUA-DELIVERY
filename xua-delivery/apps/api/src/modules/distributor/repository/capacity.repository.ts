@@ -19,6 +19,7 @@ export const capacityRepository = {
     timeSlotId?: string | null
   ): Promise<DeliveryCapacity | null> {
     // O banco armazena o enum como lowercase (via @map). Normaliza aqui para raw SQL.
+    // Prisma Client nao expoe FOR UPDATE; este lock pessimista evita overbooking.
     const windowDb = window.toLowerCase();
     if (timeSlotId) {
       const slotRows = await tx.$queryRaw<DeliveryCapacity[]>`
@@ -55,13 +56,18 @@ export const capacityRepository = {
     tx?: TxClient
   ): Promise<DeliveryCapacity[]> {
     const prisma = getPrisma();
-    return (tx ?? prisma).$queryRaw<DeliveryCapacity[]>`
-      SELECT * FROM "07_cfg_delivery_capacity"
-      WHERE zone_id = ${zoneId}::uuid
-        AND delivery_date BETWEEN ${startDate}::date AND ${endDate}::date
-        AND capacity_reserved < capacity_total
-      ORDER BY delivery_date ASC
-    `;
+    const slots = await (tx ?? prisma).deliveryCapacity.findMany({
+      where: {
+        zone_id: zoneId,
+        delivery_date: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+      orderBy: { delivery_date: "asc" },
+    });
+
+    return slots.filter((slot) => slot.capacity_reserved < slot.capacity_total);
   },
 
   /** Incrementa reserva do slot — dentro da mesma transação do findSlotForUpdate. */

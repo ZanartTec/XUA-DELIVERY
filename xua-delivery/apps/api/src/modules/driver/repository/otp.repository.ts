@@ -34,6 +34,7 @@ export const otpRepository = {
 
   /**
    * SELECT FOR UPDATE para evitar race condition em validações concorrentes.
+    * Prisma Client nao expoe lock pessimista equivalente para PostgreSQL.
    * DEVE ser usado dentro de transação.
    */
   async findActiveForUpdate(orderId: string, tx: TxClient): Promise<OrderOtp | null> {

@@ -286,6 +286,7 @@ export const inventoryRepository = {
     inventoryItemId: string,
     tx: TxClient
   ): Promise<DistributorInventoryBalance | null> {
+    // Prisma Client nao expoe FOR UPDATE; este lock serializa movimentos do mesmo saldo.
     const rows = await tx.$queryRaw<DistributorInventoryBalance[]>`
       SELECT *
       FROM "30_trn_distributor_inventory_balances"
