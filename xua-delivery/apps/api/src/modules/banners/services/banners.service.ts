@@ -5,7 +5,7 @@ import {
 } from "../../../infra/redis/cache.js";
 import { bannersRepository } from "../repository/banners.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
-import type { BannerType } from "@prisma/client";
+import type { BannerType } from "@xua/shared/enums";
 
 const log = createLogger("banners");
 

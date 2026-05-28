@@ -19,18 +19,15 @@ import {
 import { cn } from "@/src/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
+import type {
+  DeliveryDateStatus,
+  OnlinePaymentMethod,
+  UserSubscriptionStatus,
+} from "@xua/shared/enums";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-type DeliveryDateStatus = "SCHEDULED" | "DELIVERED" | "CANCELLED" | "FAILED";
-type UserSubscriptionStatus =
-  | "PENDING_PAYMENT"
-  | "ACTIVE"
-  | "PAUSED"
-  | "CANCELLED"
-  | "COMPLETED";
 
 interface DeliveryDate {
   id: string;
@@ -57,7 +54,7 @@ interface UserSubscription {
     id: string;
     status: string;
     amount_cents: number;
-    payment_method: "pix" | "credit" | null;
+    payment_method: OnlinePaymentMethod | null;
     provider: string | null;
     external_id: string | null;
     created_at: string;
@@ -92,20 +89,18 @@ function statusBadgeClass(s: UserSubscriptionStatus): string {
 
 function deliveryDateStatusLabel(s: DeliveryDateStatus): string {
   const map: Record<DeliveryDateStatus, string> = {
-    SCHEDULED: "Agendada",
+    PENDING: "Agendada",
     DELIVERED: "Entregue",
     CANCELLED: "Cancelada",
-    FAILED: "Falhou",
   };
   return map[s] ?? s;
 }
 
 function deliveryDateStatusClass(s: DeliveryDateStatus): string {
   const map: Record<DeliveryDateStatus, string> = {
-    SCHEDULED: "bg-blue-50 text-blue-700",
+    PENDING: "bg-blue-50 text-blue-700",
     DELIVERED: "bg-emerald-50 text-emerald-700",
     CANCELLED: "bg-gray-100 text-gray-500",
-    FAILED: "bg-red-50 text-red-700",
   };
   return map[s] ?? "bg-gray-100 text-gray-500";
 }

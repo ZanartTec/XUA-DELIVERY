@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { ONLINE_PAYMENT_METHOD_VALUES } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { enqueuePaymentWebhookJob, PAYMENT_JOB_NAMES } from "../../../infra/queue/index.js";
 import { logger } from "../../../infra/logger/index.js";
@@ -10,7 +11,7 @@ import { paymentService, PaymentServiceError } from "../services/payments.servic
 
 const chargeSchema = z.object({
   order_id: z.string().uuid(),
-  payment_method: z.enum(["pix", "credit"]),
+  payment_method: z.enum(ONLINE_PAYMENT_METHOD_VALUES),
 });
 
 function errorStatus(code: string): number {

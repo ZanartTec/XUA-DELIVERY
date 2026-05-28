@@ -10,6 +10,7 @@ import {
   PaymentKind,
   OtpStatus,
   DepositStatus,
+  InventoryItemType,
   ActorType,
   SourceApp,
   AuditEventType,
@@ -29,6 +30,11 @@ const ID = {
   // Produtos
   product20l:        "00000000-0000-4000-a000-000000000001",
   product10l:        "00000000-0000-4000-a000-000000000002",
+
+  // Itens de estoque
+  inventorySellable20l: "00000000-0000-4000-a000-000000001201",
+  inventorySellable10l: "00000000-0000-4000-a000-000000001202",
+  inventoryEmpty20l:    "00000000-0000-4000-a000-000000001203",
 
   // Distribuidoras
   distributor:       "00000000-0000-4000-a000-000000000010",  // Xuá JF (principal)
@@ -323,6 +329,59 @@ async function main() {
     await prisma.product.upsert({ where: { id: p.id }, update: {}, create: p });
   }
   console.log("✅ Produtos: Galão 20L (R$25,00 + R$10,00 depósito), Garrafão 10L (R$15,00 + R$5,00 depósito)");
+
+  // ════════════════════════════════════════════════════════════════
+  // ITENS DE ESTOQUE (catálogo do módulo de estoque)
+  // ════════════════════════════════════════════════════════════════
+  const inventoryItems = [
+    {
+      id: ID.inventorySellable20l,
+      code: "WATER20L",
+      name: "Água 20L (vendável)",
+      type: InventoryItemType.SELLABLE_PRODUCT,
+      product_id: ID.product20l,
+      unit_label: "un",
+      low_stock_threshold: 10,
+      is_active: true,
+    },
+    {
+      id: ID.inventorySellable10l,
+      code: "WATER10L",
+      name: "Água 10L (vendável)",
+      type: InventoryItemType.SELLABLE_PRODUCT,
+      product_id: ID.product10l,
+      unit_label: "un",
+      low_stock_threshold: 10,
+      is_active: true,
+    },
+    {
+      id: ID.inventoryEmpty20l,
+      code: "EMPTY20L",
+      name: "Vasilhame vazio 20L",
+      type: InventoryItemType.RETURNABLE_EMPTY,
+      product_id: null,
+      unit_label: "un",
+      low_stock_threshold: 5,
+      is_active: true,
+    },
+  ];
+
+  for (const item of inventoryItems) {
+    await prisma.inventoryItem.upsert({
+      where: { id: item.id },
+      update: {
+        code: item.code,
+        name: item.name,
+        type: item.type,
+        product_id: item.product_id,
+        unit_label: item.unit_label,
+        low_stock_threshold: item.low_stock_threshold,
+        is_active: item.is_active,
+      },
+      create: item,
+    });
+  }
+  console.log("✅ Itens de estoque: WATER20L, WATER10L, EMPTY20L");
 
   // ════════════════════════════════════════════════════════════════
   // DISTRIBUTOR SCHEDULE — Seg a Sex para ambas distribuidoras

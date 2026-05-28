@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
-import type { Product, DeliveryWindow } from "@prisma/client";
+import type { Product } from "@prisma/client";
+import type { DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
@@ -23,11 +24,35 @@ function errorStatus(code: string): number {
     FORBIDDEN: 403,
     INVALID_TRANSITION: 400,
     INVALID_STATUS: 400,
+    STOCK_UNAVAILABLE: 409,
+    IDEMPOTENCY_CONFLICT: 409,
+    INVENTORY_ITEM_NOT_FOUND: 400,
+    INVENTORY_ITEM_INACTIVE: 400,
+    INVENTORY_ITEM_CONFLICT: 409,
     OTP_NOT_FOUND: 404,
     OTP_EXPIRED: 400,
     OTP_LOCKED: 429,
   };
   return map[code] ?? 400;
+}
+
+const ORDER_ACTION_ROLES: Record<string, string[]> = {
+  accept: ["distributor_admin"],
+  reject: ["distributor_admin"],
+  complete_checklist: ["distributor_admin"],
+  dispatch: ["distributor_admin"],
+  dispatch_with_checklist: ["distributor_admin"],
+  deliver: ["driver"],
+  verify_otp: ["driver"],
+  delivery_failed: ["driver"],
+  cancel: ["consumer", "distributor_admin", "driver", "ops"],
+  otp_override: ["ops", "support"],
+  schedule_redelivery: ["ops", "support"],
+};
+
+function stockReturnOptions(payload: Record<string, unknown>) {
+  const value = payload.return_to_stock ?? payload.returned_to_stock ?? payload.physical_return_confirmed;
+  return typeof value === "boolean" ? { returnToStock: value } : undefined;
 }
 
 /**
@@ -245,6 +270,12 @@ export const ordersController = {
         return;
       }
 
+      const allowedRoles = typeof action === "string" ? ORDER_ACTION_ROLES[action] : undefined;
+      if (allowedRoles && !allowedRoles.includes(user.role)) {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+      }
+
       let updatedOrder;
 
       switch (action) {
@@ -351,7 +382,8 @@ export const ordersController = {
             id,
             user.sub,
             actorType,
-            payload.reason ?? "Cancelado pelo usuário"
+            payload.reason ?? "Cancelado pelo usuário",
+            stockReturnOptions(payload)
           );
           break;
 
@@ -360,7 +392,12 @@ export const ordersController = {
             res.status(400).json({ error: "Motivo obrigatório" });
             return;
           }
-          updatedOrder = await orderService.markDeliveryFailed(id, user.sub, payload.reason);
+          updatedOrder = await orderService.markDeliveryFailed(
+            id,
+            user.sub,
+            payload.reason,
+            stockReturnOptions(payload)
+          );
           break;
 
         case "schedule_redelivery":

@@ -1,9 +1,15 @@
 import { z } from "zod";
+import {
+  BOTTLE_CONDITION_VALUES,
+  DELIVERY_WINDOW_INPUT_VALUES,
+  NON_COLLECTION_REASON_VALUES,
+  REJECT_ORDER_REASON_VALUES,
+} from "../enums";
 
 export const createOrderSchema = z.object({
   address_id: z.string().uuid("Endereço inválido"),
   delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
-  delivery_window: z.enum(["morning", "afternoon"]),
+  delivery_window: z.enum(DELIVERY_WINDOW_INPUT_VALUES),
   distributor_id: z.string().uuid("Distribuidora inválida").optional(),
   time_slot_id: z.string().uuid("Horário inválido").optional(),
   items: z
@@ -27,19 +33,13 @@ export type RatingInput = z.infer<typeof ratingSchema>;
 export const bottleExchangeSchema = z.object({
   driver_id: z.string().uuid(),
   returned_empty_qty: z.number().int().min(0, "Quantidade inválida"),
-  bottle_condition: z.enum(["ok", "damaged", "dirty"]),
+  bottle_condition: z.enum(BOTTLE_CONDITION_VALUES),
 });
 export type BottleExchangeInput = z.infer<typeof bottleExchangeSchema>;
 
 export const nonCollectionSchema = z.object({
   driver_id: z.string().uuid(),
-  reason: z.enum([
-    "client_absent",
-    "no_access",
-    "no_empty_bottles",
-    "unsafe_location",
-    "other",
-  ]),
+  reason: z.enum(NON_COLLECTION_REASON_VALUES),
   notes: z.string().trim().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
 }).superRefine((data, ctx) => {
   if (data.reason === "other" && (!data.notes || data.notes.length < 10)) {
@@ -53,12 +53,7 @@ export const nonCollectionSchema = z.object({
 export type NonCollectionInput = z.infer<typeof nonCollectionSchema>;
 
 export const rejectOrderSchema = z.object({
-  reason: z.enum([
-    "out_of_stock",
-    "delivery_area_issue",
-    "operational_capacity",
-    "other",
-  ]),
+  reason: z.enum(REJECT_ORDER_REASON_VALUES),
   details: z.string().trim().optional(),
 }).superRefine((data, ctx) => {
   if (data.reason === "other" && (!data.details || data.details.length < 10)) {
@@ -84,7 +79,7 @@ export type ReconciliationInput = z.infer<typeof reconciliationSchema>;
 
 export const rescheduleSchema = z.object({
   new_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
-  new_delivery_window: z.enum(["morning", "afternoon"]),
+  new_delivery_window: z.enum(DELIVERY_WINDOW_INPUT_VALUES),
   reason: z.string().min(5, "Motivo deve ter ao menos 5 caracteres"),
 });
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;

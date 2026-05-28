@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { BANNER_TYPE_VALUES } from "../enums";
 
-export const bannerTypeSchema = z.enum(["CAROUSEL", "FEATURED"]);
+export const bannerTypeSchema = z.enum(BANNER_TYPE_VALUES);
 export type BannerTypeInput = z.infer<typeof bannerTypeSchema>;
 
 const TITLE = z.string().trim().min(2, "Título deve ter ao menos 2 caracteres").max(120);

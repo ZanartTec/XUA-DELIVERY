@@ -6,8 +6,7 @@ import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
 import { Image, Info, Layers, Palette, Pencil, Plus, Save, Trash2, Type, X } from "lucide-react";
 import { toast } from "sonner";
-
-type BannerType = "CAROUSEL" | "FEATURED";
+import type { BannerType } from "@xua/shared/enums";
 
 interface BannerItem {
   id: string;

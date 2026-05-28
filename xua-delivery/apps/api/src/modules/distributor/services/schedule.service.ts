@@ -1,4 +1,4 @@
-import type { DeliveryWindow } from "@prisma/client";
+import type { DeliveryWindow } from "@xua/shared/enums";
 import { scheduleRepository } from "../repository/schedule.repository.js";
 import { capacityRepository } from "../repository/capacity.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";

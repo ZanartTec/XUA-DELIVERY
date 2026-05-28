@@ -1,5 +1,5 @@
-import { UserSubscriptionStatus, PaymentKind, PaymentStatus } from "@prisma/client";
 import type { Payment, Prisma } from "@prisma/client";
+import { PaymentKind, PaymentStatus, UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { userSubscriptionsRepository } from "../repository/user-subscriptions.repository.js";
 import { subscriptionPlansRepository } from "../../subscription-plans/repository/subscription-plans.repository.js";

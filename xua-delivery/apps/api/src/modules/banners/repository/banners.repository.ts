@@ -1,5 +1,5 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
-import type { BannerType } from "@prisma/client";
+import type { BannerType } from "@xua/shared/enums";
 
 const BANNER_SELECT = {
   id: true,

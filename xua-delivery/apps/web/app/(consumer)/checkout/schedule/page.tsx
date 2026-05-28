@@ -14,6 +14,7 @@ import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
 import { DeliveryAddressCard } from "@/src/components/consumer/delivery-address-card";
 import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
 import type { Address } from "@/src/types";
+import type { DeliveryWindowInput } from "@xua/shared/enums";
 import {
   ArrowLeft,
   ChevronRight,
@@ -23,7 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 
-type TimeWindow = "morning" | "afternoon";
+type TimeWindow = DeliveryWindowInput;
 
 type DayItem = {
   date: Date;

@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
   BarChart3,
+  Boxes,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -76,9 +77,15 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         match: ["/distributor/queue", "/distributor/orders", "/distributor/routes"],
       },
       {
-        href: "/distributor/reconciliation",
+        href: "/distributor/inventory/reconciliation",
         label: "Concilia",
         icon: ArrowLeftRight,
+      },
+      {
+        href: "/distributor/inventory",
+        label: "Estoque",
+        icon: Boxes,
+        match: ["/distributor/inventory"],
       },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
@@ -96,6 +103,12 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     navItems: [
       { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
       { href: "/ops/zones", label: "Zonas", icon: MapPin },
+      {
+        href: "/ops/inventory",
+        label: "Estoque",
+        icon: Boxes,
+        match: ["/ops/inventory"],
+      },
       { href: "/ops/products", label: "Produtos", icon: Package },
       { href: "/ops/banners", label: "Banners", icon: Image },
       { href: "/ops/subscription-plans", label: "Planos", icon: Repeat },

@@ -8,7 +8,7 @@ import {
   PaymentStatus,
   SourceApp,
   UserSubscriptionStatus,
-} from "@prisma/client";
+} from "@xua/shared/enums";
 import {
   PAYMENT_JOB_NAMES,
   type PaymentWebhookJobPayload,

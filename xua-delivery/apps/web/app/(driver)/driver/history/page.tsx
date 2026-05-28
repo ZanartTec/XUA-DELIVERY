@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Clock3, MapPin, PackageOpen, Phone, TriangleAlert } from "lucide-react";
 import { StatusPill } from "@/src/components/shared/status-pill";
+import type { DeliveryWindow } from "@xua/shared/enums";
 
 interface DriverHistoryItem {
   order_id: string;
@@ -12,7 +13,7 @@ interface DriverHistoryItem {
   consumer_phone: string | null;
   address_line: string;
   status: string;
-  delivery_window: "MORNING" | "AFTERNOON";
+  delivery_window: DeliveryWindow;
   total_items_qty: number;
   occurred_at: string;
   failure_reason: string | null;

@@ -16,6 +16,12 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: USE_BULLMQ_SUBSCRIPTION
+        value: "true"
+      - key: USE_BULLMQ_SUBSCRIPTION_EXPIRY
+        value: "true"
+      - key: USE_BULLMQ_OTP_CLEANUP
+        value: "true"
       - key: JWT_SECRET
         sync: false
       - key: OTP_SECRET
@@ -43,6 +49,34 @@ services:
       - key: VAPID_PRIVATE_KEY
         sync: false
 
+  - type: worker
+    name: xua-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx tsx apps/api/src/worker/index.ts
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENT_PROVIDER
+        value: mercadopago
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: LOG_LEVEL
+        value: info
+      - key: INTERNAL_JOBS_WORKER_CONCURRENCY
+        value: "1"
+      - key: PAYMENT_WEBHOOK_WORKER_CONCURRENCY
+        value: "2"
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+
   - type: cron
     name: subscription-cron
     runtime: node
@@ -51,6 +85,26 @@ services:
     startCommand: >-
       node --input-type=module -e "
         const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
+        if (!r.ok) { console.error(await r.text()); process.exit(1); }
+        console.log(JSON.stringify(await r.json()));
+      "
+    envVars:
+      - key: INTERNAL_JOB_SECRET
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: INTERNAL_JOB_SECRET
+      - key: API_URL
+        sync: false
+
+  - type: cron
+    name: subscription-expiry
+    runtime: node
+    schedule: "30 9 * * *" # 06h30 São Paulo = 09h30 UTC
+    buildCommand: ""
+    startCommand: >-
+      node --input-type=module -e "
+        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription-expiry', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
         if (!r.ok) { console.error(await r.text()); process.exit(1); }
         console.log(JSON.stringify(await r.json()));
       "

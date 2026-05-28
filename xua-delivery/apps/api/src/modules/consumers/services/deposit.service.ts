@@ -1,5 +1,5 @@
 import type { Prisma, Deposit } from "@prisma/client";
-import { DepositStatus, OrderStatus, AuditEventType, ActorType, SourceApp } from "@prisma/client";
+import { ActorType, AuditEventType, DepositStatus, OrderStatus, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import { createLogger } from "../../../infra/logger";

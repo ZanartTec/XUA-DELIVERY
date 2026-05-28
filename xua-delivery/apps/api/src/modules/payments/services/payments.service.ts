@@ -6,7 +6,7 @@ import {
   PaymentKind,
   PaymentStatus,
   SourceApp,
-} from "@prisma/client";
+} from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
 import {

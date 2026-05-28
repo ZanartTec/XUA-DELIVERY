@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar, Check, Clock, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
+import type { DeliveryWindow } from "@xua/shared/enums";
 
 type WeekdayConfig = {
   weekday: number;
@@ -24,7 +25,7 @@ type TimeSlotConfig = {
   start_minute: number;
   end_hour: number;
   end_minute: number;
-  window: "MORNING" | "AFTERNOON";
+  window: DeliveryWindow;
   is_active: boolean;
   sort_order: number;
 };
@@ -78,7 +79,7 @@ export default function DistributorSchedulePage() {
     start_minute: 0,
     end_hour: 10,
     end_minute: 0,
-    window: "MORNING" as "MORNING" | "AFTERNOON",
+    window: "MORNING" as DeliveryWindow,
   });
   const [savingSlot, setSavingSlot] = useState(false);
 
@@ -479,7 +480,7 @@ export default function DistributorSchedulePage() {
               />
               <select
                 value={slotForm.window}
-                onChange={(e) => setSlotForm((f) => ({ ...f, window: e.target.value as "MORNING" | "AFTERNOON" }))}
+                onChange={(e) => setSlotForm((f) => ({ ...f, window: e.target.value as DeliveryWindow }))}
                 className="rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
               >
                 <option value="MORNING">Manhã</option>

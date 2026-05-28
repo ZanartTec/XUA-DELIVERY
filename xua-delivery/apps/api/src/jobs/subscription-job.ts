@@ -1,4 +1,4 @@
-import { UserSubscriptionStatus, DeliveryDateStatus } from "@prisma/client";
+import { DeliveryDateStatus, UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../infra/prisma/client.js";
 import { orderService } from "../modules/orders/services/orders.service.js";
 import { userSubscriptionsRepository } from "../modules/user-subscriptions/repository/user-subscriptions.repository.js";

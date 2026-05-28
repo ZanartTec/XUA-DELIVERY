@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { USER_SUBSCRIPTION_PAYMENT_METHOD_VALUES } from "../enums";
 
 const UUID = z.string().uuid("ID inválido");
 const DATE_ISO = z
@@ -14,7 +15,7 @@ export type UserSubscriptionDeliveryDateInput = z.infer<
   typeof userSubscriptionDeliveryDateSchema
 >;
 
-export const userSubscriptionPaymentMethodSchema = z.enum(["pix", "credit"]);
+export const userSubscriptionPaymentMethodSchema = z.enum(USER_SUBSCRIPTION_PAYMENT_METHOD_VALUES);
 export type UserSubscriptionPaymentMethod = z.infer<
   typeof userSubscriptionPaymentMethodSchema
 >;

@@ -1,5 +1,5 @@
 import type { Prisma, OrderOtp } from "@prisma/client";
-import { OtpStatus } from "@prisma/client";
+import { OtpStatus } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;

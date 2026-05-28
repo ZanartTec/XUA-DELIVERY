@@ -1,4 +1,5 @@
-import type { Prisma, AuditEvent, AuditEventType, ActorType, SourceApp } from "@prisma/client";
+import type { Prisma, AuditEvent } from "@prisma/client";
+import type { ActorType, AuditEventType, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/src/lib/utils";
+import type { DeliveryWindow } from "@xua/shared/enums";
 
 type RouteStop = {
   order_id: string;
@@ -19,7 +20,7 @@ type RouteStop = {
 
 type RouteGroup = {
   zone_name: string;
-  delivery_window: "MORNING" | "AFTERNOON";
+  delivery_window: DeliveryWindow;
   stops: RouteStop[];
 };
 

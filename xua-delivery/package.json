@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "enums:check": "tsx scripts/check-enums.ts",
     "postinstall": "prisma generate",
     "shared:check": "tsc -p packages/shared/tsconfig.json --noEmit"
   },

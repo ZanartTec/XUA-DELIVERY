@@ -1,4 +1,4 @@
-import { UserSubscriptionStatus } from "@prisma/client";
+import { UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../infra/prisma/client.js";
 import { notificationService } from "../modules/notifications/services/notification.service.js";
 import { logger } from "../infra/logger/index.js";

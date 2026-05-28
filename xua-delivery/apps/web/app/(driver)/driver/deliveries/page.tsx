@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2 } from "lucide-react";
+import type { DeliveryWindow } from "@xua/shared/enums";
 
 interface Delivery {
   order_id: string;
@@ -11,7 +12,7 @@ interface Delivery {
   consumer_phone: string | null;
   address_line: string;
   status: string;
-  delivery_window: "MORNING" | "AFTERNOON";
+  delivery_window: DeliveryWindow;
   sequence: number;
   total_items_qty: number;
 }

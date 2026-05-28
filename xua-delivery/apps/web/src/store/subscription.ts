@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { OnlinePaymentMethod } from "@xua/shared/enums";
 
-type SubscriptionPaymentMethod = "pix" | "credit";
+type SubscriptionPaymentMethod = OnlinePaymentMethod;
 
 export interface SubscriptionWizardState {
   // Step 1 — Plan
