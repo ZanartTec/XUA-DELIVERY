@@ -560,6 +560,10 @@ model Payment {
   user_subscription UserSubscription?  @relation(fields: [user_subscription_id], references: [id])
   transactions      PaymentTransaction[]
 
+  @@index([order_id, provider, created_at], map: "idx_payments_order_provider_created")
+  @@index([user_subscription_id, provider, created_at], map: "idx_payments_sub_provider_created")
+  @@index([provider, provider_payment_ref], map: "idx_payments_provider_payment_ref")
+  @@index([idempotency_key], map: "idx_payments_idempotency_key")
   @@map("13_trn_payments")
 }
 

@@ -8,6 +8,11 @@ import { enqueuePaymentWebhookJob, PAYMENT_JOB_NAMES } from "../../../infra/queu
 import { logger } from "../../../infra/logger/index.js";
 import { PAYMENT_PROVIDERS } from "../gateway/payments.gateway.js";
 import { paymentService, PaymentServiceError } from "../services/payments.service.js";
+import {
+  normalizeWebhookPaymentKind,
+  verifyWebhookContextSignature,
+  WEBHOOK_CONTEXT_QUERY_PARAMS,
+} from "../utils/webhook-context.js";
 
 const chargeSchema = z.object({
   order_id: z.string().uuid(),
@@ -139,14 +144,47 @@ function isPaymentNotification(req: Request, body: Record<string, unknown>): boo
   return type === "payment" || topic === "payment" || Boolean(action?.startsWith("payment."));
 }
 
-function buildWebhookPayload(body: Record<string, unknown>, resourceId: string): Prisma.InputJsonObject {
+function buildWebhookContext(req: Request): Prisma.InputJsonObject | undefined {
+  const referenceId = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.referenceId]);
+  const rawPaymentKind = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.paymentKind]);
+  const signature = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.signature]);
+  if (!referenceId && !rawPaymentKind && !signature) return undefined;
+
+  const paymentKind = normalizeWebhookPaymentKind(rawPaymentKind);
+  if (
+    !referenceId
+    || !paymentKind
+    || !signature
+    || !verifyWebhookContextSignature(referenceId, paymentKind, signature)
+  ) {
+    logger.warn(
+      {
+        hasReferenceId: Boolean(referenceId),
+        hasPaymentKind: Boolean(paymentKind),
+        hasContextSignature: Boolean(signature),
+      },
+      "Mercado Pago webhook context ignored"
+    );
+    return undefined;
+  }
+
+  return { reference_id: referenceId, payment_kind: paymentKind } as Prisma.InputJsonObject;
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
+}
+
+function buildWebhookPayload(req: Request, body: Record<string, unknown>, resourceId: string): Prisma.InputJsonObject {
   const data = bodyData(body);
+  const xuaContext = buildWebhookContext(req);
   return {
     ...body,
     data: {
       ...(data ?? {}),
       id: data?.id ?? resourceId,
     },
+    ...(xuaContext ? { xua_context: xuaContext } : {}),
   } as Prisma.InputJsonObject;
 }
 
@@ -235,26 +273,35 @@ export const paymentsController = {
     const correlationId = requestId ?? randomUUID();
 
     try {
+      const eventKey = {
+        provider: PAYMENT_PROVIDERS.mercadoPago,
+        provider_event_ref: providerEventRef,
+      };
       let event = await prisma.paymentWebhookEvent.findUnique({
         where: {
-          provider_provider_event_ref: {
-            provider: PAYMENT_PROVIDERS.mercadoPago,
-            provider_event_ref: providerEventRef,
-          },
+          provider_provider_event_ref: eventKey,
         },
       });
 
       if (!event) {
-        event = await prisma.paymentWebhookEvent.create({
-          data: {
-            provider: PAYMENT_PROVIDERS.mercadoPago,
-            provider_event_ref: providerEventRef,
-            event_type: eventType,
-            payload: buildWebhookPayload(body, resourceId),
-            raw_headers: sanitizedWebhookHeaders(req) as Prisma.InputJsonObject,
-            signature_valid: true,
-          },
-        });
+        const createData = {
+          provider: PAYMENT_PROVIDERS.mercadoPago,
+          provider_event_ref: providerEventRef,
+          event_type: eventType,
+          payload: buildWebhookPayload(req, body, resourceId),
+          raw_headers: sanitizedWebhookHeaders(req) as Prisma.InputJsonObject,
+          signature_valid: true,
+        } satisfies Prisma.PaymentWebhookEventCreateInput;
+
+        try {
+          event = await prisma.paymentWebhookEvent.create({ data: createData });
+        } catch (error) {
+          if (!isUniqueConstraintError(error)) throw error;
+          event = await prisma.paymentWebhookEvent.findUnique({
+            where: { provider_provider_event_ref: eventKey },
+          });
+          if (!event) throw error;
+        }
       }
 
       if (!event.processed_at) {

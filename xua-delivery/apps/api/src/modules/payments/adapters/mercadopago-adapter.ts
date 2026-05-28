@@ -6,6 +6,10 @@ import type {
   ProviderPaymentDetails,
   RefundResult,
 } from "../gateway/payments.gateway.js";
+import {
+  buildWebhookContextQueryParams,
+  requireWebhookPaymentKind,
+} from "../utils/webhook-context.js";
 
 const DEFAULT_MERCADO_PAGO_API_BASE = "https://api.mercadopago.com";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -98,13 +102,31 @@ function getBackUrl(
   );
 }
 
-function getNotificationUrl(): string | undefined {
+function assertPaymentReference(referenceId: string | null | undefined): string {
+  const normalized = referenceId?.trim();
+  if (!normalized) {
+    throw new Error("PAYMENT_REFERENCE_REQUIRED");
+  }
+  return normalized;
+}
+
+function getNotificationUrl(metadata?: PaymentChargeMetadata): string | undefined {
   const url = process.env.MERCADOPAGO_NOTIFICATION_URL;
   if (!url) return undefined;
   const source = process.env.MERCADOPAGO_NOTIFICATION_SOURCE ?? "webhooks";
-  return url.includes("source_news=")
-    ? url
-    : withQueryParams(url, { source_news: source });
+  const params: Record<string, string> = url.includes("source_news=")
+    ? {}
+    : { source_news: source };
+
+  if (metadata?.orderId && metadata.kind) {
+    const contextParams = buildWebhookContextQueryParams(
+      metadata.orderId,
+      requireWebhookPaymentKind(metadata.kind)
+    );
+    if (contextParams) Object.assign(params, contextParams);
+  }
+
+  return withQueryParams(url, params);
 }
 
 function sanitizePreferenceResponse(preference: MercadoPagoPreferenceResponse): Record<string, unknown> {
@@ -179,10 +201,12 @@ export class MercadoPagoAdapter implements IPaymentGateway {
     amountCents: number,
     metadata: PaymentChargeMetadata
   ): Promise<PaymentResult> {
-    const isSubscription = metadata.kind?.toUpperCase() === "SUBSCRIPTION";
+    const referenceId = assertPaymentReference(metadata.orderId);
+    const paymentKind = requireWebhookPaymentKind(metadata.kind);
+    const isSubscription = paymentKind === "SUBSCRIPTION";
     const description =
       metadata.description
-      ?? `${isSubscription ? "Assinatura Xuá" : "Pedido Xuá"} #${metadata.orderId.slice(0, 8)}`;
+      ?? `${isSubscription ? "Assinatura Xuá" : "Pedido Xuá"} #${referenceId.slice(0, 8)}`;
     const items = metadata.items?.length
       ? metadata.items.map((item) => ({
           id: item.id,
@@ -193,7 +217,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
         }))
       : [
           {
-            id: metadata.orderId,
+            id: referenceId,
             title: description,
             quantity: 1,
             currency_id: "BRL",
@@ -210,38 +234,38 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           : undefined,
         body: JSON.stringify({
           items,
-          external_reference: metadata.orderId,
-          notification_url: getNotificationUrl(),
+          external_reference: referenceId,
+          notification_url: getNotificationUrl({ ...metadata, orderId: referenceId, kind: paymentKind }),
           back_urls: {
             success: getBackUrl(
               "MERCADOPAGO_BACK_URL_SUCCESS",
               "MERCADOPAGO_SUCCESS_URL",
               "success",
-              metadata.orderId,
-              metadata.kind
+              referenceId,
+              paymentKind
             ),
             failure: getBackUrl(
               "MERCADOPAGO_BACK_URL_FAILURE",
               "MERCADOPAGO_FAILURE_URL",
               "failure",
-              metadata.orderId,
-              metadata.kind
+              referenceId,
+              paymentKind
             ),
             pending: getBackUrl(
               "MERCADOPAGO_BACK_URL_PENDING",
               "MERCADOPAGO_PENDING_URL",
               "pending",
-              metadata.orderId,
-              metadata.kind
+              referenceId,
+              paymentKind
             ),
           },
           auto_return: "approved",
           statement_descriptor: getStatementDescriptor(),
           payer: metadata.payerEmail ? { email: metadata.payerEmail } : undefined,
           metadata: {
-            order_id: metadata.orderId,
+            order_id: referenceId,
             payment_method: metadata.paymentMethod,
-            kind: metadata.kind,
+            kind: paymentKind,
           },
         }),
       }
