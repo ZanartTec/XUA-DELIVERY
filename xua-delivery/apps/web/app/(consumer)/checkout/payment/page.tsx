@@ -507,7 +507,7 @@ function PaymentContent() {
           <PaymentMethodSelector
             value={paymentMethod}
             onChange={setPaymentMethod}
-            disabledMethods={isRetryMode ? ["cash"] : []}
+            hiddenMethods={isRetryMode ? ["cash"] : []}
           />
           {isRetryMode && (
             <p className="text-xs text-[#434656]">
@@ -646,6 +646,16 @@ function PaymentContent() {
         <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#434656] uppercase tracking-widest font-medium">
           <ShieldCheck className="h-3.5 w-3.5" />
           Pagamento 100% Seguro
+        </div>
+
+        {/* ABNT Notice */}
+        <div className="rounded-xl bg-[#fff8e6] p-4 border border-[#ffe099]">
+          <div className="flex items-start gap-3">
+            <Info className="h-4 w-4 shrink-0 text-[#b37400] mt-0.5" />
+            <p className="text-xs text-[#805300] leading-relaxed font-medium">
+              <strong>Atenção:</strong> Conforme a ABNT NBR 14222 e a Portaria DNPM nº 387/2008, os garrafões retornáveis devem possuir prazo máximo de 3 (três) anos de vida útil, contados a partir da data de fabricação.
+            </p>
+          </div>
         </div>
 
         {/* Legal notice */}

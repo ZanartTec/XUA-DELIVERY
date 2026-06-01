@@ -44,16 +44,18 @@ interface PaymentMethodSelectorProps {
   value: PaymentMethod | null;
   onChange: (method: PaymentMethod) => void;
   disabledMethods?: PaymentMethod[];
+  hiddenMethods?: PaymentMethod[];
 }
 
 export function PaymentMethodSelector({
   value,
   onChange,
   disabledMethods = [],
+  hiddenMethods = [],
 }: PaymentMethodSelectorProps) {
   return (
     <div className="space-y-3">
-      {PAYMENT_METHODS.map((pm) => {
+      {PAYMENT_METHODS.filter(pm => !hiddenMethods.includes(pm.value)).map((pm) => {
         const selected = value === pm.value;
         const disabled = disabledMethods.includes(pm.value);
         const Icon = pm.icon;
