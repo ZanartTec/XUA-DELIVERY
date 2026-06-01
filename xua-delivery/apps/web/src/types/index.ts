@@ -6,7 +6,6 @@ export type {
   Zone,
   ZoneCoverage,
   Product,
-  DeliveryCapacity,
   ConsumerPushToken,
   Order,
   OrderItem,

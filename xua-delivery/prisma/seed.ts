@@ -424,58 +424,6 @@ async function main() {
   console.log("✅ TimeSlots: Manhã (7h–12h) e Tarde (12h–17h) para Xuá JF; Manhã (8h–12h) e Tarde (13h–18h) para ÁguaFácil");
 
   // ════════════════════════════════════════════════════════════════
-  // DELIVERY CAPACITY — próximos 30 dias
-  // Por janela (sem time_slot) + por time_slot para as 4 zonas
-  // ════════════════════════════════════════════════════════════════
-  const allZones = [ID.zoneCentroJF, ID.zoneNorteJF, ID.zoneSulJF, ID.zoneCentroJF2];
-  const windows = [DeliveryWindow.MORNING, DeliveryWindow.AFTERNOON];
-
-  // time_slot_id → window mapping
-  const slotWindowMap: Record<string, DeliveryWindow> = {
-    [ID.slotManha1]: DeliveryWindow.MORNING,
-    [ID.slotTarde1]: DeliveryWindow.AFTERNOON,
-    [ID.slotManha2]: DeliveryWindow.MORNING,
-    [ID.slotTarde2]: DeliveryWindow.AFTERNOON,
-  };
-  // zone → valid time slot IDs
-  const zoneSlotsMap: Record<string, string[]> = {
-    [ID.zoneCentroJF]:  [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneNorteJF]:   [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneSulJF]:     [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneCentroJF2]: [ID.slotManha2, ID.slotTarde2],
-  };
-
-  for (let i = 1; i <= 30; i++) {
-    const date = futureDate(i);
-    for (const zoneId of allZones) {
-      // Capacidade por janela genérica (sem time_slot — para pedidos legados)
-      for (const window of windows) {
-        const existing = await prisma.deliveryCapacity.findFirst({
-          where: { zone_id: zoneId, delivery_date: date, window, time_slot_id: null },
-        });
-        if (!existing) {
-          await prisma.deliveryCapacity.create({
-            data: { zone_id: zoneId, delivery_date: date, window, capacity_total: 20, capacity_reserved: 0 },
-          });
-        }
-      }
-      // Capacidade por time_slot
-      for (const slotId of zoneSlotsMap[zoneId]) {
-        const window = slotWindowMap[slotId];
-        const existing = await prisma.deliveryCapacity.findFirst({
-          where: { zone_id: zoneId, delivery_date: date, window, time_slot_id: slotId },
-        });
-        if (!existing) {
-          await prisma.deliveryCapacity.create({
-            data: { zone_id: zoneId, delivery_date: date, window, time_slot_id: slotId, capacity_total: 15, capacity_reserved: 0 },
-          });
-        }
-      }
-    }
-  }
-  console.log("✅ DeliveryCapacity: 30 dias × janelas + time_slots × 4 zonas");
-
-  // ════════════════════════════════════════════════════════════════
   // PUSH TOKEN
   // ════════════════════════════════════════════════════════════════
   await prisma.consumerPushToken.upsert({

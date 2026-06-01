@@ -287,7 +287,6 @@ model Zone {
 
   distributor     Distributor        @relation(fields: [distributor_id], references: [id])
   coverage        ZoneCoverage[]
-  capacity_slots  DeliveryCapacity[]
   addresses       Address[]
   orders          Order[]
 
@@ -433,24 +432,6 @@ model InventoryReconciliationItem {
   @@unique([session_id, inventory_item_id])
   @@index([inventory_item_id])
   @@map("33_trn_inventory_reconciliation_items")
-}
-
-model DeliveryCapacity {
-  id                String         @id @default(uuid()) @db.Uuid
-  zone_id           String         @db.Uuid
-  delivery_date     DateTime       @db.Date
-  window            DeliveryWindow
-  time_slot_id      String?        @db.Uuid
-  capacity_total    Int
-  capacity_reserved Int            @default(0)
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
-
-  zone      Zone      @relation(fields: [zone_id], references: [id])
-  time_slot TimeSlot? @relation(fields: [time_slot_id], references: [id])
-
-  @@unique([zone_id, delivery_date, window, time_slot_id])
-  @@map("07_cfg_delivery_capacity")
 }
 
 model ConsumerPushToken {
@@ -752,7 +733,6 @@ model TimeSlot {
   created_at     DateTime       @default(now())
 
   distributor                 Distributor               @relation(fields: [distributor_id], references: [id])
-  capacity_slots              DeliveryCapacity[]
   orders                      Order[]
   subscription_delivery_dates SubscriptionDeliveryDate[]
 

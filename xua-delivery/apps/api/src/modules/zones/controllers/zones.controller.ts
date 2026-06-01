@@ -71,32 +71,7 @@ export const zonesController = {
     }
   },
 
-  // ─── Capacity ─────────────────────────────────────────────
-
-  /** GET /api/zones/:id/capacity?date=YYYY-MM-DD */
-  async getCapacity(req: Request, res: Response): Promise<void> {
-    const zoneId = req.params.id as string;
-    const date = req.query.date as string | undefined;
-
-    if (!date) {
-      res.status(400).json({ error: "Parâmetro date é obrigatório" });
-      return;
-    }
-
-    try {
-      const endDate = new Date(new Date(date).getTime() + 7 * 86400000)
-        .toISOString()
-        .slice(0, 10);
-
-      const slots = await zonesService.getCapacity(zoneId, date, endDate);
-      res.json({ slots });
-    } catch (error) {
-      logger.error({ error }, "Error getting capacity");
-      res.status(500).json({ error: "Erro interno" });
-    }
-  },
-
-  /** GET /api/zones/:id/available-dates?distributor_id=&days=14 */
+  // ─── Available Dates ───────────────────────────────────────────
   async getAvailableDates(req: Request, res: Response): Promise<void> {
     const zoneId = req.params.id as string;
     const parsed = availableDatesQuerySchema.safeParse(req.query);

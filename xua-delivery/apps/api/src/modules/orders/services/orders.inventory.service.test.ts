@@ -40,7 +40,6 @@ const mocks = vi.hoisted(() => {
       findBalanceForUpdate: vi.fn(),
     },
     inventoryService: { applyMovement: vi.fn() },
-    capacityService: { release: vi.fn() },
     notificationService: { send: vi.fn() },
     paymentService: { charge: vi.fn() },
     distributorRepository: { resolveDistributorId: vi.fn() },
@@ -80,9 +79,7 @@ vi.mock("../../inventory/services/inventory.service.js", () => ({
   InventoryServiceError: mocks.InventoryServiceError,
 }));
 
-vi.mock("../../distributor/services/capacity.service.js", () => ({
-  capacityService: mocks.capacityService,
-}));
+
 
 vi.mock("../../distributor/services/schedule.service.js", () => ({
   scheduleService: {},
@@ -213,7 +210,7 @@ beforeEach(() => {
   mocks.inventoryRepository.findActiveReturnableEmptyItem.mockResolvedValue(emptyInventoryItem);
   mockInventoryBalances({ [itemA]: 10, [itemB]: 10 });
   mocks.inventoryService.applyMovement.mockResolvedValue({ idempotentReplay: false });
-  mocks.capacityService.release.mockResolvedValue(undefined);
+
   mocks.auditRepository.emit.mockResolvedValue({ id: "audit-1" });
 });
 
@@ -369,13 +366,7 @@ describe("orderService inventory integration", () => {
       }),
       tx
     );
-    expect(mocks.capacityService.release).toHaveBeenCalledWith(
-      zoneId,
-      "2026-05-28",
-      DeliveryWindow.MORNING,
-      tx,
-      null
-    );
+
   });
 
   it("reprocessa cancelamento pos-aceite sem duplicar retorno no ledger", async () => {

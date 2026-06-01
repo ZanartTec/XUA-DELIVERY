@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { kpiService } from "../services/kpi.service.js";
-import { capacityService } from "../services/capacity.service.js";
+
 import { scheduleService } from "../services/schedule.service.js";
 import { scheduleRepository } from "../repository/schedule.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";
@@ -436,30 +436,7 @@ export const distributorController = {
     }
   },
 
-  /**
-   * GET /api/distributor/capacity?zoneId=&start=&end=
-   * Retorna slots de capacidade disponíveis em uma zone/período.
-   */
-  async getCapacity(req: Request, res: Response): Promise<void> {
-    const { zoneId, start, end } = req.query as {
-      zoneId: string;
-      start: string;
-      end: string;
-    };
 
-    if (!zoneId || !start || !end) {
-      res.status(400).json({ error: "Parâmetros obrigatórios: zoneId, start, end" });
-      return;
-    }
-
-    try {
-      const slots = await capacityService.checkAvailability(zoneId, start, end);
-      res.json({ slots });
-    } catch (err) {
-      log.error({ err, zoneId }, "Erro ao buscar capacidade");
-      throw err;
-    }
-  },
 
   /**
    * GET /api/distributors/:distributorId/public-schedule

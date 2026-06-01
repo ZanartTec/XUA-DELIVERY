@@ -148,13 +148,12 @@ export const distributorRepository = {
 
   /**
    * Busca distribuidoras ativas com allows_consumer_choice=true que atendem
-   * a mesma área geográfica (via ZoneCoverage) da zona informada e possuem
-   * capacidade disponível para a data/janela solicitada.
+   * a mesma área geográfica (via ZoneCoverage) da zona informada.
    */
   async findAvailableForZone(
     zoneId: string,
-    date?: string,
-    window?: string,
+    _date?: string,
+    _window?: string,
   ): Promise<
     Array<{
       id: string;
@@ -165,58 +164,6 @@ export const distributorRepository = {
   > {
     const prisma = getPrisma();
 
-    // Se date e window estão presentes, filtra por capacidade disponível
-    if (date && window) {
-      const windowLower = window.toLowerCase();
-      const rows = await prisma.$queryRaw<
-        Array<{
-          id: string;
-          name: string;
-          avg_nps: number | null;
-          next_available_date: Date | null;
-        }>
-      >`
-        SELECT
-          d.id,
-          d.name,
-          ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps,
-          MIN(dc_next.delivery_date) AS next_available_date
-        FROM "03_mst_distributors" d
-        JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
-        JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
-        JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
-        JOIN "07_cfg_delivery_capacity" dc
-          ON dc.zone_id = z2.id
-          AND dc.delivery_date = ${date}::date
-          AND dc."window" = ${windowLower}::"delivery_window"
-          AND dc.capacity_reserved < dc.capacity_total
-        LEFT JOIN "07_cfg_delivery_capacity" dc_next
-          ON dc_next.zone_id = z2.id
-          AND dc_next.delivery_date >= ${date}::date
-          AND dc_next.capacity_reserved < dc_next.capacity_total
-        LEFT JOIN "09_trn_orders" o
-          ON o.distributor_id = d.id AND o.nps_score IS NOT NULL
-        WHERE d.is_active = true
-          AND d.allows_consumer_choice = true
-          AND (
-            (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
-            OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
-          )
-        GROUP BY d.id, d.name
-        ORDER BY avg_nps DESC NULLS LAST, d.name ASC
-      `;
-
-      return rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        avg_nps: r.avg_nps,
-        next_available_date: r.next_available_date
-          ? new Date(r.next_available_date).toISOString().split("T")[0]
-          : null,
-      }));
-    }
-
-    // Sem date/window: lista todas distribuidoras ativas na zona (sem filtro de capacidade)
     const rows = await prisma.$queryRaw<
       Array<{
         id: string;
@@ -281,27 +228,21 @@ export const distributorRepository = {
 
   /**
    * Valida que o distributor_id pertence a uma zona que cobre a mesma
-   * área geográfica do zoneId informado e tem capacidade para data/janela.
+   * área geográfica do zoneId informado.
    */
   async validateDistributorForZone(
     distributorId: string,
     zoneId: string,
-    date: string,
-    window: string,
+    _date: string,
+    _window: string,
   ): Promise<{ valid: boolean; resolvedZoneId: string | null }> {
     const prisma = getPrisma();
-    const windowLower = window.toLowerCase();
 
     const rows = await prisma.$queryRaw<Array<{ zone_id: string }>>`
       SELECT z2.id AS zone_id
       FROM "04_mst_zones" z2
       JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
       JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
-      JOIN "07_cfg_delivery_capacity" dc
-        ON dc.zone_id = z2.id
-        AND dc.delivery_date = ${date}::date
-        AND dc."window" = ${windowLower}::"delivery_window"
-        AND dc.capacity_reserved < dc.capacity_total
       WHERE z2.distributor_id = ${distributorId}::uuid
         AND z2.is_active = true
         AND (

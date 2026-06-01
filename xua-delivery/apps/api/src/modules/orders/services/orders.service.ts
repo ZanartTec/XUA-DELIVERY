@@ -17,7 +17,6 @@ import { orderRepository, type OrderForQueue, type OrderWithItems } from "../rep
 import { auditRepository } from "../../audit/audit.repository.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 import { inventoryService, InventoryServiceError } from "../../inventory/services/inventory.service.js";
-import { capacityService } from "../../distributor/services/capacity.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
@@ -498,15 +497,6 @@ export const orderService = {
         data.distributorId,
         data.deliveryDate,
         data.deliveryWindow,
-      );
-
-      // ARCH-04: Reserva capacidade dentro da mesma transação
-      await capacityService.reserve(
-        data.zoneId,
-        data.deliveryDate,
-        data.deliveryWindow,
-        tx,
-        data.timeSlotId,
       );
 
       // Snapshot imutável do horário de entrega no momento da criação.
@@ -1194,15 +1184,6 @@ export const orderService = {
           },
         },
         tx
-      );
-
-      // Libera capacidade se estava reservada
-      await capacityService.release(
-        current.zone_id,
-        current.delivery_date.toISOString().split("T")[0],
-        current.delivery_window,
-        tx,
-        current.time_slot_id,
       );
 
       return updated;

@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => {
       closeInventoryReconciliationSession: vi.fn(),
     },
     kpiService: { getKpis: vi.fn() },
-    capacityService: { getAvailability: vi.fn() },
     scheduleService: {
       getConfig: vi.fn(),
       upsertWeekdays: vi.fn(),
@@ -101,9 +100,7 @@ vi.mock("../services/kpi.service.js", () => ({
   kpiService: mocks.kpiService,
 }));
 
-vi.mock("../services/capacity.service.js", () => ({
-  capacityService: mocks.capacityService,
-}));
+
 
 vi.mock("../services/schedule.service.js", () => ({
   scheduleService: mocks.scheduleService,
