@@ -30,14 +30,7 @@ const PAYMENT_METHODS: {
     iconBg: "bg-[#d8e2ff]",
     iconColor: "text-[#32466e]",
   },
-  {
-    value: "cash",
-    label: "Dinheiro",
-    sublabel: "Pague na hora da entrega",
-    icon: WalletCards,
-    iconBg: "bg-[#e1e3e4]",
-    iconColor: "text-[#434656]",
-  },
+
 ];
 
 interface PaymentMethodSelectorProps {
