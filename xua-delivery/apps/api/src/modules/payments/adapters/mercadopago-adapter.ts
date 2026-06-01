@@ -73,6 +73,24 @@ function withQueryParams(url: string, params: Record<string, string>): string {
   return parsed.toString();
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === "localhost"
+    || normalized === "127.0.0.1"
+    || normalized === "0.0.0.0"
+    || normalized === "::1";
+}
+
+function shouldEnableAutoReturn(successBackUrl: string): boolean {
+  try {
+    const parsed = new URL(successBackUrl);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && !isLoopbackHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function getBackUrl(
   envName: string,
   legacyEnvName: string,
@@ -225,6 +243,31 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           },
         ];
 
+    const backUrls = {
+      success: getBackUrl(
+        "MERCADOPAGO_BACK_URL_SUCCESS",
+        "MERCADOPAGO_SUCCESS_URL",
+        "success",
+        referenceId,
+        paymentKind
+      ),
+      failure: getBackUrl(
+        "MERCADOPAGO_BACK_URL_FAILURE",
+        "MERCADOPAGO_FAILURE_URL",
+        "failure",
+        referenceId,
+        paymentKind
+      ),
+      pending: getBackUrl(
+        "MERCADOPAGO_BACK_URL_PENDING",
+        "MERCADOPAGO_PENDING_URL",
+        "pending",
+        referenceId,
+        paymentKind
+      ),
+    };
+    const autoReturn = shouldEnableAutoReturn(backUrls.success) ? "approved" : undefined;
+
     const preference = await mercadoPagoRequest<MercadoPagoPreferenceResponse>(
       "/checkout/preferences",
       {
@@ -236,30 +279,8 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           items,
           external_reference: referenceId,
           notification_url: getNotificationUrl({ ...metadata, orderId: referenceId, kind: paymentKind }),
-          back_urls: {
-            success: getBackUrl(
-              "MERCADOPAGO_BACK_URL_SUCCESS",
-              "MERCADOPAGO_SUCCESS_URL",
-              "success",
-              referenceId,
-              paymentKind
-            ),
-            failure: getBackUrl(
-              "MERCADOPAGO_BACK_URL_FAILURE",
-              "MERCADOPAGO_FAILURE_URL",
-              "failure",
-              referenceId,
-              paymentKind
-            ),
-            pending: getBackUrl(
-              "MERCADOPAGO_BACK_URL_PENDING",
-              "MERCADOPAGO_PENDING_URL",
-              "pending",
-              referenceId,
-              paymentKind
-            ),
-          },
-          auto_return: "approved",
+          back_urls: backUrls,
+          ...(autoReturn ? { auto_return: autoReturn } : {}),
           statement_descriptor: getStatementDescriptor(),
           payer: metadata.payerEmail ? { email: metadata.payerEmail } : undefined,
           metadata: {

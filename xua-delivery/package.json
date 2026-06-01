@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "npm run dev:api & npm run dev:web",
     "dev:api": "npm run dev -w @xua/api",
+    "dev:api:stable": "node --env-file=apps/api/.env --import tsx apps/api/src/server/index.ts",
+    "dev:worker:stable": "node --env-file=apps/api/.env --import tsx apps/api/src/worker/index.ts",
     "dev:web": "npm run dev -w @xua/web",
     "build:api": "npx prisma generate",
     "build:web": "npm run build -w @xua/web",

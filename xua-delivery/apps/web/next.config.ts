@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 
+function getAllowedDevOrigins(): string[] | undefined {
+  const rawOrigin = process.env.DEV_PUBLIC_ORIGIN?.trim();
+  if (!rawOrigin) return undefined;
+
+  try {
+    return [new URL(rawOrigin).host];
+  } catch {
+    return undefined;
+  }
+}
+
+const allowedDevOrigins = getAllowedDevOrigins();
+
 const nextConfig: NextConfig = {
+  ...(allowedDevOrigins ? { allowedDevOrigins } : {}),
   // Reduz drasticamente o número de módulos processados pelo Turbopack em dev
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "date-fns", "@radix-ui/react-icons"],
