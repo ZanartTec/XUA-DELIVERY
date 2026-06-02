@@ -164,7 +164,6 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
         1. Dia da semana está ativo na agenda.
         2. Data não está na lista de bloqueios (`23_cfg_distributor_blocked_dates`).
         3. Lead-time atendido (horário atual + lead_time < horário limite do dia).
-        4. Existe capacidade disponível (slots não esgotados).
 - **[NOVO] Datas bloqueadas** (`23_cfg_distributor_blocked_dates`):
     - Distribuidor pode bloquear datas específicas (feriados, manutenção, etc.) com motivo opcional.
     - CRUD via `POST/DELETE /api/distributor/schedule/:distributorId/block-date`.
@@ -352,7 +351,7 @@ operação cita scripts e comunicação).
 - Feedback deve ser “ **1 pergunta + opcional** ”.
 - Se nota baixa, abrir CTA direto para suporte (“resolver agora”).
 
-**Etapa 9 — Conciliação diária e governança de vasilhames**
+**Etapa 9 — Conciliação diária, governança de vasilhames e inventário operacional**
 
 **Stakeholders:** Distribuidor; Operações Xuá
 **Aplicação:** Dashboard (estoque e relatórios)
@@ -366,15 +365,22 @@ operação cita scripts e comunicação).
 
 **Requisitos de programação**
 
-- Rotina de conciliação:
+- Conciliação de vasilhames legacy (_trn_reconciliations\):
     - entradas/saídas por dia
     - divergências e justificativas
+- **[NOVO] Módulo de inventário operacional** (tabelas 9_mst_inventory_items\ a _trn_inventory_reconciliation_items\):
+    - Catálogo de itens (9_mst_inventory_items\): garrafões cheios/vazios, insumos, produtos vendáveis. Cada item tem tipo (\SELLABLE_PRODUCT\, \RETURNABLE_FULL\, \RETURNABLE_EMPTY\, \SUPPLY\) e limiar de estoque baixo.
+    - Saldo materializado por distribuidora (_trn_distributor_inventory_balances\): \quantity_on_hand\ atualizado a cada movimentação.
+    - Log imutável de movimentações (_trn_inventory_movements\): registra delta, tipo (ex: \ORDER_ACCEPT_OUT\, \EMPTY_RETURN_IN\, \RECONCILIATION_ADJUSTMENT\), ator responsável e referência de origem (pedido, sessão de reconciliação, etc.).
+    - Sessões de reconciliação de inventário (_trn_inventory_reconciliation_sessions\): operador abre uma sessão (\OPEN\), conta o estoque físico item a item, e fecha (\CLOSED\) registrando justificativa para divergências. Ao fechar, o sistema gera automaticamente movimentos de ajuste.
+    - Detalhamento por item de sessão (_trn_inventory_reconciliation_items\): snapshot_quantity (saldo no momento da abertura), counted_quantity (contagem física), delta calculado e referência ao movimento de ajuste gerado.
 - Fluxo de quarentena (status do vasilhame).
 - Auditoria (campanha Moto Xuá: auditoria trimestral) — logs e trilha de auditoria.
 
 **Usabilidade**
 
 - Painel de divergências deve ser “fila de resolução” (não só relatório).
+- Alerta visual quando \quantity_on_hand\ ≤ \low_stock_threshold\ de qualquer item.
 - Exportação/relatório simples para o gestor.
 
 

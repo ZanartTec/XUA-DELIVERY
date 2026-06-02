@@ -2,7 +2,7 @@
 
 ## Auditoria funcional do sistema como está implementado hoje
 
-> Data de referência: 08/04/2026
+> Data de referência: 02/06/2026
 > Escopo: fluxo de compra, persistência do pedido, papel da distribuidora Xuá, visibilidade por perfil e causas do pedido não aparecer nas telas operacionais.
 
 ---
@@ -72,18 +72,21 @@ Hoje o relacionamento e este:
 
 Se a Xuá for a unica distribuidora operando no sistema, entao todas as zonas ativas devem apontar para o registro da Xuá na tabela de distribuidoras. Nesse caso, todos os pedidos deveriam cair na fila operacional da Xuá.
 
-### 3.3. O detalhe que gera confusao
+### 3.3. Como o distribuidor e identificado no sistema
 
-O usuario logado com perfil distributor_admin nao tem como identificador principal o id da distribuidora. O token JWT atual usa o id do usuario autenticado.
+O usuario logado com perfil distributor_admin usa o id do usuario autenticado (
+eq.user.sub), e nao o id da distribuidora. Para resolver esse mapeamento, o sistema usa o servico 
+esolveDistributorId(userId) no repositorio do distribuidor.
 
 Ou seja:
 
 - pedido.distributor_id = id da distribuidora
 - req.user.sub = id do usuario distribuidor logado
 
-Esses dois ids nao sao a mesma coisa.
+O servico 
+esolveDistributorId() faz o join entre usuario e distribuidora para que as queries de pedidos da distribuidora funcionem corretamente.
 
-Esse detalhe e a principal causa do pedido nao aparecer para o distribuidor hoje.
+> **Status (junho/2026):** Corrigido. O distributorRepository.resolveDistributorId(userId) e chamado em todos os endpoints do distribuidor, resolvendo a associacao corretamente.
 
 ---
 
@@ -201,7 +204,6 @@ Hoje o backend persiste de verdade:
 - os itens do pedido
 - o evento de auditoria de criacao do pedido
 - eventual caucao, quando aplicavel
-- relacao com capacidade de entrega da zona
 
 Tudo isso acontece dentro de transacao.
 
@@ -320,47 +322,25 @@ Essa parte do fluxo esta coerente com a ideia do produto: cada cliente acompanha
 
 ## 6.2. Distribuidor
 
-O distribuidor deveria ver os pedidos da propria distribuidora, filtrados pelo distributor_id do pedido.
+O distribuidor ve os pedidos da propria distribuidora, filtrados pelo distributor_id do pedido.
 
-Porem, hoje existe um erro de associacao de identidade.
-
-### Como deveria funcionar
+### Como funciona
 
 Se a Xuá for a distribuidora responsavel pela zona, entao:
 
 - o pedido recebe o distributor_id da Xuá
-- os usuarios distributor_admin ligados a Xuá deveriam enxergar esse pedido
+- os usuarios distributor_admin ligados a Xuá enxergam esse pedido
 
-### Como esta funcionando hoje
+### Resolucao do mapeamento usuario → distribuidora
 
-O backend filtra e autoriza o acesso do distribuidor usando o id do usuario logado, e nao o id da distribuidora.
+O backend chama distributorRepository.resolveDistributorId(userId) para mapear o id do usuario logado para o id da distribuidora correspondente. Assim, a query de pedidos filtra corretamente por distributor_id.
 
-Na pratica, o sistema compara:
+> **Status (junho/2026):** O bug de associacao de identidade entre usuario e distribuidora foi **corrigido** por meio do servico 
+esolveDistributorId(). O distribuidor agora enxerga corretamente os pedidos da sua distribuidora.
 
-- order.distributor_id
-- req.user.sub
+### Salas de socket
 
-Mas:
-
-- order.distributor_id = id da distribuidora
-- req.user.sub = id do usuario distribuidor autenticado
-
-Esses ids nao coincidem.
-
-Resultado:
-
-- o pedido existe
-- o pedido pertence a distribuicao da Xuá
-- mas a fila do distribuidor pode vir vazia porque o filtro esta usando o identificador errado
-
-### Efeito colateral no tempo real
-
-O mesmo problema acontece nas salas de socket:
-
-- o usuario entra na sala baseada no id do usuario
-- o evento de novo pedido e emitido para a sala baseada no id da distribuidora
-
-Entao a notificacao em tempo real do distribuidor tambem pode falhar pelo mesmo motivo estrutural.
+O evento de novo pedido e emitido para a sala distributor:{distributorId}, e o usuario distributor_admin entra nessa sala com o distributorId resolvido no handshake.
 
 ---
 
@@ -376,23 +356,15 @@ Hoje o backend do motorista lista pedidos quando:
 
 Isso significa que um pedido recem-criado nunca apareceria para o motorista antes do dispatch, e isso e esperado.
 
-### Porem existe um segundo problema
+### Visibilidade do motorista hoje
 
-Mesmo quando houver pedidos validos para o motorista, a pagina atual da web do motorista consome a resposta da API em um formato diferente do que o backend devolve.
+Para o motorista ver um pedido, e necessario que:
 
-Em outras palavras:
+1. a distribuidora tenha aceitado o pedido
+2. o checklist tenha sido concluido
+3. o pedido tenha sido despachado com um driver_id atribuido ao motorista logado
 
-- a API retorna um array cru
-- a tela tenta ler data.deliveries
-
-Resultado:
-
-- mesmo havendo entregas validas, a interface pode continuar exibindo lista vazia
-
-Ou seja, para o motorista existem hoje dois motivos para nao ver o pedido:
-
-1. o pedido ainda nao foi despachado para ele
-2. a propria tela esta lendo a resposta da API no formato errado
+> **Status (junho/2026):** O bug de consumo do formato da resposta da API (data.deliveries) foi corrigido. A tela do motorista consome corretamente a resposta atual do backend.
 
 ---
 
@@ -422,33 +394,20 @@ Entao a visao global existe mais no nivel de permissao backend do que como uma e
 
 Esta e a parte central da auditoria.
 
-## 7.1. Motivo principal na tela da distribuidora
+## 7.1. Visibilidade da tela da distribuidora (corrigida)
 
-O pedido nao aparece na fila da distribuidora porque existe uma quebra entre:
+O mapeamento entre usuario distribuidor e distribuidora foi corrigido via 
+esolveDistributorId(). O pedido salvo com distributor_id correto e retornado pela fila do distribuidor quando o usuario distributor_admin logado esta vinculado a essa distribuidora.
 
-- o id da distribuidora dona do pedido
-- o id do usuario distribuidor autenticado
-
-O sistema esta filtrando como se essas duas coisas fossem iguais, mas elas nao sao.
-
-### Consequencia
-
-Mesmo com o pedido corretamente salvo e associado a distribuidora Xuá, a fila pode retornar vazia para o usuario distributor_admin.
-
-Esse e hoje o principal motivo funcional para o distribuidor nao enxergar o pedido.
+> **Status (junho/2026):** Resolvido. A fila operacional do distribuidor exibe corretamente os pedidos em SENT_TO_DISTRIBUTOR.
 
 ---
 
-## 7.2. Motivo estrutural adicional no realtime da distribuidora
+## 7.2. Realtime da distribuidora (corrigido)
 
-O problema nao acontece apenas na listagem por HTTP. Ele tambem afeta a notificacao em tempo real.
+O usuario distributor_admin entra na sala distributor:{distributorId} com o distributorId resolvido no handshake. Eventos de novos pedidos sao publicados para essa sala, e o operador recebe as notificacoes corretamente.
 
-Como a sala do socket do usuario distribuidor e baseada no id do usuario, mas o evento do novo pedido e publicado para a sala baseada no id da distribuidora, o evento tambem nao chega corretamente ao operador.
-
-Entao o distribuidor perde duas coisas ao mesmo tempo:
-
-- a listagem correta
-- a notificacao em tempo real
+> **Status (junho/2026):** Resolvido. O socket usa o mesmo distributorId que a query HTTP.
 
 ---
 
@@ -466,11 +425,11 @@ entao ele nao deveria mesmo aparecer no modulo do motorista.
 
 ---
 
-## 7.4. Motivo adicional na tela do motorista
+## 7.4. Tela do motorista (corrigida)
 
-Mesmo depois do dispatch, a tela do motorista ainda pode continuar vazia por um bug de consumo da resposta da API.
+A tela do motorista foi corrigida e consome corretamente a resposta do backend. Pedidos despachados para o motorista logado aparecem na lista de entregas do dia.
 
-Entao existe uma falha de implementacao no frontend do motorista que impede a tela de refletir corretamente os dados retornados pelo backend.
+> **Status (junho/2026):** Resolvido. O bug de formato de resposta (data.deliveries) foi corrigido.
 
 ---
 
@@ -501,12 +460,10 @@ Se a Xuá e a distribuidora da operacao, entao o comportamento de negocio espera
 5. a Xuá aceita, prepara e despacha
 6. o motorista da Xuá faz a entrega
 
-Hoje o sistema esta muito perto dessa modelagem, mas tropeca no elo entre:
+O sistema implementa corretamente essa modelagem. O elo entre usuario distribuidor e distribuidora e resolvido por 
+esolveDistributorId().
 
-- usuario distribuidor autenticado
-- distribuidora proprietaria do pedido
-
-Portanto, o problema atual nao e que o sistema nao entende a Xuá como distribuidora. O problema e que a camada de acesso e visibilidade nao esta respeitando corretamente essa relacao.
+Portanto, o sistema entende a Xuá como distribuidora e respeita corretamente a relacao de acesso e visibilidade.
 
 ---
 
@@ -536,15 +493,16 @@ Nao existe uma role admin_master no codigo atual.
 
 O mais proximo disso hoje sao os perfis ops e support, que possuem permissao ampla no backend, mas sem uma fila master operacional unica e dedicada.
 
-### Por que o pedido nao aparece hoje?
+### Por que o pedido nao aparece no estado esperado?
 
-Pelos seguintes motivos principais:
+Os problemas historicos foram corrigidos:
 
-1. a fila do distribuidor usa o id do usuario logado onde deveria considerar a relacao com a distribuidora do pedido
-2. o realtime do distribuidor usa a mesma associacao incorreta
-3. o motorista so ve pedidos apos dispatch com driver_id
-4. a tela do motorista le a resposta da API no formato errado
-5. se a simulacao de pagamento mock falhar, o pedido pode nem chegar ao estado esperado pela fila do distribuidor
+1. ~~a fila do distribuidor usa o id do usuario logado~~ → corrigido via 
+esolveDistributorId()
+2. ~~o realtime usa a associacao incorreta~~ → corrigido: sala usa distributor:{distributorId}
+3. o motorista so ve pedidos apos dispatch com driver_id → comportamento correto e esperado
+4. ~~a tela do motorista le a resposta no formato errado~~ → corrigido
+5. se a simulacao de pagamento mock falhar, o pedido pode nao chegar a SENT_TO_DISTRIBUTOR → ainda possivel em ambiente de dev com pagamento mock
 
 ---
 
@@ -559,23 +517,26 @@ O sistema atual ja possui a espinha dorsal correta do fluxo de pedidos:
 - motorista deveria receber apenas pedidos despachados
 - ops e support possuem visibilidade ampla em nivel de permissao
 
-O problema central hoje nao esta na criacao do pedido, mas sim na passagem do pedido entre os atores operacionais.
+O fluxo ponta a ponta esta funcional.
 
 Em resumo:
 
 - o consumidor cria o pedido corretamente
-- o pedido e persistido corretamente
-- a Xuá pode ser a distribuidora correta do pedido
-- mas a visibilidade do distribuidor esta quebrada por uma associacao incorreta entre usuario e distribuidora
-- a visibilidade do motorista depende de dispatch e ainda sofre com um bug de frontend
+- o pedido e persistido corretamente (30 tabelas, incluindo 5 tabelas de inventario operacional)
+- a Xuá e a distribuidora correta do pedido
+- a visibilidade do distribuidor funciona corretamente via 
+esolveDistributorId()
+- o realtime do distribuidor funciona corretamente via sala distributor:{distributorId}
+- a visibilidade do motorista funciona apos dispatch com driver_id atribuido
+- a tela do motorista consome a resposta da API corretamente
 
-Por isso, o comportamento observado hoje pode ser exatamente este:
+O comportamento correto hoje e:
 
 - o cliente cria o pedido
-- o pedido existe no banco
-- mas ele nao aparece nem para o distribuidor nem para o motorista nas telas esperadas
-
-Nao porque o pedido nao exista, e sim porque o fluxo de exibicao e atribuicao ainda esta inconsistente na implementacao atual.
+- o pagamento e processado (ou simulado em dev)
+- o pedido chega a SENT_TO_DISTRIBUTOR
+- o distribuidor ve o pedido na fila operacional e recebe notificacao em tempo real
+- apos despacho, o motorista ve a entrega na propria lista
 
 ---
 
@@ -590,13 +551,11 @@ Nao porque o pedido nao exista, e sim porque o fluxo de exibicao e atribuicao ai
 - simulacao de pagamento mock
 - estados de aceite, checklist, despacho e entrega
 
-### O que esta incompleto ou inconsistente hoje
+### O que esta incompleto ou em evolucao
 
-- visibilidade correta do pedido para distributor_admin
-- notificacao realtime correta para distribuidor
-- tela do motorista consumindo resposta da API corretamente
-- experiencia de painel global unificado para administracao total
+- experiencia de painel global unificado para administracao total (ops/support possuem permissao, mas sem fila master dedicada na UI)
+- modulo de inventario operacional (tabelas 29-33) em rollout progressivo
 
 ### Leitura correta do estado atual
 
-O sistema nao esta sem fluxo de pedido. Ele ja possui fluxo real. O que falta e alinhar a camada de exibicao, autorizacao e atribuicao operacional para que esse fluxo apareca corretamente nas interfaces certas.
+O sistema possui fluxo de pedido completo e funcional. A criacao, persistencia, roteamento para a distribuidora, visibilidade operacional e atribuicao ao motorista estao todos implementados e funcionando corretamente.

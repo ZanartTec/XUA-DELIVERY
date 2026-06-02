@@ -1,9 +1,9 @@
 # Fluxo de Usuários — Xuá Delivery
-## Versão Web — Next.js Fullstack Unificado
+## Versão Web — Monorepo Express + Next.js
 
 > **Zanart — Confidencial**
 
-O sistema tem **4 usuários** com jornadas distintas. O fluxo abaixo descreve cada página, decisão, caminho alternativo e ponto de integração entre os usuários. Todas as superfícies rodam no mesmo projeto Next.js, acessíveis via navegador web (mobile-first). O Socket.io é embutido no custom server para notificações em tempo real.
+O sistema tem **4 usuários** com jornadas distintas. O fluxo abaixo descreve cada página, decisão, caminho alternativo e ponto de integração entre os usuários. Todas as superfícies rodam no mesmo projeto Next.js, acessíveis via navegador web (mobile-first). O Socket.io roda no servidor Express (apps/api, porta 4000) para notificações em tempo real.
 
 ---
 
@@ -13,7 +13,7 @@ O sistema tem **4 usuários** com jornadas distintas. O fluxo abaixo descreve ca
 |---|---|---|---|
 | Consumidor | Web mobile-first | `consumer` | `/catalog` |
 | Distribuidor | Web responsivo | `distributor_admin` | `/distributor/queue` |
-| Motorista | Web PWA (offline) | `operator` | `/driver/deliveries` |
+| Motorista | Web PWA (offline) | `driver` | `/driver/deliveries` |
 | Operações / Suporte | Web desktop | `ops` / `support` | `/ops/kpis` ou `/support` |
 
 ---
@@ -31,7 +31,7 @@ Abre o navegador -> /login
 │   │   └── [Sucesso] -> middleware.ts decodifica JWT
 │   │       ├── role=consumer           -> redirect /catalog
 │   │       ├── role=distributor_admin  -> redirect /distributor/queue
-│   │       ├── role=operator           -> redirect /driver/deliveries
+│   │       ├── role=driver             -> redirect /driver/deliveries
 │   │       └── role=ops                -> redirect /ops/kpis
 │   └── [Novo?] -> /register -> nome + e-mail + senha (min 8 chars)
 │       ├── Validação inline com Zod + React Hook Form
@@ -74,10 +74,9 @@ Agendar entrega (/checkout/schedule)
 ├── Calendário horizontal: próximos 14 dias (componente Calendar shadcn/ui)
 ├── Somente datas disponíveis são clicáveis (respeitam agenda da distribuidora)
 │   └── GET /api/zones/:id/available-dates?days=14
-│       Filtra por: dia da semana ativo, datas bloqueadas, lead_time, capacidade
+│       Filtra por: dia da semana ativo, datas bloqueadas, lead_time
 ├── Para cada dia: pills 'Manhã (8h–12h)' e 'Tarde (13h–18h)'
-│   └── [Slot esgotado] -> pill desabilitada + tooltip 'Esgotado'
-├── [Sem slots em nenhum dia] -> mensagem + link suporte
+├── [Sem slots em nenhum dia disponível] -> mensagem + link suporte
 └── Botão 'Continuar' -> /checkout/distributor
 
 Seleção de distribuidora (/checkout/distributor) — NOVA ETAPA
@@ -251,7 +250,7 @@ Configuração de agenda (/distributor/schedule) — NOVA PÁGINA
 **5 páginas · Web PWA com offline**
 
 ```
-Login (role: operator) -> middleware redirect /driver/deliveries
+Login (role: driver) -> middleware redirect /driver/deliveries
 
 Lista de entregas do dia (/driver/deliveries)
 ├── Carregada ao abrir (GET /api/driver/deliveries)
@@ -325,8 +324,6 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Lista de zonas existentes com distribuidor vinculado
 ├── Botão 'Nova zona' -> /ops/zones/create
 │   ├── Form: nome da zona, selecionar distribuidor, bairros/CEPs cobertos
-│   ├── Configurar capacidade: para cada dia da semana, definir
-│   │   slots manhã (qtd) e tarde (qtd)
 │   └── Configuração reflete imediatamente no checkout do consumidor
 └── Clique em zona existente -> /ops/zones/[id] (editar)
 
@@ -378,7 +375,7 @@ Login (role: ops ou support) -> middleware redirect por role
 
 ## Pontos de Integração entre Usuários
 
-Todos os eventos de notificação passam pelo **Socket.io** embutido no custom server do Next.js. Web Push é usado como fallback para quando o usuário não está com a página aberta.
+Todos os eventos de notificação passam pelo **Socket.io** no servidor Express (apps/api, porta 4000). Web Push é usado como fallback para quando o usuário não está com a página aberta.
 
 | Evento | Emissor | Receptor | Canal |
 |---|---|---|---|
@@ -431,11 +428,11 @@ Todos os eventos de notificação passam pelo **Socket.io** embutido no custom s
 | `/distributor/reconciliation` | (distributor) | dist_admin | Conciliação: saídas/retornos/delta + justificativa obrigatória. |
 | `/distributor/kpis` | (distributor) | dist_admin | KPIs: 3 cards Recharts + seletor período. |
 | `/distributor/schedule` | (distributor) | dist_admin | **[NOVO]** Agenda semanal: grid 7 dias (toggle + lead_time) + CRUD datas bloqueadas. |
-| `/driver/deliveries` | (driver) | operator | Lista entregas do dia (funciona offline via Service Worker). |
-| `/driver/deliveries/[id]/otp` | (driver) | operator | OTP: 6 inputs auto-avanço + shake erro + contador tentativas. |
-| `/driver/deliveries/[id]/exchange` | (driver) | operator | Troca: stepper qty→condição. Caução Regra A automática. |
-| `/driver/deliveries/[id]/non-collection` | (driver) | operator | Não-coleta: select motivo obrigatório + texto opcional. |
-| `/driver/sync` | (driver) | operator | Status fila offline: eventos pendentes + progresso sync. |
+| `/driver/deliveries` | (driver) | driver | Lista entregas do dia (funciona offline via Service Worker). |
+| `/driver/deliveries/[id]/otp` | (driver) | driver | OTP: 6 inputs auto-avanço + shake erro + contador tentativas. |
+| `/driver/deliveries/[id]/exchange` | (driver) | driver | Troca: stepper qty→condição. Caução Regra A automática. |
+| `/driver/deliveries/[id]/non-collection` | (driver) | driver | Não-coleta: select motivo obrigatório + texto opcional. |
+| `/driver/sync` | (driver) | driver | Status fila offline: eventos pendentes + progresso sync. |
 | `/ops/zones` | (ops) | ops | Configurar zonas: CRUD + capacidade por dia/janela. |
 | `/ops/zones/create` | (ops) | ops | Nova zona: nome + distribuidor + bairros/CEPs + capacidade. |
 | `/ops/zones/[id]` | (ops) | ops | Editar zona existente. |
@@ -447,6 +444,6 @@ Todos os eventos de notificação passam pelo **Socket.io** embutido no custom s
 
 ---
 
-*Xuá Delivery — Fluxo de Usuários v3.0 (Next.js Fullstack Unificado)*
-*Zanart · Março 2026*
-*33 rotas · 4 perfis · 32 páginas · Socket.io embutido · PWA offline*
+*Xuá Delivery — Fluxo de Usuários v4.0 (Monorepo Express + Next.js)*
+*Zanart · Junho 2026*
+*33 rotas · 4 perfis · 32 páginas · Socket.io (Express, porta 4000) · PWA offline*
