@@ -79,9 +79,13 @@ export function createSocketGateway(httpServer: HttpServer): Server {
  */
 export function getIO(): Server {
   if (!io) {
-    throw new Error(
-      "Socket.io não inicializado. Chame createSocketGateway() primeiro."
-    );
+    // Retorna um mock/dummy para evitar crash em processos que não sobem o Socket.IO (como Workers)
+    return {
+      to: () => ({
+        emit: () => {},
+      }),
+      emit: () => {},
+    } as unknown as Server;
   }
   return io;
 }
