@@ -138,6 +138,8 @@ services:
       # O worker precisa do JWT_SECRET para emitir eventos autenticados via Socket.IO
       - key: JWT_SECRET
         sync: false
+      - key: OTP_SECRET
+        sync: false
       - key: INTERNAL_SECRET
         sync: false
 
@@ -188,11 +190,20 @@ services:
       - key: NEXT_PUBLIC_API_URL
         sync: false
       - key: JWT_SECRET
-        sync: false
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: JWT_SECRET
       - key: INTERNAL_SECRET
-        sync: false
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: INTERNAL_SECRET
       - key: NEXT_PUBLIC_VAPID_PUBLIC_KEY
-        sync: false
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: VAPID_PUBLIC_KEY
 
   # ─── Cron: Geração de assinaturas diárias ─────────────────────────────────
   - type: cron
