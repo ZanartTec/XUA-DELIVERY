@@ -12,7 +12,7 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    buildCommand: npm install --include=dev && npx prisma generate && npx prisma migrate deploy
     startCommand: npx tsx apps/api/src/server/index.ts
     healthCheckPath: /health
     envVars:
@@ -115,7 +115,7 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    buildCommand: npm install && npx prisma generate
+    buildCommand: npm install --include=dev && npx prisma generate
     startCommand: npx tsx apps/api/src/worker/index.ts
     envVars:
       - key: NODE_ENV
@@ -178,7 +178,7 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    buildCommand: npm install && npm run build -w @xua/web
+    buildCommand: npm install --include=dev && npm run build -w @xua/web
     startCommand: npm run start -w @xua/web
     envVars:
       - key: NODE_ENV
