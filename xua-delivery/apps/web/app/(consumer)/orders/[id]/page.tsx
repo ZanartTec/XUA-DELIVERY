@@ -104,6 +104,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   CAPTURED: "Pago",
   FAILED: "Falhou",
   REFUNDED: "Reembolsado",
+  EXPIRED: "Expirado",
 };
 
 const PAYMENT_KIND_LABELS: Record<string, string> = {
@@ -117,6 +118,7 @@ const DEPOSIT_STATUS_LABELS: Record<string, string> = {
   REFUND_INITIATED: "Reembolso iniciado",
   REFUNDED: "Reembolsada",
   FORFEITED: "Retida definitivamente",
+  CANCELLED: "Cancelada",
 };
 
 const OTP_STATUS_LABELS: Record<string, string> = {
@@ -283,9 +285,11 @@ export default function OrderDetailPage() {
   }
 
   const isDelivered = order.status === "DELIVERED";
+  const isPaymentExpired = order.payment_status === "expired";
   const canResumePayment =
     (order.status === "CREATED" || order.status === "PAYMENT_PENDING") &&
-    (!order.payment_status || order.payment_status.toLowerCase() === "pending");
+    (!order.payment_status || order.payment_status.toLowerCase() === "pending") &&
+    !isPaymentExpired;
   const { step, pct } = getProgress(order.status);
   const latestPayment = order.payments[0];
   const latestDeposit = order.deposits[0];
@@ -418,6 +422,24 @@ export default function OrderDetailPage() {
 
         </div>
       </div>
+
+      {/* -- Payment Expired Banner -- */}
+      {isPaymentExpired && (
+        <div className="mx-6 mt-4 rounded-2xl border border-red-200 bg-red-50 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
+              <AlertTriangle className="h-4 w-4 text-red-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-red-900">Pagamento expirado</p>
+              <p className="mt-0.5 text-xs text-red-700">
+                Seu pedido foi cancelado automaticamente porque o prazo de 15 minutos
+                para pagamento expirou.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* -- Resume Payment Banner -- */}
       {canResumePayment && (

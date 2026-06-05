@@ -57,6 +57,7 @@ enum PaymentStatus {
   CAPTURED    @map("captured")
   FAILED      @map("failed")
   REFUNDED    @map("refunded")
+  EXPIRED     @map("expired")
 
   @@map("payment_status")
 }
@@ -66,6 +67,7 @@ enum DepositStatus {
   REFUND_INITIATED  @map("refund_initiated")
   REFUNDED          @map("refunded")
   FORFEITED         @map("forfeited")
+  CANCELLED         @map("cancelled")
 
   @@map("deposit_status")
 }
@@ -122,6 +124,7 @@ enum AuditEventType {
   PAYMENT_CREATED
   PAYMENT_CAPTURED
   PAYMENT_FAILED
+  PAYMENT_EXPIRED
   DEPOSIT_HELD
   DEPOSIT_REFUND_INITIATED
   DEPOSIT_REFUNDED

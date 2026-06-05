@@ -16,6 +16,7 @@ import {
   type PaymentMethod,
 } from "../gateway/payments.gateway.js";
 import { createLogger } from "../../../infra/logger";
+import { schedulePaymentExpiration } from "../../../infra/queue/payment-jobs.producer.js";
 
 const log = createLogger("payments");
 
@@ -198,6 +199,11 @@ export const paymentService = {
       { orderId: order.id, paymentId: payment.id, preferenceId: result.externalId },
       "Mercado Pago checkout preference created"
     );
+
+    // Agenda expiração automática — 15 min sem pagamento = cancelamento
+    schedulePaymentExpiration(order.id).catch((err) => {
+      log.error({ orderId: order.id, err }, "Failed to schedule payment expiration");
+    });
 
     return {
       payment,

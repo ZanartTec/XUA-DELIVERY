@@ -17,6 +17,7 @@ const ORDER_PAYMENT_STATUS_BY_PAYMENT_STATUS: Record<PaymentStatus, string> = {
   [PaymentStatus.REFUNDED]: "refunded",
   [PaymentStatus.AUTHORIZED]: "pending",
   [PaymentStatus.CREATED]: "pending",
+  [PaymentStatus.EXPIRED]: "expired",
 };
 
 const AUDIT_EVENT_BY_PAYMENT_STATUS: Record<PaymentStatus, AuditEventType> = {
@@ -25,6 +26,7 @@ const AUDIT_EVENT_BY_PAYMENT_STATUS: Record<PaymentStatus, AuditEventType> = {
   [PaymentStatus.REFUNDED]: AuditEventType.PAYMENT_FAILED,
   [PaymentStatus.AUTHORIZED]: AuditEventType.PAYMENT_CREATED,
   [PaymentStatus.CREATED]: AuditEventType.PAYMENT_CREATED,
+  [PaymentStatus.EXPIRED]: AuditEventType.PAYMENT_EXPIRED,
 };
 
 const STATUS_REGRESSIONS: Partial<Record<PaymentStatus, readonly PaymentStatus[]>> = {

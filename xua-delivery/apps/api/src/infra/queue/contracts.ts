@@ -19,6 +19,7 @@ export const PAYMENT_JOB_NAMES = {
   processWebhook: "process-webhook",
   chargePayment: "charge-payment",
   reconcilePayment: "reconcile-payment",
+  expirePayment: "expire-payment",
 } as const;
 
 export type InternalJobName =
@@ -53,8 +54,14 @@ export interface PaymentReconciliationJobPayload extends BaseJobPayload {
   providerPaymentId?: string;
 }
 
+export interface PaymentExpirationJobPayload extends BaseJobPayload {
+  jobName: typeof PAYMENT_JOB_NAMES.expirePayment;
+  orderId: string;
+}
+
 export type QueueJobPayload =
   | InternalJobPayload
   | PaymentWebhookJobPayload
   | PaymentChargeJobPayload
-  | PaymentReconciliationJobPayload;
+  | PaymentReconciliationJobPayload
+  | PaymentExpirationJobPayload;
