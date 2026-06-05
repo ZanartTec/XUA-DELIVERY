@@ -129,7 +129,8 @@ function assertPaymentReference(referenceId: string | null | undefined): string 
 }
 
 function getNotificationUrl(metadata?: PaymentChargeMetadata): string | undefined {
-  const url = process.env.MERCADOPAGO_NOTIFICATION_URL;
+  const url = process.env.MERCADOPAGO_NOTIFICATION_URL 
+    || (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "")}/api/payments/webhook` : undefined);
   if (!url) return undefined;
   const source = process.env.MERCADOPAGO_NOTIFICATION_SOURCE ?? "webhooks";
   const params: Record<string, string> = url.includes("source_news=")
