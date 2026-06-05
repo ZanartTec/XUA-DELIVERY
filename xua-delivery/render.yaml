@@ -8,6 +8,7 @@ services:
   # ─── API (HTTP Server) ────────────────────────────────────────────────────
   - type: web
     name: xua-api
+    rootDir: xua-delivery
     runtime: node
     plan: starter
     region: oregon
@@ -110,6 +111,7 @@ services:
   # ─── Worker (Background Jobs) ─────────────────────────────────────────────
   - type: worker
     name: xua-worker
+    rootDir: xua-delivery
     runtime: node
     plan: starter
     region: oregon
@@ -172,6 +174,7 @@ services:
   # ─── Cron: Geração de assinaturas diárias ─────────────────────────────────
   - type: cron
     name: subscription-cron
+    rootDir: xua-delivery
     runtime: node
     plan: starter
     region: oregon
@@ -198,6 +201,7 @@ services:
   # ─── Cron: Expiração de assinaturas ───────────────────────────────────────
   - type: cron
     name: subscription-expiry
+    rootDir: xua-delivery
     runtime: node
     plan: starter
     region: oregon
@@ -224,6 +228,7 @@ services:
   # ─── Cron: Limpeza de OTPs expirados ──────────────────────────────────────
   - type: cron
     name: otp-cleanup
+    rootDir: xua-delivery
     runtime: node
     plan: starter
     region: oregon
