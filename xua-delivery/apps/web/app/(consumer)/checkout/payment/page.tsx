@@ -104,6 +104,7 @@ function PaymentContent() {
   // mounted evita hydration mismatch: Zustand persist lê localStorage só no client
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(!isRetryMode);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -182,7 +183,7 @@ function PaymentContent() {
 
   // Load deposit preview + addresses
   useEffect(() => {
-    if (isRetryMode) {
+    if (isRetryMode || isRedirecting) {
       setPreviewLoading(false);
       setAddressLoading(false);
       return;
@@ -251,9 +252,10 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [isRetryMode, user?.id, storedAddressId]);
+  }, [isRetryMode, user?.id, storedAddressId, isRedirecting]);
 
   useEffect(() => {
+    if (isRedirecting) return;
     if (!retryOrderId) {
       setRetryOrder(null);
       setRetryLoading(false);
@@ -292,7 +294,7 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [retryOrderId, router]);
+  }, [retryOrderId, router, isRedirecting]);
 
   async function startCheckoutPayment(orderId: string): Promise<boolean> {
     if (paymentMethod !== "pix" && paymentMethod !== "credit") {
@@ -321,6 +323,7 @@ function PaymentContent() {
       return false;
     }
 
+    setIsRedirecting(true);
     window.location.href = redirectUrl;
     return true;
   }
@@ -392,6 +395,15 @@ function PaymentContent() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (isRedirecting) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 px-4 text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground font-medium">Redirecionando para o Mercado Pago...</p>
+      </div>
+    );
   }
 
   return (
