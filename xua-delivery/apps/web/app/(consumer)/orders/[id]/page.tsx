@@ -433,8 +433,7 @@ export default function OrderDetailPage() {
             <div className="min-w-0 flex-1">
               <p className="font-bold text-red-900">Pagamento expirado</p>
               <p className="mt-0.5 text-xs text-red-700">
-                Seu pedido foi cancelado automaticamente porque o prazo de 15 minutos
-                para pagamento expirou.
+                {order.cancellation_reason || "Seu pedido foi cancelado automaticamente porque o prazo para pagamento expirou."}
               </p>
             </div>
           </div>
