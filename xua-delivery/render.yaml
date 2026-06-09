@@ -216,15 +216,7 @@ services:
     region: oregon
     schedule: "0 9 * * *" # 06h São Paulo (BRT = UTC-3) = 09h UTC
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET }
-        });
-        if (!r.ok) { console.error('subscription-cron failed:', await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
@@ -243,15 +235,7 @@ services:
     region: oregon
     schedule: "30 9 * * *" # 06h30 São Paulo = 09h30 UTC
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription-expiry', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET }
-        });
-        if (!r.ok) { console.error('subscription-expiry cron failed:', await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription-expiry
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
@@ -270,15 +254,7 @@ services:
     region: oregon
     schedule: "*/15 * * * *" # A cada 15 minutos
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/otp-cleanup', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET }
-        });
-        if (!r.ok) { console.error('otp-cleanup cron failed:', await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts otp-cleanup
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
