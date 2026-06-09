@@ -31,6 +31,12 @@ const ID = {
   product20l:        "00000000-0000-4000-a000-000000000001",
   product10l:        "00000000-0000-4000-a000-000000000002",
 
+  // Categorias
+  categoryMineral:   "00000000-0000-4000-a000-000000002001",
+  categoryGallons:   "00000000-0000-4000-a000-000000002002",
+  categoryAccessories: "00000000-0000-4000-a000-000000002003",
+  categoryPremium:   "00000000-0000-4000-a000-000000002004",
+
   // Itens de estoque
   inventorySellable20l: "00000000-0000-4000-a000-000000001201",
   inventorySellable10l: "00000000-0000-4000-a000-000000001202",
@@ -329,6 +335,49 @@ async function main() {
     await prisma.product.upsert({ where: { id: p.id }, update: {}, create: p });
   }
   console.log("✅ Produtos: Galão 20L (R$25,00 + R$10,00 depósito), Garrafão 10L (R$15,00 + R$5,00 depósito)");
+
+  // ════════════════════════════════════════════════════════════════
+  // CATEGORIAS
+  // ════════════════════════════════════════════════════════════════
+  const categories = [
+    { id: ID.categoryMineral,     name: "Água Mineral",  value: "mineral",     sort_order: 0 },
+    { id: ID.categoryGallons,     name: "Galões",        value: "gallons",     sort_order: 1 },
+    { id: ID.categoryAccessories, name: "Acessórios",    value: "accessories", sort_order: 2 },
+    { id: ID.categoryPremium,     name: "Premium",       value: "premium",     sort_order: 3 },
+  ];
+  for (const cat of categories) {
+    await prisma.category.upsert({
+      where: { id: cat.id },
+      update: { name: cat.name, sort_order: cat.sort_order },
+      create: cat,
+    });
+  }
+  console.log("✅ Categorias: Água Mineral, Galões, Acessórios, Premium");
+
+  // Associar produtos às categorias
+  await prisma.product.update({
+    where: { id: ID.product20l },
+    data: {
+      categories: {
+        connect: [
+          { id: ID.categoryMineral },
+          { id: ID.categoryGallons },
+        ],
+      },
+    },
+  });
+  await prisma.product.update({
+    where: { id: ID.product10l },
+    data: {
+      categories: {
+        connect: [
+          { id: ID.categoryMineral },
+          { id: ID.categoryGallons },
+        ],
+      },
+    },
+  });
+  console.log("✅ Produtos associados às categorias");
 
   // ════════════════════════════════════════════════════════════════
   // ITENS DE ESTOQUE (catálogo do módulo de estoque)
