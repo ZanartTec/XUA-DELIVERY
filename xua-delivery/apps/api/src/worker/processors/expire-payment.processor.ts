@@ -100,8 +100,10 @@ export async function processPaymentExpiration(
 
     // === EXPIRAR ===
 
+    const minutes = Number(process.env.PAYMENT_EXPIRATION_MINUTES);
+    const expirationMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 15;
     const cancellationReason =
-      "Pagamento não confirmado dentro do prazo de 15 minutos";
+      `Pagamento não confirmado dentro do prazo de ${expirationMinutes} minutos`;
 
     // 1. Atualizar pagamento para EXPIRED (se existe)
     if (payment) {
