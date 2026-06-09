@@ -6,16 +6,13 @@ import {
   User,
   MapPin,
   ChevronRight,
-  LogOut,
-  CreditCard,
   HelpCircle,
   Info,
   Truck,
-  Droplets,
   Building2,
 } from "lucide-react";
 import { useAuthStore } from "@/src/store/auth";
-import { LogoutButton } from "@/src/components/shared/logout-button";
+
 import type { Consumer, Address } from "@/src/types";
 
 export default function ProfilePage() {
@@ -273,13 +270,7 @@ export default function ProfilePage() {
             <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
           </div>
 
-          {/* Logout */}
-          <div className="pt-4">
-            <LogoutButton
-              variant="full"
-              className="w-full flex items-center justify-center gap-3 p-4 text-red-500 font-bold hover:bg-red-50 rounded-2xl transition-colors"
-            />
-          </div>
+
         </div>
       </section>
 

@@ -8,6 +8,13 @@ const PRODUCT_SELECT = {
   price_cents: true,
   deposit_cents: true,
   is_active: true,
+  categories: {
+    select: {
+      id: true,
+      name: true,
+      value: true,
+    },
+  },
 } as const;
 
 export const productsRepository = {

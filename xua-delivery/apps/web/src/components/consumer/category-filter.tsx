@@ -2,25 +2,45 @@
 
 import { cn } from "@/src/lib/utils";
 
-const CATEGORIES = [
-  { label: "Todos", value: "all" },
-  { label: "Água Mineral", value: "mineral" },
-  { label: "Galões", value: "gallons" },
-  { label: "Acessórios", value: "accessories" },
-  { label: "Premium", value: "premium" },
-] as const;
-
-export type CategoryValue = (typeof CATEGORIES)[number]["value"];
-
-interface CategoryFilterProps {
-  selected: CategoryValue;
-  onChange: (value: CategoryValue) => void;
+export interface CategoryItem {
+  label: string;
+  value: string;
 }
 
-export function CategoryFilter({ selected, onChange }: CategoryFilterProps) {
+const ALL_CATEGORY: CategoryItem = { label: "Todos", value: "all" };
+
+interface CategoryFilterProps {
+  categories: CategoryItem[];
+  selected: string;
+  onChange: (value: string) => void;
+  loading?: boolean;
+}
+
+export function CategoryFilter({
+  categories,
+  selected,
+  onChange,
+  loading = false,
+}: CategoryFilterProps) {
+  const items = [ALL_CATEGORY, ...categories];
+
+  if (loading) {
+    return (
+      <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none">
+        {[100, 80, 60, 90, 70].map((w, i) => (
+          <div
+            key={i}
+            className="shrink-0 animate-pulse rounded-full bg-[#e1e3e4]"
+            style={{ width: w, height: 36 }}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none">
-      {CATEGORIES.map((cat) => (
+      {items.map((cat) => (
         <button
           key={cat.value}
           onClick={() => onChange(cat.value)}
