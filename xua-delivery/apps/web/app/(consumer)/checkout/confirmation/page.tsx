@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { formatCurrency } from "@/src/lib/utils";
-import { AlertCircle, Banknote, CheckCircle2, Clock3, CreditCard, ShoppingCart } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, CreditCard, ShoppingCart } from "lucide-react";
 import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created" | "cash_pending";
@@ -101,9 +101,24 @@ function ConfirmationContent() {
     };
   }, [orderId, paymentStatusParam]);
 
-  const Icon = viewStatus === "approved" ? CheckCircle2 : viewStatus === "failed" ? AlertCircle : viewStatus === "cash_pending" ? Banknote : Clock3;
-  const iconClass = viewStatus === "approved" ? "text-green-600" : viewStatus === "failed" ? "text-red-600" : viewStatus === "cash_pending" ? "text-[#7a4700]" : "text-[#32466e]";
-  const iconBg = viewStatus === "approved" ? "bg-green-100" : viewStatus === "failed" ? "bg-red-100" : viewStatus === "cash_pending" ? "bg-[#fff2dd]" : "bg-[#d8e2ff]";
+  const Icon =
+    viewStatus === "failed"
+      ? AlertCircle
+      : viewStatus === "pending"
+        ? Clock3
+        : CheckCircle2;
+  const iconClass =
+    viewStatus === "failed"
+      ? "text-red-600"
+      : viewStatus === "pending"
+        ? "text-[#32466e]"
+        : "text-green-600";
+  const iconBg =
+    viewStatus === "failed"
+      ? "bg-red-100"
+      : viewStatus === "pending"
+        ? "bg-[#d8e2ff]"
+        : "bg-green-100";
   const title =
     viewStatus === "approved"
       ? "Pagamento aprovado!"
@@ -143,21 +158,21 @@ function ConfirmationContent() {
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className={`grid w-full max-w-sm gap-3 ${canResumePayment ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         {canResumePayment && (
           <Link href={`/checkout/payment?orderId=${encodeURIComponent(orderId!)}`}>
-            <Button className="gap-1.5 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]">
+            <Button className="h-11 w-full gap-1.5 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]">
               <CreditCard className="h-4 w-4" /> Retomar pagamento
             </Button>
           </Link>
         )}
         <Link href={orderId ? `/orders/${orderId}` : "/orders"}>
-          <Button variant={canResumePayment ? "outline" : "default"} className={canResumePayment ? "rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]" : "rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]"}>
+          <Button variant={canResumePayment ? "outline" : "default"} className={canResumePayment ? "h-11 w-full rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]" : "h-11 w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]"}>
             Ver pedido
           </Button>
         </Link>
         <Link href="/catalog">
-          <Button variant="outline" className="gap-1.5 rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]">
+          <Button variant="outline" className="h-11 w-full gap-1.5 rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]">
             <ShoppingCart className="h-4 w-4" /> Continuar comprando
           </Button>
         </Link>
