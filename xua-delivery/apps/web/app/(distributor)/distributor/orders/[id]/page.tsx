@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
 import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
@@ -336,19 +335,98 @@ export default function DistributorOrderDetailPage() {
           </div>
         </div>
 
-        {order.sla_deadline ? (
-          <div className="mt-4 rounded-[18px] sm:rounded-[24px] bg-[#fff2dd] px-3 py-3 sm:px-4 sm:py-4 text-[#7a4700]">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a0620a]">SLA de aceite</p>
-                <p className="mt-1 text-sm font-medium">Este pedido ainda precisa de uma decisão da distribuidora.</p>
-              </div>
-              <div className="shrink-0 self-start rounded-full bg-white/70 px-3 py-2">
-                <SlaCountdown deadlineIso={order.sla_deadline} className="text-base text-[#7a4700]" />
-              </div>
-            </div>
+      </section>
+
+      <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Ações operacionais</p>
+            <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">Próximo passo</h2>
           </div>
+          <ChevronRight className="h-5 w-5 text-[#7d8494]" />
+        </div>
+
+        <p className="mt-2 text-sm leading-relaxed text-[#5d6473]">{getOperationalMessage(order)}</p>
+
+        {actionError ? (
+          <p className="mt-3 rounded-2xl bg-[#fff3f1] px-3 py-3 text-sm text-[#8a1c14]">{actionError}</p>
         ) : null}
+
+        <div className="mt-4 space-y-3">
+          {canAccept ? (
+            <Button
+              className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none hover:opacity-90"
+              disabled={actionLoading}
+              onClick={() => handleAction("accept")}
+            >
+              Aceitar e seguir para checklist
+            </Button>
+          ) : null}
+
+          {canProceedToChecklist ? (
+            <Button
+              className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none active:scale-[0.98]"
+              onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
+            >
+              Ir para checklist de despacho
+            </Button>
+          ) : null}
+
+          {canReject ? (
+            <div className="space-y-3 rounded-[24px] bg-[#fafbfc] p-3.5">
+              <p className="text-sm font-semibold text-[#0d1b2f]">Se recusar, informe o motivo</p>
+              <div className="grid grid-cols-2 gap-2">
+                {REJECT_REASON_OPTIONS.map((option) => {
+                  const active = rejectReason === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setRejectReason(option.value)}
+                      className={cn(
+                        "rounded-[18px] border px-3 py-2.5 text-left text-sm transition-all",
+                        active
+                          ? "border-[#5697E9] bg-[#5697E9]/10 text-[#0b2a59]"
+                          : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {rejectNeedsDetails ? (
+                <Textarea
+                  placeholder="Descreva o motivo da recusa"
+                  value={rejectDetails}
+                  onChange={(event) => setRejectDetails(event.target.value)}
+                  className="min-h-24 rounded-[18px] border-[#d9dde3] bg-white"
+                />
+              ) : null}
+
+              <Button
+                variant="destructive"
+                className="h-11 w-full rounded-[18px] shadow-none"
+                disabled={actionLoading || !rejectReady}
+                onClick={() =>
+                  handleAction("reject", {
+                    reason: rejectReason,
+                    details: rejectNeedsDetails ? rejectDetails.trim() : undefined,
+                  })
+                }
+              >
+                Recusar pedido
+              </Button>
+            </div>
+          ) : null}
+
+          {!canAccept && !canReject && !canProceedToChecklist ? (
+            <div className="rounded-[24px] bg-[#f7f8fb] px-4 py-4 text-sm text-[#4b5565]">
+              {getOperationalMessage(order)}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <div className="grid gap-4 sm:gap-5 xl:grid-cols-[1.08fr_0.92fr]">
@@ -357,41 +435,49 @@ export default function DistributorOrderDetailPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Informações do cliente</p>
             <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">{order.consumer_name}</h2>
 
-            <div className="mt-5 space-y-4 text-sm text-[#334155]">
-              <div className="flex items-start gap-3">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
-                <div>
-                  <p className="font-medium text-[#0d1b2f]">
-                    {order.address_details.street}, {order.address_details.number}
-                    {order.address_details.complement ? ` • ${order.address_details.complement}` : ""}
-                  </p>
-                  <p className="mt-1 text-[#5d6473]">
-                    {[order.address_details.neighborhood, `${order.address_details.city}/${order.address_details.state}`, order.address_details.zip_code ? `CEP ${order.address_details.zip_code}` : null]
-                      .filter(Boolean)
-                      .join(" • ")}
-                  </p>
+            <div className="mt-4 grid gap-2 text-sm text-[#334155] sm:grid-cols-2">
+              <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3 sm:col-span-2">
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
+                  <div>
+                    <p className="font-medium text-[#0d1b2f]">
+                      {order.address_details.street}, {order.address_details.number}
+                      {order.address_details.complement ? ` • ${order.address_details.complement}` : ""}
+                    </p>
+                    <p className="mt-1 text-[#5d6473]">
+                      {[order.address_details.neighborhood, `${order.address_details.city}/${order.address_details.state}`, order.address_details.zip_code ? `CEP ${order.address_details.zip_code}` : null]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
-                <div>
-                  <p className="font-medium text-[#0d1b2f]">{formatDate(order.delivery_date)}</p>
-                  <p className="mt-1 text-[#5d6473]">Horário de entrega: {formatScheduledTime(order)}</p>
+              <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3">
+                <div className="flex items-start gap-3">
+                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
+                  <div>
+                    <p className="font-medium text-[#0d1b2f]">{formatDate(order.delivery_date)}</p>
+                    <p className="mt-1 text-[#5d6473]">Horário de entrega: {formatScheduledTime(order)}</p>
+                  </div>
                 </div>
               </div>
 
               {order.consumer_phone ? (
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 shrink-0 text-[#7d8494]" />
-                  <span>{order.consumer_phone}</span>
+                <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3">
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 shrink-0 text-[#7d8494]" />
+                    <span>{order.consumer_phone}</span>
+                  </div>
                 </div>
               ) : null}
 
               {order.consumer_email ? (
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 shrink-0 text-[#7d8494]" />
-                  <span className="break-all">{order.consumer_email}</span>
+                <div className={cn("rounded-[18px] bg-[#f7f8fb] px-3 py-3", order.consumer_phone ? "" : "sm:col-span-2")}>
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 shrink-0 text-[#7d8494]" />
+                    <span className="break-all">{order.consumer_email}</span>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -460,19 +546,19 @@ export default function DistributorOrderDetailPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">Total do pedido</p>
             <p className="mt-3 font-heading text-3xl sm:text-4xl font-extrabold">{formatCurrency(order.total_cents)}</p>
 
-            <div className="mt-5 space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-2 text-white/72">
+            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-2 rounded-[14px] bg-white/5 px-3 py-2 text-white/78">
                 <span className="shrink-0">Subtotal</span>
                 <span className="shrink-0">{formatCurrency(order.subtotal_cents)}</span>
               </div>
               {order.deposit_cents > 0 ? (
-                <div className="flex items-center justify-between gap-2 text-white/72">
+                <div className="flex items-center justify-between gap-2 rounded-[14px] bg-white/5 px-3 py-2 text-white/78">
                   <span className="shrink-0">Caução</span>
                   <span className="shrink-0">{formatCurrency(order.deposit_cents)}</span>
                 </div>
               ) : null}
               {isCashPayment ? (
-                <div className="rounded-[18px] bg-white/10 px-3 py-3 text-white">
+                <div className="rounded-[18px] bg-white/10 px-3 py-3 text-white sm:col-span-2">
                   <div className="flex items-start gap-2">
                     <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#ffe099]" />
                     <div className="min-w-0">
@@ -587,98 +673,6 @@ export default function DistributorOrderDetailPage() {
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
                 <p>{getOperationalMessage(order)}</p>
               </div>
-            </div>
-          </section>
-
-          <section className="rounded-[20px] sm:rounded-[28px] bg-white px-4 py-4 sm:px-5 sm:py-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7d8494]">Ações operacionais</p>
-                <h2 className="mt-2 font-heading text-xl sm:text-2xl font-extrabold text-[#0d1b2f]">Próximo passo</h2>
-              </div>
-              <ChevronRight className="h-5 w-5 text-[#7d8494]" />
-            </div>
-
-            <p className="mt-3 text-sm leading-relaxed text-[#5d6473]">{getOperationalMessage(order)}</p>
-
-            {actionError ? (
-              <p className="mt-4 rounded-2xl bg-[#fff3f1] px-3 py-3 text-sm text-[#8a1c14]">{actionError}</p>
-            ) : null}
-
-            <div className="mt-5 space-y-4">
-              {canAccept ? (
-                <Button
-                  className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none hover:opacity-90"
-                  disabled={actionLoading}
-                  onClick={() => handleAction("accept")}
-                >
-                  Aceitar e seguir para checklist
-                </Button>
-              ) : null}
-
-              {canProceedToChecklist ? (
-                <Button
-                  className="h-12 w-full rounded-[20px] bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] text-base font-semibold shadow-none active:scale-[0.98]"
-                  onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
-                >
-                  Ir para checklist de despacho
-                </Button>
-              ) : null}
-
-              {canReject ? (
-                <div className="space-y-3 rounded-[24px] bg-[#fafbfc] p-4">
-                  <p className="text-sm font-semibold text-[#0d1b2f]">Se recusar, informe o motivo</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {REJECT_REASON_OPTIONS.map((option) => {
-                      const active = rejectReason === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setRejectReason(option.value)}
-                          className={cn(
-                            "rounded-[18px] border px-3 py-3 text-left text-sm transition-all",
-                            active
-                              ? "border-[#5697E9] bg-[#5697E9]/10 text-[#0b2a59]"
-                              : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {rejectNeedsDetails ? (
-                    <Textarea
-                      placeholder="Descreva o motivo da recusa"
-                      value={rejectDetails}
-                      onChange={(event) => setRejectDetails(event.target.value)}
-                      className="min-h-28 rounded-[18px] border-[#d9dde3] bg-white"
-                    />
-                  ) : null}
-
-                  <Button
-                    variant="destructive"
-                    className="h-11 w-full rounded-[18px] shadow-none"
-                    disabled={actionLoading || !rejectReady}
-                    onClick={() =>
-                      handleAction("reject", {
-                        reason: rejectReason,
-                        details: rejectNeedsDetails ? rejectDetails.trim() : undefined,
-                      })
-                    }
-                  >
-                    Recusar pedido
-                  </Button>
-                </div>
-              ) : null}
-
-              {!canAccept && !canReject && !canProceedToChecklist ? (
-                <div className="rounded-[24px] bg-[#f7f8fb] px-4 py-4 text-sm text-[#4b5565]">
-                  {getOperationalMessage(order)}
-                </div>
-              ) : null}
             </div>
           </section>
         </div>
