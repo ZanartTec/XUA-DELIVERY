@@ -24,6 +24,7 @@ import type {
   OnlinePaymentMethod,
   UserSubscriptionStatus,
 } from "@xua/shared/enums";
+import { DEFAULT_ONLINE_PAYMENT_METHOD, isOnlinePaymentMethod } from "@xua/shared/mappers/payment";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -194,9 +195,10 @@ export default function SubscriptionManagePage() {
     setPayingId(id);
     try {
       const subscription = subscriptions.find((item) => item.id === id);
-      const paymentMethod = subscription?.payments?.[0]?.payment_method === "credit"
-        ? "credit"
-        : "pix";
+      const storedPaymentMethod = subscription?.payments?.[0]?.payment_method;
+      const paymentMethod = isOnlinePaymentMethod(storedPaymentMethod)
+        ? storedPaymentMethod
+        : DEFAULT_ONLINE_PAYMENT_METHOD;
       const res = await fetch(`/api/user-subscriptions/${id}/payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

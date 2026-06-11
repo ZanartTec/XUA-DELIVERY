@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CheckoutPaymentMethod, DeliveryWindowInput } from "@xua/shared/enums";
+import { DEFAULT_CHECKOUT_PAYMENT_METHOD } from "@xua/shared/mappers/payment";
 
 type TimeWindow = DeliveryWindowInput;
 type PaymentMethod = CheckoutPaymentMethod;
@@ -18,6 +19,7 @@ interface CheckoutState {
 
   // Payment step
   paymentMethod: PaymentMethod;
+  cashChangeForCents: number | null;
 
   // Actions
   setSelectedDate: (date: string | null) => void;
@@ -27,6 +29,7 @@ interface CheckoutState {
   setSelectedAddressId: (id: string | null) => void;
   setSelectedDistributorId: (id: string | null) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
+  setCashChangeForCents: (cents: number | null) => void;
 
   /** Reset all checkout state (after order placed or cart cleared) */
   resetCheckout: () => void;
@@ -39,7 +42,8 @@ const initialState = {
   instructions: "",
   selectedAddressId: null,
   selectedDistributorId: null as string | null,
-  paymentMethod: "pix" as PaymentMethod,
+  paymentMethod: DEFAULT_CHECKOUT_PAYMENT_METHOD,
+  cashChangeForCents: null as number | null,
 };
 
 export const useCheckoutStore = create<CheckoutState>()(
@@ -54,6 +58,7 @@ export const useCheckoutStore = create<CheckoutState>()(
       setSelectedAddressId: (id) => set({ selectedAddressId: id }),
       setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),
       setPaymentMethod: (method) => set({ paymentMethod: method }),
+      setCashChangeForCents: (cents) => set({ cashChangeForCents: cents }),
 
       resetCheckout: () => set(initialState),
     }),

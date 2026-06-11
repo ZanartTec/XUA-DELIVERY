@@ -78,7 +78,7 @@ export type OrderWithDetails = Order & {
     product_name: string;
     product: { image_url: string | null };
   }[];
-  payments: Pick<Payment, "id" | "kind" | "status" | "amount_cents" | "provider" | "paid_at" | "created_at">[];
+  payments: Pick<Payment, "id" | "kind" | "status" | "amount_cents" | "payment_method" | "cash_change_for_cents" | "provider" | "paid_at" | "created_at">[];
   deposits: Pick<Deposit, "id" | "amount_cents" | "status" | "refunded_at" | "created_at">[];
   otps: Pick<OrderOtp, "id" | "status" | "attempts" | "expires_at" | "created_at">[];
   audit_events: {
@@ -405,6 +405,8 @@ export const orderRepository = {
             kind: true,
             status: true,
             amount_cents: true,
+            payment_method: true,
+            cash_change_for_cents: true,
             provider: true,
             paid_at: true,
             created_at: true,

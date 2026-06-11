@@ -32,6 +32,8 @@ function errorStatus(code: string): number {
     OTP_NOT_FOUND: 404,
     OTP_EXPIRED: 400,
     OTP_LOCKED: 429,
+    INVALID_CASH_CHANGE: 400,
+    CASH_PAYMENT_INVALID: 409,
   };
   return map[code] ?? 400;
 }
@@ -187,6 +189,8 @@ export const ordersController = {
         deliveryWindow: parsed.data.delivery_window.toUpperCase() as DeliveryWindow,
         distributorSelectionMode: resolved.mode,
         timeSlotId: parsed.data.time_slot_id ?? null,
+        paymentMethod: parsed.data.payment_method,
+        cashChangeForCents: parsed.data.cash_change_for_cents ?? null,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;
           return {
@@ -197,12 +201,12 @@ export const ordersController = {
           };
         }),
       });
-
-      // Simula pagamento automático quando PAYMENT_PROVIDER=mock (padrão de desenvolvimento)
-      void orderService.autoSimulateMockPayment(order.id, order.total_cents);
-
       res.status(201).json({ order });
     } catch (error) {
+      if (error instanceof OrderServiceError) {
+        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+        return;
+      }
       if (error instanceof DistributorServiceError) {
         res.status(400).json({ error: error.message });
         return;

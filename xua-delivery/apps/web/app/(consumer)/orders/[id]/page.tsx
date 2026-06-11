@@ -28,12 +28,15 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { Order } from "@/src/types";
+import { getCheckoutPaymentMethodLabel, isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface PaymentSummary {
   id: string;
   kind: string;
   status: string;
   amount_cents: number;
+  payment_method?: string | null;
+  cash_change_for_cents?: number | null;
   provider?: string | null;
   paid_at?: string | null;
   created_at: string;
@@ -286,12 +289,14 @@ export default function OrderDetailPage() {
 
   const isDelivered = order.status === "DELIVERED";
   const isPaymentExpired = order.payment_status === "expired";
+  const latestPayment = order.payments[0];
+  const isCashPayment = isCashPaymentMethod(latestPayment?.payment_method);
   const canResumePayment =
     (order.status === "CREATED" || order.status === "PAYMENT_PENDING") &&
     (!order.payment_status || order.payment_status.toLowerCase() === "pending") &&
-    !isPaymentExpired;
+    !isPaymentExpired &&
+    !isCashPayment;
   const { step, pct } = getProgress(order.status);
-  const latestPayment = order.payments[0];
   const latestDeposit = order.deposits[0];
   const latestOtp = order.otps[0];
   const hasDeliveryRecords = Boolean(
@@ -619,8 +624,15 @@ export default function OrderDetailPage() {
                     <span className="font-bold text-primary">{formatCurrency(latestPayment.amount_cents)}</span>
                   </div>
                   <p className="text-xs text-[#737688]">
-                    {latestPayment.provider ?? "Provedor não informado"} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
+                    {getCheckoutPaymentMethodLabel(latestPayment.payment_method)} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
                   </p>
+                  {isCashPayment && (
+                    <p className="mt-1 text-xs font-semibold text-[#805300]">
+                      {latestPayment.cash_change_for_cents == null
+                        ? "Dinheiro em valor exato."
+                        : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>

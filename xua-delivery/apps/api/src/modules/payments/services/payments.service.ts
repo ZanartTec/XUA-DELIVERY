@@ -6,6 +6,7 @@ import {
   PaymentKind,
   PaymentStatus,
   SourceApp,
+  type OnlinePaymentMethod,
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
@@ -13,7 +14,6 @@ import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
   PAYMENT_PROVIDERS,
-  type PaymentMethod,
 } from "../gateway/payments.gateway.js";
 import { createLogger } from "../../../infra/logger";
 import { schedulePaymentExpiration } from "../../../infra/queue/payment-jobs.producer.js";
@@ -21,7 +21,6 @@ import { schedulePaymentExpiration } from "../../../infra/queue/payment-jobs.pro
 const log = createLogger("payments");
 
 type TxClient = Prisma.TransactionClient;
-type CheckoutPaymentMethod = Extract<PaymentMethod, "pix" | "credit">;
 
 export class PaymentServiceError extends Error {
   constructor(
@@ -63,7 +62,7 @@ export const paymentService = {
   async createCheckoutPayment(
     orderId: string,
     consumerId: string,
-    paymentMethod: CheckoutPaymentMethod
+    paymentMethod: OnlinePaymentMethod
   ): Promise<{
     payment: Payment;
     redirectUrl: string;
@@ -229,6 +228,8 @@ export const paymentService = {
             id: true,
             status: true,
             amount_cents: true,
+            payment_method: true,
+            cash_change_for_cents: true,
             provider: true,
             provider_payment_ref: true,
             external_id: true,
@@ -256,7 +257,6 @@ export const paymentService = {
 
   /**
    * Cria cobrança via gateway e persiste registro de pagamento.
-   * Mantido para o fluxo mock de desenvolvimento.
    */
   async charge(
     orderId: string,
@@ -305,7 +305,7 @@ export const paymentService = {
   },
 
   /**
-   * Confirma pagamento — legado para gateways síncronos/mock.
+   * Confirma pagamento por referência externa.
    */
   async confirmPayment(orderId: string, externalId: string): Promise<Payment> {
     const prisma = getPrisma();

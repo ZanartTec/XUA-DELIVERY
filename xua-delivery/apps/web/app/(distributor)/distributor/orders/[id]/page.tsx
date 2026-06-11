@@ -10,6 +10,7 @@ import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
 import { OrderStatus } from "@/src/types/enums";
 import {
   ArrowLeft,
+  Banknote,
   CalendarDays,
   ChevronRight,
   Mail,
@@ -21,11 +22,21 @@ import {
   Truck,
 } from "lucide-react";
 import type { Order } from "@/src/types";
+import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface DetailEvent {
   status: string;
   timestamp: string;
   actor?: string | null;
+}
+
+interface PaymentSummary {
+  id: string;
+  kind: string;
+  status: string;
+  amount_cents: number;
+  payment_method?: string | null;
+  cash_change_for_cents?: number | null;
 }
 
 interface OrderDetail extends Order {
@@ -37,6 +48,7 @@ interface OrderDetail extends Order {
     image_url?: string | null;
   }[];
   events: DetailEvent[];
+  payments: PaymentSummary[];
   consumer_name: string;
   address_details: {
     street: string;
@@ -292,6 +304,8 @@ export default function DistributorOrderDetailPage() {
   const subscriptionProgress = formatSubscriptionProgress(order);
   const completedDeliveries = order.completed_deliveries ?? 0;
   const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
+  const latestPayment = order.payments[0] ?? null;
+  const isCashPayment = isCashPaymentMethod(latestPayment?.payment_method);
 
   return (
     <div className="min-w-0 space-y-4 sm:space-y-5">
@@ -455,6 +469,21 @@ export default function DistributorOrderDetailPage() {
                 <div className="flex items-center justify-between gap-2 text-white/72">
                   <span className="shrink-0">Caução</span>
                   <span className="shrink-0">{formatCurrency(order.deposit_cents)}</span>
+                </div>
+              ) : null}
+              {isCashPayment ? (
+                <div className="rounded-[18px] bg-white/10 px-3 py-3 text-white">
+                  <div className="flex items-start gap-2">
+                    <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#ffe099]" />
+                    <div className="min-w-0">
+                      <p className="font-semibold">Dinheiro na entrega</p>
+                      <p className="mt-1 text-xs text-white/72">
+                        {latestPayment.cash_change_for_cents == null
+                          ? "Motorista deve receber valor exato."
+                          : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
