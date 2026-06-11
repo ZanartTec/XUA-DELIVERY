@@ -556,12 +556,12 @@ function PaymentContent() {
         </section>
 
         {isCashPayment && !isRetryMode && (
-          <section className="space-y-3 rounded-xl border border-[#ffe099] bg-[#fff8e6] p-4">
+          <section className="space-y-3 rounded-xl border border-[#c9d9ff] bg-[#eaf1ff] p-4">
             <div className="flex items-start gap-3">
-              <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-[#7a4700]" />
+              <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-[#32466e]" />
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-[#5f3700]">Troco</p>
-                <p className="mt-0.5 text-xs text-[#805300]">
+                <p className="font-bold text-[#1f3f75]">Troco</p>
+                <p className="mt-0.5 text-xs text-[#32528a]">
                   Total do pedido: {formatCurrency(totalCents)}
                 </p>
               </div>
@@ -574,7 +574,7 @@ function PaymentContent() {
                 className={`rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
                   cashChangeForCents == null
                     ? "bg-[#00E0FF] text-[#001735]"
-                    : "bg-white text-[#5f3700] ring-1 ring-[#ffe099]"
+                    : "bg-white text-[#32466e] ring-1 ring-[#c9d9ff]"
                 }`}
               >
                 Valor exato
@@ -585,7 +585,7 @@ function PaymentContent() {
                 className={`rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
                   cashChangeForCents != null
                     ? "bg-[#00E0FF] text-[#001735]"
-                    : "bg-white text-[#5f3700] ring-1 ring-[#ffe099]"
+                    : "bg-white text-[#32466e] ring-1 ring-[#c9d9ff]"
                 }`}
               >
                 Preciso de troco
@@ -594,7 +594,7 @@ function PaymentContent() {
 
             {cashChangeForCents != null && (
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#805300]">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#32528a]">
                   Troco para
                 </label>
                 <input
@@ -602,7 +602,7 @@ function PaymentContent() {
                   inputMode="decimal"
                   value={(cashChangeForCents / 100).toFixed(2).replace(".", ",")}
                   onChange={(event) => setCashChangeForCents(parseCurrencyInputToCents(event.target.value))}
-                  className="h-12 w-full rounded-xl border border-[#ffe099] bg-white px-4 text-base font-bold text-[#191c1d] outline-none focus:border-[#00E0FF]"
+                  className="h-12 w-full rounded-xl border border-[#c9d9ff] bg-white px-4 text-base font-bold text-[#191c1d] outline-none focus:border-[#00E0FF]"
                   placeholder={formatCurrency(totalCents)}
                 />
                 {cashChangeInvalid ? (
@@ -610,7 +610,7 @@ function PaymentContent() {
                     Informe um valor maior ou igual a {formatCurrency(totalCents)}.
                   </p>
                 ) : (
-                  <p className="text-xs text-[#805300]">
+                  <p className="text-xs text-[#32528a]">
                     Troco estimado: {formatCurrency(Math.max(cashChangeForCents - totalCents, 0))}
                   </p>
                 )}
@@ -620,17 +620,17 @@ function PaymentContent() {
         )}
 
         {/* Payment provider banner */}
-        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${isCashPayment ? "bg-[#fff8e6] border-[#ffe099]" : "bg-[#e7f9f2] border-[#b7ead6]"}`}>
+        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${isCashPayment ? "bg-[#eaf1ff] border-[#c9d9ff]" : "bg-[#e7f9f2] border-[#b7ead6]"}`}>
           {isCashPayment ? (
-            <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#7a4700]" />
+            <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#32466e]" />
           ) : (
             <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-[#008d5d]" />
           )}
           <div>
-            <p className={`text-sm font-bold ${isCashPayment ? "text-[#5f3700]" : "text-[#00573d]"}`}>
+            <p className={`text-sm font-bold ${isCashPayment ? "text-[#1f3f75]" : "text-[#00573d]"}`}>
               {isCashPayment ? "Pagamento em dinheiro na entrega" : "Pagamento online via Mercado Pago"}
             </p>
-            <p className={`mt-0.5 text-xs ${isCashPayment ? "text-[#805300]" : "text-[#006c49]"}`}>
+            <p className={`mt-0.5 text-xs ${isCashPayment ? "text-[#32528a]" : "text-[#006c49]"}`}>
               {isCashPayment
                 ? "O pedido será enviado para a distribuidora agora e o motorista cobrará o valor na entrega."
                 : "Pix e cartão são finalizados no ambiente seguro do Mercado Pago. O pedido avança após a confirmação do gateway."}
