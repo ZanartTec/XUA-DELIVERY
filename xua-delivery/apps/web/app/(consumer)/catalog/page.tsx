@@ -12,6 +12,7 @@ import { SearchBar } from "@/src/components/consumer/search-bar";
 import { PromoBannerCarousel, type BannerSlide } from "@/src/components/consumer/promo-banner-carousel";
 import { CategoryFilter, type CategoryItem } from "@/src/components/consumer/category-filter";
 import { FeaturedProductCard, type FeaturedBanner } from "@/src/components/consumer/featured-product-card";
+import { CatalogCartSummaryCard } from "@/src/components/consumer/catalog-cart-summary-card";
 
 interface ProductItem {
   id: string;
@@ -251,6 +252,9 @@ export default function CatalogPage() {
       {featuredBanner && (
         <FeaturedProductCard banner={featuredBanner} />
       )}
+
+      {/* Barra flutuante do carrinho — posição fixa acima do nav */}
+      <CatalogCartSummaryCard />
 
       {/* CTA Assinatura — estilo Stitch: card azul escuro */}
       <div className="mx-4 rounded-2xl bg-linear-to-br from-[#1B4A9A] to-[#5697E9] p-5 text-white">

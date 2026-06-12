@@ -30,6 +30,11 @@ import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-da
 import { PaymentMethodSelector } from "@/src/components/consumer/payment-method-selector";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import type { Address } from "@/src/types";
+import {
+  CASH_PAYMENT_METHOD,
+  DEFAULT_ONLINE_PAYMENT_METHOD,
+  isOnlinePaymentMethod,
+} from "@xua/shared/mappers/payment";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,7 +270,7 @@ export default function SubscriptionCreatePage() {
   }, [loadDefaultAddress]);
 
   useEffect(() => {
-    if ((paymentMethod as string) === "cash") setPaymentMethod("pix");
+    if (!isOnlinePaymentMethod(paymentMethod)) setPaymentMethod(DEFAULT_ONLINE_PAYMENT_METHOD);
   }, [paymentMethod, setPaymentMethod]);
 
   // ---------------------------------------------------------------------------
@@ -323,7 +328,9 @@ export default function SubscriptionCreatePage() {
       return;
     }
 
-    const subscriptionPaymentMethod = paymentMethod === "credit" ? "credit" : "pix";
+    const subscriptionPaymentMethod = isOnlinePaymentMethod(paymentMethod)
+      ? paymentMethod
+      : DEFAULT_ONLINE_PAYMENT_METHOD;
     setSubmitting(true);
     try {
       const delivery_dates = selectedDates.map((date) => ({
@@ -773,9 +780,9 @@ export default function SubscriptionCreatePage() {
         <PaymentMethodSelector
           value={paymentMethod}
           onChange={(method) => {
-            if (method !== "cash") setPaymentMethod(method);
+            if (isOnlinePaymentMethod(method)) setPaymentMethod(method);
           }}
-          disabledMethods={["cash"]}
+          hiddenMethods={[CASH_PAYMENT_METHOD]}
         />
       </div>
     );

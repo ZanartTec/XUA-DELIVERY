@@ -1,24 +1,29 @@
-import type { Order, Consumer, Address, OrderItem, Prisma } from "@prisma/client";
+import type { Order, Consumer, Address, OrderItem, Payment, Prisma } from "@prisma/client";
 import { OrderStatus } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
 
+type DeliveryPayment = Pick<Payment, "id" | "status" | "amount_cents" | "payment_method" | "cash_change_for_cents" | "provider" | "paid_at" | "created_at">;
+
 export type OrderWithConsumer = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state"> | null;
   items: Pick<OrderItem, "quantity">[];
+  payments: DeliveryPayment[];
 };
 
 export type OrderWithConsumerAndAddress = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
   address: Address | null;
+  payments: DeliveryPayment[];
 };
 
 export type OrderHistoryWithConsumer = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state"> | null;
   items: Pick<OrderItem, "quantity">[];
+  payments: DeliveryPayment[];
 };
 
 export const driverRepository = {
@@ -61,6 +66,20 @@ export const driverRepository = {
           },
         },
         items: { select: { quantity: true } },
+        payments: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            amount_cents: true,
+            payment_method: true,
+            cash_change_for_cents: true,
+            provider: true,
+            paid_at: true,
+            created_at: true,
+          },
+        },
       },
       orderBy: [
         { status: "asc" },
@@ -83,6 +102,20 @@ export const driverRepository = {
       include: {
         consumer: { select: { name: true, phone: true } },
         address: true,
+        payments: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            amount_cents: true,
+            payment_method: true,
+            cash_change_for_cents: true,
+            provider: true,
+            paid_at: true,
+            created_at: true,
+          },
+        },
       },
       orderBy: { delivery_date: "asc" },
     }) as unknown as Promise<OrderWithConsumerAndAddress[]>;
@@ -115,6 +148,20 @@ export const driverRepository = {
           },
         },
         items: { select: { quantity: true } },
+        payments: {
+          orderBy: { created_at: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            amount_cents: true,
+            payment_method: true,
+            cash_change_for_cents: true,
+            provider: true,
+            paid_at: true,
+            created_at: true,
+          },
+        },
       },
       orderBy: { updated_at: "desc" },
       take: limit,

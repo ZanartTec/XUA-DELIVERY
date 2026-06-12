@@ -1,5 +1,11 @@
 import type { Payment, Prisma } from "@prisma/client";
-import { PaymentKind, PaymentStatus, UserSubscriptionStatus } from "@xua/shared/enums";
+import {
+  PaymentKind,
+  PaymentStatus,
+  UserSubscriptionStatus,
+  type UserSubscriptionPaymentMethodValue,
+} from "@xua/shared/enums";
+import { isOnlinePaymentMethod } from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { userSubscriptionsRepository } from "../repository/user-subscriptions.repository.js";
 import { subscriptionPlansRepository } from "../../subscription-plans/repository/subscription-plans.repository.js";
@@ -10,13 +16,12 @@ import { createLogger } from "../../../infra/logger/index.js";
 import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
-  type PaymentMethod,
 } from "../../payments/gateway/payments.gateway.js";
 
 const log = createLogger("user-subscriptions");
 
 type TxClient = Prisma.TransactionClient;
-type SubscriptionPaymentMethod = Extract<PaymentMethod, "pix" | "credit">;
+type SubscriptionPaymentMethod = UserSubscriptionPaymentMethodValue;
 type PaymentWithTransactions = Payment & {
   payment_method: string | null;
   transactions: Array<{ provider_response: Prisma.JsonValue }>;
@@ -68,7 +73,7 @@ function extractRedirectUrl(transactions: { provider_response: Prisma.JsonValue 
 function isSubscriptionPaymentMethod(
   value: string | null | undefined
 ): value is SubscriptionPaymentMethod {
-  return value === "pix" || value === "credit";
+  return isOnlinePaymentMethod(value);
 }
 
 async function persistSubscriptionPayment(

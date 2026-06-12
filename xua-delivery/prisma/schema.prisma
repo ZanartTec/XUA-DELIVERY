@@ -546,6 +546,7 @@ model Payment {
   status               PaymentStatus @default(CREATED)
   amount_cents         Int           @default(0)
   payment_method       String?
+  cash_change_for_cents Int?
   provider             String?
   provider_payment_ref String?
   external_id          String?       @unique

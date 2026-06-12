@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./enums";
+export * from "./mappers/payment";
 export * from "./constants/roles";
 export * from "./schemas/auth";
 export * from "./schemas/order";

@@ -1,11 +1,11 @@
 import type {
   IPaymentGateway,
-  PaymentMethod,
   PaymentChargeMetadata,
   PaymentResult,
   ProviderPaymentDetails,
   RefundResult,
 } from "../gateway/payments.gateway.js";
+import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 import {
   buildWebhookContextQueryParams,
   requireWebhookPaymentKind,
@@ -31,7 +31,7 @@ interface MercadoPagoPaymentResponse {
   date_approved?: string;
   metadata?: {
     order_id?: string;
-    payment_method?: PaymentMethod;
+    payment_method?: CheckoutPaymentMethod;
     kind?: string;
   };
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { OnlinePaymentMethod } from "@xua/shared/enums";
+import { DEFAULT_ONLINE_PAYMENT_METHOD } from "@xua/shared/mappers/payment";
 
 type SubscriptionPaymentMethod = OnlinePaymentMethod;
 
@@ -57,7 +58,7 @@ const initialState: Omit<
   selectedDates: [],
   timeSlotsByDate: {},
   quantitiesByDate: {},
-  paymentMethod: "pix",
+  paymentMethod: DEFAULT_ONLINE_PAYMENT_METHOD,
 };
 
 export const useSubscriptionStore = create<SubscriptionWizardState>()(
