@@ -55,12 +55,30 @@
 
 **2) Arquitetura funcional (aplicações e módulos)**
 
-A plataforma é **dois produtos** :
+> **[ESTADO ATUAL — jun/2026]** A plataforma **não** é um app mobile nativo + dashboard separados. É um **único PWA Next.js** (`apps/web`) que atende as 4 personas via *route-groups* (`(consumer)`, `(distributor)`, `(driver)`, `(ops)`), uma **API Express modular** (`apps/api`) e um **worker BullMQ** (processo separado). O enum `SourceApp` confirma os canais reais: `consumer_web`, `distributor_web`, `driver_web`, `ops_console`, `backend`. Os "produtos" abaixo seguem válidos como **visão de domínio**, mas são entregues como áreas do mesmo PWA instalável (com modo offline no perfil entregador).
 
-1. **App Consumidor (mobile)**
-2. **Dashboard Distribuidor/Xuá (web e/ou mobile)**
+A plataforma cobre, conceitualmente, **dois produtos** :
 
-Além disso, existe o **módulo do entregador** ( “modo entregas” no app do distribuidor).
+1. **Área do Consumidor (PWA)**
+2. **Dashboard Distribuidor/Xuá (PWA)**
+
+Além disso, existe o **módulo do entregador** ( “modo entregas”, no mesmo PWA, com fila offline via IndexedDB).
+
+**2-bis) Arquitetura técnica de runtime (visão de implementação)**
+
+> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/Redis_BullMQ_Queue/`.
+
+- **Monorepo** npm workspaces: `apps/web`, `apps/api`, `packages/shared` (Zod schemas, enums e types compartilhados front/back). Prisma na raiz (`prisma/schema.prisma`).
+- **API (`apps/api`)** — Express, monólito modular (`routes → controllers → services → repository`). 16 módulos sob `/api/*`: `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.
+- **Autenticação** — JWT em **cookie httpOnly `xua-token`**, validado na API (`authMiddleware`) e replicado no `proxy.ts` do Next (`jwtVerify` + RBAC por role + redirecionamento). **Logout** via *blacklist* de `jti` no Redis. RBAC por `requireRole(...)`.
+- **Worker assíncrono (`apps/api/src/worker`)** — processo BullMQ separado, com 3 filas ativas:
+  - `internal-jobs` — `otp-cleanup`, `subscription-generation`, `subscription-expiry`.
+  - `payment-webhooks` — processamento idempotente de webhooks de pagamento.
+  - `payments` — `expire-payment` (expiração de pagamentos pendentes).
+  - Jobs disparados via `/api/internal/jobs`, protegidos por `INTERNAL_JOB_SECRET` (não por JWT).
+- **Realtime** — **Socket.IO** acoplado ao mesmo servidor HTTP da API (atualização de filas/pedidos).
+- **Pagamentos** — provider concreto **Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`); métodos: **Pix, cartão e dinheiro** (`cash_change_for_cents`). Idempotência via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events` + trilha em `21_trn_payment_transactions`.
+- **Frontend (`apps/web`)** — Next.js 16 (App Router) + React 19; estado com **Zustand** (`auth`, `cart`, `checkout`, `subscription`) e **TanStack Query**; comunicação via `fetch` (`credentials: include`); PWA com push e fila offline (idb).
 
 **3) Passo a passo (ponta a ponta) — com usabilidade + requisitos de programação**
 
@@ -156,7 +174,9 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
 
 **Requisitos de programação**
 
-- Motor de janelas: capacidade por zona/janela/dia.
+> **[ESTADO ATUAL — jun/2026]** Não existe um "motor de capacidade numérica por zona/janela/dia" nem tabela `delivery_capacity`. A disponibilidade é determinada por: **(1)** agenda semanal da distribuidora (`22_cfg_distributor_schedule`, dia ativo + `lead_time_hours`), **(2)** datas bloqueadas (`23_cfg_distributor_blocked_dates`) e **(3)** faixas horárias configuráveis (`24_cfg_time_slots`). O horário escolhido vira *snapshot* imutável no pedido (`scheduled_time_*`). Não há, hoje, bloqueio de *overbooking* por contagem de pedidos.
+
+- Disponibilidade de janelas: derivada da agenda semanal + lead-time + datas bloqueadas + time slots (ver itens `[NOVO]` abaixo).
 - **[NOVO] Configuração de agenda por distribuidora** (`22_cfg_distributor_schedule`):
     - Cada dia da semana pode ser ativado/desativado individualmente.
     - Cada dia ativo possui `lead_time_hours` — tempo mínimo de antecedência para aceitar pedidos (ex.: 24 h).
@@ -170,8 +190,8 @@ Além disso, existe o **módulo do entregador** ( “modo entregas” no app do 
 - **[NOVO] Validação no pedido** (`validateDeliveryDate`):
     - Antes de reservar capacidade em `createOrder`, o sistema valida a data escolhida contra a agenda ativa, datas bloqueadas e lead_time.
     - Erros possíveis: `WEEKDAY_INACTIVE`, `DATE_BLOCKED`, `LEAD_TIME_VIOLATION` — todos retornam HTTP 422.
-- Cálculo e “reserva” de capacidade no momento do checkout.
-- Estados do pedido: **created → scheduled → paid? → sent_to_distributor**.
+- Validação da data (`validateDeliveryDate`) no momento da criação do pedido (sem reserva numérica de capacidade).
+- Estados reais do pedido (enum `OrderStatus`): **CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR → …** (ver máquina de estados completa adiante).
 
 **Usabilidade**
 
@@ -365,15 +385,15 @@ operação cita scripts e comunicação).
 
 **Requisitos de programação**
 
-- Conciliação de vasilhames legacy (_trn_reconciliations\):
+- Conciliação de vasilhames legacy (_17_trn_reconciliations):
     - entradas/saídas por dia
     - divergências e justificativas
-- **[NOVO] Módulo de inventário operacional** (tabelas 9_mst_inventory_items\ a _trn_inventory_reconciliation_items\):
-    - Catálogo de itens (9_mst_inventory_items\): garrafões cheios/vazios, insumos, produtos vendáveis. Cada item tem tipo (\SELLABLE_PRODUCT\, \RETURNABLE_FULL\, \RETURNABLE_EMPTY\, \SUPPLY\) e limiar de estoque baixo.
-    - Saldo materializado por distribuidora (_trn_distributor_inventory_balances\): \quantity_on_hand\ atualizado a cada movimentação.
-    - Log imutável de movimentações (_trn_inventory_movements\): registra delta, tipo (ex: \ORDER_ACCEPT_OUT\, \EMPTY_RETURN_IN\, \RECONCILIATION_ADJUSTMENT\), ator responsável e referência de origem (pedido, sessão de reconciliação, etc.).
-    - Sessões de reconciliação de inventário (_trn_inventory_reconciliation_sessions\): operador abre uma sessão (\OPEN\), conta o estoque físico item a item, e fecha (\CLOSED\) registrando justificativa para divergências. Ao fechar, o sistema gera automaticamente movimentos de ajuste.
-    - Detalhamento por item de sessão (_trn_inventory_reconciliation_items\): snapshot_quantity (saldo no momento da abertura), counted_quantity (contagem física), delta calculado e referência ao movimento de ajuste gerado.
+- **[NOVO] Módulo de inventário operacional** (tabelas `29_mst_inventory_items` a _33_trn_inventory_reconciliation_items):
+    - Catálogo de itens (`29_mst_inventory_items`): garrafões cheios/vazios, insumos, produtos vendáveis. Cada item tem tipo (\SELLABLE_PRODUCT\, \RETURNABLE_FULL\, \RETURNABLE_EMPTY\, \SUPPLY\) e limiar de estoque baixo.
+    - Saldo materializado por distribuidora (_30_trn_distributor_inventory_balances): \quantity_on_hand\ atualizado a cada movimentação.
+    - Log imutável de movimentações (_31_trn_inventory_movements): registra delta, tipo (ex: \ORDER_ACCEPT_OUT\, \EMPTY_RETURN_IN\, \RECONCILIATION_ADJUSTMENT\), ator responsável e referência de origem (pedido, sessão de reconciliação, etc.).
+    - Sessões de reconciliação de inventário (_32_trn_inventory_reconciliation_sessions): operador abre uma sessão (\OPEN\), conta o estoque físico item a item, e fecha (\CLOSED\) registrando justificativa para divergências. Ao fechar, o sistema gera automaticamente movimentos de ajuste.
+    - Detalhamento por item de sessão (_33_trn_inventory_reconciliation_items): snapshot_quantity (saldo no momento da abertura), counted_quantity (contagem física), delta calculado e referência ao movimento de ajuste gerado.
 - Fluxo de quarentena (status do vasilhame).
 - Auditoria (campanha Moto Xuá: auditoria trimestral) — logs e trilha de auditoria.
 
@@ -753,6 +773,7 @@ Só preciso que você defina 3 escolhas do MVP (para não “inventar” regra o
 2. **Caução** entra no MVP ou fica para v1? (os docs mencionam, mas dá para fatiar)
 3. **Assinatura** : semanal, quinzenal, mensal — ou “a cada X dias”?
 
+> **[ESTADO ATUAL — jun/2026]** A decisão histórica de "assinatura mensal" foi **superada**. O modelo implementado é **baseado em planos pré-definidos pela ops** (`25_cfg_subscription_plans`): a ops define nome, produto, quantidade total, desconto % e validade; o consumidor contrata via wizard de 5 etapas (Plano → Distribuidor → Endereço → Datas → Pagamento) e **distribui a quantidade total entre datas de entrega arbitrárias** (`28_trn_subscription_delivery_dates`), cada uma com faixa horária. Não há frequência fixa "mensal/semanal" — ver Seção C (assinatura v2) acima.
 
 **POD via código OTP** , **assinatura mensal** e, sobre **caução** , o mais indicado (pelos
 próprios documentos) é **manter caução no MVP** , porque:
@@ -1026,8 +1047,8 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 - B1. Cadastro/login + perfil.
 - B2. Endereço + detecção de zona/distribuidor.
 - B3. Catálogo 20L + carrinho.
-- B4. Agendamento manhã/tarde com reserva de capacidade.
-- B5. Assinatura mensal: criar/pausar/cancelar (regras simples).
+- B4. Agendamento manhã/tarde (agenda semanal + lead-time + datas bloqueadas + time slots; sem reserva numérica de capacidade). ✅ implementado
+- B5. Assinatura ~~mensal~~ **por planos pré-definidos (v2)**: contratar via wizard, pausar/retomar/cancelar. ✅ implementado
 - B6. Pagamento in-app:
     - pagamento de pedido avulso
     - pagamento inicial de assinatura
@@ -1079,13 +1100,20 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 
 **4) Decisões de MVP**
 
-- **POD** : **OTP**
-- **Assinatura** : **mensal**
+- **POD** : **OTP** ✅ implementado (tabela própria `16_sec_order_otps`)
+- **Assinatura** : ~~mensal~~ → **modelo por planos pré-definidos (v2)** ✅ implementado (ver `[ESTADO ATUAL]` na Seção "Decisões do MVP" acima)
 - **Caução** : **recomendada no MVP** , por ser pilar de controle de ativo + prioridade
-    operacional
+    operacional — ✅ entidade `15_trn_deposits` + `deposit_cents` em produto/pedido implementados
 
 
 **1) Mapa de eventos auditáveis (com payload mínimo)**
+
+> **[ESTADO ATUAL — jun/2026]** As duas seções de "Mapa de eventos auditáveis" deste documento descrevem um **envelope rico idealizado** (`event_id`, `recorded_at`, `correlation{subscription_id,payment_id,deposit_id,route_id}`, `source.version`, `client_context`, `geo`) que **não corresponde** ao modelo implementado. O `18_aud_audit_events` real é **plano**:
+> `id, event_type (enum), actor_type (enum), actor_id, order_id, source_app (enum), payload (jsonb), occurred_at`. **Não existem** `recorded_at`, `geo`, `route_id` nem objeto `correlation` (correlações extras, quando necessárias, vão dentro de `payload`).
+>
+> O enum `AuditEventType` implementado é um **subconjunto curado de 25 tipos** (snake_case em maiúsculas): `ORDER_CREATED, ORDER_PRICING_FINALIZED, ORDER_CONFIRMED, ORDER_CANCELLED, ORDER_RECEIVED_BY_DISTRIBUTOR, ORDER_ACCEPTED_BY_DISTRIBUTOR, ORDER_REJECTED_BY_DISTRIBUTOR, DISPATCH_CHECKLIST_COMPLETED, ORDER_DISPATCHED, OTP_GENERATED, OTP_SENT, OTP_VALIDATION_ATTEMPTED, ORDER_DELIVERED, BOTTLE_EXCHANGE_RECORDED, EMPTY_NOT_COLLECTED, REDELIVERY_REQUIRED, REDELIVERY_SCHEDULED, PAYMENT_CREATED, PAYMENT_CAPTURED, PAYMENT_FAILED, PAYMENT_EXPIRED, DEPOSIT_HELD, DEPOSIT_REFUND_INITIATED, DEPOSIT_REFUNDED, DAILY_RECONCILIATION_CLOSED`.
+>
+> Eventos citados abaixo que **NÃO existem** no enum real: `payment_authorized`, `redelivery_completed`, `route_assigned`, `cart_created`, `cart_item_added`, `coverage_resolved`, `consumer_registered`, `consumer_address_saved`, `delivery_window_selected`, `exchange_intent_declared`, `order_submitted_for_payment`, `daily_reconciliation_started`, `daily_reconciliation_delta_justified`, `audit_snapshot_exported`. Existe `PAYMENT_EXPIRED` (não citado abaixo). **Os KPIs (SLA aceite, taxa de aceite, reentrega) são calculados via SQL diretamente sobre `18_aud_audit_events`** — ver `kpi.service.ts`.
 
 A base documental exige **governança/compliance** , **SLA de aceitação** , **taxa de
 aceitação** , **reentrega** , e controle de **troca / não coleta / conciliação de
@@ -1266,11 +1294,12 @@ O pedido só pode usar OTP se:
 - Armazenamento:
     - Persistir **somente hash** do OTP (ex.: HMAC/argon2/bcrypt) + **expires_at**.
     - Nunca logar OTP em texto claro.
-- Campos mínimos (tabela/order):
+- Campos mínimos (tabela própria `16_sec_order_otps`, **não** em `orders`):
     - **otp_hash**
-    - **otp_expires_at**
-    - **otp_attempts** (int)
-    - **otp_last_attempt_at**
+    - **expires_at** (doc citava `otp_expires_at`)
+    - **attempts** (int) (doc citava `otp_attempts`)
+    - **status** (`active|used|expired|locked`)
+    - _Nota: `otp_last_attempt_at` e `otp_delivery_attempt_number` citados no documento **não existem** no modelo atual._
 
 
 **2.4. Entrega do OTP ao consumidor**
@@ -1631,13 +1660,14 @@ Regras mínimas:
 
 **2.2. Campos mínimos (no banco)**
 
-Na tabela **orders** (ou **order_delivery_security** ):
+> **[ESTADO ATUAL — jun/2026]** Implementado em **tabela própria `16_sec_order_otps`** (não em `orders`/`order_delivery_security`), com os campos: `id, order_id, otp_hash, status (active|used|expired|locked), attempts, expires_at, created_at, updated_at`. Não há `otp_last_attempt_at` nem `otp_delivery_attempt_number`. Limpeza de OTPs expirados via job interno `otp-cleanup` (worker BullMQ).
+
+Campos reais (`16_sec_order_otps`):
 
 - **otp_hash** (string)
-- **otp_expires_at** (timestamp)
-- **otp_attempts** (int)
-- **otp_last_attempt_at** (timestamp)
-- **otp_delivery_attempt_number** (int; começa em 1)
+- **expires_at** (timestamp)
+- **attempts** (int)
+- **status** (`active|used|expired|locked`)
 
 
 **2.3. Geração do OTP**
@@ -1881,6 +1911,18 @@ serializado**
 - **Regra B fica definida como evolução** (v2), sem bloquear o go-live.
 
 **2) Contrato de domínio (PostgreSQL) — tabelas mínimas + índices + constraints**
+
+> **[ESTADO ATUAL — jun/2026] ⚠️ O DDL desta seção é o RASCUNHO LÓGICO original e diverge do schema implementado.** A fonte da verdade é **`prisma/schema.prisma`** (33 tabelas). Principais diferenças do que está escrito abaixo:
+> - **Nomenclatura:** as tabelas reais usam **prefixo numérico + classe** (`01_mst_consumers`, `02_mst_addresses`, `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `06_mst_products`, `09_trn_orders`, `13_trn_payments`, `15_trn_deposits`, `16_sec_order_otps`, `18_aud_audit_events` …) — **não** `consumers`, `addresses` etc.
+> - **Chaves:** **todas** as PKs/FKs são `uuid` (inclusive `distributors`, `zones`, `products`). A DDL abaixo usa `text` em distributor/zone e `sku` como PK de product — **incorreto**.
+> - **`consumers` real:** `name`, `email`, `password_hash`, `role`, `is_b2b`, `distributor_id`, `auto_assign_distributor`, `preferred_distributor_id`. Não há `full_name`/`status`.
+> - **`addresses` real:** `street, number, complement, neighborhood, city, state, zip_code`. **Não há `lat/lng`** (sem geocoding; lookup por CEP via `GET /api/consumers/cep/:cep`).
+> - **Capacidade:** **a tabela `delivery_capacity` (2.2.5) NÃO existe.** Disponibilidade = `22_cfg_distributor_schedule` + `23_cfg_distributor_blocked_dates` + `24_cfg_time_slots`.
+> - **Valores monetários:** armazenados em **centavos `Int`** (`price_cents`, `deposit_cents`, `subtotal_cents`, `total_cents`, `amount_cents`), não `numeric(12,2)`.
+> - **`payments` real:** referencia `user_subscription_id` (não `subscriptions`/`deposit_id`); inclui `payment_method`, `cash_change_for_cents`, `provider`, `provider_payment_ref`, `external_id`, `idempotency_key`. Provider concreto = **Mercado Pago**.
+> - **`audit_events` real:** plano (sem `recorded_at`/`geo`/`route_id`/`correlation`) — ver banner da Seção de eventos.
+> - **OTP:** `16_sec_order_otps` (já refletido em 2.6, ok).
+> - Tabelas implementadas **ausentes** deste DDL: inventário (`29`–`33`), assinaturas-v2 (`25`–`28`, descritas em 2.4), `07_mst_categories`, `08_sec_consumer_push_tokens`, `14_cfg_payment_webhook_events`, `19_cfg_banners`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`.
 
 **2.1. Convenções**
 
@@ -2974,6 +3016,8 @@ pacote único no mesmo formato._
 
 
 **1) Contrato de domínio (PostgreSQL) — versão “MVP agnóstica de provider”**
+
+> **[ESTADO ATUAL — jun/2026]** Aplicam-se as mesmas ressalvas do banner da Seção 2 anterior (nomenclatura prefixada, `uuid`, centavos, etc.). Sobre pagamentos: o sistema **não é agnóstico de provider na prática** — há um **adapter concreto Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`), com **webhooks assíncronos** processados pela fila BullMQ `payment-webhooks` (dedup via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events`), trilha em `21_trn_payment_transactions` e expiração via fila `payments` (`expire-payment`). Métodos suportados: **Pix, cartão e dinheiro** (`cash_change_for_cents`).
 
 Abaixo eu consolido em um pacote coerente, com:
 

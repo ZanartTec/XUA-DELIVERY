@@ -4,9 +4,125 @@ import {
   CHECKOUT_PAYMENT_METHOD_VALUES,
   DELIVERY_WINDOW_INPUT_VALUES,
   NON_COLLECTION_REASON_VALUES,
+  OrderStatus,
   REJECT_ORDER_REASON_VALUES,
 } from "../enums";
 import { DEFAULT_CHECKOUT_PAYMENT_METHOD, isCashPaymentMethod } from "../mappers/payment";
+
+const YYYY_MM_DD = /^\d{4}-\d{2}-\d{2}$/;
+
+const emptyStringToUndefined = (value: unknown) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+};
+
+const dateQuery = z
+  .string()
+  .trim()
+  .regex(YYYY_MM_DD, "Data inválida (YYYY-MM-DD)")
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "Data inválida");
+
+const optionalDateQuery = z.preprocess(emptyStringToUndefined, dateQuery.optional());
+const pageQuery = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce
+    .number()
+    .int("page deve ser inteiro")
+    .min(1, "page deve ser maior que zero")
+    .default(1)
+);
+const limitQuery = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce
+    .number()
+    .int("limit deve ser inteiro")
+    .min(1, "limit deve ser maior que zero")
+    .max(50, "limit deve ser no máximo 50")
+    .default(20)
+);
+
+export const DISTRIBUTOR_QUEUE_STAGE_VALUES = ["all", "incoming", "preparation", "route"] as const;
+export const DISTRIBUTOR_QUEUE_ORIGIN_VALUES = ["all", "cart", "subscription"] as const;
+export const DISTRIBUTOR_QUEUE_SORT_VALUES = ["created_desc", "delivery_asc", "sla_asc"] as const;
+export const DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES = [
+  OrderStatus.SENT_TO_DISTRIBUTOR,
+  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+  OrderStatus.READY_FOR_DISPATCH,
+  OrderStatus.OUT_FOR_DELIVERY,
+] as const;
+
+export const distributorQueueQuerySchema = z
+  .object({
+    scope: z.literal("distributor"),
+    stage: z.preprocess(
+      emptyStringToUndefined,
+      z.enum(DISTRIBUTOR_QUEUE_STAGE_VALUES).default("all")
+    ),
+    status: z.preprocess(
+      emptyStringToUndefined,
+      z.enum(DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES).optional()
+    ),
+    q: z.preprocess(
+      emptyStringToUndefined,
+      z.string().trim().min(2, "Busca deve ter ao menos 2 caracteres").max(120).optional()
+    ),
+    origin: z.preprocess(
+      emptyStringToUndefined,
+      z.enum(DISTRIBUTOR_QUEUE_ORIGIN_VALUES).default("all")
+    ),
+    deliveryDate: optionalDateQuery,
+    start: optionalDateQuery,
+    end: optionalDateQuery,
+    driverId: z.preprocess(
+      emptyStringToUndefined,
+      z.union([z.string().uuid("Motorista inválido"), z.literal("unassigned")]).optional()
+    ),
+    sort: z.preprocess(
+      emptyStringToUndefined,
+      z.enum(DISTRIBUTOR_QUEUE_SORT_VALUES).default("created_desc")
+    ),
+    page: pageQuery,
+    limit: limitQuery,
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.deliveryDate && (data.start || data.end)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deliveryDate"],
+        message: "deliveryDate não pode ser combinado com start/end",
+      });
+    }
+
+    if (!data.start || !data.end) return;
+
+    const start = Date.parse(`${data.start}T00:00:00.000Z`);
+    const end = Date.parse(`${data.end}T00:00:00.000Z`);
+    if (start > end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end"],
+        message: "end deve ser posterior ou igual a start",
+      });
+    }
+
+    const maxRangeMs = 31 * 24 * 60 * 60 * 1000;
+    if (end - start > maxRangeMs) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end"],
+        message: "Intervalo máximo para a fila é de 31 dias",
+      });
+    }
+  });
+export type DistributorQueueQueryInput = z.infer<typeof distributorQueueQuerySchema>;
+export type DistributorQueueStageInput = (typeof DISTRIBUTOR_QUEUE_STAGE_VALUES)[number];
+export type DistributorQueueOriginInput = (typeof DISTRIBUTOR_QUEUE_ORIGIN_VALUES)[number];
+export type DistributorQueueSortInput = (typeof DISTRIBUTOR_QUEUE_SORT_VALUES)[number];
+export type DistributorQueueActiveStatusInput = (typeof DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES)[number];
 
 export const createOrderSchema = z.object({
   address_id: z.string().uuid("Endereço inválido"),

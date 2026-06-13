@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "@/src/components/ui/sonner";
-import { PwaInstallPrompt } from "@/src/components/shared/pwa-install-prompt";
+import { PwaProvider } from "@/src/hooks/use-pwa";
 import { useAuthStore } from "@/src/store/auth";
 
 function AuthHydrator() {
@@ -85,10 +85,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthHydrator />
-      {children}
-      <Toaster position="top-center" richColors />
-      <PwaInstallPrompt />
+      <PwaProvider>
+        <AuthHydrator />
+        {children}
+        <Toaster position="top-center" richColors />
+      </PwaProvider>
     </QueryClientProvider>
   );
 }

@@ -1,5 +1,6 @@
 import type { Payment, Prisma } from "@prisma/client";
 import {
+  DeliveryDateStatus,
   PaymentKind,
   PaymentStatus,
   UserSubscriptionStatus,
@@ -37,12 +38,22 @@ export class UserSubscriptionError extends Error {
   }
 }
 
-function daysAheadUntil(maxDate: Date): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(maxDate);
-  target.setHours(0, 0, 0, 0);
-  return Math.max(1, Math.ceil((target.getTime() - today.getTime()) / 86400000) + 1);
+/**
+ * Dias (inclusive) entre hoje em São Paulo e a maior data ISO informada.
+ * Usa apenas componentes de data (sem hora/UTC) para dimensionar a janela de
+ * disponibilidade sem off-by-one de timezone — garante que a maior data esteja
+ * dentro do range retornado por getAvailableDates.
+ */
+function daysAheadForIso(maxIso: string): number {
+  const todaySP = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+  const [ty, tm, td] = todaySP.split("-").map(Number);
+  const [my, mm, md] = maxIso.slice(0, 10).split("-").map(Number);
+  const diff = Math.round(
+    (Date.UTC(my, mm - 1, md) - Date.UTC(ty, tm - 1, td)) / 86_400_000
+  );
+  return Math.max(1, diff + 1);
 }
 
 function toPaymentStatus(status: string): PaymentStatus {
@@ -163,6 +174,101 @@ async function persistSubscriptionPayment(
   };
 }
 
+/**
+ * Validação compartilhada de datas de entrega (mesma regra usada na criação).
+ * Verifica: período do plano, cobertura de zona, slot ativo, agenda + lead_time
+ * + bloqueios (scheduleService.validateDeliveryDate) e disponibilidade da janela.
+ * Reutilizada por `create` (várias datas) e `editDeliveryDate` (uma data).
+ */
+async function assertDeliveryDatesValid(params: {
+  distributorId: string;
+  addressZoneId: string;
+  planValidFrom: Date;
+  planValidUntil: Date;
+  deliveryDates: Array<{ date: string; time_slot_id: string }>;
+}): Promise<void> {
+  const { distributorId, addressZoneId, planValidFrom, planValidUntil, deliveryDates } = params;
+
+  // 1. Dentro do período de validade do plano
+  for (const d of deliveryDates) {
+    const date = new Date(d.date);
+    if (date < planValidFrom || date > planValidUntil) {
+      throw new UserSubscriptionError(
+        "DATE_OUT_OF_RANGE",
+        `Data ${d.date} está fora do período do plano`
+      );
+    }
+  }
+
+  // 2. Distribuidora cobre a zona do endereço
+  const scheduleZoneId = await distributorRepository.resolveCoveredZone(
+    distributorId,
+    addressZoneId
+  );
+  if (!scheduleZoneId) {
+    throw new UserSubscriptionError(
+      "DISTRIBUTOR_NOT_COVERING_ZONE",
+      "Distribuidora selecionada não atende o endereço informado"
+    );
+  }
+
+  // 3. Disponibilidade de cada data/horário (slot ativo + agenda/lead_time/bloqueios + janela)
+  const activeSlots = await timeslotRepository.findActiveByDistributor(distributorId);
+  const slotsById = new Map(activeSlots.map((slot) => [slot.id, slot]));
+  const maxIso = deliveryDates.reduce(
+    (max, item) => (item.date.slice(0, 10) > max ? item.date.slice(0, 10) : max),
+    deliveryDates[0].date.slice(0, 10)
+  );
+  const availability = await scheduleService.getAvailableDates(
+    distributorId,
+    scheduleZoneId,
+    daysAheadForIso(maxIso)
+  );
+  const availabilityByDate = new Map(availability.map((item) => [item.date, item]));
+
+  for (const deliveryDate of deliveryDates) {
+    const slot = slotsById.get(deliveryDate.time_slot_id);
+    if (!slot) {
+      throw new UserSubscriptionError(
+        "TIME_SLOT_UNAVAILABLE",
+        "Horário selecionado não está disponível para a distribuidora"
+      );
+    }
+
+    try {
+      await scheduleService.validateDeliveryDate(distributorId, deliveryDate.date, slot.window);
+    } catch (err) {
+      throw new UserSubscriptionError(
+        "DATE_UNAVAILABLE",
+        err instanceof Error ? err.message : "Data indisponível para entrega"
+      );
+    }
+
+    const dateAvailability = availabilityByDate.get(deliveryDate.date);
+    const slotWindow = slot.window.toLowerCase();
+    const windowAvailable =
+      slotWindow === "morning"
+        ? dateAvailability?.morning_available === true
+        : dateAvailability?.afternoon_available === true;
+
+    if (!windowAvailable) {
+      throw new UserSubscriptionError(
+        "DATE_UNAVAILABLE",
+        "Data ou horário indisponível para este distribuidor"
+      );
+    }
+  }
+}
+
+/** True se a data de entrega (coluna DATE, meia-noite UTC) é estritamente futura em SP. */
+function isFutureDeliveryDate(dbDate: Date): boolean {
+  const targetIso = dbDate.toISOString().slice(0, 10);
+  const todayIsoSP = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+  return targetIso > todayIsoSP;
+}
+
 export const userSubscriptionsService = {
   async listByConsumer(consumerId: string) {
     return userSubscriptionsRepository.findByConsumer(consumerId);
@@ -210,19 +316,6 @@ export const userSubscriptionsService = {
       );
     }
 
-    // Validate all dates are within plan period
-    const validFrom = plan.valid_from;
-    const validUntil = plan.valid_until;
-    for (const d of data.delivery_dates) {
-      const date = new Date(d.date);
-      if (date < validFrom || date > validUntil) {
-        throw new UserSubscriptionError(
-          "DATE_OUT_OF_RANGE",
-          `Data ${d.date} está fora do período do plano`
-        );
-      }
-    }
-
     const prisma = getPrisma();
     const consumer = await prisma.consumer.findUnique({
       where: { id: data.consumer_id },
@@ -242,66 +335,13 @@ export const userSubscriptionsService = {
       );
     }
 
-    const scheduleZoneId = await distributorRepository.resolveCoveredZone(
-      data.distributor_id,
-      address.zone_id
-    );
-    if (!scheduleZoneId) {
-      throw new UserSubscriptionError(
-        "DISTRIBUTOR_NOT_COVERING_ZONE",
-        "Distribuidora selecionada não atende o endereço informado"
-      );
-    }
-
-    const activeSlots = await timeslotRepository.findActiveByDistributor(data.distributor_id);
-    const slotsById = new Map(activeSlots.map((slot) => [slot.id, slot]));
-    const maxDeliveryDate = data.delivery_dates.reduce((max, item) => {
-      const current = new Date(item.date);
-      return current > max ? current : max;
-    }, new Date(data.delivery_dates[0].date));
-    const availability = await scheduleService.getAvailableDates(
-      data.distributor_id,
-      scheduleZoneId,
-      daysAheadUntil(maxDeliveryDate)
-    );
-    const availabilityByDate = new Map(availability.map((item) => [item.date, item]));
-
-    for (const deliveryDate of data.delivery_dates) {
-      const slot = slotsById.get(deliveryDate.time_slot_id);
-      if (!slot) {
-        throw new UserSubscriptionError(
-          "TIME_SLOT_UNAVAILABLE",
-          "Horário selecionado não está disponível para a distribuidora"
-        );
-      }
-
-      try {
-        await scheduleService.validateDeliveryDate(
-          data.distributor_id,
-          deliveryDate.date,
-          slot.window
-        );
-      } catch (err) {
-        throw new UserSubscriptionError(
-          "DATE_UNAVAILABLE",
-          err instanceof Error ? err.message : "Data indisponível para entrega"
-        );
-      }
-
-      const dateAvailability = availabilityByDate.get(deliveryDate.date);
-      const slotWindow = slot.window.toLowerCase();
-      const windowAvailable =
-        slotWindow === "morning"
-          ? dateAvailability?.morning_available === true
-          : dateAvailability?.afternoon_available === true;
-
-      if (!windowAvailable) {
-        throw new UserSubscriptionError(
-          "DATE_UNAVAILABLE",
-          "Data ou horário indisponível para este distribuidor"
-        );
-      }
-    }
+    await assertDeliveryDatesValid({
+      distributorId: data.distributor_id,
+      addressZoneId: address.zone_id,
+      planValidFrom: plan.valid_from,
+      planValidUntil: plan.valid_until,
+      deliveryDates: data.delivery_dates,
+    });
 
     const sortedDates = [...data.delivery_dates].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -499,5 +539,89 @@ export const userSubscriptionsService = {
     }
 
     return userSubscriptionsRepository.updateStatus(id, UserSubscriptionStatus.ACTIVE);
+  },
+
+  /**
+   * Altera a data e a faixa horária de uma entrega futura ainda não processada.
+   * Reaproveita as mesmas validações da criação (assertDeliveryDatesValid).
+   */
+  async editDeliveryDate(
+    subscriptionId: string,
+    deliveryDateId: string,
+    consumerId: string,
+    input: { date: string; time_slot_id: string }
+  ) {
+    const sub = await userSubscriptionsRepository.findById(subscriptionId);
+    if (!sub) throw new UserSubscriptionError("NOT_FOUND", "Assinatura não encontrada");
+    if (sub.consumer_id !== consumerId) {
+      throw new UserSubscriptionError("FORBIDDEN", "Acesso negado");
+    }
+    if (
+      sub.status !== UserSubscriptionStatus.ACTIVE &&
+      sub.status !== UserSubscriptionStatus.PAUSED
+    ) {
+      throw new UserSubscriptionError(
+        "INVALID_STATUS",
+        "Só é possível editar entregas de assinaturas ativas ou pausadas"
+      );
+    }
+
+    const target = sub.delivery_dates.find((d) => d.id === deliveryDateId);
+    if (!target) {
+      throw new UserSubscriptionError("DELIVERY_DATE_NOT_FOUND", "Entrega não encontrada");
+    }
+    if (target.status !== DeliveryDateStatus.PENDING || target.order_id) {
+      throw new UserSubscriptionError(
+        "NOT_EDITABLE",
+        "Esta entrega não pode mais ser alterada"
+      );
+    }
+    if (!isFutureDeliveryDate(target.delivery_date)) {
+      throw new UserSubscriptionError(
+        "NOT_EDITABLE",
+        "Só é possível alterar entregas futuras"
+      );
+    }
+
+    if (!sub.address.zone_id) {
+      throw new UserSubscriptionError(
+        "ADDRESS_WITHOUT_ZONE",
+        "Endereço sem zona de entrega vinculada"
+      );
+    }
+
+    await assertDeliveryDatesValid({
+      distributorId: sub.distributor_id,
+      addressZoneId: sub.address.zone_id,
+      planValidFrom: sub.plan.valid_from,
+      planValidUntil: sub.plan.valid_until,
+      deliveryDates: [input],
+    });
+
+    const prisma = getPrisma();
+    await prisma.$transaction(async (tx: TxClient) => {
+      await userSubscriptionsRepository.updateDeliveryDateSchedule(
+        deliveryDateId,
+        { delivery_date: new Date(input.date), time_slot_id: input.time_slot_id },
+        tx
+      );
+
+      // Recomputa start/end_date a partir de todas as datas (com a nova aplicada)
+      const allDates = sub.delivery_dates.map((d) =>
+        d.id === deliveryDateId ? new Date(input.date) : d.delivery_date
+      );
+      const times = allDates.map((d) => d.getTime());
+      await userSubscriptionsRepository.updateDateRange(
+        subscriptionId,
+        {
+          start_date: new Date(Math.min(...times)),
+          end_date: new Date(Math.max(...times)),
+        },
+        tx
+      );
+    });
+
+    log.info({ subscriptionId, deliveryDateId }, "Subscription delivery date edited");
+    return userSubscriptionsRepository.findById(subscriptionId);
   },
 };

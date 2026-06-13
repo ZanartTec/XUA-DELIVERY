@@ -153,10 +153,13 @@ Assinatura v2 (/subscription/create)
 └── [Automático] Job diário gera pedido para cada entrega agendada pendente
 
 Gerenciar assinatura (/subscription/manage)
-├── Card com status: ativa / pausada / cancelada
-├── Botão 'Pausar'   -> Dialog confirmação: 'Pausa a partir do próximo ciclo'
-├── Botão 'Retomar'  -> Reativa com próxima data recalculada
-└── Botão 'Cancelar' -> Dialog: 'Tem certeza? Esta ação é irreversível'
+├── Card com status: ativa / pausada / concluída
+├── Botão 'Pausar'   -> ação imediata (sem dialog)
+├── Botão 'Retomar'  -> reativa a assinatura
+├── Botão 'Editar' (por data futura PENDING) -> Sheet: nova data + faixa horária
+│   └── PATCH /api/user-subscriptions/:id/delivery-dates/:deliveryDateId
+└── [NOTA jun/2026] Botão 'Cancelar' REMOVIDO da UI do consumer.
+    O endpoint PATCH /:id/cancel permanece no backend (sem caller no app). Ver pendência P6.
 
 Perfil (/profile)
 ├── Dados pessoais: nome, email, telefone
@@ -417,7 +420,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/orders` | (consumer) | consumer | Histórico paginado + filtro status + "Repetir pedido" 1 clique. |
 | `/orders/[id]` | (consumer) | consumer | Detalhe: OrderTimeline + OTP display + NPS modal + caução badge. |
 | `/subscription/create` | (consumer) | consumer | Criar assinatura: qty + janela + Calendar + preview valor. |
-| `/subscription/manage` | (consumer) | consumer | Gerenciar: pausar / retomar / cancelar com Dialog confirmação. |
+| `/subscription/manage` | (consumer) | consumer | Gerenciar: pausar / retomar; editar data+horário de entregas futuras (Sheet). Cancelar removido da UI (endpoint mantido no backend). |
 | `/profile` | (consumer) | consumer | Dados + endereços + caução + logout. |
 | `/profile/addresses` | (consumer) | consumer | CRUD endereços: CEP + ViaCEP + definir padrão. |
 | `/profile/edit` | (consumer) | consumer | Editar nome, email, telefone. |

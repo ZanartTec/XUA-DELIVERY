@@ -37,3 +37,11 @@ export const userSubscriptionPaymentRetrySchema = z.object({
 export type UserSubscriptionPaymentRetryInput = z.infer<
   typeof userSubscriptionPaymentRetrySchema
 >;
+
+export const userSubscriptionDeliveryDateEditSchema = z.object({
+  date: DATE_ISO,
+  time_slot_id: UUID,
+});
+export type UserSubscriptionDeliveryDateEditInput = z.infer<
+  typeof userSubscriptionDeliveryDateEditSchema
+>;

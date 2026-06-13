@@ -12,6 +12,7 @@ import type {
   OrderOtp,
 } from "@prisma/client";
 import type { DeliveryDateStatus, OrderStatus, UserSubscriptionStatus } from "@xua/shared/enums";
+import type { DistributorQueueOriginInput, DistributorQueueSortInput } from "@xua/shared/schemas/order";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -55,6 +56,26 @@ export type OrderForQueue = Order & {
   address: Pick<Address, "street" | "number" | "neighborhood">;
   items: Pick<OrderItem, "quantity" | "product_name">[];
   subscription_delivery_date: SubscriptionDeliveryContext | null;
+};
+
+export type DistributorQueuePagedOptions = {
+  statuses: OrderStatus[];
+  summaryStatuses: OrderStatus[];
+  page: number;
+  limit: number;
+  q?: string;
+  origin?: DistributorQueueOriginInput;
+  deliveryDate?: string;
+  start?: string;
+  end?: string;
+  driverId?: string;
+  sort: DistributorQueueSortInput;
+};
+
+export type DistributorQueuePagedResult = {
+  orders: OrderForQueue[];
+  total: number;
+  statusCounts: Partial<Record<OrderStatus, number>>;
 };
 
 export type OrderWithItems = Order & {
@@ -132,6 +153,90 @@ const newSubscriptionDeliveryInclude = {
     },
   },
 } satisfies Prisma.SubscriptionDeliveryDateDefaultArgs;
+
+function parseDateBoundary(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function nextUtcDay(value: string) {
+  const date = parseDateBoundary(value);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function distributorQueueOrderBy(sort: DistributorQueueSortInput): Prisma.OrderOrderByWithRelationInput[] {
+  switch (sort) {
+    case "delivery_asc":
+      return [
+        { delivery_date: "asc" },
+        { scheduled_time_start_hour: "asc" },
+        { created_at: "asc" },
+        { id: "asc" },
+      ];
+    case "sla_asc":
+      return [{ created_at: "asc" }, { id: "asc" }];
+    default:
+      return [{ created_at: "desc" }, { id: "desc" }];
+  }
+}
+
+function buildDistributorQueueWhere(
+  distributorId: string,
+  statuses: OrderStatus[],
+  options: Omit<DistributorQueuePagedOptions, "statuses" | "summaryStatuses" | "page" | "limit" | "sort">
+): Prisma.OrderWhereInput {
+  const where: Prisma.OrderWhereInput = {
+    distributor_id: distributorId,
+    status: { in: statuses },
+  };
+
+  if (options.q) {
+    const q = options.q.trim();
+    const or: Prisma.OrderWhereInput[] = [
+      { consumer: { name: { contains: q, mode: "insensitive" } } },
+      { address: { street: { contains: q, mode: "insensitive" } } },
+      { address: { neighborhood: { contains: q, mode: "insensitive" } } },
+      { items: { some: { product_name: { contains: q, mode: "insensitive" } } } },
+    ];
+
+    const digits = q.replace(/\D/g, "");
+    if (digits.length >= 3) {
+      or.push({ consumer: { phone: { contains: digits } } });
+    }
+    if (isUuid(q)) {
+      or.push({ id: q });
+    }
+
+    where.OR = or;
+  }
+
+  if (options.origin === "subscription") {
+    where.subscription_delivery_date = { isNot: null };
+  } else if (options.origin === "cart") {
+    where.subscription_delivery_date = { is: null };
+  }
+
+  if (options.deliveryDate) {
+    where.delivery_date = { gte: parseDateBoundary(options.deliveryDate), lt: nextUtcDay(options.deliveryDate) };
+  } else if (options.start || options.end) {
+    where.delivery_date = {
+      ...(options.start ? { gte: parseDateBoundary(options.start) } : {}),
+      ...(options.end ? { lt: nextUtcDay(options.end) } : {}),
+    };
+  }
+
+  if (options.driverId === "unassigned") {
+    where.driver_id = null;
+  } else if (options.driverId) {
+    where.driver_id = options.driverId;
+  }
+
+  return where;
+}
 
 /**
  * OrderRepository — CRUD e queries de pedidos.
@@ -279,6 +384,52 @@ export const orderRepository = {
         subscription_delivery_date: newSubscriptionDeliveryInclude,
       },
     }) as unknown as Promise<OrderForQueue[]>;
+  },
+
+  async findByDistributorPaged(
+    distributorId: string,
+    options: DistributorQueuePagedOptions,
+    tx?: TxClient
+  ): Promise<DistributorQueuePagedResult> {
+    const prisma = tx ?? getPrisma();
+    const filterOptions = {
+      q: options.q,
+      origin: options.origin,
+      deliveryDate: options.deliveryDate,
+      start: options.start,
+      end: options.end,
+      driverId: options.driverId,
+    };
+    const whereFilter = buildDistributorQueueWhere(distributorId, options.statuses, filterOptions);
+    const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
+
+    const [orders, total, statusGroups] = await Promise.all([
+      prisma.order.findMany({
+        where: whereFilter,
+        orderBy: distributorQueueOrderBy(options.sort),
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+        include: {
+          consumer: { select: { name: true } },
+          address: { select: { street: true, number: true, neighborhood: true } },
+          items: { select: { quantity: true, product_name: true } },
+          subscription_delivery_date: newSubscriptionDeliveryInclude,
+        },
+      }) as unknown as Promise<OrderForQueue[]>,
+      prisma.order.count({ where: whereFilter }),
+      prisma.order.groupBy({
+        by: ["status"],
+        where: summaryWhere,
+        _count: { id: true },
+      }),
+    ]);
+
+    const statusCounts: Partial<Record<OrderStatus, number>> = {};
+    for (const row of statusGroups) {
+      statusCounts[row.status as OrderStatus] = row._count.id;
+    }
+
+    return { orders, total, statusCounts };
   },
 
   async findByDriver(

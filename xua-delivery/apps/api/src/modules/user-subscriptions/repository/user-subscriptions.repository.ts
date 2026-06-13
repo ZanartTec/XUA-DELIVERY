@@ -103,6 +103,30 @@ export const userSubscriptionsRepository = {
     });
   },
 
+  async updateDeliveryDateSchedule(
+    id: string,
+    data: { delivery_date: Date; time_slot_id: string },
+    tx?: TxClient
+  ) {
+    const client = tx ?? getPrisma();
+    return client.subscriptionDeliveryDate.update({
+      where: { id },
+      data,
+    });
+  },
+
+  async updateDateRange(
+    id: string,
+    data: { start_date: Date; end_date: Date },
+    tx?: TxClient
+  ) {
+    const client = tx ?? getPrisma();
+    return client.userSubscription.update({
+      where: { id },
+      data,
+    });
+  },
+
   async createDeliveryDates(
     entries: Array<{
       user_subscription_id: string;

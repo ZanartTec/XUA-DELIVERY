@@ -16,9 +16,13 @@ const mocks = vi.hoisted(() => {
   return {
     OrderServiceError: MockOrderServiceError,
     orderService: {
+      listOrders: vi.fn(),
+      searchOrders: vi.fn(),
+      listDistributorQueue: vi.fn(),
       createOrder: vi.fn(),
       acceptOrder: vi.fn(),
       rejectOrder: vi.fn(),
+      assignDriver: vi.fn(),
       completeChecklist: vi.fn(),
       dispatch: vi.fn(),
       dispatchWithChecklist: vi.fn(),
@@ -92,10 +96,11 @@ const existingOrder = {
   status: OrderStatus.SENT_TO_DISTRIBUTOR,
 };
 
-function req(role: string, body: Record<string, unknown>): Request {
+function req(role: string, body: Record<string, unknown>, query: Record<string, unknown> = {}): Request {
   return {
     user: { sub: userId, role },
     params: { id: orderId },
+    query,
     body,
   } as unknown as Request;
 }
@@ -125,14 +130,112 @@ beforeEach(() => {
     zoneId,
     mode: "auto",
   });
+  mocks.orderService.listDistributorQueue.mockResolvedValue({
+    orders: [],
+    total: 0,
+    page: 1,
+    totalPages: 0,
+    limit: 20,
+    summary: { active: 0, incoming: 0, preparation: 0, route: 0 },
+    filters: {
+      stage: "all",
+      status: null,
+      q: null,
+      origin: "all",
+      deliveryDate: null,
+      start: null,
+      end: null,
+      driverId: null,
+      sort: "created_desc",
+    },
+  });
   mocks.orderService.createOrder.mockResolvedValue({
     ...existingOrder,
     total_cents: 2500,
     status: OrderStatus.SENT_TO_DISTRIBUTOR,
   });
   mocks.orderService.acceptOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR });
+  mocks.orderService.assignDriver.mockResolvedValue({ ...existingOrder, driver_id: userId });
   mocks.orderService.cancelOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.CANCELLED });
   mocks.orderService.markDeliveryFailed.mockResolvedValue({ ...existingOrder, status: OrderStatus.DELIVERY_FAILED });
+});
+
+describe("ordersController list distributor queue", () => {
+  it("bloqueia consumer em scope distributor", async () => {
+    const response = res();
+
+    await ordersController.list(req("consumer", {}, { scope: "distributor" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(mocks.orderService.listDistributorQueue).not.toHaveBeenCalled();
+  });
+
+  it("retorna 400 para query inválida", async () => {
+    const response = res();
+
+    await ordersController.list(req("distributor_admin", {}, { scope: "distributor", q: "a" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({
+      error: expect.any(String),
+      code: "INVALID_QUERY",
+    });
+    expect(mocks.orderService.listDistributorQueue).not.toHaveBeenCalled();
+  });
+
+  it("retorna envelope paginado e chama service com query validada", async () => {
+    const response = res();
+    const result = {
+      orders: [{ id: orderId, status: OrderStatus.SENT_TO_DISTRIBUTOR }],
+      total: 1,
+      page: 2,
+      totalPages: 3,
+      limit: 20,
+      summary: { active: 8, incoming: 2, preparation: 4, route: 2 },
+      filters: {
+        stage: "incoming",
+        status: null,
+        q: "Maria",
+        origin: "cart",
+        deliveryDate: null,
+        start: null,
+        end: null,
+        driverId: "unassigned",
+        sort: "sla_asc",
+      },
+    };
+    mocks.orderService.listDistributorQueue.mockResolvedValueOnce(result);
+
+    await ordersController.list(
+      req("distributor_admin", {}, {
+        scope: "distributor",
+        stage: "incoming",
+        q: " Maria ",
+        origin: "cart",
+        driverId: "unassigned",
+        sort: "sla_asc",
+        page: "2",
+        limit: "20",
+      }),
+      response
+    );
+
+    expect(mocks.orderService.listDistributorQueue).toHaveBeenCalledWith(
+      userId,
+      "distributor_admin",
+      expect.objectContaining({
+        scope: "distributor",
+        stage: "incoming",
+        q: "Maria",
+        origin: "cart",
+        driverId: "unassigned",
+        sort: "sla_asc",
+        page: 2,
+        limit: 20,
+      })
+    );
+    expect(response.json).toHaveBeenCalledWith(result);
+  });
 });
 
 describe("ordersController create", () => {
@@ -184,6 +287,17 @@ describe("ordersController action RBAC", () => {
     expect(mocks.orderService.acceptOrder).toHaveBeenCalledWith(orderId, userId);
     expect(response.json).toHaveBeenCalledWith({
       order: expect.objectContaining({ status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR }),
+    });
+  });
+
+  it("permite distributor_admin atribuir motorista", async () => {
+    const response = res();
+
+    await ordersController.action(req("distributor_admin", { action: "assign_driver", driver_id: userId }), response);
+
+    expect(mocks.orderService.assignDriver).toHaveBeenCalledWith(orderId, userId, userId);
+    expect(response.json).toHaveBeenCalledWith({
+      order: expect.objectContaining({ driver_id: userId }),
     });
   });
 

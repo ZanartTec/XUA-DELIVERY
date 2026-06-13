@@ -14,6 +14,7 @@ import {
   bottleExchangeSchema,
   nonCollectionSchema,
   rejectOrderSchema,
+  distributorQueueQuerySchema,
 } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
@@ -41,6 +42,7 @@ function errorStatus(code: string): number {
 const ORDER_ACTION_ROLES: Record<string, string[]> = {
   accept: ["distributor_admin"],
   reject: ["distributor_admin"],
+  assign_driver: ["distributor_admin"],
   complete_checklist: ["distributor_admin"],
   dispatch: ["distributor_admin"],
   dispatch_with_checklist: ["distributor_admin"],
@@ -94,6 +96,26 @@ export const ordersController = {
           consumer_phone: order.consumer.phone,
         }));
         res.json({ orders: mapped });
+        return;
+      }
+
+      if (scope === "distributor") {
+        if (user.role !== "distributor_admin") {
+          res.status(403).json({ error: "Acesso negado" });
+          return;
+        }
+
+        const parsed = distributorQueueQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+          res.status(400).json({
+            error: parsed.error.issues[0]?.message ?? "Query inválida",
+            code: "INVALID_QUERY",
+          });
+          return;
+        }
+
+        const result = await orderService.listDistributorQueue(user.sub, user.role, parsed.data);
+        res.json(result);
         return;
       }
 
@@ -299,6 +321,14 @@ export const ordersController = {
             rejectParsed.data.reason,
             rejectParsed.data.details
           );
+          break;
+
+        case "assign_driver":
+          if (!payload.driver_id || typeof payload.driver_id !== "string") {
+            res.status(400).json({ error: "ID do motorista obrigatório" });
+            return;
+          }
+          updatedOrder = await orderService.assignDriver(id, user.sub, payload.driver_id);
           break;
 
         case "complete_checklist":
