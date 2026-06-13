@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useAuthStore } from "@/src/store/auth";
+import { LogoutButton } from "@/src/components/shared/logout-button";
 import { usePwa } from "@/src/hooks/use-pwa";
 import { PwaIosInstructionsSheet } from "@/src/components/shared/pwa-ios-instructions-sheet";
 
@@ -369,6 +370,16 @@ export default function ProfilePage() {
           </div>
         </section>
       )}
+
+      {/* -- Logout -- */}
+      <section className="px-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <LogoutButton
+            variant="full"
+            className="gap-3 px-4 py-4 rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-700 font-semibold"
+          />
+        </div>
+      </section>
 
       {/* -- Footer -- */}
       <div className="text-center pb-6 px-6">
