@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import {
   userSubscriptionCreateSchema,
+  userSubscriptionDeliveryDateEditSchema,
   userSubscriptionPaymentRetrySchema,
 } from "@xua/shared/schemas/user-subscription";
 import {
@@ -23,6 +24,8 @@ const STATUS_BY_CODE: Record<string, number> = {
   PROVIDER_REDIRECT_MISSING: 502,
   PAYMENT_METHOD_REQUIRED: 400,
   INVALID_STATUS: 409,
+  DELIVERY_DATE_NOT_FOUND: 404,
+  NOT_EDITABLE: 409,
 };
 
 function handleDomainError(err: unknown, res: Response, next: NextFunction): void {
@@ -122,6 +125,27 @@ export const userSubscriptionsController = {
       const consumerId = req.user!.sub;
       const id = req.params.id as string;
       const sub = await userSubscriptionsService.resume(id, consumerId);
+      res.json(sub);
+    } catch (err) {
+      handleDomainError(err, res, next);
+    }
+  },
+
+  async editDeliveryDate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = userSubscriptionDeliveryDateEditSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const consumerId = req.user!.sub;
+      const sub = await userSubscriptionsService.editDeliveryDate(
+        req.params.id as string,
+        req.params.deliveryDateId as string,
+        consumerId,
+        parsed.data
+      );
       res.json(sub);
     } catch (err) {
       handleDomainError(err, res, next);

@@ -828,6 +828,7 @@ model SubscriptionDeliveryDate {
   status                     DeliveryDateStatus @default(PENDING)
   order_id                   String?            @db.Uuid @unique
   created_at                 DateTime           @default(now())
+  updated_at                 DateTime           @default(now()) @updatedAt
 
   user_subscription UserSubscription @relation(fields: [user_subscription_id], references: [id])
   time_slot         TimeSlot         @relation(fields: [time_slot_id], references: [id])

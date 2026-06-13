@@ -7,7 +7,7 @@ import {
   Plus,
   Pause,
   Play,
-  XCircle,
+  Pencil,
   Droplets,
   CalendarDays,
   ChevronRight,
@@ -19,6 +19,7 @@ import {
 import { cn } from "@/src/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
+import { EditDeliveryDateSheet } from "@/src/components/consumer/edit-delivery-date-sheet";
 import type {
   DeliveryDateStatus,
   OnlinePaymentMethod,
@@ -42,9 +43,10 @@ interface UserSubscription {
   status: UserSubscriptionStatus;
   total_quantity: number;
   remaining_quantity: number;
-  plan: { name: string; product: { name: string } };
-  distributor: { name: string };
+  plan: { name: string; valid_until?: string | null; product: { name: string } };
+  distributor: { id: string; name: string };
   address: {
+    zone_id: string | null;
     street: string;
     number: string;
     complement: string | null;
@@ -120,6 +122,14 @@ function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
+/** Entrega editável: assinatura ACTIVE/PAUSED, data PENDING, sem pedido e estritamente futura. */
+function canEditDelivery(dd: DeliveryDate, status: UserSubscriptionStatus): boolean {
+  if (status !== "ACTIVE" && status !== "PAUSED") return false;
+  if (dd.status !== "PENDING" || dd.order_id) return false;
+  const todayIso = new Date().toLocaleDateString("en-CA");
+  return dd.delivery_date.slice(0, 10) > todayIso;
+}
+
 function isValidRedirectUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -147,6 +157,15 @@ export default function SubscriptionManagePage() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<{
+    subId: string;
+    deliveryDateId: string;
+    currentDate: string;
+    zoneId: string;
+    distributorId: string;
+    maxDate?: string | null;
+  } | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const loadSubscriptions = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -167,16 +186,8 @@ export default function SubscriptionManagePage() {
     void loadSubscriptions();
   }, [loadSubscriptions]);
 
-  async function doAction(
-    id: string,
-    action: "pause" | "resume" | "cancel"
-  ) {
-    const prevStatus: UserSubscriptionStatus =
-      action === "pause"
-        ? "PAUSED"
-        : action === "resume"
-        ? "ACTIVE"
-        : "CANCELLED";
+  async function doAction(id: string, action: "pause" | "resume") {
+    const prevStatus: UserSubscriptionStatus = action === "pause" ? "PAUSED" : "ACTIVE";
     setSubscriptions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status: prevStatus } : s))
     );
@@ -226,6 +237,45 @@ export default function SubscriptionManagePage() {
       toast.error(err instanceof Error ? err.message : "Erro ao retomar pagamento");
     } finally {
       setPayingId(null);
+    }
+  }
+
+  function openEdit(sub: UserSubscription, deliveryDateId: string, currentDate: string) {
+    if (!sub.address.zone_id) {
+      toast.error("Endereço sem zona de entrega vinculada");
+      return;
+    }
+    setEditTarget({
+      subId: sub.id,
+      deliveryDateId,
+      currentDate,
+      zoneId: sub.address.zone_id,
+      distributorId: sub.distributor.id,
+      maxDate: sub.plan.valid_until ?? null,
+    });
+  }
+
+  async function handleEditConfirm(input: { date: string; time_slot_id: string }) {
+    if (!editTarget) return;
+    setEditSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/user-subscriptions/${editTarget.subId}/delivery-dates/${editTarget.deliveryDateId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Erro ao alterar a data");
+      toast.success("Data de entrega atualizada");
+      setEditTarget(null);
+      await loadSubscriptions(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao alterar a data");
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -302,6 +352,9 @@ export default function SubscriptionManagePage() {
                   }
                   onAction={doAction}
                   onResumePayment={resumePayment}
+                  onEditDate={(deliveryDateId, currentDate) =>
+                    openEdit(sub, deliveryDateId, currentDate)
+                  }
                   paying={payingId === sub.id}
                 />
               ))}
@@ -326,6 +379,9 @@ export default function SubscriptionManagePage() {
                   }
                   onAction={doAction}
                   onResumePayment={resumePayment}
+                  onEditDate={(deliveryDateId, currentDate) =>
+                    openEdit(sub, deliveryDateId, currentDate)
+                  }
                   paying={payingId === sub.id}
                 />
               ))}
@@ -333,6 +389,21 @@ export default function SubscriptionManagePage() {
           </div>
         )}
       </div>
+
+      {editTarget && (
+        <EditDeliveryDateSheet
+          open={!!editTarget}
+          onOpenChange={(o) => {
+            if (!o) setEditTarget(null);
+          }}
+          zoneId={editTarget.zoneId}
+          distributorId={editTarget.distributorId}
+          currentDate={editTarget.currentDate}
+          maxDate={editTarget.maxDate}
+          submitting={editSubmitting}
+          onConfirm={handleEditConfirm}
+        />
+      )}
     </div>
   );
 }
@@ -347,13 +418,15 @@ function SubscriptionCard({
   onToggleExpand,
   onAction,
   onResumePayment,
+  onEditDate,
   paying,
 }: {
   sub: UserSubscription;
   expanded: boolean;
   onToggleExpand: () => void;
-  onAction: (id: string, action: "pause" | "resume" | "cancel") => void;
+  onAction: (id: string, action: "pause" | "resume") => void;
   onResumePayment: (id: string) => void;
+  onEditDate: (deliveryDateId: string, currentDate: string) => void;
   paying: boolean;
 }) {
   const progress =
@@ -466,20 +539,32 @@ function SubscriptionCard({
                   .map((dd) => (
                     <div
                       key={dd.id}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between gap-2"
                     >
                       <span className="flex items-center gap-1.5 text-sm text-[#191c1d]">
                         <CalendarDays className="h-3.5 w-3.5 text-primary" />
                         {formatIsoDate(dd.delivery_date)}
                       </span>
-                      <span
-                        className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                          deliveryDateStatusClass(dd.status)
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                            deliveryDateStatusClass(dd.status)
+                          )}
+                        >
+                          {deliveryDateStatusLabel(dd.status)}
+                        </span>
+                        {canEditDelivery(dd, sub.status) && (
+                          <button
+                            type="button"
+                            onClick={() => onEditDate(dd.id, dd.delivery_date)}
+                            className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10 active:scale-95 transition-all"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Editar
+                          </button>
                         )}
-                      >
-                        {deliveryDateStatusLabel(dd.status)}
-                      </span>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -522,16 +607,6 @@ function SubscriptionCard({
                 >
                   <Play className="h-3.5 w-3.5" />
                   Retomar
-                </button>
-              )}
-              {(isActive || isPaused || isPending) && (
-                <button
-                  type="button"
-                  onClick={() => onAction(sub.id, "cancel")}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-red-500 text-sm font-semibold hover:bg-red-50 active:scale-[0.97] transition-all"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Cancelar
                 </button>
               )}
             </div>

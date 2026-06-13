@@ -15,5 +15,9 @@ router.get("/:id", userSubscriptionsController.getOne);
 router.patch("/:id/cancel", userSubscriptionsController.cancel);
 router.patch("/:id/pause", userSubscriptionsController.pause);
 router.patch("/:id/resume", userSubscriptionsController.resume);
+router.patch(
+  "/:id/delivery-dates/:deliveryDateId",
+  userSubscriptionsController.editDeliveryDate
+);
 
 export { router as userSubscriptionsRoutes };
