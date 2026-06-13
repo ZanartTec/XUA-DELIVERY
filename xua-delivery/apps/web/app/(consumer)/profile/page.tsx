@@ -10,8 +10,12 @@ import {
   Info,
   Truck,
   Building2,
+  Download,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuthStore } from "@/src/store/auth";
+import { usePwa } from "@/src/hooks/use-pwa";
+import { PwaIosInstructionsSheet } from "@/src/components/shared/pwa-ios-instructions-sheet";
 
 import type { Consumer, Address } from "@/src/types";
 
@@ -22,6 +26,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignToggleLoading, setAssignToggleLoading] = useState(false);
+
+  // Instalação do PWA — mesma lógica compartilhada do card (ver usePwa)
+  const { status: pwaStatus, canInstall, promptInstall } = usePwa();
+  const [pwaIosSheetOpen, setPwaIosSheetOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +256,49 @@ export default function ProfilePage() {
             </div>
           )}
 
+          {/* Instalar aplicativo (PWA) — alternativa caso o card tenha sido dispensado.
+              Usa a mesma lógica do card (usePwa). Oculto quando não há instalação possível. */}
+          {pwaStatus === "installed" ? (
+            <div className="flex items-center justify-between p-4 bg-white rounded-2xl cursor-default">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#00E0FF]/15 text-[#0094a8]">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="font-semibold text-[#191c1d] block text-sm">
+                    Aplicativo instalado
+                  </span>
+                  <span className="text-xs text-[#737688]">
+                    Você já está usando o app instalado
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : canInstall ? (
+            <button
+              type="button"
+              onClick={
+                pwaStatus === "ios" ? () => setPwaIosSheetOpen(true) : promptInstall
+              }
+              className="flex w-full items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
+                  <Download className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="font-semibold text-[#191c1d] block text-sm">
+                    Instalar aplicativo
+                  </span>
+                  <span className="text-xs text-[#737688]">
+                    Acesso rápido e uso offline
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
+            </button>
+          ) : null}
+
           {/* Help */}
           <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
             <div className="flex items-center gap-3">
@@ -328,6 +379,9 @@ export default function ProfilePage() {
           Água pura, entrega certa.
         </p>
       </div>
+
+      {/* Instruções de instalação no iOS — mesmo Sheet usado pelo card */}
+      <PwaIosInstructionsSheet open={pwaIosSheetOpen} onOpenChange={setPwaIosSheetOpen} />
     </div>
   );
 }

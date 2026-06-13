@@ -2,24 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Download, Share2, X, Plus } from "lucide-react";
+import { X } from "lucide-react";
 
 import { usePwa } from "@/src/hooks/use-pwa";
 import { useIsClient } from "@/src/hooks/use-is-client";
 import { Button } from "@/src/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/src/components/ui/sheet";
+import { PwaIosInstructionsSheet } from "@/src/components/shared/pwa-ios-instructions-sheet";
 
+/**
+ * Card de aquisição/conversão para instalar o PWA.
+ *
+ * Flutua no topo da tela (estilo notificação), sobrepondo o conteúdo. Ao ser
+ * dispensado, a preferência é persistida (via `usePwa().dismiss`) e o card não
+ * reaparece automaticamente — a instalação segue acessível pelo Perfil.
+ */
 export function PwaInstallPrompt() {
-  const { status, justInstalled, promptInstall } = usePwa();
+  const { status, justInstalled, dismissed, promptInstall, dismiss } = usePwa();
   const isClient = useIsClient();
   const [isIosSheetOpen, setIsIosSheetOpen] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
+  // Auto-fechamento temporário (não persiste): some sozinho se o usuário não interagir.
+  const [autoHidden, setAutoHidden] = useState(false);
 
   useEffect(() => {
     if (justInstalled) {
@@ -30,12 +32,23 @@ export function PwaInstallPrompt() {
     }
   }, [justInstalled]);
 
+  // Fecha o card automaticamente após 10s caso o usuário não o feche manualmente.
+  // Diferente do X (que persiste), isto apenas oculta para não ficar permanente.
+  useEffect(() => {
+    const willShow =
+      isClient && !dismissed && (status === "available" || status === "ios");
+    if (!willShow) return;
+
+    const timer = setTimeout(() => setAutoHidden(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [isClient, dismissed, status]);
+
   if (!isClient) {
     return null;
   }
 
-  // Oculta o banner se já instalado, sem suporte, recusado ou manualmente dispensado
-  if (isDismissed || status === "installed" || status === "unsupported" || status === "dismissed") {
+  // Respeita a dispensa persistida, o auto-fechamento e os estados sem instalação possível.
+  if (autoHidden || dismissed || status === "installed" || status === "unsupported" || status === "dismissed") {
     return null;
   }
 
@@ -45,14 +58,21 @@ export function PwaInstallPrompt() {
   return (
     <>
       {/* --------------------------------------------------------------
-          Banner flutuante acima da bottom navigation (4rem ≈ nav height)
+          Notificação flutuante ancorada no topo, SOBREPONDO o header.
+          z acima do header (z-50) + animação de "descida" estilo notificação.
       -------------------------------------------------------------- */}
       <div
-        className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 flex justify-center px-4 pointer-events-none"
+        className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] inset-x-0 z-[60] flex justify-center px-3 pointer-events-none"
         role="banner"
         aria-label="Instalar aplicativo"
       >
-        <div className="flex items-center gap-2 bg-card border border-border rounded-xl shadow-sm px-3 py-2 max-w-sm w-full pointer-events-auto animate-in slide-in-from-bottom-4 duration-300">
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 max-w-sm w-full pointer-events-auto bg-white/40 backdrop-blur-xl supports-backdrop-filter:bg-white/35 border border-[#00E0FF]/35 ring-1 ring-white/50 shadow-[0_8px_28px_-8px_rgba(0,26,64,0.25)] animate-in slide-in-from-top-16 fade-in zoom-in-95 duration-500 ease-out">
+          {/* Ícone da marca Xuá */}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#00E0FF]/15 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/icon.svg" alt="Xuá" className="h-6 w-6 object-contain" />
+          </div>
+
           {/* Texto */}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground leading-tight">Instalar o Xuá</p>
@@ -63,17 +83,16 @@ export function PwaInstallPrompt() {
           <div className="flex items-center gap-1 shrink-0">
             <Button
               size="sm"
-              className="h-7 border-[#00E0FF] bg-[#00E0FF] px-2 text-xs text-[#001735] hover:bg-[#00C9E6] hover:text-[#001735]"
+              className="h-7 border-[#00E0FF] bg-[#00E0FF] px-3 text-xs font-semibold text-[#001735] hover:bg-[#00C9E6] hover:text-[#001735]"
               onClick={status === "ios" ? () => setIsIosSheetOpen(true) : promptInstall}
             >
-              <Download className="h-3 w-3 mr-1" />
               Instalar
             </Button>
             <Button
               size="icon"
               variant="ghost"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => setIsDismissed(true)}
+              onClick={dismiss}
               aria-label="Dispensar"
             >
               <X className="h-4 w-4" />
@@ -82,75 +101,8 @@ export function PwaInstallPrompt() {
         </div>
       </div>
 
-      {/* --------------------------------------------------------------
-          Sheet com instruções de instalação no iOS (Safari)
-      -------------------------------------------------------------- */}
-      <Sheet open={isIosSheetOpen} onOpenChange={setIsIosSheetOpen}>
-        <SheetContent
-          side="bottom"
-          className="rounded-t-2xl px-6 pb-8 pt-0"
-          style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-        >
-          {/* Alça visual */}
-          <div className="mx-auto mt-3 mb-6 h-1.5 w-10 rounded-full bg-muted-foreground/25" />
-
-          <SheetHeader className="mb-6 text-left">
-            <SheetTitle className="flex items-center gap-2 text-lg">
-              Instalar no iPhone / iPad
-            </SheetTitle>
-            <SheetDescription>
-              O Safari não exibe um botão de instalação automático. Siga os passos abaixo.
-            </SheetDescription>
-          </SheetHeader>
-
-          <ol className="space-y-5 mb-8">
-            {/* Passo 1 */}
-            <li className="flex items-start gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0 mt-0.5">
-                1
-              </span>
-              <div>
-                <p className="text-sm font-semibold">Toque no ícone de compartilhar</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <Share2 className="h-3.5 w-3.5 shrink-0" />
-                  Ícone de caixa com seta para cima — barra inferior do Safari
-                </p>
-              </div>
-            </li>
-
-            {/* Passo 2 */}
-            <li className="flex items-start gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0 mt-0.5">
-                2
-              </span>
-              <div>
-                <p className="text-sm font-semibold">Role para baixo e toque em</p>
-                <p className="inline-flex items-center gap-1 text-xs font-medium mt-1 bg-muted rounded-md px-2 py-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  Adicionar à Tela de Início
-                </p>
-              </div>
-            </li>
-
-            {/* Passo 3 */}
-            <li className="flex items-start gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0 mt-0.5">
-                3
-              </span>
-              <div>
-                <p className="text-sm font-semibold">Confirme tocando em &quot;Adicionar&quot;</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  O ícone do Xuá aparecerá na sua tela inicial.
-                </p>
-              </div>
-            </li>
-          </ol>
-
-          <Button className="w-full h-11 text-base font-semibold" onClick={() => setIsIosSheetOpen(false)}>
-            Entendido
-          </Button>
-        </SheetContent>
-      </Sheet>
+      {/* Instruções de instalação no iOS (Safari) — componente compartilhado */}
+      <PwaIosInstructionsSheet open={isIosSheetOpen} onOpenChange={setIsIosSheetOpen} />
     </>
   );
 }

@@ -13,6 +13,7 @@ import { PromoBannerCarousel, type BannerSlide } from "@/src/components/consumer
 import { CategoryFilter, type CategoryItem } from "@/src/components/consumer/category-filter";
 import { FeaturedProductCard, type FeaturedBanner } from "@/src/components/consumer/featured-product-card";
 import { CatalogCartSummaryCard } from "@/src/components/consumer/catalog-cart-summary-card";
+import { PwaInstallPrompt } from "@/src/components/shared/pwa-install-prompt";
 
 interface ProductItem {
   id: string;
@@ -140,6 +141,9 @@ export default function CatalogPage() {
 
   return (
     <div className="space-y-5 pb-4">
+      {/* Card de instalação do PWA — notificação flutuante no topo (prioridade de aquisição) */}
+      <PwaInstallPrompt />
+
       {/* Barra de busca */}
       <div className="mt-3">
         <SearchBar value={search} onChange={setSearch} />
