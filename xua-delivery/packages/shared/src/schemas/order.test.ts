@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createOrderSchema } from "./order";
+import { OrderStatus } from "../enums";
+import { createOrderSchema, distributorQueueQuerySchema } from "./order";
 
 const baseOrderInput = {
   address_id: "7e1d7b55-3f52-4d10-aac3-74387c236904",
@@ -40,6 +41,99 @@ describe("createOrderSchema", () => {
       expect(result.error.issues).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ path: ["cash_change_for_cents"] }),
+        ])
+      );
+    }
+  });
+});
+
+describe("distributorQueueQuerySchema", () => {
+  it("aplica defaults de paginação e filtros", () => {
+    const result = distributorQueueQuerySchema.safeParse({ scope: "distributor" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        scope: "distributor",
+        stage: "all",
+        origin: "all",
+        sort: "created_desc",
+        page: 1,
+        limit: 20,
+      });
+    }
+  });
+
+  it("aceita filtros válidos da fila operacional", () => {
+    const result = distributorQueueQuerySchema.safeParse({
+      scope: "distributor",
+      stage: "incoming",
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+      q: "  Maria  ",
+      origin: "subscription",
+      deliveryDate: "2026-06-12",
+      driverId: "7e1d7b55-3f52-4d10-aac3-74387c236904",
+      sort: "delivery_asc",
+      page: "2",
+      limit: "50",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        stage: "incoming",
+        status: OrderStatus.SENT_TO_DISTRIBUTOR,
+        q: "Maria",
+        origin: "subscription",
+        deliveryDate: "2026-06-12",
+        driverId: "7e1d7b55-3f52-4d10-aac3-74387c236904",
+        sort: "delivery_asc",
+        page: 2,
+        limit: 50,
+      });
+    }
+  });
+
+  it("rejeita stage e status fora da fila ativa", () => {
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", stage: "done" }).success).toBe(false);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.DELIVERED }).success).toBe(false);
+  });
+
+  it("rejeita limite acima do máximo e busca curta", () => {
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", limit: "51" }).success).toBe(false);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", q: "a" }).success).toBe(false);
+  });
+
+  it("rejeita deliveryDate combinado com start/end", () => {
+    const result = distributorQueueQuerySchema.safeParse({
+      scope: "distributor",
+      deliveryDate: "2026-06-12",
+      start: "2026-06-01",
+      end: "2026-06-30",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["deliveryDate"] }),
+        ])
+      );
+    }
+  });
+
+  it("rejeita intervalo invertido", () => {
+    const result = distributorQueueQuerySchema.safeParse({
+      scope: "distributor",
+      start: "2026-06-30",
+      end: "2026-06-01",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["end"] }),
         ])
       );
     }

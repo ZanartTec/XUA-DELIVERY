@@ -1,16 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUpDown,
+  CalendarDays,
+  Check,
+  Clock3,
+  Eye,
+  Loader2,
+  MapPin,
+  Package2,
+  RefreshCw,
+  Repeat2,
+  Route,
+  Search,
+  ShoppingCart,
+  Truck,
+  UserRound,
+  X,
+} from "lucide-react";
+
+import { Button } from "@/src/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { Input } from "@/src/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/src/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { StatusPill } from "@/src/components/shared/status-pill";
+import { Textarea } from "@/src/components/ui/textarea";
 import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
-import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
-import { ChevronRight, ClipboardList, Clock3, MapPin, Package2, Repeat2, ShoppingCart, Truck } from "lucide-react";
+import { FilterChips } from "@/src/components/shared/filter-chips";
+import { Pagination } from "@/src/components/shared/pagination";
+import { StatusPill } from "@/src/components/shared/status-pill";
 import { useSocket } from "@/src/hooks/use-socket";
+import { ApiError, api } from "@/src/lib/api-client";
+import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
 import type { Order } from "@/src/types";
 import { OrderStatus } from "@/src/types/enums";
-import { cn } from "@/src/lib/utils";
+
+const PAGE_SIZE = 30;
+const VIRTUAL_ROW_HEIGHT = 104;
+const VIRTUAL_OVERSCAN = 4;
+
+type QueueTabValue = "all" | "incoming" | "preparation" | "route";
+type QueueOrigin = "all" | "cart" | "subscription";
+type QueueSort = "created_desc" | "delivery_asc" | "sla_asc";
+type QuickAction = "accept" | "reject" | "assign_driver" | "dispatch";
 
 interface QueueOrder extends Order {
   consumer_name: string;
@@ -35,81 +100,114 @@ interface QueueOrder extends Order {
   subscription_remaining_quantity?: number | null;
 }
 
+interface QueueSummary {
+  active: number;
+  incoming: number;
+  preparation: number;
+  route: number;
+}
+
+interface QueueResponse {
+  orders: QueueOrder[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+  summary: QueueSummary;
+}
+
+interface DriverResponse {
+  drivers: Array<{ id: string; name: string }>;
+}
+
+const REJECT_REASON_OPTIONS = [
+  { value: "out_of_stock", label: "Falta de estoque" },
+  { value: "delivery_area_issue", label: "Endereco fora da operacao" },
+  { value: "operational_capacity", label: "Capacidade esgotada" },
+  { value: "other", label: "Outro" },
+] as const;
+
+const KANBAN_COLUMNS = [
+  {
+    key: "incoming",
+    label: "Aceite",
+    description: "Responder novos pedidos",
+    statuses: [OrderStatus.SENT_TO_DISTRIBUTOR] as const,
+    tone: "border-amber-200 bg-amber-50/70 text-amber-900",
+    dot: "bg-amber-500",
+  },
+  {
+    key: "preparation",
+    label: "Preparo",
+    description: "Separacao, checklist e motorista",
+    statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH] as const,
+    tone: "border-sky-200 bg-sky-50/70 text-sky-950",
+    dot: "bg-sky-500",
+  },
+  {
+    key: "route",
+    label: "Em rota",
+    description: "Entregas em andamento",
+    statuses: [OrderStatus.OUT_FOR_DELIVERY] as const,
+    tone: "border-emerald-200 bg-emerald-50/70 text-emerald-950",
+    dot: "bg-emerald-500",
+  },
+] as const;
+
+const TAB_CONFIG: Array<{ value: QueueTabValue; label: string }> = [
+  { value: "all", label: "Todas" },
+  { value: "incoming", label: "Aceite" },
+  { value: "preparation", label: "Preparo" },
+  { value: "route", label: "Em rota" },
+];
+
+const ORIGIN_OPTIONS: Array<{ label: string; value: QueueOrigin }> = [
+  { label: "Todos", value: "all" },
+  { label: "Carrinho", value: "cart" },
+  { label: "Assinatura", value: "subscription" },
+];
+
+const SUMMARY_FALLBACK: QueueSummary = {
+  active: 0,
+  incoming: 0,
+  preparation: 0,
+  route: 0,
+};
+
 function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
 function formatScheduledTime(order: QueueOrder) {
   if (order.scheduled_time_label) return order.scheduled_time_label;
-  if (
-    order.scheduled_time_start_hour != null &&
-    order.scheduled_time_end_hour != null
-  ) {
-    const sm = order.scheduled_time_start_minute ?? 0;
-    const em = order.scheduled_time_end_minute ?? 0;
-    return `${pad2(order.scheduled_time_start_hour)}:${pad2(sm)}–${pad2(order.scheduled_time_end_hour)}:${pad2(em)}`;
+  if (order.scheduled_time_start_hour != null && order.scheduled_time_end_hour != null) {
+    const startMinute = order.scheduled_time_start_minute ?? 0;
+    const endMinute = order.scheduled_time_end_minute ?? 0;
+    return `${pad2(order.scheduled_time_start_hour)}:${pad2(startMinute)}-${pad2(order.scheduled_time_end_hour)}:${pad2(endMinute)}`;
   }
-  return order.delivery_window === "MORNING" ? "Manhã (08:00-12:00)" : "Tarde (13:00-18:00)";
+  return order.delivery_window === "MORNING" ? "Manha (08:00-12:00)" : "Tarde (13:00-18:00)";
 }
 
 function isFromSubscription(order: QueueOrder) {
   return order.order_origin === "subscription";
 }
 
-function formatSubscriptionProgress(order: QueueOrder) {
-  if (order.delivery_sequence == null || order.total_deliveries == null) return null;
-  return `Entrega ${order.delivery_sequence}/${order.total_deliveries}`;
+function isQueueTab(value: string | null): value is QueueTabValue {
+  return value === "all" || value === "incoming" || value === "preparation" || value === "route";
 }
 
-const SECTION_CONFIG = [
-  {
-    key: "incoming",
-    label: "Aguardando aceite",
-    description: "Pedidos novos que ainda precisam de decisão da distribuidora.",
-    statuses: [OrderStatus.SENT_TO_DISTRIBUTOR] as const,
-  },
-  {
-    key: "preparation",
-    label: "Em preparação",
-    description: "Pedidos aceitos, separados ou já prontos para despacho.",
-    statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH] as const,
-  },
-  {
-    key: "route",
-    label: "Em rota",
-    description: "Pedidos já despachados para o motorista concluir a entrega.",
-    statuses: [OrderStatus.OUT_FOR_DELIVERY] as const,
-  },
-] as const;
+function isQueueOrigin(value: string | null): value is QueueOrigin {
+  return value === "all" || value === "cart" || value === "subscription";
+}
 
-const TAB_CONFIG = [
-  {
-    value: "all",
-    label: "Visão geral",
-    description: "Todos os pedidos ativos",
-    statuses: SECTION_CONFIG.flatMap((section) => section.statuses),
-  },
-  {
-    value: "incoming",
-    label: "Aceite",
-    description: "Fila de resposta",
-    statuses: [OrderStatus.SENT_TO_DISTRIBUTOR] as const,
-  },
-  {
-    value: "preparation",
-    label: "Preparação",
-    description: "Separação e despacho",
-    statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH] as const,
-  },
-  {
-    value: "route",
-    label: "Em rota",
-    description: "Acompanhamento do motorista",
-    statuses: [OrderStatus.OUT_FOR_DELIVERY] as const,
-  },
-] as const;
+function isQueueSort(value: string | null): value is QueueSort {
+  return value === "created_desc" || value === "delivery_asc" || value === "sla_asc";
+}
 
-type QueueTabValue = (typeof TAB_CONFIG)[number]["value"];
+function parsePage(value: string | null) {
+  const page = Number(value ?? "1");
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 function matchesStatuses(status: string, statuses: readonly string[]) {
   return statuses.includes(status);
@@ -119,408 +217,909 @@ function formatShortOrderId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
-function getStageMeta(status: QueueOrder["status"]) {
-  switch (status) {
-    case OrderStatus.SENT_TO_DISTRIBUTOR:
-      return {
-        label: "Aguardando aceite",
-        icon: Clock3,
-        iconClassName: "bg-[#fff2dd] text-[#9a5a00]",
-        badgeClassName: "bg-[#fff2dd] text-[#7a4700]",
-      };
-    case OrderStatus.OUT_FOR_DELIVERY:
-      return {
-        label: "Em rota",
-        icon: Truck,
-        iconClassName: "bg-[#eaf7ff] text-[#005d91]",
-        badgeClassName: "bg-[#eaf7ff] text-[#005d91]",
-      };
-    case OrderStatus.READY_FOR_DISPATCH:
-      return {
-        label: "Pronto para despacho",
-        icon: Package2,
-        iconClassName: "bg-[#e7f7ef] text-[#166534]",
-        badgeClassName: "bg-[#e7f7ef] text-[#166534]",
-      };
+function shortAddress(address: string) {
+  const [streetAndNumber, neighborhood] = address.split(" - ");
+  return neighborhood || streetAndNumber || address;
+}
+
+function buildQueueQuery(input: {
+  stage: QueueTabValue;
+  page: number;
+  q: string;
+  origin: QueueOrigin;
+  deliveryDate: string;
+  driverId: string;
+  sort: QueueSort;
+}) {
+  const params = new URLSearchParams({
+    scope: "distributor",
+    stage: input.stage,
+    page: String(input.page),
+    limit: String(PAGE_SIZE),
+    sort: input.sort,
+  });
+
+  if (input.q) params.set("q", input.q);
+  if (input.origin !== "all") params.set("origin", input.origin);
+  if (input.deliveryDate) params.set("deliveryDate", input.deliveryDate);
+  if (input.driverId !== "all") params.set("driverId", input.driverId);
+
+  return params.toString();
+}
+
+function getTabCount(tab: QueueTabValue, summary: QueueSummary) {
+  switch (tab) {
+    case "incoming":
+      return summary.incoming;
+    case "preparation":
+      return summary.preparation;
+    case "route":
+      return summary.route;
     default:
-      return {
-        label: "Em preparação",
-        icon: Package2,
-        iconClassName: "bg-[#5697E9]/15 text-[#1B4A9A]",
-        badgeClassName: "bg-[#5697E9]/15 text-[#1B4A9A]",
-      };
+      return summary.active;
   }
+}
+
+function getApiErrorMessage(error: unknown) {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Nao foi possivel carregar a fila.";
+}
+
+function getOrderStageLabel(order: QueueOrder) {
+  switch (order.status) {
+    case OrderStatus.SENT_TO_DISTRIBUTOR:
+      return "Aceite";
+    case OrderStatus.READY_FOR_DISPATCH:
+      return "Pronto";
+    case OrderStatus.OUT_FOR_DELIVERY:
+      return "Em rota";
+    default:
+      return "Preparo";
+  }
+}
+
+function useVirtualSlice<T>(items: T[]) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(520);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return undefined;
+
+    const updateHeight = () => setViewportHeight(element.clientHeight || 520);
+    updateHeight();
+
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const startIndex = Math.max(0, Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN);
+  const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN * 2;
+  const endIndex = Math.min(items.length, startIndex + visibleCount);
+  const virtualItems = items.slice(startIndex, endIndex).map((item, offset) => ({
+    item,
+    index: startIndex + offset,
+  }));
+
+  return {
+    containerRef,
+    virtualItems,
+    paddingTop: startIndex * VIRTUAL_ROW_HEIGHT,
+    paddingBottom: Math.max(0, (items.length - endIndex) * VIRTUAL_ROW_HEIGHT),
+    onScroll: (event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop),
+  };
 }
 
 function QueueSkeleton() {
   return (
-    <div className="animate-pulse rounded-[28px] bg-white p-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-      <div className="space-y-3">
-        <div className="h-3 w-28 rounded-full bg-[#e1e3e4]" />
-        <div className="h-7 w-40 rounded-full bg-[#e1e3e4]" />
-        <div className="h-4 w-full rounded-full bg-[#eef0f3]" />
-        <div className="h-4 w-5/6 rounded-full bg-[#eef0f3]" />
-      </div>
+    <div className="grid gap-3 xl:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, column) => (
+        <div key={column} className="rounded-lg border border-[#dfe5ef] bg-white p-2">
+          <div className="h-9 animate-pulse rounded-md bg-[#eef0f3]" />
+          <div className="mt-2 space-y-2">
+            {Array.from({ length: 5 }).map((__, row) => (
+              <div key={row} className="h-[96px] animate-pulse rounded-md bg-[#f4f6f8]" />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function OrderCard({ order }: { order: QueueOrder }) {
-  const stage = getStageMeta(order.status);
-  const StageIcon = stage.icon;
-  const fromSubscription = isFromSubscription(order);
-  const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
-  const subscriptionProgress = formatSubscriptionProgress(order);
-  const completedDeliveries = order.completed_deliveries ?? 0;
-  const remainingDeliveries = order.remaining_after_current ?? order.remaining_deliveries ?? 0;
-
+function QueueHeaderCard({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
-    <Link href={`/distributor/orders/${order.id}`} className="group block">
-      <article className="rounded-[28px] bg-white px-4 py-4 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(0,26,64,0.12)]">
-        <div className="flex items-start gap-3">
-          <div className={cn("mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl", stage.iconClassName)}>
-            <StageIcon className="h-5 w-5" />
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-2 sm:space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">
-                  {stage.label}
-                </p>
-                <h2 className="mt-1 truncate font-heading text-base sm:text-lg font-extrabold text-[#0d1b2f]">
-                  Pedido #{formatShortOrderId(order.id)}
-                </h2>
-              </div>
-
-              <div className="shrink-0 text-right">
-                <p className="font-heading text-base sm:text-xl font-extrabold text-primary">
-                  {formatCurrency(order.total_cents)}
-                </p>
-                <p className="text-xs text-[#7d8494]">{formatTime(order.created_at)}</p>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-[#1f2937]">{order.consumer_name}</p>
-              <p className="text-sm text-[#5d6473]">{order.item_summary}</p>
-              {fromSubscription ? (
-                <p className="text-xs font-semibold text-[#1B4A9A]">
-                  Plano {order.subscription_plan_name ?? "Assinatura"}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-2 text-sm text-[#5d6473]">
-              <div className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#7d8494]" />
-                <span className="min-w-0">{order.address_summary}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Package2 className="h-4 w-4 shrink-0 text-[#7d8494]" />
-                <span>
-                  {order.total_items_qty} item{order.total_items_qty === 1 ? "" : "ns"}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 shrink-0 text-[#7d8494]" />
-                <span>Entrega {formatScheduledTime(order)}</span>
-              </div>
-
-              {order.driver_name ? (
-                <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 shrink-0 text-[#7d8494]" />
-                  <span>Motorista: {order.driver_name}</span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusPill status={order.status} className={stage.badgeClassName} />
-
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#0b2a59]">
-                <OriginIcon className="h-3.5 w-3.5" />
-                {fromSubscription ? "Assinatura" : "Carrinho"}
-              </span>
-
-              {fromSubscription && subscriptionProgress ? (
-                <span className="inline-flex items-center rounded-full bg-[#e7f7ef] px-3 py-1 text-xs font-semibold text-[#166534]">
-                  {subscriptionProgress}
-                </span>
-              ) : null}
-
-              {fromSubscription ? (
-                <span className="inline-flex items-center rounded-full bg-[#f3f4f5] px-3 py-1 text-xs font-semibold text-[#5d6473]">
-                  {completedDeliveries} concluída{completedDeliveries === 1 ? "" : "s"} • {remainingDeliveries} restante{remainingDeliveries === 1 ? "" : "s"}
-                </span>
-              ) : null}
-
-              {fromSubscription && order.quantity_for_this_delivery != null ? (
-                <span className="inline-flex items-center rounded-full bg-[#fff2dd] px-3 py-1 text-xs font-semibold text-[#7a4700]">
-                  Qtd. desta: {order.quantity_for_this_delivery}
-                </span>
-              ) : null}
-
-              {order.status === OrderStatus.SENT_TO_DISTRIBUTOR ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#fff2dd] px-3 py-1 text-xs font-semibold text-[#7a4700]">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Responder em
-                  <SlaCountdown deadlineIso={order.sla_deadline} className="text-xs font-semibold text-inherit" />
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded-full bg-[#f3f4f5] px-3 py-1 text-xs font-semibold text-[#5d6473]">
-                  {formatDate(order.delivery_date)} • {formatScheduledTime(order)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#5697E9] transition-transform duration-200 group-hover:translate-x-0.5">
-            <ChevronRight className="h-5 w-5" />
-          </div>
-        </div>
-      </article>
-    </Link>
+    <div className={cn("rounded-md border px-3 py-2", tone)}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">{label}</p>
+      <p className="mt-0.5 font-heading text-2xl font-extrabold leading-none">{value}</p>
+    </div>
   );
 }
 
-function Section({
+function OrderMiniCard({
+  order,
+  selected,
+  loading,
+  onSelect,
+  onAction,
+}: {
+  order: QueueOrder;
+  selected: boolean;
+  loading: boolean;
+  onSelect: (order: QueueOrder) => void;
+  onAction: (order: QueueOrder, action: "accept" | "reject" | "assign") => void;
+}) {
+  const fromSubscription = isFromSubscription(order);
+  const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
+  const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
+
+  return (
+    <article
+      className={cn(
+        "h-[96px] rounded-md border bg-white px-2.5 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition-colors hover:border-[#b8c7dd] hover:bg-[#fbfcfe]",
+        selected ? "border-[#5697E9] ring-2 ring-[#5697E9]/20" : "border-[#dfe5ef]"
+      )}
+    >
+      <div className="grid h-full grid-cols-[minmax(0,1fr)_76px] gap-2">
+        <button type="button" className="min-w-0 text-left" onClick={() => onSelect(order)}>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-bold text-[#0d1b2f]">#{formatShortOrderId(order.id)}</span>
+            <span className="truncate text-sm font-semibold text-[#0d1b2f]">{order.consumer_name}</span>
+            <span className="ml-auto hidden items-center gap-1 rounded bg-[#f3f6fb] px-1.5 py-0.5 text-[10px] font-semibold text-[#5d6473] 2xl:inline-flex">
+              <OriginIcon className="h-3 w-3" />
+              {fromSubscription ? "Ass." : "Cart."}
+            </span>
+          </div>
+
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <p className="truncate text-xs font-medium text-[#334155]">{order.item_summary}</p>
+            <p className="text-xs font-bold text-[#0d1b2f]">{formatCurrency(order.total_cents)}</p>
+          </div>
+
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-[11px] text-[#64748b]">
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {shortAddress(order.address_summary)}
+            </span>
+            <span className="font-medium text-[#475569]">{formatScheduledTime(order)}</span>
+          </div>
+
+          <div className="mt-1 flex items-center gap-2">
+            <span className="rounded bg-[#eef2f7] px-1.5 py-0.5 text-[10px] font-semibold text-[#475569]">
+              {getOrderStageLabel(order)}
+            </span>
+            {order.driver_name ? (
+              <span className="truncate text-[11px] text-[#64748b]">{order.driver_name}</span>
+            ) : (
+              <span className="text-[11px] font-medium text-amber-700">Sem motorista</span>
+            )}
+            {order.status === OrderStatus.SENT_TO_DISTRIBUTOR ? (
+              <span className="ml-auto inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                <Clock3 className="h-3 w-3" />
+                <SlaCountdown deadlineIso={order.sla_deadline} className="text-[10px] font-bold text-inherit" />
+              </span>
+            ) : null}
+          </div>
+        </button>
+
+        <div className="flex flex-col justify-between gap-1">
+          {canAccept ? (
+            <Button size="xs" className="h-6 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" disabled={loading} onClick={() => onAction(order, "accept")}>
+              <Check className="h-3 w-3" />
+              Aceitar
+            </Button>
+          ) : (
+            <Button size="xs" variant="outline" className="h-6 rounded-md" disabled={loading} onClick={() => onAction(order, "assign")}>
+              <Truck className="h-3 w-3" />
+              Mot.
+            </Button>
+          )}
+
+          {canAccept ? (
+            <Button size="xs" variant="destructive" className="h-6 rounded-md" disabled={loading} onClick={() => onAction(order, "reject")}>
+              <X className="h-3 w-3" />
+              Recusar
+            </Button>
+          ) : (
+            <Button size="xs" variant="ghost" className="h-6 rounded-md" onClick={() => onSelect(order)}>
+              <Eye className="h-3 w-3" />
+              Ver
+            </Button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function KanbanColumn({
   label,
   description,
+  count,
+  tone,
+  dot,
   orders,
+  selectedOrderId,
+  actionLoadingId,
+  onSelect,
+  onAction,
 }: {
   label: string;
   description: string;
+  count: number;
+  tone: string;
+  dot: string;
   orders: QueueOrder[];
+  selectedOrderId?: string;
+  actionLoadingId: string | null;
+  onSelect: (order: QueueOrder) => void;
+  onAction: (order: QueueOrder, action: "accept" | "reject" | "assign") => void;
 }) {
-  if (orders.length === 0) return null;
+  const virtual = useVirtualSlice(orders);
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Operação</p>
-          <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">{label}</h2>
-          <p className="mt-1 text-sm text-[#5d6473]">{description}</p>
+    <section className="min-h-0 rounded-lg border border-[#d8e0eb] bg-[#f7f9fc]">
+      <div className={cn("flex h-11 items-center justify-between rounded-t-lg border-b px-3", tone)}>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("h-2 w-2 rounded-full", dot)} />
+            <h2 className="truncate text-sm font-bold">{label}</h2>
+          </div>
+          <p className="truncate text-[11px] opacity-70">{description}</p>
         </div>
-
-        <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
-          {orders.length}
-        </span>
+        <span className="rounded bg-white/80 px-2 py-0.5 text-xs font-bold">{count}</span>
       </div>
 
-      {orders.map((order) => (
-        <OrderCard key={order.id} order={order} />
-      ))}
+      <div ref={virtual.containerRef} onScroll={virtual.onScroll} className="h-[64vh] min-h-[360px] max-h-[680px] overflow-y-auto p-2">
+        {orders.length === 0 ? (
+          <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-[#ccd6e3] bg-white text-xs text-[#64748b]">
+            Sem pedidos nesta etapa
+          </div>
+        ) : (
+          <div style={{ paddingTop: virtual.paddingTop, paddingBottom: virtual.paddingBottom }} className="space-y-2">
+            {virtual.virtualItems.map(({ item: order }) => (
+              <OrderMiniCard
+                key={order.id}
+                order={order}
+                selected={selectedOrderId === order.id}
+                loading={actionLoadingId === order.id}
+                onSelect={onSelect}
+                onAction={onAction}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-function EmptyState({
-  title,
-  description,
+function OrderDetailSheet({
+  order,
+  open,
+  drivers,
+  actionLoading,
+  actionError,
+  selectedDriver,
+  onOpenChange,
+  onDriverChange,
+  onAccept,
+  onAssign,
+  onDispatch,
+  onRejectClick,
 }: {
-  title: string;
-  description: string;
+  order: QueueOrder | null;
+  open: boolean;
+  drivers: Array<{ id: string; name: string }>;
+  actionLoading: boolean;
+  actionError: string | null;
+  selectedDriver: string;
+  onOpenChange: (open: boolean) => void;
+  onDriverChange: (driverId: string) => void;
+  onAccept: () => void;
+  onAssign: () => void;
+  onDispatch: () => void;
+  onRejectClick: () => void;
 }) {
+  if (!order) return null;
+
+  const fromSubscription = isFromSubscription(order);
+  const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
+  const canAssign = order.status !== OrderStatus.SENT_TO_DISTRIBUTOR;
+  const canChecklist = order.status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR;
+  const canDispatch = order.status === OrderStatus.READY_FOR_DISPATCH;
+
   return (
-    <div className="rounded-[28px] bg-white px-6 py-10 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#5697E9]/15 text-[#5697E9]">
-        <ClipboardList className="h-8 w-8" />
-      </div>
-      <h2 className="mt-4 font-heading text-xl font-extrabold text-[#0d1b2f]">{title}</h2>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-[#5d6473]">{description}</p>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-[520px] max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto bg-[#f8fafc] p-0 sm:max-w-[520px]">
+        <SheetHeader className="border-b bg-white p-4">
+          <SheetTitle className="font-heading text-xl font-extrabold text-[#0d1b2f]">
+            Pedido #{formatShortOrderId(order.id)}
+          </SheetTitle>
+          <SheetDescription>
+            {order.consumer_name} - {formatDate(order.delivery_date)} - {formatScheduledTime(order)}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-3 p-4">
+          {actionError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionError}</div>
+          ) : null}
+
+          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Status</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <StatusPill status={order.status} />
+                  <span className="rounded bg-[#eef2f7] px-2 py-1 text-xs font-semibold text-[#475569]">
+                    {fromSubscription ? "Assinatura" : "Carrinho"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-right font-heading text-xl font-extrabold text-[#0d1b2f]">{formatCurrency(order.total_cents)}</p>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Informacoes essenciais</p>
+            <div className="mt-3 grid gap-2 text-sm">
+              <div className="flex items-start gap-2">
+                <Package2 className="mt-0.5 h-4 w-4 text-[#64748b]" />
+                <span>{order.item_summary}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="mt-0.5 h-4 w-4 text-[#64748b]" />
+                <span>{order.address_summary}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4 text-[#64748b]" />
+                <span>Entrega {formatScheduledTime(order)} em {formatDate(order.delivery_date)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-[#64748b]" />
+                <span>{order.driver_name ? `Motorista: ${order.driver_name}` : "Sem motorista atribuido"}</span>
+              </div>
+            </div>
+          </section>
+
+          {canAssign ? (
+            <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Motorista</p>
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <Select value={selectedDriver || undefined} onValueChange={onDriverChange}>
+                  <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white">
+                    <SelectValue placeholder="Selecionar motorista" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {drivers.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" className="h-9 rounded-md" disabled={!selectedDriver || actionLoading} onClick={onAssign}>
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                  Atribuir
+                </Button>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Acoes rapidas</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {canAccept ? (
+                <Button className="h-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" disabled={actionLoading} onClick={onAccept}>
+                  <Check className="h-4 w-4" />
+                  Aceitar pedido
+                </Button>
+              ) : null}
+              {canAccept ? (
+                <Button variant="destructive" className="h-9 rounded-md" disabled={actionLoading} onClick={onRejectClick}>
+                  <X className="h-4 w-4" />
+                  Recusar
+                </Button>
+              ) : null}
+              {canChecklist ? (
+                <Button asChild className="h-9 rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]">
+                  <Link href={`/distributor/orders/${order.id}/checklist`}>
+                    <Route className="h-4 w-4" />
+                    Checklist
+                  </Link>
+                </Button>
+              ) : null}
+              {canDispatch ? (
+                <Button className="h-9 rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]" disabled={!selectedDriver || actionLoading} onClick={onDispatch}>
+                  <Route className="h-4 w-4" />
+                  Despachar
+                </Button>
+              ) : null}
+              <Button asChild variant="outline" className="h-9 rounded-md">
+                <Link href={`/distributor/orders/${order.id}`}>Abrir tela completa</Link>
+              </Button>
+            </div>
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function RejectDialog({
+  open,
+  order,
+  reason,
+  details,
+  loading,
+  onOpenChange,
+  onReasonChange,
+  onDetailsChange,
+  onConfirm,
+}: {
+  open: boolean;
+  order: QueueOrder | null;
+  reason: (typeof REJECT_REASON_OPTIONS)[number]["value"] | "";
+  details: string;
+  loading: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReasonChange: (reason: (typeof REJECT_REASON_OPTIONS)[number]["value"]) => void;
+  onDetailsChange: (details: string) => void;
+  onConfirm: () => void;
+}) {
+  const needsDetails = reason === "other";
+  const ready = reason !== "" && (!needsDetails || details.trim().length >= 10);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl rounded-lg bg-white">
+        <DialogHeader>
+          <DialogTitle>Recusar pedido {order ? `#${formatShortOrderId(order.id)}` : ""}</DialogTitle>
+          <DialogDescription>Informe o motivo para registrar a recusa e atualizar o consumidor.</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {REJECT_REASON_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onReasonChange(option.value)}
+              className={cn(
+                "rounded-md border px-3 py-2 text-left text-sm font-medium",
+                reason === option.value
+                  ? "border-[#5697E9] bg-[#edf4ff] text-[#0b2a59]"
+                  : "border-[#dfe5ef] bg-white text-[#334155] hover:bg-[#f8fafc]"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {needsDetails ? (
+          <Textarea
+            value={details}
+            onChange={(event) => onDetailsChange(event.target.value)}
+            placeholder="Descreva o motivo da recusa"
+            className="min-h-24 rounded-md border-[#dfe5ef]"
+          />
+        ) : null}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancelar</Button>
+          <Button variant="destructive" disabled={!ready || loading} onClick={onConfirm}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+            Recusar pedido
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DistributorQueueContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const { on, off } = useSocket();
+
+  const stageParam = searchParams.get("stage");
+  const activeTab: QueueTabValue = isQueueTab(stageParam) ? stageParam : "all";
+  const originParam = searchParams.get("origin");
+  const sortParam = searchParams.get("sort");
+  const page = parsePage(searchParams.get("page"));
+  const qParam = searchParams.get("q")?.trim() ?? "";
+  const origin: QueueOrigin = isQueueOrigin(originParam) ? originParam : "all";
+  const deliveryDate = searchParams.get("deliveryDate") ?? "";
+  const driverId = searchParams.get("driverId") ?? "all";
+  const sort: QueueSort = isQueueSort(sortParam) ? sortParam : "created_desc";
+  const [search, setSearch] = useState(qParam);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [rejectOrder, setRejectOrder] = useState<QueueOrder | null>(null);
+  const [rejectReason, setRejectReason] = useState<(typeof REJECT_REASON_OPTIONS)[number]["value"] | "">("");
+  const [rejectDetails, setRejectDetails] = useState("");
+  const [selectedDriverByOrder, setSelectedDriverByOrder] = useState<Record<string, string>>({});
+  const deferredSearch = useDeferredValue(search);
+  const skipNextSearchSync = useRef(false);
+
+  const updateQuery = useCallback(
+    (updates: Record<string, string | null | undefined>, resetPage = true) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      for (const [key, value] of Object.entries(updates)) {
+        const shouldDelete =
+          !value ||
+          (key === "stage" && value === "all") ||
+          (key === "page" && value === "1") ||
+          (key === "origin" && value === "all") ||
+          (key === "driverId" && value === "all") ||
+          (key === "sort" && value === "created_desc");
+
+        if (shouldDelete) params.delete(key);
+        else params.set(key, value);
+      }
+
+      if (resetPage && !("page" in updates)) params.delete("page");
+
+      const next = params.toString();
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    if (skipNextSearchSync.current) {
+      skipNextSearchSync.current = false;
+      return;
+    }
+    setSearch(qParam);
+  }, [qParam]);
+
+  useEffect(() => {
+    const trimmed = deferredSearch.trim();
+    const nextQ = trimmed.length >= 2 ? trimmed : "";
+    if (nextQ === qParam) return;
+
+    skipNextSearchSync.current = true;
+    updateQuery({ q: nextQ || null }, true);
+  }, [deferredSearch, qParam, updateQuery]);
+
+  const queueQueryString = useMemo(
+    () => buildQueueQuery({ stage: activeTab, page, q: qParam, origin, deliveryDate, driverId, sort }),
+    [activeTab, deliveryDate, driverId, origin, page, qParam, sort]
+  );
+
+  const queueQuery = useQuery<QueueResponse>({
+    queryKey: ["distributor-queue", activeTab, page, qParam, origin, deliveryDate, driverId, sort],
+    queryFn: () => api.get(`/api/orders?${queueQueryString}`),
+    placeholderData: (previousData) => previousData,
+  });
+
+  const driversQuery = useQuery<DriverResponse>({
+    queryKey: ["distributor-drivers"],
+    queryFn: () => api.get("/api/distributor/drivers"),
+  });
+
+  const actionMutation = useMutation({
+    mutationFn: ({ orderId, action, payload }: { orderId: string; action: QuickAction; payload?: Record<string, unknown> }) =>
+      api.patch<{ order: QueueOrder }>(`/api/orders/${orderId}`, { action, ...payload }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
+      setRejectOrder(null);
+      setRejectReason("");
+      setRejectDetails("");
+    },
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
+    };
+
+    on("new_order", handler);
+    on("order_status_changed", handler);
+    return () => {
+      off("new_order", handler);
+      off("order_status_changed", handler);
+    };
+  }, [on, off, queryClient]);
+
+  useEffect(() => {
+    if (!queueQuery.data) return;
+    if (queueQuery.data.totalPages > 0 && page > queueQuery.data.totalPages) {
+      updateQuery({ page: String(queueQuery.data.totalPages) }, false);
+    }
+  }, [page, queueQuery.data, updateQuery]);
+
+  const orders = queueQuery.data?.orders ?? [];
+  const summary = queueQuery.data?.summary ?? SUMMARY_FALLBACK;
+  const total = queueQuery.data?.total ?? 0;
+  const totalPages = queueQuery.data?.totalPages ?? 0;
+  const limit = queueQuery.data?.limit ?? PAGE_SIZE;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, total);
+  const hasActiveFilters = Boolean(qParam || origin !== "all" || deliveryDate || driverId !== "all" || sort !== "created_desc");
+  const hasPendingSearch = search.trim().length === 1;
+  const syncLabel = queueQuery.isFetching
+    ? "Atualizando..."
+    : queueQuery.dataUpdatedAt
+      ? `Atualizado ${formatTime(new Date(queueQuery.dataUpdatedAt))}`
+      : "Aguardando dados";
+  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? null;
+  const selectedDriver = selectedOrder ? (selectedDriverByOrder[selectedOrder.id] ?? selectedOrder.driver_id ?? "") : "";
+  const drivers = driversQuery.data?.drivers ?? [];
+  const actionLoadingId = actionMutation.isPending ? actionMutation.variables?.orderId ?? null : null;
+
+  const columnOrders = useMemo(() => {
+    return KANBAN_COLUMNS.map((column) => ({
+      ...column,
+      orders: orders.filter((order) => matchesStatuses(order.status, column.statuses)),
+    }));
+  }, [orders]);
+
+  function clearFilters() {
+    setSearch("");
+    updateQuery({ q: null, origin: null, deliveryDate: null, driverId: null, sort: null }, true);
+  }
+
+  function selectOrder(order: QueueOrder) {
+    setSelectedOrderId(order.id);
+    setSelectedDriverByOrder((current) => ({
+      ...current,
+      [order.id]: current[order.id] ?? order.driver_id ?? "",
+    }));
+  }
+
+  function runAction(order: QueueOrder, action: QuickAction, payload?: Record<string, unknown>) {
+    actionMutation.mutate({ orderId: order.id, action, payload });
+  }
+
+  function handleMiniAction(order: QueueOrder, action: "accept" | "reject" | "assign") {
+    selectOrder(order);
+    if (action === "accept") {
+      runAction(order, "accept");
+      return;
+    }
+    if (action === "reject") setRejectOrder(order);
+  }
+
+  function confirmReject() {
+    if (!rejectOrder || !rejectReason) return;
+    runAction(rejectOrder, "reject", {
+      reason: rejectReason,
+      details: rejectReason === "other" ? rejectDetails.trim() : undefined,
+    });
+  }
+
+  function assignSelectedDriver() {
+    if (!selectedOrder || !selectedDriver) return;
+    runAction(selectedOrder, "assign_driver", { driver_id: selectedDriver });
+  }
+
+  function dispatchSelectedOrder() {
+    if (!selectedOrder || !selectedDriver) return;
+    runAction(selectedOrder, "dispatch", { driver_id: selectedDriver });
+  }
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <section className="rounded-lg border border-[#d8e0eb] bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.8fr)_minmax(320px,1fr)_auto] xl:items-center">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">Operacao da distribuidora</p>
+            <div className="mt-1 flex items-center gap-3">
+              <h1 className="font-heading text-2xl font-extrabold leading-none text-[#0d1b2f]">Fila de pedidos</h1>
+              <span className="rounded bg-[#eef2f7] px-2 py-1 text-xs font-semibold text-[#475569]">{syncLabel}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <QueueHeaderCard label="Aceite" value={summary.incoming} tone="border-amber-200 bg-amber-50 text-amber-900" />
+            <QueueHeaderCard label="Preparo" value={summary.preparation} tone="border-sky-200 bg-sky-50 text-sky-950" />
+            <QueueHeaderCard label="Em rota" value={summary.route} tone="border-emerald-200 bg-emerald-50 text-emerald-950" />
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" className="h-9 rounded-md border-[#dfe5ef]" disabled={queueQuery.isFetching} onClick={() => void queueQuery.refetch()}>
+              {queueQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Atualizar
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-[#d8e0eb] bg-white p-2 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+        <div className="grid gap-2 xl:grid-cols-[minmax(260px,1fr)_170px_180px_180px_auto] xl:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Pedido, cliente, telefone, item ou bairro"
+              className="h-9 rounded-md border-[#dfe5ef] pl-8 text-sm"
+            />
+          </div>
+
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            <Input
+              type="date"
+              value={deliveryDate}
+              onChange={(event) => updateQuery({ deliveryDate: event.target.value || null }, true)}
+              className="h-9 rounded-md border-[#dfe5ef] pl-8 text-sm"
+            />
+          </div>
+
+          <Select value={driverId} onValueChange={(value) => updateQuery({ driverId: value }, true)}>
+            <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white text-sm">
+              <UserRound className="h-4 w-4 text-[#64748b]" />
+              <SelectValue placeholder="Motorista" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os motoristas</SelectItem>
+              <SelectItem value="unassigned">Sem motorista</SelectItem>
+              {drivers.map((driver) => (
+                <SelectItem key={driver.id} value={driver.id}>{driver.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={sort} onValueChange={(value) => updateQuery({ sort: value }, true)}>
+            <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white text-sm">
+              <ArrowUpDown className="h-4 w-4 text-[#64748b]" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_desc">Mais recentes</SelectItem>
+              <SelectItem value="delivery_asc">Entrega proxima</SelectItem>
+              <SelectItem value="sla_asc">SLA primeiro</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center justify-end gap-2">
+            <FilterChips options={ORIGIN_OPTIONS} value={origin} onChange={(value) => updateQuery({ origin: value }, true)} />
+            {hasActiveFilters ? (
+              <Button type="button" variant="ghost" size="icon-sm" onClick={clearFilters} className="rounded-md text-[#64748b]">
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b]">
+          <Tabs value={activeTab} onValueChange={(value) => updateQuery({ stage: value }, true)}>
+            <TabsList className="h-8 rounded-md bg-[#eef2f7] p-0.5">
+              {TAB_CONFIG.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="h-7 rounded px-3 text-xs data-[state=active]:bg-white">
+                  {tab.label} ({getTabCount(tab.value, summary)})
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <div className="flex items-center gap-3">
+            {hasPendingSearch ? <span>Busca a partir de 2 caracteres</span> : null}
+            <span>Mostrando {startItem}-{endItem} de {total}</span>
+          </div>
+        </div>
+      </section>
+
+      {queueQuery.error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {getApiErrorMessage(queueQuery.error)}
+        </div>
+      ) : null}
+
+      {actionMutation.error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {getApiErrorMessage(actionMutation.error)}
+        </div>
+      ) : null}
+
+      {queueQuery.isLoading ? (
+        <QueueSkeleton />
+      ) : summary.active === 0 && !hasActiveFilters ? (
+        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-[#64748b]">
+          Nenhum pedido ativo agora.
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-[#64748b]">
+          Nenhum pedido encontrado para os filtros atuais.
+        </div>
+      ) : activeTab === "all" ? (
+        <div className={cn("grid min-h-0 gap-3 xl:grid-cols-3", queueQuery.isFetching && "opacity-75")}>
+          {columnOrders.map((column) => (
+            <KanbanColumn
+              key={column.key}
+              label={column.label}
+              description={column.description}
+              count={column.orders.length}
+              tone={column.tone}
+              dot={column.dot}
+              orders={column.orders}
+              selectedOrderId={selectedOrderId ?? undefined}
+              actionLoadingId={actionLoadingId}
+              onSelect={selectOrder}
+              onAction={handleMiniAction}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={cn("grid min-h-0", queueQuery.isFetching && "opacity-75")}>
+          {columnOrders.filter((column) => column.key === activeTab).map((column) => (
+            <KanbanColumn
+              key={column.key}
+              label={column.label}
+              description={column.description}
+              count={column.orders.length}
+              tone={column.tone}
+              dot={column.dot}
+              orders={column.orders}
+              selectedOrderId={selectedOrderId ?? undefined}
+              actionLoadingId={actionLoadingId}
+              onSelect={selectOrder}
+              onAction={handleMiniAction}
+            />
+          ))}
+        </div>
+      )}
+
+      {total > 0 ? (
+        <footer className="flex items-center justify-between rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-sm text-[#64748b]">
+          <span>{limit} pedidos por pagina - {totalPages} pagina{totalPages === 1 ? "" : "s"}</span>
+          <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => updateQuery({ page: String(nextPage) }, false)} />
+        </footer>
+      ) : null}
+
+      <OrderDetailSheet
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        drivers={drivers}
+        actionLoading={actionMutation.isPending}
+        actionError={actionMutation.error ? getApiErrorMessage(actionMutation.error) : null}
+        selectedDriver={selectedDriver}
+        onOpenChange={(open) => {
+          if (!open) setSelectedOrderId(null);
+        }}
+        onDriverChange={(nextDriver) => {
+          if (!selectedOrder) return;
+          setSelectedDriverByOrder((current) => ({ ...current, [selectedOrder.id]: nextDriver }));
+        }}
+        onAccept={() => {
+          if (selectedOrder) runAction(selectedOrder, "accept");
+        }}
+        onAssign={assignSelectedDriver}
+        onDispatch={dispatchSelectedOrder}
+        onRejectClick={() => {
+          if (selectedOrder) setRejectOrder(selectedOrder);
+        }}
+      />
+
+      <RejectDialog
+        open={Boolean(rejectOrder)}
+        order={rejectOrder}
+        reason={rejectReason}
+        details={rejectDetails}
+        loading={actionMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open) setRejectOrder(null);
+        }}
+        onReasonChange={setRejectReason}
+        onDetailsChange={setRejectDetails}
+        onConfirm={confirmReject}
+      />
     </div>
   );
 }
 
 export default function DistributorQueuePage() {
-  const [orders, setOrders] = useState<QueueOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<QueueTabValue>("all");
-  const { on, off } = useSocket();
-
-  const fetchOrders = useCallback(async () => {
-    try {
-      const res = await fetch("/api/orders?scope=distributor");
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error ?? `Erro ${res.status}`);
-      }
-
-      setOrders(data.orders ?? []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar a fila.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchOrders();
-  }, [fetchOrders]);
-
-  useEffect(() => {
-    const handleFocus = () => {
-      void fetchOrders();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [fetchOrders]);
-
-  useEffect(() => {
-    const handler = () => {
-      void fetchOrders();
-    };
-
-    on("new_order", handler);
-    return () => off("new_order", handler);
-  }, [on, off, fetchOrders]);
-
-  const totals = {
-    active: orders.length,
-    incoming: orders.filter((order) => order.status === OrderStatus.SENT_TO_DISTRIBUTOR).length,
-    preparation: orders.filter((order) => matchesStatuses(order.status, [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH])).length,
-    route: orders.filter((order) => order.status === OrderStatus.OUT_FOR_DELIVERY).length,
-  };
-
-  const selectedTab = TAB_CONFIG.find((tab) => tab.value === activeTab) ?? TAB_CONFIG[0];
-  const filteredOrders = orders.filter((order) => matchesStatuses(order.status, selectedTab.statuses));
-
   return (
-    <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[24px] sm:rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] px-4 py-5 sm:px-5 sm:py-6 text-white shadow-[0_22px_50px_rgba(27,74,154,0.28)]">
-        <div className="absolute -right-10 top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
-
-        <div className="relative space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/70">Operação da distribuidora</p>
-              <h1 className="mt-2 font-heading text-2xl sm:text-[2rem] leading-none font-extrabold">Fila de pedidos</h1>
-              <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/82">
-                Acompanhe aceite, preparação e entregas com a hierarquia operacional da Xuá.
-              </p>
-            </div>
-
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[24px] bg-white/14 backdrop-blur">
-              <ClipboardList className="h-7 w-7 text-white" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-[24px] bg-white/12 px-3 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Aceite</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold">{totals.incoming}</p>
-            </div>
-            <div className="rounded-[24px] bg-white/12 px-3 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Preparo</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold">{totals.preparation}</p>
-            </div>
-            <div className="rounded-[24px] bg-white/12 px-3 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Em rota</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold">{totals.route}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as QueueTabValue)}>
-        <TabsList className="h-auto! bg-white! flex w-full flex-row overflow-x-auto rounded-[28px] p-1 shadow-[0_10px_28px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TAB_CONFIG.map((tab) => {
-            const count = orders.filter((order) => matchesStatuses(order.status, tab.statuses)).length;
-
-            return (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="h-auto! flex flex-1 shrink-0 flex-col items-center gap-0.5 rounded-[22px] px-2 py-2 text-center data-active:border-transparent data-active:bg-[#5697E9]/10 data-active:text-[#0b2a59] sm:items-start sm:gap-1 sm:px-3 sm:py-3 sm:text-left"
-              >
-                <span className="text-xs font-semibold sm:text-sm">{tab.label}</span>
-                <span className="hidden text-[11px] leading-tight text-current/70 sm:block">{tab.description}</span>
-                <span className="rounded-full bg-[#f3f4f5] px-2 py-0.5 text-[11px] font-semibold text-[#5d6473] data-[state=active]:bg-white">
-                  {count} pedido{count === 1 ? "" : "s"}
-                </span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
-
-      {error ? (
-        <div className="rounded-[24px] border border-[#ffd8d5] bg-[#fff3f1] px-4 py-3 text-sm text-[#8a1c14]">
-          {error}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <QueueSkeleton key={index} />
-          ))}
-        </div>
-      ) : totals.active === 0 ? (
-        <EmptyState
-          title="Nenhum pedido ativo agora"
-          description="Quando um novo pedido confirmado chegar para a distribuidora, ele aparecerá aqui com SLA e etapa operacional."
-        />
-      ) : activeTab === "all" ? (
-        <div className="space-y-6">
-          {SECTION_CONFIG.map((section) => (
-            <Section
-              key={section.key}
-              label={section.label}
-              description={section.description}
-              orders={orders.filter((order) => matchesStatuses(order.status, section.statuses))}
-            />
-          ))}
-        </div>
-      ) : filteredOrders.length === 0 ? (
-        <EmptyState
-          title={`Sem pedidos em ${selectedTab.label.toLowerCase()}`}
-          description="A fila dessa etapa está vazia no momento. Troque de aba para revisar as demais frentes da operação."
-        />
-      ) : (
-        <Section label={selectedTab.label} description={selectedTab.description} orders={filteredOrders} />
-      )}
-
-      <section className="rounded-[32px] bg-[#0d1b2f] px-5 py-5 text-white shadow-[0_18px_44px_rgba(0,26,64,0.22)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">Resumo operacional</p>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-[1.3fr_1fr] sm:items-center">
-          <div>
-            <h2 className="font-heading text-2xl font-extrabold leading-tight">
-              {totals.incoming > 0
-                ? `${totals.incoming} pedido${totals.incoming === 1 ? "" : "s"} aguardando aceite`
-                : "Fila sob controle no momento"}
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-white/72">
-              Priorize os pedidos em SLA de aceite e acompanhe a evolução até o despacho do motorista.
-            </p>
-          </div>
-
-          <div className="space-y-3 rounded-[24px] bg-white/8 px-4 py-4 backdrop-blur">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">Pedidos ativos</span>
-              <span className="font-semibold">{totals.active}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">Em preparação</span>
-              <span className="font-semibold">{totals.preparation}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">Em rota</span>
-              <span className="font-semibold">{totals.route}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+    <Suspense fallback={<QueueSkeleton />}>
+      <DistributorQueueContent />
+    </Suspense>
   );
 }

@@ -18,6 +18,11 @@ import {
   DEFAULT_CHECKOUT_PAYMENT_METHOD,
   isCashPaymentMethod,
 } from "@xua/shared/mappers/payment";
+import {
+  DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES,
+  type DistributorQueueQueryInput,
+  type DistributorQueueStageInput,
+} from "@xua/shared/schemas/order";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
 import { orderRepository, type OrderForQueue, type OrderWithItems } from "../repository/orders.repository.js";
@@ -361,6 +366,60 @@ const CART_ORDER_CONTEXT: DistributorOrderOriginContext = {
   subscription_remaining_quantity: null,
 };
 
+const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, OrderStatus[]> = {
+  all: [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[],
+  incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
+  preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
+  route: [OrderStatus.OUT_FOR_DELIVERY],
+};
+
+const ASSIGNABLE_DRIVER_STATUSES = new Set<string>([
+  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+  OrderStatus.READY_FOR_DISPATCH,
+  OrderStatus.OUT_FOR_DELIVERY,
+]);
+
+function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>) {
+  const incoming = statusCounts[OrderStatus.SENT_TO_DISTRIBUTOR] ?? 0;
+  const preparation =
+    (statusCounts[OrderStatus.ACCEPTED_BY_DISTRIBUTOR] ?? 0) +
+    (statusCounts[OrderStatus.READY_FOR_DISPATCH] ?? 0);
+  const route = statusCounts[OrderStatus.OUT_FOR_DELIVERY] ?? 0;
+
+  return {
+    active: incoming + preparation + route,
+    incoming,
+    preparation,
+    route,
+  };
+}
+
+function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, string>) {
+  const subscriptionContext = buildDistributorOrderOriginContext(o);
+  const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
+  const firstItem = o.items[0];
+  const itemSummary = firstItem
+    ? o.items.length > 1
+      ? `${totalItemsQty} itens em ${o.items.length} produtos`
+      : `${firstItem.quantity}x ${firstItem.product_name}`
+    : "0 item(ns)";
+
+  return {
+    ...o,
+    ...subscriptionContext,
+    consumer_name: o.consumer.name,
+    address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
+    total_items_qty: totalItemsQty,
+    item_summary: itemSummary,
+    driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
+    sla_deadline: new Date(new Date(o.created_at).getTime() + 15 * 60 * 1000).toISOString(),
+    consumer: undefined,
+    address: undefined,
+    items: undefined,
+    subscription_delivery_date: undefined,
+  };
+}
+
 function isCancelledDeliveryDate(status: unknown): boolean {
   return status === DeliveryDateStatus.CANCELLED || status === "cancelled";
 }
@@ -474,6 +533,71 @@ async function resolveScheduledTimeSnapshot(
  * Padrão: transação Prisma → mutação + audit atômico → Socket.io pós-commit (seção 3.3).
  */
 export const orderService = {
+  async listDistributorQueue(userId: string, role: string, query: DistributorQueueQueryInput) {
+    if (role !== "distributor_admin") {
+      throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+    }
+
+    const distributorId = await distributorRepository.resolveDistributorId(userId);
+    if (!distributorId) {
+      throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+    }
+
+    const statuses = query.status
+      ? [query.status as OrderStatus]
+      : DISTRIBUTOR_QUEUE_STAGE_STATUSES[query.stage];
+    const activeStatuses = [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[];
+
+    const { orders, total, statusCounts } = await orderRepository.findByDistributorPaged(distributorId, {
+      statuses,
+      summaryStatuses: activeStatuses,
+      page: query.page,
+      limit: query.limit,
+      q: query.q,
+      origin: query.origin,
+      deliveryDate: query.deliveryDate,
+      start: query.start,
+      end: query.end,
+      driverId: query.driverId,
+      sort: query.sort,
+    });
+
+    const driverIds = Array.from(
+      new Set(
+        orders
+          .map((order) => order.driver_id)
+          .filter((driverId): driverId is string => Boolean(driverId))
+      )
+    );
+    const drivers = driverIds.length
+      ? await getPrisma().consumer.findMany({
+          where: { id: { in: driverIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
+
+    return {
+      orders: orders.map((order) => mapDistributorQueueOrder(order, driverNameById)),
+      total,
+      page: query.page,
+      totalPages: Math.ceil(total / query.limit),
+      limit: query.limit,
+      summary: buildDistributorQueueSummary(statusCounts),
+      filters: {
+        stage: query.stage,
+        status: query.status ?? null,
+        q: query.q ?? null,
+        origin: query.origin,
+        deliveryDate: query.deliveryDate ?? null,
+        start: query.start ?? null,
+        end: query.end ?? null,
+        driverId: query.driverId ?? null,
+        sort: query.sort,
+      },
+    };
+  },
+
   async createOrder(data: {
     consumerId: string;
     addressId: string;
@@ -874,6 +998,54 @@ export const orderService = {
     io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
       orderId,
       status: OrderStatus.REJECTED_BY_DISTRIBUTOR,
+    });
+
+    return order;
+  },
+
+  async assignDriver(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+    const distributorId = await distributorRepository.resolveDistributorId(distributorUserId);
+    if (!distributorId) {
+      throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+    }
+
+    const drivers = await distributorRepository.findDriversByDistributor(distributorId);
+    if (!drivers.some((driver) => driver.id === driverId)) {
+      throw new OrderServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado para esta distribuidora");
+    }
+
+    const prisma = getPrisma();
+    const order = await prisma.$transaction(async (tx: TxClient) => {
+      const current = await orderRepository.findById(orderId, tx);
+      if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+      if (current.distributor_id !== distributorId) {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      if (!ASSIGNABLE_DRIVER_STATUSES.has(current.status)) {
+        throw new OrderServiceError("INVALID_STATUS", "Pedido ainda não pode receber motorista");
+      }
+
+      const updated = await orderRepository.update(orderId, { driver_id: driverId }, tx);
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DISPATCH_CHECKLIST_COMPLETED,
+          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+          orderId,
+          sourceApp: SourceApp.DISTRIBUTOR_WEB,
+          payload: { action: "assign_driver", driverId, previous_driver_id: current.driver_id },
+        },
+        tx
+      );
+
+      return updated;
+    });
+
+    const io = getIO();
+    io.to(`distributor:${order.distributor_id}`).emit("order_status_changed", {
+      orderId,
+      status: order.status,
+      driverId,
     });
 
     return order;
@@ -1548,71 +1720,18 @@ export const orderService = {
     statusGroup?: string
   ) {
     if (scope === "distributor") {
-      if (role !== "distributor_admin") {
-        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
-      }
-      const prisma = getPrisma();
-      const distributorId = await distributorRepository.resolveDistributorId(userId);
-      if (!distributorId) {
-        throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
-      }
+      const status = DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES.includes(statusParam as never)
+        ? (statusParam as DistributorQueueQueryInput["status"])
+        : undefined;
 
-      // Statuses ativos visíveis na fila. Se vier filtro explícito, usa ele; senão mostra todos ativos.
-      const QUEUE_STATUSES: OrderStatus[] = [
-        OrderStatus.SENT_TO_DISTRIBUTOR,
-        OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
-        OrderStatus.READY_FOR_DISPATCH,
-        OrderStatus.OUT_FOR_DELIVERY,
-      ];
-      const statuses = statusParam
-        ? [statusParam as OrderStatus]
-        : QUEUE_STATUSES;
-
-      const orders = await orderRepository.findByDistributor(distributorId, statuses);
-
-      const driverIds = Array.from(
-        new Set(
-          orders
-            .map((order) => order.driver_id)
-            .filter((driverId): driverId is string => Boolean(driverId))
-        )
-      );
-
-      const drivers = driverIds.length
-        ? await prisma.consumer.findMany({
-            where: { id: { in: driverIds } },
-            select: { id: true, name: true },
-          })
-        : [];
-
-      const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
-
-      // Enriquecer com campos calculados esperados pelo frontend
-      const SLA_MS = 15 * 60 * 1000; // 15 minutos de SLA de aceitação
-      return orders.map((o) => {
-        const subscriptionContext = buildDistributorOrderOriginContext(o);
-        const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
-        const firstItem = o.items[0];
-        const itemSummary = firstItem
-          ? o.items.length > 1
-            ? `${totalItemsQty} itens em ${o.items.length} produtos`
-            : `${firstItem.quantity}x ${firstItem.product_name}`
-          : "0 item(ns)";
-
-        return {
-          ...o,
-          ...subscriptionContext,
-          consumer_name: o.consumer.name,
-          address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
-          total_items_qty: totalItemsQty,
-          item_summary: itemSummary,
-          driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
-          sla_deadline: new Date(new Date(o.created_at).getTime() + SLA_MS).toISOString(),
-          consumer: undefined,
-          address: undefined,
-          items: undefined,
-          subscription_delivery_date: undefined,
-        };
+      return orderService.listDistributorQueue(userId, role, {
+        scope: "distributor",
+        stage: "all",
+        status,
+        origin: "all",
+        sort: "created_desc",
+        page: Math.max(1, page),
+        limit: Math.min(50, Math.max(1, limit)),
       });
     }
 
