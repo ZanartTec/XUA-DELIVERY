@@ -1,14 +1,11 @@
-import { MockPaymentAdapter } from "../adapters/mock-payment-adapter.js";
+import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 import { MercadoPagoAdapter } from "../adapters/mercadopago-adapter.js";
 
 export const PAYMENT_PROVIDERS = {
-  mock: "mock",
   mercadoPago: "mercadopago",
 } as const;
 
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[keyof typeof PAYMENT_PROVIDERS];
-
-export type PaymentMethod = "pix" | "credit" | "cash";
 
 export interface PaymentChargeItem {
   id: string;
@@ -23,7 +20,7 @@ export interface PaymentChargeMetadata {
   idempotencyKey?: string;
   description?: string;
   payerEmail?: string | null;
-  paymentMethod?: PaymentMethod;
+  paymentMethod?: CheckoutPaymentMethod;
   items?: PaymentChargeItem[];
 }
 
@@ -48,7 +45,7 @@ export interface ProviderPaymentDetails {
   externalReference?: string;
   orderReference?: string;
   paymentKind?: string;
-  paymentMethod?: PaymentMethod;
+  paymentMethod?: CheckoutPaymentMethod;
   amountCents: number;
   paidAt?: Date;
   raw: unknown;
@@ -63,8 +60,11 @@ export interface IPaymentGateway {
   getPayment?(externalId: string): Promise<ProviderPaymentDetails>;
 }
 
-export function getConfiguredPaymentProvider(): string {
-  return process.env.PAYMENT_PROVIDER || PAYMENT_PROVIDERS.mock;
+export function getConfiguredPaymentProvider(): PaymentProvider {
+  const provider = process.env.PAYMENT_PROVIDER;
+  if (!provider) return PAYMENT_PROVIDERS.mercadoPago;
+  if (provider === PAYMENT_PROVIDERS.mercadoPago) return provider;
+  throw new Error(`Payment provider "${provider}" não implementado`);
 }
 
 /**
@@ -73,12 +73,7 @@ export function getConfiguredPaymentProvider(): string {
 export function getPaymentGateway(): IPaymentGateway {
   const provider = getConfiguredPaymentProvider();
 
-  switch (provider) {
-    case PAYMENT_PROVIDERS.mock:
-      return new MockPaymentAdapter();
-    case PAYMENT_PROVIDERS.mercadoPago:
-      return new MercadoPagoAdapter();
-    default:
-      throw new Error(`Payment provider "${provider}" não implementado`);
-  }
+  if (provider === PAYMENT_PROVIDERS.mercadoPago) return new MercadoPagoAdapter();
+
+  throw new Error(`Payment provider "${provider}" não implementado`);
 }

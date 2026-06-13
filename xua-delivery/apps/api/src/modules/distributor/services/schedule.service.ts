@@ -1,6 +1,5 @@
 import type { DeliveryWindow } from "@xua/shared/enums";
 import { scheduleRepository } from "../repository/schedule.repository.js";
-import { capacityRepository } from "../repository/capacity.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
@@ -66,7 +65,6 @@ export const scheduleService = {
    *  - Dias ativos da semana (DistributorSchedule)
    *  - Datas bloqueadas (DistributorBlockedDate)
    *  - lead_time_hours vs horário atual em America/Sao_Paulo
-   *  - Capacidade configurada em DeliveryCapacity para a zona
    *
    * Se não houver DistributorSchedule cadastrado para a distribuidora,
    * todos os dias são considerados ativos (backward compatible) com
@@ -85,10 +83,9 @@ export const scheduleService = {
     endDate.setDate(endDate.getDate() + daysAhead - 1);
     const endIso = toISODate(endDate);
 
-    const [schedules, blocked, capacitySlots] = await Promise.all([
+    const [schedules, blocked] = await Promise.all([
       scheduleRepository.findScheduleByDistributor(distributorId),
       scheduleRepository.findBlockedDates(distributorId, todayIso, endIso),
-      capacityRepository.findAvailable(zoneId, todayIso, endIso),
     ]);
 
     // Verifica se a distribuidora tem time slots configurados
@@ -107,17 +104,6 @@ export const scheduleService = {
 
     // Set de datas bloqueadas
     const blockedSet = new Set(blocked.map((b) => dbDateToISODate(new Date(b.blocked_date))));
-
-    // Index capacidade por "date|window" → tem_slot
-    // Se não há nenhum slot cadastrado para a zona, ignora restrição de capacidade
-    // (backward compatible: agenda sem capacidade = capacidade ilimitada)
-    const hasCapacityConfig = capacitySlots.length > 0;
-    const capacityMap = new Map<string, boolean>();
-    for (const slot of capacitySlots) {
-      const dateIso = dbDateToISODate(new Date(slot.delivery_date));
-      const key = `${dateIso}|${slot.window.toLowerCase()}`;
-      capacityMap.set(key, true);
-    }
 
     const result: AvailableDate[] = [];
     for (let i = 0; i < daysAhead; i++) {
@@ -146,15 +132,12 @@ export const scheduleService = {
         continue;
       }
 
-      // 3. Para cada janela: verifica lead_time e capacidade
-      // Se não há configuração de capacidade, considera disponível (ilimitado)
+      // 3. Para cada janela: verifica lead_time
       const morningAvailable =
-        this.isWindowAfterLeadTime(iso, "morning", leadTimeHours, nowSP) &&
-        (!hasCapacityConfig || capacityMap.get(`${iso}|morning`) === true);
+        this.isWindowAfterLeadTime(iso, "morning", leadTimeHours, nowSP);
 
       const afternoonAvailable =
-        this.isWindowAfterLeadTime(iso, "afternoon", leadTimeHours, nowSP) &&
-        (!hasCapacityConfig || capacityMap.get(`${iso}|afternoon`) === true);
+        this.isWindowAfterLeadTime(iso, "afternoon", leadTimeHours, nowSP);
 
       result.push({
         date: iso,

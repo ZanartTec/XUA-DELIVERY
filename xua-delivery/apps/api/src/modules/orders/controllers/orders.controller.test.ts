@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
   return {
     OrderServiceError: MockOrderServiceError,
     orderService: {
+      createOrder: vi.fn(),
       acceptOrder: vi.fn(),
       rejectOrder: vi.fn(),
       completeChecklist: vi.fn(),
@@ -28,6 +29,12 @@ const mocks = vi.hoisted(() => {
     },
     orderRepository: { findById: vi.fn() },
     orderPolicy: { canAccess: vi.fn() },
+    distributorService: { resolveDistributor: vi.fn() },
+    prisma: {
+      address: { findFirst: vi.fn() },
+      zone: { findFirst: vi.fn() },
+      product: { findMany: vi.fn() },
+    },
     otpService: { generate: vi.fn(), validate: vi.fn(), override: vi.fn() },
     socketEmit: vi.fn(),
     socketTo: vi.fn(),
@@ -61,11 +68,11 @@ vi.mock("../../../infra/logger/index.js", () => ({
 }));
 
 vi.mock("../../../infra/prisma/client.js", () => ({
-  getPrisma: () => ({}),
+  getPrisma: () => mocks.prisma,
 }));
 
 vi.mock("../../distributor/index.js", () => ({
-  distributorService: {},
+  distributorService: mocks.distributorService,
   DistributorServiceError: class DistributorServiceError extends Error {},
 }));
 
@@ -73,10 +80,14 @@ const { ordersController } = await import("./orders.controller.js");
 
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236901";
 const userId = "7e1d7b55-3f52-4d10-aac3-74387c236902";
+const addressId = "7e1d7b55-3f52-4d10-aac3-74387c236904";
+const zoneId = "7e1d7b55-3f52-4d10-aac3-74387c236905";
+const productId = "7e1d7b55-3f52-4d10-aac3-74387c236906";
+const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236903";
 const existingOrder = {
   id: orderId,
   consumer_id: userId,
-  distributor_id: "7e1d7b55-3f52-4d10-aac3-74387c236903",
+  distributor_id: distributorId,
   driver_id: userId,
   status: OrderStatus.SENT_TO_DISTRIBUTOR,
 };
@@ -104,9 +115,55 @@ beforeEach(() => {
   mocks.socketTo.mockReturnValue({ emit: mocks.socketEmit });
   mocks.orderRepository.findById.mockResolvedValue(existingOrder);
   mocks.orderPolicy.canAccess.mockResolvedValue(true);
+  mocks.prisma.address.findFirst.mockResolvedValue({ id: addressId, zone_id: zoneId });
+  mocks.prisma.zone.findFirst.mockResolvedValue({ id: zoneId, is_active: true });
+  mocks.prisma.product.findMany.mockResolvedValue([
+    { id: productId, name: "Garrafão 20L", price_cents: 2500, is_active: true },
+  ]);
+  mocks.distributorService.resolveDistributor.mockResolvedValue({
+    distributorId,
+    zoneId,
+    mode: "auto",
+  });
+  mocks.orderService.createOrder.mockResolvedValue({
+    ...existingOrder,
+    total_cents: 2500,
+    status: OrderStatus.SENT_TO_DISTRIBUTOR,
+  });
   mocks.orderService.acceptOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR });
   mocks.orderService.cancelOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.CANCELLED });
   mocks.orderService.markDeliveryFailed.mockResolvedValue({ ...existingOrder, status: OrderStatus.DELIVERY_FAILED });
+});
+
+describe("ordersController create", () => {
+  it("cria pedido em dinheiro com troco", async () => {
+    const response = res();
+
+    await ordersController.create(
+      req("consumer", {
+        address_id: addressId,
+        delivery_date: "2026-06-12",
+        delivery_window: "morning",
+        payment_method: "cash",
+        cash_change_for_cents: 10000,
+        items: [{ product_id: productId, quantity: 1 }],
+      }),
+      response
+    );
+
+    expect(mocks.orderService.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        consumerId: userId,
+        addressId,
+        distributorId,
+        zoneId,
+        deliveryWindow: "MORNING",
+        paymentMethod: "cash",
+        cashChangeForCents: 10000,
+      })
+    );
+    expect(response.status).toHaveBeenCalledWith(201);
+  });
 });
 
 describe("ordersController action RBAC", () => {

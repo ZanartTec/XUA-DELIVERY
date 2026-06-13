@@ -1,5 +1,4 @@
 import { zonesRepository } from "../repository/zones.repository.js";
-import { capacityService } from "../../distributor/services/capacity.service.js";
 import { createLogger } from "../../../infra/logger";
 
 const log = createLogger("zones");
@@ -24,10 +23,6 @@ export const zonesService = {
   async remove(id: string) {
     await zonesRepository.softDelete(id);
     log.info({ zoneId: id }, "Zone removed");
-  },
-
-  async getCapacity(zoneId: string, startDate: string, endDate: string) {
-    return capacityService.checkAvailability(zoneId, startDate, endDate);
   },
 
   async addCoverage(

@@ -1,6 +1,6 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import type { Address, Consumer, Order, OrderItem, Zone } from "@prisma/client";
-import { ConsumerRole, DeliveryWindow, OrderStatus } from "@xua/shared/enums";
+import { ConsumerRole, OrderStatus } from "@xua/shared/enums";
 
 export type DistributorRouteStop = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
@@ -8,68 +8,6 @@ export type DistributorRouteStop = Order & {
   zone: Pick<Zone, "name">;
   items: Pick<OrderItem, "quantity">[];
 };
-
-type CoverageMatch = { neighborhood: string | null; zip_code: string | null };
-type CoverageFilter =
-  | { neighborhood: { in: string[] } }
-  | { zip_code: { in: string[] } };
-
-function dbDateToISODate(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
-
-function toDeliveryWindow(value: string): DeliveryWindow {
-  return value.toUpperCase() as DeliveryWindow;
-}
-
-function coverageFilters(originCoverage: CoverageMatch[]): CoverageFilter[] {
-  const neighborhoods = [
-    ...new Set(
-      originCoverage
-        .map((coverage) => coverage.neighborhood)
-        .filter((neighborhood): neighborhood is string => neighborhood !== null)
-    ),
-  ];
-  const zipCodes = [
-    ...new Set(
-      originCoverage
-        .map((coverage) => coverage.zip_code)
-        .filter((zipCode): zipCode is string => zipCode !== null)
-    ),
-  ];
-
-  return [
-    ...(neighborhoods.length > 0 ? [{ neighborhood: { in: neighborhoods } }] : []),
-    ...(zipCodes.length > 0 ? [{ zip_code: { in: zipCodes } }] : []),
-  ];
-}
-
-function matchesCoverage(candidate: CoverageMatch, originCoverage: CoverageMatch[]): boolean {
-  return originCoverage.some((origin) => {
-    const sameNeighborhood =
-      candidate.neighborhood !== null && candidate.neighborhood === origin.neighborhood;
-    const sameZipCode = candidate.zip_code !== null && candidate.zip_code === origin.zip_code;
-
-    return sameNeighborhood || sameZipCode;
-  });
-}
-
-function roundNps(avg: number | null | undefined): number | null {
-  return typeof avg === "number" ? Math.round(avg * 10) / 10 : null;
-}
-
-function sortByNpsThenName(
-  left: { name: string; avg_nps: number | null },
-  right: { name: string; avg_nps: number | null }
-): number {
-  if (left.avg_nps !== null && right.avg_nps === null) return -1;
-  if (left.avg_nps === null && right.avg_nps !== null) return 1;
-  if (left.avg_nps !== null && right.avg_nps !== null && left.avg_nps !== right.avg_nps) {
-    return right.avg_nps - left.avg_nps;
-  }
-
-  return left.name.localeCompare(right.name);
-}
 
 export const distributorRepository = {
   async findAllActive() {
@@ -210,13 +148,12 @@ export const distributorRepository = {
 
   /**
    * Busca distribuidoras ativas com allows_consumer_choice=true que atendem
-   * a mesma área geográfica (via ZoneCoverage) da zona informada e possuem
-   * capacidade disponível para a data/janela solicitada.
+   * a mesma área geográfica (via ZoneCoverage) da zona informada.
    */
   async findAvailableForZone(
     zoneId: string,
-    date?: string,
-    window?: string,
+    _date?: string,
+    _window?: string,
   ): Promise<
     Array<{
       id: string;
@@ -226,120 +163,40 @@ export const distributorRepository = {
     }>
   > {
     const prisma = getPrisma();
-    const originCoverage = await prisma.zoneCoverage.findMany({
-      where: { zone_id: zoneId },
-      select: { neighborhood: true, zip_code: true },
-    });
-    const coverageOr = coverageFilters(originCoverage);
 
-    if (coverageOr.length === 0) {
-      return [];
-    }
+    const rows = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        avg_nps: number | null;
+      }>
+    >`
+      SELECT
+        d.id,
+        d.name,
+        ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps
+      FROM "03_mst_distributors" d
+      JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
+      JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+      JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+      LEFT JOIN "09_trn_orders" o
+        ON o.distributor_id = d.id AND o.nps_score IS NOT NULL
+      WHERE d.is_active = true
+        AND d.allows_consumer_choice = true
+        AND (
+          (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+          OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+        )
+      GROUP BY d.id, d.name
+      ORDER BY avg_nps DESC NULLS LAST, d.name ASC
+    `;
 
-    const requestedDate = date ? new Date(date) : null;
-    const requestedWindow = window ? toDeliveryWindow(window) : null;
-    const distributors = await prisma.distributor.findMany({
-      where: {
-        is_active: true,
-        allows_consumer_choice: true,
-        zones: {
-          some: {
-            is_active: true,
-            coverage: { some: { OR: coverageOr } },
-          },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        zones: {
-          where: {
-            is_active: true,
-            coverage: { some: { OR: coverageOr } },
-          },
-          select: {
-            id: true,
-            coverage: { select: { neighborhood: true, zip_code: true } },
-            ...(requestedDate
-              ? {
-                  capacity_slots: {
-                    where: { delivery_date: { gte: requestedDate } },
-                    select: {
-                      delivery_date: true,
-                      window: true,
-                      capacity_total: true,
-                      capacity_reserved: true,
-                    },
-                  },
-                }
-              : {}),
-          },
-        },
-      },
-    });
-
-    const npsByDistributor = new Map<string, number | null>();
-    if (distributors.length > 0) {
-      const npsRows = await prisma.order.groupBy({
-        by: ["distributor_id"],
-        where: {
-          distributor_id: { in: distributors.map((distributor) => distributor.id) },
-          nps_score: { not: null },
-        },
-        _avg: { nps_score: true },
-      });
-
-      for (const npsRow of npsRows) {
-        npsByDistributor.set(npsRow.distributor_id, roundNps(npsRow._avg.nps_score));
-      }
-    }
-
-    if (date && window) {
-      const rows = distributors.flatMap((distributor) => {
-        const matchingZones = distributor.zones.filter((zone) =>
-          zone.coverage.some((coverage) => matchesCoverage(coverage, originCoverage))
-        );
-
-        const availableOnRequestedDate = matchingZones.some((zone) =>
-          zone.capacity_slots.some(
-            (slot) =>
-              dbDateToISODate(slot.delivery_date) === date &&
-              slot.window === requestedWindow &&
-              slot.capacity_reserved < slot.capacity_total
-          )
-        );
-
-        if (!availableOnRequestedDate) {
-          return [];
-        }
-
-        const nextAvailableDate = matchingZones
-          .flatMap((zone) => zone.capacity_slots)
-          .filter((slot) => slot.capacity_reserved < slot.capacity_total)
-          .map((slot) => slot.delivery_date)
-          .sort((left, right) => left.getTime() - right.getTime())[0];
-
-        return [
-          {
-            id: distributor.id,
-            name: distributor.name,
-            avg_nps: npsByDistributor.get(distributor.id) ?? null,
-            next_available_date: nextAvailableDate ? dbDateToISODate(nextAvailableDate) : null,
-          },
-        ];
-      });
-
-      return rows.sort(sortByNpsThenName);
-    }
-
-    return distributors
-      .map((distributor) => ({
-        id: distributor.id,
-        name: distributor.name,
-        avg_nps: npsByDistributor.get(distributor.id) ?? null,
-        next_available_date: null,
-      }))
-      .sort(sortByNpsThenName);
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      avg_nps: r.avg_nps,
+      next_available_date: null,
+    }));
   },
 
   /**
@@ -351,83 +208,53 @@ export const distributorRepository = {
     zoneId: string,
   ): Promise<string | null> {
     const prisma = getPrisma();
-    const originCoverage = await prisma.zoneCoverage.findMany({
-      where: { zone_id: zoneId },
-      select: { neighborhood: true, zip_code: true },
-    });
-    const coverageOr = coverageFilters(originCoverage);
 
-    if (coverageOr.length === 0) {
-      return null;
-    }
+    const rows = await prisma.$queryRaw<Array<{ zone_id: string }>>`
+      SELECT z2.id AS zone_id
+      FROM "04_mst_zones" z2
+      JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+      JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+      WHERE z2.distributor_id = ${distributorId}::uuid
+        AND z2.is_active = true
+        AND (
+          (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+          OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+        )
+      LIMIT 1
+    `;
 
-    const zone = await prisma.zone.findFirst({
-      where: {
-        distributor_id: distributorId,
-        is_active: true,
-        coverage: { some: { OR: coverageOr } },
-      },
-      select: { id: true },
-    });
-
-    return zone?.id ?? null;
+    return rows[0]?.zone_id ?? null;
   },
 
   /**
    * Valida que o distributor_id pertence a uma zona que cobre a mesma
-   * área geográfica do zoneId informado e tem capacidade para data/janela.
+   * área geográfica do zoneId informado.
    */
   async validateDistributorForZone(
     distributorId: string,
     zoneId: string,
-    date: string,
-    window: string,
+    _date: string,
+    _window: string,
   ): Promise<{ valid: boolean; resolvedZoneId: string | null }> {
     const prisma = getPrisma();
-    const originCoverage = await prisma.zoneCoverage.findMany({
-      where: { zone_id: zoneId },
-      select: { neighborhood: true, zip_code: true },
-    });
-    const coverageOr = coverageFilters(originCoverage);
 
-    if (coverageOr.length === 0) {
-      return { valid: false, resolvedZoneId: null };
-    }
-
-    const requestedWindow = toDeliveryWindow(window);
-    const zones = await prisma.zone.findMany({
-      where: {
-        distributor_id: distributorId,
-        is_active: true,
-        coverage: { some: { OR: coverageOr } },
-        capacity_slots: {
-          some: {
-            delivery_date: new Date(date),
-            window: requestedWindow,
-          },
-        },
-      },
-      select: {
-        id: true,
-        capacity_slots: {
-          where: {
-            delivery_date: new Date(date),
-            window: requestedWindow,
-          },
-          select: { capacity_total: true, capacity_reserved: true },
-        },
-      },
-    });
-
-    const zone = zones.find((candidateZone) =>
-      candidateZone.capacity_slots.some(
-        (slot) => slot.capacity_reserved < slot.capacity_total
-      )
-    );
+    const rows = await prisma.$queryRaw<Array<{ zone_id: string }>>`
+      SELECT z2.id AS zone_id
+      FROM "04_mst_zones" z2
+      JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+      JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+      WHERE z2.distributor_id = ${distributorId}::uuid
+        AND z2.is_active = true
+        AND (
+          (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+          OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+        )
+      LIMIT 1
+    `;
 
     return {
-      valid: Boolean(zone),
-      resolvedZoneId: zone?.id ?? null,
+      valid: rows.length > 0,
+      resolvedZoneId: rows[0]?.zone_id ?? null,
     };
   },
 };

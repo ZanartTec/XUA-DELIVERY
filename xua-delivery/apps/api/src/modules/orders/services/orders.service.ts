@@ -9,19 +9,24 @@ import {
   InventoryReferenceType,
   OrderStatus,
   PaymentKind,
+  PaymentStatus,
   SourceApp,
+  type CheckoutPaymentMethod,
 } from "@xua/shared/enums";
+import {
+  CASH_PAYMENT_METHOD,
+  DEFAULT_CHECKOUT_PAYMENT_METHOD,
+  isCashPaymentMethod,
+} from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { getIO } from "../../../infra/socket/gateway.js";
 import { orderRepository, type OrderForQueue, type OrderWithItems } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 import { inventoryService, InventoryServiceError } from "../../inventory/services/inventory.service.js";
-import { capacityService } from "../../distributor/services/capacity.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
-import { paymentService } from "../../payments/services/payments.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import redis from "../../../infra/redis/client.js";
@@ -29,6 +34,19 @@ import redis from "../../../infra/redis/client.js";
 const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
+
+const CASH_PAYMENT_PROVIDER = "local";
+const CASH_PAYMENT_PENDING_STATUS = "pending_cash";
+const PAYMENT_PAID_STATUS = "paid";
+const CASH_PAYMENT_INVALID_CAPTURE_STATUSES = new Set<PaymentStatus>([
+  PaymentStatus.FAILED,
+  PaymentStatus.REFUNDED,
+  PaymentStatus.EXPIRED,
+]);
+const CASH_PAYMENT_CAPTURABLE_STATUSES = new Set<PaymentStatus>([
+  PaymentStatus.CREATED,
+  PaymentStatus.AUTHORIZED,
+]);
 
 // ARCH-03: Máquina de estados — transições válidas (com estados intermediários)
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -467,6 +485,8 @@ export const orderService = {
     timeSlotId?: string | null;
     preferredTimeStart?: number | null;
     preferredTimeEnd?: number | null;
+    paymentMethod?: CheckoutPaymentMethod;
+    cashChangeForCents?: number | null;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -475,6 +495,9 @@ export const orderService = {
     }>;
   }): Promise<Order> {
     const prisma = getPrisma();
+    const paymentMethod = data.paymentMethod ?? DEFAULT_CHECKOUT_PAYMENT_METHOD;
+    const isCashPayment = isCashPaymentMethod(paymentMethod);
+    const cashChangeForCents = data.cashChangeForCents ?? null;
     const subtotalCents = data.items.reduce(
       (acc, i) => acc + i.unit_price_cents * i.quantity,
       0
@@ -493,20 +516,25 @@ export const orderService = {
         : 0;
       const totalCents = subtotalCents + depositAmountCents;
 
+      if (!isCashPayment && cashChangeForCents != null) {
+        throw new OrderServiceError(
+          "INVALID_CASH_CHANGE",
+          "Troco só pode ser informado para pagamento em dinheiro"
+        );
+      }
+
+      if (isCashPayment && cashChangeForCents != null && cashChangeForCents < totalCents) {
+        throw new OrderServiceError(
+          "INVALID_CASH_CHANGE",
+          "Valor para troco deve ser maior ou igual ao total do pedido"
+        );
+      }
+
       // Valida agenda da distribuidora (dias ativos, datas bloqueadas, lead_time)
       await scheduleService.validateDeliveryDate(
         data.distributorId,
         data.deliveryDate,
         data.deliveryWindow,
-      );
-
-      // ARCH-04: Reserva capacidade dentro da mesma transação
-      await capacityService.reserve(
-        data.zoneId,
-        data.deliveryDate,
-        data.deliveryWindow,
-        tx,
-        data.timeSlotId,
       );
 
       // Snapshot imutável do horário de entrega no momento da criação.
@@ -525,7 +553,7 @@ export const orderService = {
           address_id: data.addressId,
           distributor_id: data.distributorId,
           zone_id: data.zoneId,
-          status: OrderStatus.CREATED,
+          status: isCashPayment ? OrderStatus.CONFIRMED : OrderStatus.CREATED,
           delivery_date: new Date(data.deliveryDate),
           delivery_window: data.deliveryWindow,
           time_slot_id: data.timeSlotId ?? null,
@@ -548,7 +576,7 @@ export const orderService = {
           bottle_condition: null,
           empty_not_collected_reason: null,
           empty_not_collected_notes: null,
-          payment_status: null,
+          payment_status: isCashPayment ? CASH_PAYMENT_PENDING_STATUS : null,
           cancellation_reason: null,
           accepted_at: null,
           dispatched_at: null,
@@ -585,6 +613,46 @@ export const orderService = {
         tx
       );
 
+      if (isCashPayment) {
+        const payment = await tx.payment.create({
+          data: {
+            order_id: created.id,
+            kind: PaymentKind.ORDER,
+            status: PaymentStatus.CREATED,
+            amount_cents: totalCents,
+            payment_method: CASH_PAYMENT_METHOD,
+            provider: CASH_PAYMENT_PROVIDER,
+            cash_change_for_cents: cashChangeForCents,
+          },
+        });
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.PAYMENT_CREATED,
+            actor: { type: ActorType.SYSTEM, id: "cash-on-delivery" },
+            orderId: created.id,
+            sourceApp: SourceApp.BACKEND,
+            payload: {
+              payment_id: payment.id,
+              payment_method: CASH_PAYMENT_METHOD,
+              cash_change_for_cents: cashChangeForCents,
+            },
+          },
+          tx
+        );
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.ORDER_CONFIRMED,
+            actor: { type: ActorType.SYSTEM, id: "cash-on-delivery" },
+            orderId: created.id,
+            sourceApp: SourceApp.BACKEND,
+            payload: { payment_method: CASH_PAYMENT_METHOD },
+          },
+          tx
+        );
+      }
+
       if (isFirstPurchase) {
         await depositService.holdDeposit(
           data.consumerId,
@@ -599,6 +667,12 @@ export const orderService = {
     });
 
     log.info({ orderId: order.id }, "Order created");
+    if (isCashPayment) {
+      const sent = await orderService.sendToDistributor(order.id);
+      log.info({ orderId: sent.id }, "Cash order sent to distributor");
+      return sent;
+    }
+
     return order;
   },
 
@@ -964,10 +1038,53 @@ export const orderService = {
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.DELIVERED);
 
+      const cashPayment = await tx.payment.findFirst({
+        where: {
+          order_id: orderId,
+          kind: PaymentKind.ORDER,
+          payment_method: CASH_PAYMENT_METHOD,
+        },
+        orderBy: { created_at: "desc" },
+      });
+
+      if (cashPayment && CASH_PAYMENT_INVALID_CAPTURE_STATUSES.has(cashPayment.status)) {
+        throw new OrderServiceError(
+          "CASH_PAYMENT_INVALID",
+          "Pagamento em dinheiro não está disponível para captura"
+        );
+      }
+
+      const deliveredAt = new Date();
+
+      if (cashPayment && CASH_PAYMENT_CAPTURABLE_STATUSES.has(cashPayment.status)) {
+        await tx.payment.update({
+          where: { id: cashPayment.id },
+          data: { status: PaymentStatus.CAPTURED, paid_at: deliveredAt },
+        });
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.PAYMENT_CAPTURED,
+            actor: { type: ActorType.DRIVER, id: driverId },
+            orderId,
+            sourceApp: SourceApp.DRIVER_WEB,
+            payload: {
+              payment_id: cashPayment.id,
+              payment_method: CASH_PAYMENT_METHOD,
+              amount_cents: cashPayment.amount_cents,
+            },
+          },
+          tx
+        );
+      }
+
       const updated = await orderRepository.updateStatus(
         orderId,
         OrderStatus.DELIVERED,
-        { delivered_at: new Date() },
+        {
+          delivered_at: deliveredAt,
+          ...(cashPayment ? { payment_status: PAYMENT_PAID_STATUS } : {}),
+        },
         tx
       );
 
@@ -1194,15 +1311,6 @@ export const orderService = {
           },
         },
         tx
-      );
-
-      // Libera capacidade se estava reservada
-      await capacityService.release(
-        current.zone_id,
-        current.delivery_date.toISOString().split("T")[0],
-        current.delivery_window,
-        tx,
-        current.time_slot_id,
       );
 
       return updated;
@@ -1648,6 +1756,8 @@ export const orderService = {
         kind: payment.kind,
         status: payment.status,
         amount_cents: payment.amount_cents,
+        payment_method: payment.payment_method,
+        cash_change_for_cents: payment.cash_change_for_cents,
         provider: payment.provider,
         paid_at: payment.paid_at,
         created_at: payment.created_at,
@@ -1668,26 +1778,5 @@ export const orderService = {
       })),
       otp_code: await redis.get(`otp:${orderId}`) ?? undefined,
     };
-  },
-
-  /**
-   * Simula o fluxo completo de pagamento quando PAYMENT_PROVIDER=mock.
-   * CREATED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR
-   */
-  async autoSimulateMockPayment(orderId: string, totalCents: number): Promise<void> {
-    const provider = process.env.PAYMENT_PROVIDER ?? "mock";
-    if (provider !== "mock") return;
-
-    try {
-      await orderService.submitForPayment(orderId);
-      const { payment } = await paymentService.charge(orderId, totalCents, PaymentKind.ORDER);
-      if (payment.status === "CAPTURED") {
-        await orderService.confirmOrder(orderId);
-        await orderService.sendToDistributor(orderId);
-      }
-      log.info({ orderId }, "[MOCK] Pagamento simulado — pedido enviado ao distribuidor");
-    } catch (err) {
-      log.warn({ orderId, err }, "[MOCK] Falha na simulação de pagamento, pedido permanece em CREATED");
-    }
   },
 };

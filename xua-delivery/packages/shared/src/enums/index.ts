@@ -117,14 +117,16 @@ export const PAYMENT_STATUS_VALUES = [
   "CAPTURED",
   "FAILED",
   "REFUNDED",
+  "EXPIRED",
 ] as const;
 
-export const PaymentStatus = {
+ export const PaymentStatus = {
   CREATED: "CREATED",
   AUTHORIZED: "AUTHORIZED",
   CAPTURED: "CAPTURED",
   FAILED: "FAILED",
   REFUNDED: "REFUNDED",
+  EXPIRED: "EXPIRED",
 } as const;
 export type PaymentStatus = EnumValue<typeof PaymentStatus>;
 
@@ -133,6 +135,7 @@ export const DEPOSIT_STATUS_VALUES = [
   "REFUND_INITIATED",
   "REFUNDED",
   "FORFEITED",
+  "CANCELLED",
 ] as const;
 
 export const DepositStatus = {
@@ -140,6 +143,7 @@ export const DepositStatus = {
   REFUND_INITIATED: "REFUND_INITIATED",
   REFUNDED: "REFUNDED",
   FORFEITED: "FORFEITED",
+  CANCELLED: "CANCELLED",
 } as const;
 export type DepositStatus = EnumValue<typeof DepositStatus>;
 
@@ -200,6 +204,7 @@ export const AUDIT_EVENT_TYPE_VALUES = [
   "PAYMENT_CREATED",
   "PAYMENT_CAPTURED",
   "PAYMENT_FAILED",
+  "PAYMENT_EXPIRED",
   "DEPOSIT_HELD",
   "DEPOSIT_REFUND_INITIATED",
   "DEPOSIT_REFUNDED",
@@ -227,6 +232,7 @@ export const AuditEventType = {
   PAYMENT_CREATED: "PAYMENT_CREATED",
   PAYMENT_CAPTURED: "PAYMENT_CAPTURED",
   PAYMENT_FAILED: "PAYMENT_FAILED",
+  PAYMENT_EXPIRED: "PAYMENT_EXPIRED",
   DEPOSIT_HELD: "DEPOSIT_HELD",
   DEPOSIT_REFUND_INITIATED: "DEPOSIT_REFUND_INITIATED",
   DEPOSIT_REFUNDED: "DEPOSIT_REFUNDED",

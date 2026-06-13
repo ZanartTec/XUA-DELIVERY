@@ -57,6 +57,7 @@ enum PaymentStatus {
   CAPTURED    @map("captured")
   FAILED      @map("failed")
   REFUNDED    @map("refunded")
+  EXPIRED     @map("expired")
 
   @@map("payment_status")
 }
@@ -66,6 +67,7 @@ enum DepositStatus {
   REFUND_INITIATED  @map("refund_initiated")
   REFUNDED          @map("refunded")
   FORFEITED         @map("forfeited")
+  CANCELLED         @map("cancelled")
 
   @@map("deposit_status")
 }
@@ -122,6 +124,7 @@ enum AuditEventType {
   PAYMENT_CREATED
   PAYMENT_CAPTURED
   PAYMENT_FAILED
+  PAYMENT_EXPIRED
   DEPOSIT_HELD
   DEPOSIT_REFUND_INITIATED
   DEPOSIT_REFUNDED
@@ -287,7 +290,6 @@ model Zone {
 
   distributor     Distributor        @relation(fields: [distributor_id], references: [id])
   coverage        ZoneCoverage[]
-  capacity_slots  DeliveryCapacity[]
   addresses       Address[]
   orders          Order[]
 
@@ -317,11 +319,25 @@ model Product {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
+  categories          Category[]
   inventory_items     InventoryItem[]
   order_items         OrderItem[]
   subscription_plans  SubscriptionPlan[]
 
   @@map("06_mst_products")
+}
+
+model Category {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  value      String    @unique
+  sort_order Int       @default(0)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("07_mst_categories")
 }
 
 model InventoryItem {
@@ -435,24 +451,6 @@ model InventoryReconciliationItem {
   @@map("33_trn_inventory_reconciliation_items")
 }
 
-model DeliveryCapacity {
-  id                String         @id @default(uuid()) @db.Uuid
-  zone_id           String         @db.Uuid
-  delivery_date     DateTime       @db.Date
-  window            DeliveryWindow
-  time_slot_id      String?        @db.Uuid
-  capacity_total    Int
-  capacity_reserved Int            @default(0)
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
-
-  zone      Zone      @relation(fields: [zone_id], references: [id])
-  time_slot TimeSlot? @relation(fields: [time_slot_id], references: [id])
-
-  @@unique([zone_id, delivery_date, window, time_slot_id])
-  @@map("07_cfg_delivery_capacity")
-}
-
 model ConsumerPushToken {
   id          String   @id @default(uuid()) @db.Uuid
   consumer_id String   @db.Uuid
@@ -548,6 +546,7 @@ model Payment {
   status               PaymentStatus @default(CREATED)
   amount_cents         Int           @default(0)
   payment_method       String?
+  cash_change_for_cents Int?
   provider             String?
   provider_payment_ref String?
   external_id          String?       @unique
@@ -752,7 +751,6 @@ model TimeSlot {
   created_at     DateTime       @default(now())
 
   distributor                 Distributor               @relation(fields: [distributor_id], references: [id])
-  capacity_slots              DeliveryCapacity[]
   orders                      Order[]
   subscription_delivery_dates SubscriptionDeliveryDate[]
 

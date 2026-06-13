@@ -1,51 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
 
+interface ZoneCoverage {
+  id: string;
+  neighborhood: string | null;
+  zip_code: string | null;
+}
 
 interface Zone {
   id: string;
   name: string;
-  city: string;
-  state: string;
-  morning_capacity: number;
-  afternoon_capacity: number;
+  is_active: boolean;
+  coverage?: ZoneCoverage[];
 }
 
 export default function ZonesPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/zones?all=true")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Erro ao carregar zonas");
+        return r.json();
+      })
       .then((data) => setZones(data.zones ?? []))
-      .catch(() => {})
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
-
-  function updateCapacity(
-    id: string,
-    field: "morning_capacity" | "afternoon_capacity",
-    value: number
-  ) {
-    setZones((prev) =>
-      prev.map((z) => (z.id === id ? { ...z, [field]: value } : z))
-    );
-  }
-
-  async function saveZone(zone: Zone) {
-    await fetch(`/api/zones/${zone.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        morning_capacity: zone.morning_capacity,
-        afternoon_capacity: zone.afternoon_capacity,
-      }),
-    });
-  }
 
   if (loading) {
     return (
@@ -60,48 +44,58 @@ export default function ZonesPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-lg font-bold font-heading text-foreground">Zonas de Cobertura</h1>
+        <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-bold font-heading text-foreground">Zonas de Cobertura</h1>
 
-      <div className="space-y-3">
-        {zones.map((zone) => (
-          <div key={zone.id} className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
-            <p className="text-sm font-semibold font-heading">
-              {zone.name} — {zone.city}/{zone.state}
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cap. Manhã</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={zone.morning_capacity}
-                  onChange={(e) =>
-                    updateCapacity(zone.id, "morning_capacity", parseInt(e.target.value) || 0)
-                  }
-                  className="rounded-xl border-0 bg-[#e1e3e4]"
-                />
+      {zones.length === 0 ? (
+        <div className="rounded-2xl bg-white/95 p-6 text-center text-sm text-muted-foreground shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
+          Nenhuma zona cadastrada.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {zones.map((zone) => (
+            <div key={zone.id} className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold font-heading">{zone.name}</p>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    zone.is_active
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {zone.is_active ? "Ativa" : "Inativa"}
+                </span>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cap. Tarde</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={zone.afternoon_capacity}
-                  onChange={(e) =>
-                    updateCapacity(zone.id, "afternoon_capacity", parseInt(e.target.value) || 0)
-                  }
-                  className="rounded-xl border-0 bg-[#e1e3e4]"
-                />
-              </div>
+
+              {zone.coverage && zone.coverage.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {zone.coverage.map((cov) => (
+                    <span
+                      key={cov.id}
+                      className="inline-flex items-center rounded-lg bg-[#e1e3e4]/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {cov.neighborhood ?? cov.zip_code}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            <Button size="sm" onClick={() => saveZone(zone)} className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]">
-              Salvar
-            </Button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

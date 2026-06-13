@@ -31,6 +31,12 @@ const ID = {
   product20l:        "00000000-0000-4000-a000-000000000001",
   product10l:        "00000000-0000-4000-a000-000000000002",
 
+  // Categorias
+  categoryMineral:   "00000000-0000-4000-a000-000000002001",
+  categoryGallons:   "00000000-0000-4000-a000-000000002002",
+  categoryAccessories: "00000000-0000-4000-a000-000000002003",
+  categoryPremium:   "00000000-0000-4000-a000-000000002004",
+
   // Itens de estoque
   inventorySellable20l: "00000000-0000-4000-a000-000000001201",
   inventorySellable10l: "00000000-0000-4000-a000-000000001202",
@@ -331,6 +337,49 @@ async function main() {
   console.log("✅ Produtos: Galão 20L (R$25,00 + R$10,00 depósito), Garrafão 10L (R$15,00 + R$5,00 depósito)");
 
   // ════════════════════════════════════════════════════════════════
+  // CATEGORIAS
+  // ════════════════════════════════════════════════════════════════
+  const categories = [
+    { id: ID.categoryMineral,     name: "Água Mineral",  value: "mineral",     sort_order: 0 },
+    { id: ID.categoryGallons,     name: "Galões",        value: "gallons",     sort_order: 1 },
+    { id: ID.categoryAccessories, name: "Acessórios",    value: "accessories", sort_order: 2 },
+    { id: ID.categoryPremium,     name: "Premium",       value: "premium",     sort_order: 3 },
+  ];
+  for (const cat of categories) {
+    await prisma.category.upsert({
+      where: { id: cat.id },
+      update: { name: cat.name, sort_order: cat.sort_order },
+      create: cat,
+    });
+  }
+  console.log("✅ Categorias: Água Mineral, Galões, Acessórios, Premium");
+
+  // Associar produtos às categorias
+  await prisma.product.update({
+    where: { id: ID.product20l },
+    data: {
+      categories: {
+        connect: [
+          { id: ID.categoryMineral },
+          { id: ID.categoryGallons },
+        ],
+      },
+    },
+  });
+  await prisma.product.update({
+    where: { id: ID.product10l },
+    data: {
+      categories: {
+        connect: [
+          { id: ID.categoryMineral },
+          { id: ID.categoryGallons },
+        ],
+      },
+    },
+  });
+  console.log("✅ Produtos associados às categorias");
+
+  // ════════════════════════════════════════════════════════════════
   // ITENS DE ESTOQUE (catálogo do módulo de estoque)
   // ════════════════════════════════════════════════════════════════
   const inventoryItems = [
@@ -422,58 +471,6 @@ async function main() {
     });
   }
   console.log("✅ TimeSlots: Manhã (7h–12h) e Tarde (12h–17h) para Xuá JF; Manhã (8h–12h) e Tarde (13h–18h) para ÁguaFácil");
-
-  // ════════════════════════════════════════════════════════════════
-  // DELIVERY CAPACITY — próximos 30 dias
-  // Por janela (sem time_slot) + por time_slot para as 4 zonas
-  // ════════════════════════════════════════════════════════════════
-  const allZones = [ID.zoneCentroJF, ID.zoneNorteJF, ID.zoneSulJF, ID.zoneCentroJF2];
-  const windows = [DeliveryWindow.MORNING, DeliveryWindow.AFTERNOON];
-
-  // time_slot_id → window mapping
-  const slotWindowMap: Record<string, DeliveryWindow> = {
-    [ID.slotManha1]: DeliveryWindow.MORNING,
-    [ID.slotTarde1]: DeliveryWindow.AFTERNOON,
-    [ID.slotManha2]: DeliveryWindow.MORNING,
-    [ID.slotTarde2]: DeliveryWindow.AFTERNOON,
-  };
-  // zone → valid time slot IDs
-  const zoneSlotsMap: Record<string, string[]> = {
-    [ID.zoneCentroJF]:  [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneNorteJF]:   [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneSulJF]:     [ID.slotManha1, ID.slotTarde1],
-    [ID.zoneCentroJF2]: [ID.slotManha2, ID.slotTarde2],
-  };
-
-  for (let i = 1; i <= 30; i++) {
-    const date = futureDate(i);
-    for (const zoneId of allZones) {
-      // Capacidade por janela genérica (sem time_slot — para pedidos legados)
-      for (const window of windows) {
-        const existing = await prisma.deliveryCapacity.findFirst({
-          where: { zone_id: zoneId, delivery_date: date, window, time_slot_id: null },
-        });
-        if (!existing) {
-          await prisma.deliveryCapacity.create({
-            data: { zone_id: zoneId, delivery_date: date, window, capacity_total: 20, capacity_reserved: 0 },
-          });
-        }
-      }
-      // Capacidade por time_slot
-      for (const slotId of zoneSlotsMap[zoneId]) {
-        const window = slotWindowMap[slotId];
-        const existing = await prisma.deliveryCapacity.findFirst({
-          where: { zone_id: zoneId, delivery_date: date, window, time_slot_id: slotId },
-        });
-        if (!existing) {
-          await prisma.deliveryCapacity.create({
-            data: { zone_id: zoneId, delivery_date: date, window, time_slot_id: slotId, capacity_total: 15, capacity_reserved: 0 },
-          });
-        }
-      }
-    }
-  }
-  console.log("✅ DeliveryCapacity: 30 dias × janelas + time_slots × 4 zonas");
 
   // ════════════════════════════════════════════════════════════════
   // PUSH TOKEN

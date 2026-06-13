@@ -68,8 +68,7 @@ router.post(
 // Lista de paradas agrupadas por zona/janela para uma data
 router.get("/routes/:id", requireRole("distributor_admin"), distributorController.getRouteById);
 
-// Disponibilidade de capacidade por zone/período
-router.get("/capacity", requireRole("distributor_admin"), distributorController.getCapacity);
+
 
 // ─── Schedule / Blocked Dates ─────────────────────────────
 // Acessível por distributor_admin (para sua própria empresa) e ops

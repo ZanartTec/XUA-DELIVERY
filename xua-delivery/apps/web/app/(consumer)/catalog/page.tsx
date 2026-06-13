@@ -10,8 +10,9 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { SearchBar } from "@/src/components/consumer/search-bar";
 import { PromoBannerCarousel, type BannerSlide } from "@/src/components/consumer/promo-banner-carousel";
-import { CategoryFilter, type CategoryValue } from "@/src/components/consumer/category-filter";
+import { CategoryFilter, type CategoryItem } from "@/src/components/consumer/category-filter";
 import { FeaturedProductCard, type FeaturedBanner } from "@/src/components/consumer/featured-product-card";
+import { CatalogCartSummaryCard } from "@/src/components/consumer/catalog-cart-summary-card";
 
 interface ProductItem {
   id: string;
@@ -21,6 +22,7 @@ interface ProductItem {
   price_cents: number;
   deposit_cents: number;
   is_active: boolean;
+  categories: { id: string; name: string; value: string }[];
 }
 
 function ProductSkeleton() {
@@ -39,30 +41,15 @@ function ProductSkeleton() {
   );
 }
 
-/** Heurística para categorizar produto pelo nome/descrição */
-function matchesCategory(product: ProductItem, category: CategoryValue): boolean {
-  if (category === "all") return true;
-  const text = `${product.name} ${product.description ?? ""}`.toLowerCase();
-  switch (category) {
-    case "mineral":
-      return text.includes("mineral") || text.includes("água");
-    case "gallons":
-      return text.includes("galão") || text.includes("garrafão") || text.includes("20l");
-    case "accessories":
-      return text.includes("bomba") || text.includes("suporte") || text.includes("dispenser");
-    case "premium":
-      return text.includes("premium") || text.includes("pack");
-    default:
-      return true;
-  }
-}
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<CategoryValue>("all");
+  const [category, setCategory] = useState("all");
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [carouselBanners, setCarouselBanners] = useState<BannerSlide[]>([]);
   const [featuredBanner, setFeaturedBanner] = useState<FeaturedBanner | null>(null);
   const addItem = useCartStore((s) => s.addItem);
@@ -89,6 +76,26 @@ export default function CatalogPage() {
       }
     }
 
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      try {
+        const res = await fetch("/api/categories");
+        const data = await res.json();
+        if (res.ok && data.categories) {
+          setCategories(
+            data.categories.map((c: { id: string; name: string; value: string }) => ({
+              label: c.name,
+              value: c.value,
+            }))
+          );
+        }
+      } catch {
+        // Silently fail — filter still works with "Todos"
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
     async function loadBanners() {
       try {
         const res = await fetch("/api/banners");
@@ -105,6 +112,7 @@ export default function CatalogPage() {
     }
 
     void loadProducts();
+    void loadCategories();
     void loadBanners();
   }, []);
 
@@ -114,7 +122,9 @@ export default function CatalogPage() {
         search.trim() === "" ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         (p.description ?? "").toLowerCase().includes(search.toLowerCase());
-      return matchSearch && matchesCategory(p, category);
+      const matchCategory =
+        category === "all" || p.categories.some((c) => c.value === category);
+      return matchSearch && matchCategory;
     });
   }, [products, search, category]);
 
@@ -139,7 +149,12 @@ export default function CatalogPage() {
       <PromoBannerCarousel banners={carouselBanners} />
 
       {/* Filtros de categoria */}
-      <CategoryFilter selected={category} onChange={setCategory} />
+      <CategoryFilter
+        categories={categories}
+        selected={category}
+        onChange={setCategory}
+        loading={categoriesLoading}
+      />
 
       {/* Seção destaques */}
       <div className="flex items-center justify-between px-4">
@@ -237,6 +252,9 @@ export default function CatalogPage() {
       {featuredBanner && (
         <FeaturedProductCard banner={featuredBanner} />
       )}
+
+      {/* Barra flutuante do carrinho — posição fixa acima do nav */}
+      <CatalogCartSummaryCard />
 
       {/* CTA Assinatura — estilo Stitch: card azul escuro */}
       <div className="mx-4 rounded-2xl bg-linear-to-br from-[#1B4A9A] to-[#5697E9] p-5 text-white">

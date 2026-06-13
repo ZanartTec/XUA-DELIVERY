@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema, type RegisterInput } from "@/src/schemas/auth";
-import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { ArrowRight } from "lucide-react";
 
@@ -43,72 +43,156 @@ export default function RegisterPage() {
   }
 
   return (
-    <>
-      {/* Brand */}
-      <div className="mb-8 flex justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-transparent.png" alt="Xuá Água Mineral" className="h-24 w-auto" />
+    <div className="relative min-h-dvh overflow-x-hidden">
+      {/* Imagem de fundo fixa */}
+      <div className="fixed inset-0 -z-20">
+        <Image
+          src="/woman-water2.webp"
+          alt=""
+          aria-hidden
+          fill
+          priority
+          quality={70}
+          sizes="100vw"
+          className="object-cover object-top"
+        />
       </div>
 
-      {/* Hero Headline */}
-      <h1 className="font-heading text-[2rem] leading-[1.15] font-extrabold tracking-tight text-secondary-foreground mb-2">
-        Start your{" "}
-        <span className="bg-linear-to-r from-primary to-primary-hover bg-clip-text text-transparent">
-          hydration journey
-        </span>
-      </h1>
-      <p className="text-sm text-muted-foreground mb-8">
-        Create your account and never run out of water.
-      </p>
+      {/* Gradiente fixo */}
+      <div
+        className="fixed inset-0 -z-10"
+        style={{
+          background:
+            "linear-gradient(to bottom, transparent 20%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.35) 65%, rgba(255,255,255,0.50) 100%)",
+        }}
+      />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {serverError && (
-          <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive text-center backdrop-blur-sm">
-            {serverError}
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <label htmlFor="name" className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">Full Name</label>
-          <Input id="name" className="h-12 rounded-xl border-0 bg-white/70 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/70 shadow-none focus:bg-white focus:ring-2 focus:ring-ring/20" placeholder="Your full name" {...register("name")} />
-          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+      {/* Conteúdo rolável */}
+      <div className="relative z-10 flex min-h-dvh flex-col justify-between px-6 pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:mx-auto sm:max-w-md sm:pt-8 sm:pb-6">
+        {/* Logo no topo */}
+        <div className="flex justify-center shrink-0 mb-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-transparent.png"
+            alt="Xuá Água Mineral"
+            className="h-28 w-auto drop-shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
+          />
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="reg-email" className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">Email Address</label>
-          <Input id="reg-email" type="email" className="h-12 rounded-xl border-0 bg-white/70 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/70 shadow-none focus:bg-white focus:ring-2 focus:ring-ring/20" placeholder="name@example.com" {...register("email")} />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        {/* Formulário na parte inferior */}
+        <div className="mt-auto mb-4 rounded-2xl bg-white/70 backdrop-blur-md p-5 shadow-lg shadow-black/5">
+          <h1 className="font-heading text-xl font-extrabold leading-tight text-[#0d1b2f]">
+            Crie sua conta
+          </h1>
+          <p className="mt-0.5 text-xs text-[#7d8494]">
+            Preencha seus dados para continuar
+          </p>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3">
+            {serverError && (
+              <div className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600 text-center">
+                {serverError}
+              </div>
+            )}
+
+            {/* Nome */}
+            <div className="space-y-1">
+              <label
+                htmlFor="name"
+                className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+              >
+                Nome Completo
+              </label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Seu nome completo"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                {...register("name")}
+              />
+              {errors.name && (
+                <p className="text-xs text-red-500">{errors.name.message}</p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1">
+              <label
+                htmlFor="email"
+                className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+              >
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="nome@exemplo.com"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-xs text-red-500">{errors.email.message}</p>
+              )}
+            </div>
+
+            {/* Telefone */}
+            <div className="space-y-1">
+              <label
+                htmlFor="phone"
+                className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+              >
+                Telefone
+              </label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="(11) 99999-0000"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                {...register("phone")}
+              />
+              {errors.phone && (
+                <p className="text-xs text-red-500">{errors.phone.message}</p>
+              )}
+            </div>
+
+            {/* Senha */}
+            <div className="space-y-1">
+              <label
+                htmlFor="password"
+                className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+              >
+                Senha
+              </label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="No mínimo 8 caracteres"
+                className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                {...register("password")}
+              />
+              {errors.password && (
+                <p className="text-xs text-red-500">{errors.password.message}</p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-[#001735] text-base font-semibold transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98] disabled:opacity-60 mt-4"
+            >
+              {isSubmitting ? "Criando..." : "Criar Conta"}
+              {!isSubmitting && <ArrowRight className="h-4 w-4" />}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-[#7d8494]">
+            Já tem uma conta?{" "}
+            <Link href="/login" className="font-semibold text-[#1B4A9A]">
+              Entrar
+            </Link>
+          </p>
         </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="phone" className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">Phone</label>
-          <Input id="phone" type="tel" className="h-12 rounded-xl border-0 bg-white/70 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/70 shadow-none focus:bg-white focus:ring-2 focus:ring-ring/20" placeholder="(11) 99999-0000" {...register("phone")} />
-          {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="reg-password" className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">Password</label>
-          <Input id="reg-password" type="password" className="h-12 rounded-xl border-0 bg-white/70 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/70 shadow-none focus:bg-white focus:ring-2 focus:ring-ring/20" placeholder="At least 8 characters" {...register("password")} />
-          {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-        </div>
-
-        <Button
-          type="submit"
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-[#001735] text-base font-semibold shadow-none transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98]"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Creating..." : "Create Account"}
-          {!isSubmitting && <ArrowRight className="h-4 w-4" />}
-        </Button>
-      </form>
-
-      {/* Footer */}
-      <p className="mt-8 text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-primary hover:text-primary-hover">
-          Sign in
-        </Link>
-      </p>
-    </>
+      </div>
+    </div>
   );
 }

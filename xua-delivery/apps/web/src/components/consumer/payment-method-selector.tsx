@@ -3,57 +3,53 @@
 import { cn } from "@/src/lib/utils";
 import { CreditCard, Banknote, WalletCards, Check } from "lucide-react";
 import type { CheckoutPaymentMethod } from "@xua/shared/enums";
+import { CHECKOUT_PAYMENT_METHOD_OPTIONS } from "@xua/shared/mappers/payment";
 
 export type PaymentMethod = CheckoutPaymentMethod;
 
-const PAYMENT_METHODS: {
-  value: PaymentMethod;
-  label: string;
-  sublabel: string;
+const PAYMENT_METHOD_VISUALS: Record<PaymentMethod, {
   icon: typeof CreditCard;
   iconBg: string;
   iconColor: string;
-}[] = [
-  {
-    value: "pix",
-    label: "Pix",
-    sublabel: "Aprovação instantânea e segura",
-    icon: Banknote,
+}> = {
+  pix: {
+    icon: WalletCards,
     iconBg: "bg-[#e7f9f2]",
     iconColor: "text-[#008d5d]",
   },
-  {
-    value: "credit",
-    label: "Cartão de Crédito",
-    sublabel: "Checkout seguro via Mercado Pago",
+  credit: {
     icon: CreditCard,
     iconBg: "bg-[#d8e2ff]",
     iconColor: "text-[#32466e]",
   },
-  {
-    value: "cash",
-    label: "Dinheiro",
-    sublabel: "Pague na hora da entrega",
-    icon: WalletCards,
-    iconBg: "bg-[#e1e3e4]",
-    iconColor: "text-[#434656]",
+  cash: {
+    icon: Banknote,
+    iconBg: "bg-[#fff2dd]",
+    iconColor: "text-[#7a4700]",
   },
-];
+};
+
+const PAYMENT_METHODS = CHECKOUT_PAYMENT_METHOD_OPTIONS.map((method) => ({
+  ...method,
+  ...PAYMENT_METHOD_VISUALS[method.value],
+}));
 
 interface PaymentMethodSelectorProps {
   value: PaymentMethod | null;
   onChange: (method: PaymentMethod) => void;
   disabledMethods?: PaymentMethod[];
+  hiddenMethods?: PaymentMethod[];
 }
 
 export function PaymentMethodSelector({
   value,
   onChange,
   disabledMethods = [],
+  hiddenMethods = [],
 }: PaymentMethodSelectorProps) {
   return (
     <div className="space-y-3">
-      {PAYMENT_METHODS.map((pm) => {
+      {PAYMENT_METHODS.filter((pm) => !hiddenMethods.includes(pm.value)).map((pm) => {
         const selected = value === pm.value;
         const disabled = disabledMethods.includes(pm.value);
         const Icon = pm.icon;

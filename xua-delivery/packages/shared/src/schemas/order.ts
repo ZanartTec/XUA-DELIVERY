@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   BOTTLE_CONDITION_VALUES,
+  CHECKOUT_PAYMENT_METHOD_VALUES,
   DELIVERY_WINDOW_INPUT_VALUES,
   NON_COLLECTION_REASON_VALUES,
   REJECT_ORDER_REASON_VALUES,
 } from "../enums";
+import { DEFAULT_CHECKOUT_PAYMENT_METHOD, isCashPaymentMethod } from "../mappers/payment";
 
 export const createOrderSchema = z.object({
   address_id: z.string().uuid("Endereço inválido"),
@@ -21,6 +23,16 @@ export const createOrderSchema = z.object({
     )
     .min(1, "Adicione ao menos um item"),
   empty_bottles_qty: z.number().int().min(0).default(0),
+  payment_method: z.enum(CHECKOUT_PAYMENT_METHOD_VALUES).default(DEFAULT_CHECKOUT_PAYMENT_METHOD),
+  cash_change_for_cents: z.number().int().min(0).nullable().optional(),
+}).superRefine((data, ctx) => {
+  if (!isCashPaymentMethod(data.payment_method) && data.cash_change_for_cents != null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["cash_change_for_cents"],
+      message: "Troco só pode ser informado para pagamento em dinheiro",
+    });
+  }
 });
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 

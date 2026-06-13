@@ -21,10 +21,13 @@ import {
   Info,
   FlaskConical,
 } from "lucide-react";
+import { PaymentMethodSelector } from "@/src/components/consumer/payment-method-selector";
 import {
-  PaymentMethodSelector,
-  type PaymentMethod,
-} from "@/src/components/consumer/payment-method-selector";
+  CASH_PAYMENT_METHOD,
+  DEFAULT_ONLINE_PAYMENT_METHOD,
+  isCashPaymentMethod,
+  isOnlinePaymentMethod,
+} from "@xua/shared/mappers/payment";
 
 interface RetryOrderItem {
   product_name: string;
@@ -79,6 +82,14 @@ function formatOrderAddress(order: RetryOrder): string {
   return `${address.street}, ${address.number}${complement} — ${address.neighborhood}, ${address.city}/${address.state}`;
 }
 
+function parseCurrencyInputToCents(value: string): number | null {
+  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round(parsed * 100);
+}
+
 function PaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,6 +105,8 @@ function PaymentContent() {
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const paymentMethod = useCheckoutStore((s) => s.paymentMethod);
   const setPaymentMethod = useCheckoutStore((s) => s.setPaymentMethod);
+  const cashChangeForCents = useCheckoutStore((s) => s.cashChangeForCents);
+  const setCashChangeForCents = useCheckoutStore((s) => s.setCashChangeForCents);
   const resetCheckout = useCheckoutStore((s) => s.resetCheckout);
 
   const items = useCartStore((s) => s.items);
@@ -104,6 +117,7 @@ function PaymentContent() {
   // mounted evita hydration mismatch: Zustand persist lê localStorage só no client
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(!isRetryMode);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -135,8 +149,8 @@ function PaymentContent() {
   }, []);
 
   useEffect(() => {
-    if (isRetryMode && paymentMethod === "cash") {
-      setPaymentMethod("pix");
+    if (isRetryMode && isCashPaymentMethod(paymentMethod)) {
+      setPaymentMethod(DEFAULT_ONLINE_PAYMENT_METHOD);
     }
   }, [isRetryMode, paymentMethod, setPaymentMethod]);
 
@@ -169,7 +183,10 @@ function PaymentContent() {
           })),
     [retryOrder, items],
   );
-  const paymentMethodUnavailable = isRetryMode && paymentMethod === "cash";
+  const isCashPayment = isCashPaymentMethod(paymentMethod);
+  const paymentMethodUnavailable = isRetryMode && isCashPayment;
+  const cashChangeInvalid =
+    isCashPayment && cashChangeForCents != null && cashChangeForCents < totalCents;
   const confirmDisabled =
     !mounted ||
     loading ||
@@ -178,11 +195,12 @@ function PaymentContent() {
     !!previewError ||
     !!retryError ||
     paymentMethodUnavailable ||
+    cashChangeInvalid ||
     (isRetryMode ? !retryOrder : !selectedAddress);
 
   // Load deposit preview + addresses
   useEffect(() => {
-    if (isRetryMode) {
+    if (isRetryMode || isRedirecting) {
       setPreviewLoading(false);
       setAddressLoading(false);
       return;
@@ -251,9 +269,10 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [isRetryMode, user?.id, storedAddressId]);
+  }, [isRetryMode, user?.id, storedAddressId, isRedirecting]);
 
   useEffect(() => {
+    if (isRedirecting) return;
     if (!retryOrderId) {
       setRetryOrder(null);
       setRetryLoading(false);
@@ -292,10 +311,10 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [retryOrderId, router]);
+  }, [retryOrderId, router, isRedirecting]);
 
   async function startCheckoutPayment(orderId: string): Promise<boolean> {
-    if (paymentMethod !== "pix" && paymentMethod !== "credit") {
+    if (!isOnlinePaymentMethod(paymentMethod)) {
       setError("Selecione Pix ou cartão para pagar online pelo Mercado Pago.");
       return false;
     }
@@ -321,6 +340,7 @@ function PaymentContent() {
       return false;
     }
 
+    setIsRedirecting(true);
     window.location.href = redirectUrl;
     return true;
   }
@@ -347,6 +367,10 @@ function PaymentContent() {
       setError("Selecione um endereço de entrega.");
       return;
     }
+    if (cashChangeInvalid) {
+      setError("O valor para troco deve ser maior ou igual ao total do pedido.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -365,6 +389,9 @@ function PaymentContent() {
           ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
           ...(selectedDistributorId ? { distributor_id: selectedDistributorId } : {}),
           payment_method: paymentMethod,
+          ...(isCashPayment && cashChangeForCents != null
+            ? { cash_change_for_cents: cashChangeForCents }
+            : {}),
         }),
       });
 
@@ -376,7 +403,7 @@ function PaymentContent() {
 
       const { order } = await res.json();
 
-      if (paymentMethod === "pix" || paymentMethod === "credit") {
+      if (isOnlinePaymentMethod(paymentMethod)) {
         const started = await startCheckoutPayment(order.id);
         if (!started) return;
         clearCart();
@@ -392,6 +419,15 @@ function PaymentContent() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (isRedirecting) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 px-4 text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground font-medium">Redirecionando para o Mercado Pago...</p>
+      </div>
+    );
   }
 
   return (
@@ -506,8 +542,11 @@ function PaymentContent() {
           </h3>
           <PaymentMethodSelector
             value={paymentMethod}
-            onChange={setPaymentMethod}
-            disabledMethods={isRetryMode ? ["cash"] : []}
+            onChange={(method) => {
+              setPaymentMethod(method);
+              if (!isCashPaymentMethod(method)) setCashChangeForCents(null);
+            }}
+            hiddenMethods={isRetryMode ? [CASH_PAYMENT_METHOD] : []}
           />
           {isRetryMode && (
             <p className="text-xs text-[#434656]">
@@ -516,16 +555,85 @@ function PaymentContent() {
           )}
         </section>
 
+        {isCashPayment && !isRetryMode && (
+          <section className="space-y-3 rounded-xl border border-[#c9d9ff] bg-[#eaf1ff] p-4">
+            <div className="flex items-start gap-3">
+              <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-[#32466e]" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-[#1f3f75]">Troco</p>
+                <p className="mt-0.5 text-xs text-[#32528a]">
+                  Total do pedido: {formatCurrency(totalCents)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCashChangeForCents(null)}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
+                  cashChangeForCents == null
+                    ? "bg-[#00E0FF] text-[#001735]"
+                    : "bg-white text-[#32466e] ring-1 ring-[#c9d9ff]"
+                }`}
+              >
+                Valor exato
+              </button>
+              <button
+                type="button"
+                onClick={() => setCashChangeForCents(Math.max(cashChangeForCents ?? totalCents, totalCents))}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
+                  cashChangeForCents != null
+                    ? "bg-[#00E0FF] text-[#001735]"
+                    : "bg-white text-[#32466e] ring-1 ring-[#c9d9ff]"
+                }`}
+              >
+                Preciso de troco
+              </button>
+            </div>
+
+            {cashChangeForCents != null && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#32528a]">
+                  Troco para
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={(cashChangeForCents / 100).toFixed(2).replace(".", ",")}
+                  onChange={(event) => setCashChangeForCents(parseCurrencyInputToCents(event.target.value))}
+                  className="h-12 w-full rounded-xl border border-[#c9d9ff] bg-white px-4 text-base font-bold text-[#191c1d] outline-none focus:border-[#00E0FF]"
+                  placeholder={formatCurrency(totalCents)}
+                />
+                {cashChangeInvalid ? (
+                  <p className="text-xs font-semibold text-red-700">
+                    Informe um valor maior ou igual a {formatCurrency(totalCents)}.
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#32528a]">
+                    Troco estimado: {formatCurrency(Math.max(cashChangeForCents - totalCents, 0))}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Payment provider banner */}
-        <div className="flex items-start gap-3 rounded-xl bg-[#e7f9f2] px-4 py-3 border border-[#b7ead6]">
-          <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-[#008d5d]" />
+        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${isCashPayment ? "bg-[#eaf1ff] border-[#c9d9ff]" : "bg-[#e7f9f2] border-[#b7ead6]"}`}>
+          {isCashPayment ? (
+            <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#32466e]" />
+          ) : (
+            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-[#008d5d]" />
+          )}
           <div>
-            <p className="text-sm font-bold text-[#00573d]">
-              Pagamento online via Mercado Pago
+            <p className={`text-sm font-bold ${isCashPayment ? "text-[#1f3f75]" : "text-[#00573d]"}`}>
+              {isCashPayment ? "Pagamento em dinheiro na entrega" : "Pagamento online via Mercado Pago"}
             </p>
-            <p className="mt-0.5 text-xs text-[#006c49]">
-              Pix e cartão são finalizados no ambiente seguro do Mercado Pago.
-              O pedido avança após a confirmação do gateway.
+            <p className={`mt-0.5 text-xs ${isCashPayment ? "text-[#32528a]" : "text-[#006c49]"}`}>
+              {isCashPayment
+                ? "O pedido será enviado para a distribuidora agora e o motorista cobrará o valor na entrega."
+                : "Pix e cartão são finalizados no ambiente seguro do Mercado Pago. O pedido avança após a confirmação do gateway."}
             </p>
           </div>
         </div>
@@ -637,7 +745,7 @@ function PaymentContent() {
           {loading
             ? "Processando..."
             : mounted
-              ? `${isRetryMode ? "Retomar pagamento" : "Finalizar pagamento"} de ${formatCurrency(totalCents)}`
+              ? `${isCashPayment ? "Confirmar pedido" : isRetryMode ? "Retomar pagamento" : "Finalizar pagamento"} de ${formatCurrency(totalCents)}`
               : "Carregando..."}
           {!loading && <ChevronRight className="h-5 w-5 ml-1" />}
         </Button>
@@ -646,6 +754,16 @@ function PaymentContent() {
         <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#434656] uppercase tracking-widest font-medium">
           <ShieldCheck className="h-3.5 w-3.5" />
           Pagamento 100% Seguro
+        </div>
+
+        {/* ABNT Notice */}
+        <div className="rounded-xl bg-[#fff8e6] p-4 border border-[#ffe099]">
+          <div className="flex items-start gap-3">
+            <Info className="h-4 w-4 shrink-0 text-[#b37400] mt-0.5" />
+            <p className="text-xs text-[#805300] leading-relaxed font-medium">
+              <strong>Atenção:</strong> Conforme a ABNT NBR 14222 e a Portaria DNPM nº 387/2008, os garrafões retornáveis devem possuir prazo máximo de 3 (três) anos de vida útil, contados a partir da data de fabricação.
+            </p>
+          </div>
         </div>
 
         {/* Legal notice */}

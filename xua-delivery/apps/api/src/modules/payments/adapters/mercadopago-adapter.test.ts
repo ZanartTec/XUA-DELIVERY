@@ -69,6 +69,7 @@ describe("MercadoPagoAdapter", () => {
     const notificationUrl = new URL(body.notification_url);
 
     expect(body.external_reference).toBe(orderId);
+    expect(body.auto_return).toBe("approved");
     expect(body.metadata).toEqual({
       order_id: orderId,
       payment_method: "pix",
@@ -82,5 +83,36 @@ describe("MercadoPagoAdapter", () => {
       PaymentKind.ORDER,
       notificationUrl.searchParams.get("xua_context_sig") ?? ""
     )).toBe(true);
+  });
+
+  it("omite auto_return quando a URL de sucesso aponta para localhost", async () => {
+    process.env.MERCADOPAGO_BACK_URL_SUCCESS = "http://localhost:3001/checkout/confirmation";
+    process.env.MERCADOPAGO_BACK_URL_FAILURE = "http://localhost:3001/checkout/confirmation";
+    process.env.MERCADOPAGO_BACK_URL_PENDING = "http://localhost:3001/checkout/confirmation";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "pref-123",
+          init_point: "https://mercadopago.test/checkout/pref-123",
+          status: "active",
+        }),
+        { status: 201 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new MercadoPagoAdapter().charge(5000, {
+      orderId,
+      kind: PaymentKind.ORDER,
+      paymentMethod: "credit",
+      payerEmail: "cliente@xua.test",
+    });
+
+    const [, options] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(String((options as RequestInit).body));
+
+    expect(body.back_urls.success).toContain("http://localhost:3001/checkout/confirmation");
+    expect(body.auto_return).toBeUndefined();
   });
 });

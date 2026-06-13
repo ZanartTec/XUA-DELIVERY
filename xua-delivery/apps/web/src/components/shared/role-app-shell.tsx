@@ -264,11 +264,6 @@ export function RoleAppShell({
             );
           })}
 
-          {role === "consumer" ? (
-            <li className="flex min-w-0 flex-1">
-              <LogoutButton variant="nav" />
-            </li>
-          ) : null}
         </ul>
       </nav>
     </div>

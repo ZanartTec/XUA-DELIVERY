@@ -1,5 +1,3 @@
-export { capacityRepository } from "./repository/capacity.repository.js";
-export { capacityService } from "./services/capacity.service.js";
 export { distributorRepository } from "./repository/distributor.repository.js";
 export { distributorService, DistributorServiceError } from "./services/distributor.service.js";
 export { scheduleRepository } from "./repository/schedule.repository.js";

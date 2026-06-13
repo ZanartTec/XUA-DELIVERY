@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
+import { getAllowedAppOrigins } from "../../http/allowed-origins";
 import { verifyToken } from "../auth/jwt";
 import { logger } from "../logger";
 
@@ -10,7 +11,7 @@ let io: Server | null = null;
  * Inclui middleware de autenticação JWT no handshake.
  */
 export function createSocketGateway(httpServer: HttpServer): Server {
-  const allowedOrigin = process.env.APP_ORIGIN ?? "http://localhost:3000";
+  const allowedOrigin = getAllowedAppOrigins();
 
   io = new Server(httpServer, {
     cors: {
@@ -78,9 +79,13 @@ export function createSocketGateway(httpServer: HttpServer): Server {
  */
 export function getIO(): Server {
   if (!io) {
-    throw new Error(
-      "Socket.io não inicializado. Chame createSocketGateway() primeiro."
-    );
+    // Retorna um mock/dummy para evitar crash em processos que não sobem o Socket.IO (como Workers)
+    return {
+      to: () => ({
+        emit: () => {},
+      }),
+      emit: () => {},
+    } as unknown as Server;
   }
   return io;
 }

@@ -9,7 +9,6 @@ router.use(authMiddleware);
 
 // Leitura: consumer, distributor_admin, ops
 router.get("/", requireRole("consumer", "distributor_admin", "ops"), zonesController.list);
-router.get("/:id/capacity", requireRole("consumer", "distributor_admin", "ops"), zonesController.getCapacity);
 router.get(
   "/:id/available-dates",
   requireRole("consumer", "distributor_admin", "ops"),

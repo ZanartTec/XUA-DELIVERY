@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/src/components/shared/status-pill";
-import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2 } from "lucide-react";
+import { formatCurrency } from "@/src/lib/utils";
+import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2, Banknote } from "lucide-react";
 import type { DeliveryWindow } from "@xua/shared/enums";
+import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface Delivery {
   order_id: string;
@@ -15,6 +17,10 @@ interface Delivery {
   delivery_window: DeliveryWindow;
   sequence: number;
   total_items_qty: number;
+  total_cents: number;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  cash_change_for_cents?: number | null;
 }
 
 function canAdvanceToOtp(status: string) {
@@ -23,6 +29,11 @@ function canAdvanceToOtp(status: string) {
 
 function isCompleted(status: string) {
   return status === "DELIVERED" || status === "DELIVERY_FAILED";
+}
+
+function cashChangeLabel(delivery: Delivery) {
+  if (delivery.cash_change_for_cents == null) return "Valor exato";
+  return `Troco para ${formatCurrency(delivery.cash_change_for_cents)}`;
 }
 
 function DeliverySkeleton() {
@@ -151,6 +162,14 @@ export default function DeliveriesPage() {
                         <ChevronRight className="h-5 w-5" />
                       </div>
                     </div>
+                    {isCashPaymentMethod(d.payment_method) && (
+                      <div className="mt-3 rounded-2xl bg-[#fff8e6] px-3 py-2 text-[#7a4700] ring-1 ring-[#ffe099]">
+                        <p className="flex items-center gap-1.5 text-xs font-bold">
+                          <Banknote className="h-3.5 w-3.5" /> Cobrar {formatCurrency(d.total_cents)} em dinheiro
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-medium text-[#805300]">{cashChangeLabel(d)}</p>
+                      </div>
+                    )}
                   </article>
                 </Link>
               ))}
@@ -188,6 +207,11 @@ export default function DeliveriesPage() {
                           <Droplets className="h-3 w-3" />
                           {d.total_items_qty} garrafão{d.total_items_qty !== 1 ? "ões" : ""}
                         </span>
+                        {isCashPaymentMethod(d.payment_method) && (
+                          <span className="inline-flex items-center gap-1 text-[#7a4700]">
+                            <Banknote className="h-3 w-3" /> {d.payment_status === "CAPTURED" ? "Dinheiro recebido" : "Dinheiro"}
+                          </span>
+                        )}
                       </div>
                     </div>
 

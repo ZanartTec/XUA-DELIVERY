@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DELIVERY_WINDOW_INPUT_VALUES } from "../enums";
 
 export const zoneSchema = z.object({
   name: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
@@ -13,10 +12,3 @@ export const coverageSchema = z.object({
   zip_code: z.string().regex(/^\d{5}$/, "CEP deve ter 5 dígitos"),
 });
 export type CoverageInput = z.infer<typeof coverageSchema>;
-
-export const capacityConfigSchema = z.object({
-  delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
-  window: z.enum(DELIVERY_WINDOW_INPUT_VALUES),
-  max_orders: z.number().int().min(1, "Mínimo 1 pedido"),
-});
-export type CapacityConfigInput = z.infer<typeof capacityConfigSchema>;

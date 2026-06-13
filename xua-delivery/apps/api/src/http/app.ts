@@ -4,18 +4,20 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { healthHandler } from "./handlers/health";
 import { readinessHandler } from "./handlers/readiness";
+import { getAllowedAppOrigins } from "./allowed-origins";
 import { registerRoutes } from "./routes";
 import { errorHandler } from "../middleware/error-handler";
 import { httpLogger } from "../middleware/http-logger";
 
 export function createApp(): Application {
   const app = express();
+  const allowedOrigins = getAllowedAppOrigins();
 
   // ── Segurança e parsing ──────────────────────────────────────────
   app.use(helmet());
   app.use(
     cors({
-      origin: process.env.APP_ORIGIN ?? "http://localhost:3000",
+      origin: allowedOrigins,
       credentials: true,
     })
   );

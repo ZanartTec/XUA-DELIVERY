@@ -353,7 +353,7 @@ Env vars esperadas:
 PAYMENT_PROVIDER=mercadopago
 MERCADO_PAGO_ACCESS_TOKEN=...
 MERCADO_PAGO_WEBHOOK_SECRET=...
-PAYMENT_PUBLIC_BASE_URL=https://xua-delivery-2y3x.onrender.com
+PAYMENT_PUBLIC_BASE_URL=https://xua-delivery-1.onrender.com
 PAYMENT_WEB_RETURN_URL=https://seu-front.vercel.app
 ```
 

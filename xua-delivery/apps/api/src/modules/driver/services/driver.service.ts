@@ -32,6 +32,10 @@ function totalItemsQty(items: { quantity: number }[]) {
   return items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
+function latestPayment(delivery: { payments: { status: string; payment_method: string | null; cash_change_for_cents: number | null }[] }) {
+  return delivery.payments[0] ?? null;
+}
+
 export const driverService = {
   async listDeliveries(driverId: string, date?: Date) {
     log.debug({ driverId, date }, "Listing driver deliveries");
@@ -41,12 +45,16 @@ export const driverService = {
       consumer: undefined,
       address: undefined,
       items: undefined,
+      payments: undefined,
       order_id: d.id,
       consumer_name: d.consumer.name,
       consumer_phone: d.consumer.phone,
       total_items_qty: totalItemsQty(d.items),
       address_line: formatAddress(d.address),
       sequence: index + 1,
+      payment_method: latestPayment(d)?.payment_method ?? null,
+      payment_status: latestPayment(d)?.status ?? d.payment_status,
+      cash_change_for_cents: latestPayment(d)?.cash_change_for_cents ?? null,
     }));
   },
 
@@ -56,8 +64,12 @@ export const driverService = {
       ...d,
       consumer: undefined,
       address: undefined,
+      payments: undefined,
       consumer_name: d.consumer.name,
       consumer_phone: d.consumer.phone,
+      payment_method: latestPayment(d)?.payment_method ?? null,
+      payment_status: latestPayment(d)?.status ?? d.payment_status,
+      cash_change_for_cents: latestPayment(d)?.cash_change_for_cents ?? null,
       delivery_address: d.address
         ? {
             street: d.address.street,
@@ -84,11 +96,15 @@ export const driverService = {
         consumer: undefined,
         address: undefined,
         items: undefined,
+        payments: undefined,
         order_id: delivery.id,
         consumer_name: delivery.consumer.name,
         consumer_phone: delivery.consumer.phone,
         total_items_qty: totalItemsQty(delivery.items),
         address_line: formatAddress(delivery.address),
+        payment_method: latestPayment(delivery)?.payment_method ?? null,
+        payment_status: latestPayment(delivery)?.status ?? delivery.payment_status,
+        cash_change_for_cents: latestPayment(delivery)?.cash_change_for_cents ?? null,
         occurred_at: delivery.delivered_at ?? delivery.updated_at,
         failure_reason: delivery.status === "DELIVERY_FAILED" ? delivery.cancellation_reason : null,
       })),

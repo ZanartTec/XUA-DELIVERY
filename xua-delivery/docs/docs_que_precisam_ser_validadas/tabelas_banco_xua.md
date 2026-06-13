@@ -4,7 +4,7 @@ Documento de referência do banco de dados do Xuá Delivery, gerado a partir do 
 
 ## Visão geral
 
-- O schema atual possui 22 tabelas mapeadas no Prisma.
+- O schema atual possui 30 tabelas mapeadas no Prisma.
 - A convenção de nomes segue o padrão `<ordem>_<tipo>_<nome>`.
 - Tipos usados no nome da tabela:
   - `mst`: cadastro mestre
@@ -65,7 +65,6 @@ Ela é importante para descobrir se um endereço pode ser atendido, qual distrib
 Relacionamentos principais:
 - N:1 com `03_mst_distributors`
 - 1:N com `05_mst_zone_coverage`
-- 1:N com `07_cfg_delivery_capacity`
 - 1:N com `02_mst_addresses`
 - 1:N com `09_trn_orders`
 
@@ -88,16 +87,6 @@ Relacionamentos principais:
 - 1:N com `10_trn_order_items`
 
 ## Tabelas de configuração operacional
-
-### 07_cfg_delivery_capacity
-
-Controla a capacidade disponível por zona, data, janela e, quando aplicável, faixa horária específica. É a tabela usada para evitar overbooking.
-
-Quando um pedido é criado, o sistema reserva capacidade nessa tabela. O campo `capacity_reserved` indica quanto já foi consumido dentro da capacidade total.
-
-Relacionamentos principais:
-- N:1 com `04_mst_zones`
-- N:1 com `24_cfg_time_slots`
 
 ### 14_cfg_payment_webhook_events
 
@@ -139,12 +128,12 @@ Relacionamentos principais:
 
 Define faixas horárias menores dentro das janelas de entrega, como intervalos específicos dentro da manhã ou da tarde.
 
-Ela permite que a operação trabalhe com agendamento mais granular. Também se conecta à capacidade e ao pedido para reservar uma faixa exata, não apenas uma janela ampla.
+Ela permite que a operação trabalhe com agendamento mais granular. Também se conecta ao pedido para reservar uma faixa exata dentro da janela de entrega.
 
 Relacionamentos principais:
 - N:1 com `03_mst_distributors`
-- 1:N com `07_cfg_delivery_capacity`
 - 1:N com `09_trn_orders`
+- 1:N com `28_trn_subscription_delivery_dates`
 
 ## Tabelas transacionais
 
@@ -249,12 +238,13 @@ Relacionamentos principais:
 ## Leitura rápida por domínio
 
 - Cadastro de usuários: `01_mst_consumers`, `02_mst_addresses`
-- Operação de distribuidores: `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `22_cfg_distributor_schedule`, `23_cfg_distributor_blocked_dates`, `24_cfg_time_slots`, `07_cfg_delivery_capacity`
+- Operação de distribuidores: `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `22_cfg_distributor_schedule`, `23_cfg_distributor_blocked_dates`, `24_cfg_time_slots`
 - Catálogo e vitrine: `06_mst_products`, `19_cfg_banners`
 - Pedidos: `09_trn_orders`, `10_trn_order_items`, `16_sec_order_otps`, `18_aud_audit_events`
 - Assinaturas v2 (planos pré-definidos): `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions`, `28_trn_subscription_delivery_dates`
 - Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`
 - Caução e operação física: `15_trn_deposits`, `17_trn_reconciliations`
+- Inventário operacional: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`
 - Notificações: `08_sec_consumer_push_tokens`
 
 ## Tabelas de assinaturas v2 (planos pré-definidos)
@@ -315,6 +305,61 @@ Relacionamentos principais:
 - N:1 com `24_cfg_time_slots`
 - 0..1 com `09_trn_orders`
 
+## Tabelas de inventário operacional
+
+Essas tabelas foram adicionadas para controlar o estoque físico de garrafões e insumos de cada distribuidora, com rastreabilidade completa de movimentações e sessões de reconciliação de inventário.
+
+### 29_mst_inventory_items
+
+Catálogo de itens de inventário disponíveis no sistema. Cada item tem um código único, tipo (`SELLABLE_PRODUCT`, `RETURNABLE_FULL`, `RETURNABLE_EMPTY`, `SUPPLY`), unidade de medida e limiar de estoque baixo.
+
+Pode estar vinculado a um produto do catálogo (`06_mst_products`) quando o item de inventário representa um produto vendável.
+
+Relacionamentos principais:
+- N:1 opcional com `06_mst_products`
+- 1:N com `30_trn_distributor_inventory_balances`
+- 1:N com `31_trn_inventory_movements`
+- 1:N com `33_trn_inventory_reconciliation_items`
+
+### 30_trn_distributor_inventory_balances
+
+Saldo materializado de estoque por distribuidora e por item. Mantém o `quantity_on_hand` atual, atualizado a cada movimentação. A constraint `UNIQUE(distributor_id, inventory_item_id)` garante um único registro de saldo por combinação.
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- N:1 com `29_mst_inventory_items`
+
+### 31_trn_inventory_movements
+
+Log imutável de todas as movimentações de inventário. Cada registro registra o delta (positivo ou negativo), o tipo de movimento (`INITIAL_LOAD`, `ORDER_ACCEPT_OUT`, `EMPTY_RETURN_IN`, `RECONCILIATION_ADJUSTMENT`, etc.), o ator responsável e a referência de origem (pedido, sessão de reconciliação, carga inicial, etc.).
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- N:1 com `29_mst_inventory_items`
+- 0..1 com `33_trn_inventory_reconciliation_items` (quando gerado por ajuste de reconciliação)
+
+### 32_trn_inventory_reconciliation_sessions
+
+Sessões de reconciliação de estoque abertas pelo operador da distribuidora. Uma sessão tem status `OPEN` ou `CLOSED`, registra quem abriu e fechou, e pode ter uma justificativa para divergências encontradas.
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- 1:N com `33_trn_inventory_reconciliation_items`
+
+### 33_trn_inventory_reconciliation_items
+
+Detalha cada item dentro de uma sessão de reconciliação. Armazena o saldo no momento da abertura da sessão (`snapshot_quantity`), a contagem física registrada pelo operador (`counted_quantity`), o delta calculado e a referência ao movimento de ajuste gerado ao fechar a sessão.
+
+Relacionamentos principais:
+- N:1 com `32_trn_inventory_reconciliation_sessions`
+- N:1 com `29_mst_inventory_items`
+- 0..1 com `31_trn_inventory_movements` (movimento de ajuste gerado no fechamento)
+
 ## Observação importante
 
-Parte da documentação antiga do projeto menciona 21 tabelas, mas o schema Prisma atual já inclui tabelas adicionais. Com as tabelas de assinaturas v2, o total chega a **28 tabelas**. Este documento reflete o estado atual do banco no repositório.
+O schema atual possui **30 tabelas**. Em relação às versões anteriores documentadas:
+
+- A tabela `07_cfg_delivery_capacity` (controle de overbooking por slot) foi **removida** na migration `20260601000000_remove_delivery_capacity`. O controle de disponibilidade agora é gerenciado via agenda da distribuidora (`22_cfg_distributor_schedule`), datas bloqueadas (`23_cfg_distributor_blocked_dates`) e validação de lead-time no serviço de agendamento.
+- **5 novas tabelas de inventário operacional** foram adicionadas: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`.
+
+Este documento reflete o estado atual do banco no repositório (junho 2026).

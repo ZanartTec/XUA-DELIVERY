@@ -28,12 +28,15 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { Order } from "@/src/types";
+import { getCheckoutPaymentMethodLabel, isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface PaymentSummary {
   id: string;
   kind: string;
   status: string;
   amount_cents: number;
+  payment_method?: string | null;
+  cash_change_for_cents?: number | null;
   provider?: string | null;
   paid_at?: string | null;
   created_at: string;
@@ -104,6 +107,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   CAPTURED: "Pago",
   FAILED: "Falhou",
   REFUNDED: "Reembolsado",
+  EXPIRED: "Expirado",
 };
 
 const PAYMENT_KIND_LABELS: Record<string, string> = {
@@ -117,6 +121,7 @@ const DEPOSIT_STATUS_LABELS: Record<string, string> = {
   REFUND_INITIATED: "Reembolso iniciado",
   REFUNDED: "Reembolsada",
   FORFEITED: "Retida definitivamente",
+  CANCELLED: "Cancelada",
 };
 
 const OTP_STATUS_LABELS: Record<string, string> = {
@@ -283,11 +288,15 @@ export default function OrderDetailPage() {
   }
 
   const isDelivered = order.status === "DELIVERED";
+  const isPaymentExpired = order.payment_status === "expired";
+  const latestPayment = order.payments[0];
+  const isCashPayment = isCashPaymentMethod(latestPayment?.payment_method);
   const canResumePayment =
     (order.status === "CREATED" || order.status === "PAYMENT_PENDING") &&
-    (!order.payment_status || order.payment_status.toLowerCase() === "pending");
+    (!order.payment_status || order.payment_status.toLowerCase() === "pending") &&
+    !isPaymentExpired &&
+    !isCashPayment;
   const { step, pct } = getProgress(order.status);
-  const latestPayment = order.payments[0];
   const latestDeposit = order.deposits[0];
   const latestOtp = order.otps[0];
   const hasDeliveryRecords = Boolean(
@@ -418,6 +427,23 @@ export default function OrderDetailPage() {
 
         </div>
       </div>
+
+      {/* -- Payment Expired Banner -- */}
+      {isPaymentExpired && (
+        <div className="mx-6 mt-4 rounded-2xl border border-red-200 bg-red-50 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
+              <AlertTriangle className="h-4 w-4 text-red-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-red-900">Pagamento expirado</p>
+              <p className="mt-0.5 text-xs text-red-700">
+                {order.cancellation_reason || "Seu pedido foi cancelado automaticamente porque o prazo para pagamento expirou."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* -- Resume Payment Banner -- */}
       {canResumePayment && (
@@ -598,8 +624,15 @@ export default function OrderDetailPage() {
                     <span className="font-bold text-primary">{formatCurrency(latestPayment.amount_cents)}</span>
                   </div>
                   <p className="text-xs text-[#737688]">
-                    {latestPayment.provider ?? "Provedor não informado"} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
+                    {getCheckoutPaymentMethodLabel(latestPayment.payment_method)} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
                   </p>
+                  {isCashPayment && (
+                    <p className="mt-1 text-xs font-semibold text-[#805300]">
+                      {latestPayment.cash_change_for_cents == null
+                        ? "Dinheiro em valor exato."
+                        : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>

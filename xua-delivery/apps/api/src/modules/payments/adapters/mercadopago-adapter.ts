@@ -1,11 +1,11 @@
 import type {
   IPaymentGateway,
-  PaymentMethod,
   PaymentChargeMetadata,
   PaymentResult,
   ProviderPaymentDetails,
   RefundResult,
 } from "../gateway/payments.gateway.js";
+import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 import {
   buildWebhookContextQueryParams,
   requireWebhookPaymentKind,
@@ -31,7 +31,7 @@ interface MercadoPagoPaymentResponse {
   date_approved?: string;
   metadata?: {
     order_id?: string;
-    payment_method?: PaymentMethod;
+    payment_method?: CheckoutPaymentMethod;
     kind?: string;
   };
 }
@@ -73,6 +73,24 @@ function withQueryParams(url: string, params: Record<string, string>): string {
   return parsed.toString();
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === "localhost"
+    || normalized === "127.0.0.1"
+    || normalized === "0.0.0.0"
+    || normalized === "::1";
+}
+
+function shouldEnableAutoReturn(successBackUrl: string): boolean {
+  try {
+    const parsed = new URL(successBackUrl);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && !isLoopbackHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function getBackUrl(
   envName: string,
   legacyEnvName: string,
@@ -111,7 +129,8 @@ function assertPaymentReference(referenceId: string | null | undefined): string 
 }
 
 function getNotificationUrl(metadata?: PaymentChargeMetadata): string | undefined {
-  const url = process.env.MERCADOPAGO_NOTIFICATION_URL;
+  const url = process.env.MERCADOPAGO_NOTIFICATION_URL 
+    || (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "")}/api/payments/webhook` : undefined);
   if (!url) return undefined;
   const source = process.env.MERCADOPAGO_NOTIFICATION_SOURCE ?? "webhooks";
   const params: Record<string, string> = url.includes("source_news=")
@@ -225,6 +244,31 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           },
         ];
 
+    const backUrls = {
+      success: getBackUrl(
+        "MERCADOPAGO_BACK_URL_SUCCESS",
+        "MERCADOPAGO_SUCCESS_URL",
+        "success",
+        referenceId,
+        paymentKind
+      ),
+      failure: getBackUrl(
+        "MERCADOPAGO_BACK_URL_FAILURE",
+        "MERCADOPAGO_FAILURE_URL",
+        "failure",
+        referenceId,
+        paymentKind
+      ),
+      pending: getBackUrl(
+        "MERCADOPAGO_BACK_URL_PENDING",
+        "MERCADOPAGO_PENDING_URL",
+        "pending",
+        referenceId,
+        paymentKind
+      ),
+    };
+    const autoReturn = shouldEnableAutoReturn(backUrls.success) ? "approved" : undefined;
+
     const preference = await mercadoPagoRequest<MercadoPagoPreferenceResponse>(
       "/checkout/preferences",
       {
@@ -236,30 +280,8 @@ export class MercadoPagoAdapter implements IPaymentGateway {
           items,
           external_reference: referenceId,
           notification_url: getNotificationUrl({ ...metadata, orderId: referenceId, kind: paymentKind }),
-          back_urls: {
-            success: getBackUrl(
-              "MERCADOPAGO_BACK_URL_SUCCESS",
-              "MERCADOPAGO_SUCCESS_URL",
-              "success",
-              referenceId,
-              paymentKind
-            ),
-            failure: getBackUrl(
-              "MERCADOPAGO_BACK_URL_FAILURE",
-              "MERCADOPAGO_FAILURE_URL",
-              "failure",
-              referenceId,
-              paymentKind
-            ),
-            pending: getBackUrl(
-              "MERCADOPAGO_BACK_URL_PENDING",
-              "MERCADOPAGO_PENDING_URL",
-              "pending",
-              referenceId,
-              paymentKind
-            ),
-          },
-          auto_return: "approved",
+          back_urls: backUrls,
+          ...(autoReturn ? { auto_return: autoReturn } : {}),
           statement_descriptor: getStatementDescriptor(),
           payer: metadata.payerEmail ? { email: metadata.payerEmail } : undefined,
           metadata: {

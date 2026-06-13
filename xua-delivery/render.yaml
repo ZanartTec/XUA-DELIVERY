@@ -1,93 +1,222 @@
 services:
+  # ─── Redis (Key Value Service) ───────────────────────────────────────────
+  - type: redis
+    name: xua-redis
+    plan: free
+    ipAllowList: []
+
+  # ─── API (HTTP Server) ────────────────────────────────────────────────────
   - type: web
     name: xua-api
+    rootDir: xua-delivery
     runtime: node
     plan: starter
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    region: oregon
+    buildCommand: npm install --include=dev && npx prisma generate && npx prisma migrate deploy
     startCommand: npx tsx apps/api/src/server/index.ts
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PAYMENT_PROVIDER
-        value: mercadopago
-      - key: INTERNAL_JOB_SECRET
-        generateValue: true
+      - key: PORT
+        value: "3000"
+      - key: LOG_LEVEL
+        value: info
+
+      # ─── Banco de Dados ───────────────────────────────────────────────────
       - key: DATABASE_URL
         sync: false
+
+      # ─── Redis (BullMQ + Cache) ───────────────────────────────────────────
       - key: REDIS_URL
-        sync: false
-      - key: USE_BULLMQ_SUBSCRIPTION
-        value: "true"
-      - key: USE_BULLMQ_SUBSCRIPTION_EXPIRY
-        value: "true"
-      - key: USE_BULLMQ_OTP_CLEANUP
-        value: "true"
+        fromService:
+          type: redis
+          name: xua-redis
+          property: connectionString
+
+      # ─── Segurança ────────────────────────────────────────────────────────
       - key: JWT_SECRET
         sync: false
       - key: OTP_SECRET
         sync: false
-      - key: APP_ORIGIN
-        sync: false
       - key: INTERNAL_SECRET
         sync: false
+      - key: INTERNAL_JOB_SECRET
+        generateValue: true
+
+      # ─── CORS ─────────────────────────────────────────────────────────────
+      - key: APP_ORIGIN
+        sync: false
+
+      # ─── Pagamentos (Mercado Pago) ─────────────────────────────────────────
+      - key: PAYMENT_PROVIDER
+        value: mercadopago
       - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_PUBLIC_KEY
         sync: false
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
-      - key: MERCADOPAGO_NOTIFICATION_URL
-        sync: false
+
       - key: MERCADOPAGO_BACK_URL_SUCCESS
         sync: false
       - key: MERCADOPAGO_BACK_URL_FAILURE
         sync: false
       - key: MERCADOPAGO_BACK_URL_PENDING
         sync: false
-      - key: LOG_LEVEL
-        value: info
+      - key: MERCADOPAGO_STATEMENT_DESCRIPTOR
+        value: XUA DELIVERY
+      - key: MERCADOPAGO_REQUEST_TIMEOUT_MS
+        value: "10000"
+      - key: MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS
+        value: "600"
+      - key: MERCADOPAGO_NOTIFICATION_SOURCE
+        value: webhooks
+
+      # ─── Rate Limits de Pagamento ──────────────────────────────────────────
+      - key: PAYMENT_CHARGE_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: PAYMENT_CHARGE_RATE_LIMIT_MAX
+        value: "12"
+      - key: PAYMENT_STATUS_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: PAYMENT_STATUS_RATE_LIMIT_MAX
+        value: "120"
+      - key: PAYMENT_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: PAYMENT_WEBHOOK_RATE_LIMIT_MAX
+        value: "600"
+
+      # ─── Expiração automática de pagamentos ────────────────────────────────
+      # Tempo em minutos antes de um pedido pendente ser cancelado (padrão: 15)
+      - key: PAYMENT_EXPIRATION_MINUTES
+        value: "15"
+
+      # ─── BullMQ rollout ───────────────────────────────────────────────────
+      - key: USE_BULLMQ_OTP_CLEANUP
+        value: "true"
+      - key: USE_BULLMQ_SUBSCRIPTION
+        value: "true"
+      - key: USE_BULLMQ_SUBSCRIPTION_EXPIRY
+        value: "true"
+
+      # ─── Push Notifications (VAPID) ────────────────────────────────────────
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      - key: VAPID_EMAIL
+        sync: false
 
+  # ─── Worker (Background Jobs) ─────────────────────────────────────────────
   - type: worker
     name: xua-worker
+    rootDir: xua-delivery
     runtime: node
     plan: starter
-    buildCommand: npm install && npx prisma generate
+    region: oregon
+    buildCommand: npm install --include=dev && npx prisma generate
     startCommand: npx tsx apps/api/src/worker/index.ts
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PAYMENT_PROVIDER
-        value: mercadopago
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: MERCADOPAGO_ACCESS_TOKEN
-        sync: false
       - key: LOG_LEVEL
         value: info
+
+      # ─── Banco de Dados ───────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false
+
+      # ─── Redis ───────────────────────────────────────────────────────────
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: xua-redis
+          property: connectionString
+
+      # ─── Segurança ────────────────────────────────────────────────────────
+      # O worker precisa do JWT_SECRET para emitir eventos autenticados via Socket.IO
+      - key: JWT_SECRET
+        sync: false
+      - key: OTP_SECRET
+        sync: false
+      - key: INTERNAL_SECRET
+        sync: false
+
+      # ─── Pagamentos ───────────────────────────────────────────────────────
+      - key: PAYMENT_PROVIDER
+        value: mercadopago
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+
+      # ─── Expiração automática de pagamentos ────────────────────────────────
+      - key: PAYMENT_EXPIRATION_MINUTES
+        value: "15"
+
+      # ─── Concorrência dos workers ─────────────────────────────────────────
       - key: INTERNAL_JOBS_WORKER_CONCURRENCY
         value: "1"
       - key: PAYMENT_WEBHOOK_WORKER_CONCURRENCY
         value: "2"
+      - key: PAYMENTS_WORKER_CONCURRENCY
+        value: "2"
+
+      # ─── App (para Socket.IO e notificações) ──────────────────────────────
+      - key: APP_ORIGIN
+        sync: false
+
+      # ─── Push Notifications (VAPID) ────────────────────────────────────────
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      - key: VAPID_EMAIL
+        sync: false
 
+  # ─── Web (Frontend Next.js) ───────────────────────────────────────────────
+  - type: web
+    name: xua-web
+    rootDir: xua-delivery
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm install --include=dev && npm run build -w @xua/web
+    startCommand: npm run start -w @xua/web
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: API_URL
+        value: http://xua-api:3000
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: JWT_SECRET
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: JWT_SECRET
+      - key: INTERNAL_SECRET
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: INTERNAL_SECRET
+      - key: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: VAPID_PUBLIC_KEY
+
+  # ─── Cron: Geração de assinaturas diárias ─────────────────────────────────
   - type: cron
     name: subscription-cron
+    rootDir: xua-delivery
     runtime: node
-    schedule: "0 9 * * *" # 06h São Paulo = 09h UTC
+    plan: starter
+    region: oregon
+    schedule: "0 9 * * *" # 06h São Paulo (BRT = UTC-3) = 09h UTC
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
-        if (!r.ok) { console.error(await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
@@ -95,19 +224,18 @@ services:
           type: web
           envVarKey: INTERNAL_JOB_SECRET
       - key: API_URL
-        sync: false
+        value: http://xua-api:3000
 
+  # ─── Cron: Expiração de assinaturas ───────────────────────────────────────
   - type: cron
     name: subscription-expiry
+    rootDir: xua-delivery
     runtime: node
+    plan: starter
+    region: oregon
     schedule: "30 9 * * *" # 06h30 São Paulo = 09h30 UTC
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/subscription-expiry', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
-        if (!r.ok) { console.error(await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription-expiry
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
@@ -115,19 +243,18 @@ services:
           type: web
           envVarKey: INTERNAL_JOB_SECRET
       - key: API_URL
-        sync: false
+        value: http://xua-api:3000
 
+  # ─── Cron: Limpeza de OTPs expirados ──────────────────────────────────────
   - type: cron
     name: otp-cleanup
+    rootDir: xua-delivery
     runtime: node
-    schedule: "*/15 * * * *"
+    plan: starter
+    region: oregon
+    schedule: "*/15 * * * *" # A cada 15 minutos
     buildCommand: ""
-    startCommand: >-
-      node --input-type=module -e "
-        const r = await fetch(process.env.API_URL + '/api/internal/jobs/otp-cleanup', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.INTERNAL_JOB_SECRET } });
-        if (!r.ok) { console.error(await r.text()); process.exit(1); }
-        console.log(JSON.stringify(await r.json()));
-      "
+    startCommand: npx tsx apps/api/src/jobs/trigger.ts otp-cleanup
     envVars:
       - key: INTERNAL_JOB_SECRET
         fromService:
@@ -135,4 +262,4 @@ services:
           type: web
           envVarKey: INTERNAL_JOB_SECRET
       - key: API_URL
-        sync: false
+        value: http://xua-api:3000

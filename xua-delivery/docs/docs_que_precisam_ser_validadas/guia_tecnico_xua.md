@@ -5,56 +5,64 @@
 
 | | |
 |---|---|
-| **Stack** | Next.js 15 fullstack (App Router + Route Handlers + Server Actions) |
-| **Banco** | PostgreSQL 16 (schema idêntico — 21 tabelas, 9 enums, 28 índices) |
-| **UI** | shadcn/ui + Tailwind CSS + Radix UI (mobile-first responsivo) |
-| **Real-time** | Socket.io 4.x embutido no mesmo servidor Next.js |
-| **Deploy** | Railway ou VPS (servidor persistente para WebSocket + cron) |
-| **Equipe** | 2 desenvolvedores · 4 semanas |
-| **Versão** | 3.0 — Março 2026 (arquitetura fullstack unificada) |
+| **Stack** | Monorepo npm workspaces: Express 5 API (`apps/api`) + Next.js 16 Web (`apps/web`) |
+| **Banco** | PostgreSQL 16 — 30 tabelas, 18 enums |
+| **UI** | shadcn/ui + Tailwind CSS 4 + Radix UI (mobile-first responsivo) |
+| **Real-time** | Socket.io 4.x no servidor Express (porta 4000) |
+| **Deploy** | Railway (API + Web separados) ou Docker Compose local |
+| **Queue** | BullMQ 5.x + Redis (ioredis 5.x) — worker separado |
+| **Versão** | 4.0 — Junho 2026 (monorepo Express + Next.js) |
 
-**21** tabelas · **13** estados/pedido · **24** tipos/evento · **5** perfis/RBAC
+**30** tabelas · **10** estados/pedido · **24** tipos/evento · **5** perfis/RBAC
 
 ---
 
 ## 1. Visão Geral do Sistema
 
-O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão retornável 20L. Na versão 3.0, todo o sistema roda em um único projeto **Next.js 15**: o frontend (React Server Components + Client Components), a API (Route Handlers), a lógica de negócio (Services), o banco de dados (PostgreSQL via Prisma ORM), o real-time (Socket.io embutido via custom server) e os cron jobs (node-cron). Não existe servidor Node.js separado — tudo é um deploy só.
+O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão retornável 20L. Na versão atual, o sistema é um **monorepo npm workspaces** com três pacotes principais:
 
-O banco de dados é **compatível** com o schema original: 21 tabelas (19 originais + 2 de agenda), 9 enums, 28 índices, trigger de proteção contra regressão de estado. A única alteração no enum é em `source_app`, que agora registra `consumer_web`, `distributor_web` e `driver_web` ao invés das versões mobile.
+- `apps/api` — backend Express 5 (porta 4000): toda a API REST, autenticação JWT, Socket.IO, lógica de negócio, integração com MercadoPago e BullMQ
+- `apps/web` — frontend Next.js 16 (porta 3001): UI puramente client-side consumindo a API Express
+- `packages/shared` — schemas Zod, tipos e enums compartilhados entre api e web
+
+Além dos dois servidores principais, há um **processo worker** separado (`apps/api/src/worker/index.ts`) que processa filas BullMQ para webhooks de pagamento e jobs de assinatura. Jobs recorrentes (assinaturas, expiração de OTP) são disparados por um scheduler externo via HTTP POST em `/api/internal/jobs/*`.
+
+O banco de dados PostgreSQL tem **30 tabelas** e **18 enums**. O schema é gerenciado pelo Prisma 7.x com adaptador `@prisma/adapter-pg`.
 
 ### Superfícies e Responsabilidades
 
 | Superfície | Perfil JWT | Responsabilidades |
 |---|---|---|
 | **Área do Consumidor** — Web mobile-first | `consumer` | Realizar pedidos, pagamento integrado, agendar janela de entrega (manhã/tarde), **selecionar distribuidora quando há 2 ou mais opções disponíveis** (com auto-skip se ≤1), acompanhar status em tempo real via Socket.io, gerenciar assinatura mensal, visualizar OTP de entrega, avaliar pedido (NPS 5 estrelas), **configurar preferência de distribuidora automática no perfil** |
-| **Área do Distribuidor** — Web responsivo | `distributor_admin` | Receber pedidos com SLA countdown (vermelho <60s), aceitar/recusar com motivo obrigatório, checklist de saída (3 itens, bloqueio até 100%), despachar pedido (gera OTP), lista de paradas, conciliação diária de vasilhames, dashboard de KPIs |
-| **Módulo Motorista** — Web PWA (offline) | `operator` | Executar rota de entregas, confirmar entrega via OTP 6 dígitos (max 5 tentativas, TTL 90min), registrar troca de vasilhame (qty + condição: ok/danificado/sujo), motivo de não-coleta obrigatório, operar offline com fila IndexedDB + sync automático ao reconectar |
-| **Painel de Operações** — Web desktop | `ops` / `support` | Configurar zonas e capacidade por data/janela, dashboard KPIs de todos distribuidores (Recharts), console de suporte (busca telefone/email/order_id + timeline de audit_events), reagendar entregas, override de OTP com motivo obrigatório, exportar auditoria CSV |
+| **Área do Distribuidor** — Web responsivo | `distributor_admin` | Receber pedidos com SLA countdown (vermelho <60s), aceitar/recusar com motivo obrigatório, checklist de saída (3 itens, bloqueio até 100%), despachar pedido (gera OTP), lista de paradas, conciliação diária de vasilhames, dashboard de KPIs, gestão de inventário operacional |
+| **Módulo Motorista** — Web PWA (offline) | `driver` | Executar rota de entregas, confirmar entrega via OTP 6 dígitos (max 5 tentativas, TTL 90min), registrar troca de vasilhame (qty + condição: ok/danificado/sujo), motivo de não-coleta obrigatório, operar offline com fila IndexedDB + sync automático ao reconectar |
+| **Painel de Operações** — Web desktop | `ops` / `support` | Configurar zonas, dashboard KPIs de todos distribuidores (Recharts), console de suporte (busca telefone/email/order_id + timeline de audit_events), reagendar entregas, override de OTP com motivo obrigatório, exportar auditoria CSV, gestão de banners e planos de assinatura |
 
-### Arquitetura Unificada — tudo no Next.js
+### Arquitetura — Monorepo com Express + Next.js separados
 
 ```
 Navegador (Consumidor / Distribuidor / Motorista / Ops)
-  React Server Components + Client Components + shadcn/ui
-              ↓ fetch / Server Actions / Socket.io client
+  React Client Components + TanStack Query + Zustand
+              ↓ fetch / Socket.io-client
 
-         Next.js 15 — Servidor Único
-  Route Handlers (API) + Server Actions (mutações)
-        + Socket.io Server + Cron Jobs
-    ↓ Prisma ORM (transações) / ioredis / SDK gateway
-
+  ┌────────────────────────┐     ┌─────────────────────────┐
+  │   apps/web             │     │   apps/api              │
+  │   Next.js 16 (:3001)   │────>│   Express 5 (:4000)     │
+  │   proxy.ts (RBAC JWT)  │     │   REST + Socket.IO      │
+  │   Tailwind + shadcn/ui │     │   BullMQ Worker         │
+  └────────────────────────┘     └────────────┬────────────┘
+                                              │ Prisma 7.x
   ┌─────────────────┬──────────────────┬──────────────────────┐
-  │  PostgreSQL 16  │    Redis 7       │  Gateway Pagamento   │
-  │  21 tabelas     │  Sessões JWT     │  Webhooks            │
-  │  triggers       │  cache OTP TTL   │  idempotentes        │
-  │  enums · índices│  blacklist       │  Caução automática   │
+  │  PostgreSQL 16  │    Redis 7       │  MercadoPago         │
+  │  30 tabelas     │  JWT blacklist   │  Webhooks            │
+  │  18 enums       │  BullMQ queues   │  idempotentes        │
+  │  triggers       │  OTP TTL cache   │  Caução automática   │
   └─────────────────┴──────────────────┴──────────────────────┘
 ```
 
-> Zero servidor separado — Route Handlers, Socket.io, cron jobs e Services rodam no mesmo processo Next.js.
+> O frontend Next.js é um cliente puro da API Express. Não existem Route Handlers de negócio nem Server Actions — toda a lógica está no `apps/api`.
 
-**Diferença da v2.0 para v3.0:** Na v2.0 existiam dois projetos: frontend Next.js + backend Node.js (Fastify) separados. Na v3.0, tudo é um projeto só. Os Route Handlers do Next.js substituem as rotas Fastify. Os Server Actions substituem fetch para mutações simples. O Socket.io roda via custom server do Next.js. O deploy é um comando só: `railway up` ou `docker compose up`. O banco PostgreSQL e todos os schemas permanecem inalterados.
+**Jobs recorrentes:** Não há node-cron. Um scheduler externo (Railway Cron ou similar) faz HTTP POST nos endpoints `/api/internal/jobs/subscription`, `/api/internal/jobs/otp-cleanup` e `/api/internal/jobs/subscription-expiry`, protegidos por `INTERNAL_JOB_SECRET`. Cada endpoint pode enfileirar a tarefa no BullMQ ou executá-la de forma síncrona como fallback.
 
 ### KPIs Operacionais Monitorados
 
@@ -74,34 +82,42 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only).
 
-> O schema é **compatível com o original** — 3 campos foram adicionados: `auto_assign_distributor` e `preferred_distributor_id` em `01_mst_consumers`; `allows_consumer_choice` em `03_mst_distributors`. Além disso, 2 tabelas novas foram criadas: `22_cfg_distributor_schedule` (agenda semanal) e `23_cfg_distributor_blocked_dates` (datas bloqueadas). Demais tabelas, constraints, índices e triggers permanecem intactos.
+> O schema atual tem **30 tabelas**. A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`). O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Foram adicionadas 5 tabelas de inventário operacional (`29`–`33`) e 4 tabelas de assinatura v2 (`25`–`28`). O Prisma Client usa o adaptador `@prisma/adapter-pg`.
 
 ### 2.1 Mapa de Tabelas
 
 | Tabela | Tipo | Responsabilidade |
 |---|---|---|
-| `01_mst_consumers` | mst | Cadastro de consumidores B2C e B2B. **Campos adicionados: `auto_assign_distributor` (bool, default true) e `preferred_distributor_id` (uuid nullable)** |
-| `02_mst_addresses` | mst | Endereços de entrega por consumidor (múltiplos) |
-| `03_mst_distributors` | mst | Parceiros distribuidores que operam as entregas. **Campo adicionado: `allows_consumer_choice` (bool, default false) — habilita a distribuidora para aparecer no seletor do consumidor** |
+| `01_mst_consumers` | mst | Usuários da plataforma. Roles: `consumer`, `distributor_admin`, `driver`, `ops`, `support`. Campos `auto_assign_distributor` e `preferred_distributor_id` |
+| `02_mst_addresses` | mst | Endereços de entrega por consumidor (múltiplos, com `zone_id` para identificar zona) |
+| `03_mst_distributors` | mst | Parceiros distribuidores. Campo `allows_consumer_choice` habilita seleção manual no checkout |
 | `04_mst_zones` | mst | Regiões de cobertura por distribuidor |
 | `05_mst_zone_coverage` | mst | Bairros e CEPs cobertos por cada zona |
-| `06_mst_products` | mst | Catálogo de SKUs (MVP: apenas garrafão 20L) |
-| `07_cfg_delivery_capacity` | cfg | Slots de capacidade por zona + data + janela (anti-overbooking com `SELECT FOR UPDATE`) |
-| `08_sec_consumer_push_tokens` | sec | Tokens Web Push API para notificações no navegador (substitui FCM Android) |
-| `09_trn_orders` | trn | Pedido principal — núcleo da máquina de estados (13 estados, trigger de proteção) |
-| `10_trn_order_items` | trn | Itens de cada pedido (SKU, qty, preço snapshot no momento da compra) |
-| `13_trn_payments` | trn | Registro de cobranças — provider-neutral (troca de gateway sem migração de dados) |
-| `14_cfg_payment_webhook_events` | cfg | Idempotência de webhooks: `UNIQUE` + `ON CONFLICT DO NOTHING` |
-| `15_trn_deposits` | trn | Caução de vasilhame — Regra A: libera quando `DELIVERED` + `collected_empty_qty ≥ 1` |
-| `16_sec_order_otps` | sec | OTPs de entrega: hash HMAC-SHA256, TTL 90min, max 5 tentativas, status `locked` |
-| `17_trn_reconciliations` | trn | Conciliação diária: saídas vs retornos, delta calculado, justificativa obrigatória se > 0 |
-| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs, disputas e auditoria. Nunca UPDATE/DELETE. |
-| `22_cfg_distributor_schedule` | cfg | Agenda semanal por distribuidora. Cada dia da semana pode ser ativado/desativado com `lead_time_hours`. Constraint `UNIQUE(distributor_id, day_of_week)`. |
-| `23_cfg_distributor_blocked_dates` | cfg | Datas bloqueadas por distribuidora (feriados, manutenção, etc.) com motivo opcional. Constraint `UNIQUE(distributor_id, blocked_date)`. |
-| `25_cfg_subscription_plans` | cfg | **[NOVO]** Planos de assinatura pré-definidos pela ops. Define produto, quantidade total, desconto, preço com desconto e período de validade. |
-| `26_piv_subscription_plan_distributors` | piv | **[NOVO]** Pivot N:N entre planos e distribuidoras. Apenas distribuidoras vinculadas ao plano aparecem para o consumidor durante a contratação. |
-| `27_trn_user_subscriptions` | trn | **[NOVO]** Assinatura contratada pelo consumidor a partir de um plano. Rastreia `total_quantity`, `remaining_quantity` e `status` (ciclo de vida completo). |
-| `28_trn_subscription_delivery_dates` | trn | **[NOVO]** Datas de entrega agendadas dentro de uma assinatura. Cada data tem quantidade, faixa horária, status e referência ao pedido gerado. |
+| `06_mst_products` | mst | Catálogo de produtos. Campo `deposit_cents` define valor de caução por produto |
+| `08_sec_consumer_push_tokens` | sec | Tokens Web Push API para notificações no navegador |
+| `09_trn_orders` | trn | Pedido principal — 10 estados ativos + DRAFT/CANCELLED/REJECTED. Snapshot imutável de timeslot. |
+| `10_trn_order_items` | trn | Itens de cada pedido (snapshot: `product_name`, `unit_price_cents`, `quantity`) |
+| `13_trn_payments` | trn | Cobranças. `kind`: ORDER ou SUBSCRIPTION. `provider`: mercadopago ou mock |
+| `14_cfg_payment_webhook_events` | cfg | Idempotência de webhooks: `UNIQUE(provider, provider_event_ref)` |
+| `15_trn_deposits` | trn | Caução de vasilhame. Status: `HELD → REFUND_INITIATED → REFUNDED` (Regra A) |
+| `16_sec_order_otps` | sec | OTPs: `otp_hash` HMAC-SHA256, TTL em `expires_at`, max 5 tentativas, status `LOCKED` |
+| `17_trn_reconciliations` | trn | Conciliação diária: `full_out`, `empty_returned`, `delta`, justificativa obrigatória se delta > 0 |
+| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 24 tipos de evento. Nunca UPDATE/DELETE. |
+| `19_cfg_banners` | cfg | Banners promocionais configuráveis pela ops. Tipo: `CAROUSEL` ou `FEATURED` |
+| `20_cfg_idempotency_keys` | cfg | Chaves de idempotência para deduplicar operações críticas em fluxos assíncronos |
+| `21_trn_payment_transactions` | trn | Log técnico de interações com o provedor de pagamento |
+| `22_cfg_distributor_schedule` | cfg | Agenda semanal da distribuidora: `weekday` (0-6), `is_active`, `lead_time_hours` |
+| `23_cfg_distributor_blocked_dates` | cfg | Datas bloqueadas por distribuidora. `UNIQUE(distributor_id, blocked_date)` |
+| `24_cfg_time_slots` | cfg | Faixas horárias dentro da janela. `start_hour`, `end_hour`, `window` (MORNING/AFTERNOON) |
+| `25_cfg_subscription_plans` | cfg | Planos de assinatura. Define produto, quantidade, desconto, preço com desconto e período de validade |
+| `26_piv_subscription_plan_distributors` | piv | Pivot N:N entre planos e distribuidoras |
+| `27_trn_user_subscriptions` | trn | Assinatura contratada. Rastreia `total_quantity`, `remaining_quantity`, `status` |
+| `28_trn_subscription_delivery_dates` | trn | Datas de entrega de uma assinatura. Cada data tem qty, time_slot_id, status e order_id gerado |
+| `29_mst_inventory_items` | mst | Catálogo de itens de inventário. Tipos: `SELLABLE_PRODUCT`, `RETURNABLE_FULL/EMPTY`, `SUPPLY` |
+| `30_trn_distributor_inventory_balances` | trn | Saldo materializado de estoque por distribuidora+item. `UNIQUE(distributor_id, inventory_item_id)` |
+| `31_trn_inventory_movements` | trn | Log imutável de movimentações. 9 tipos de movimento (ex: `ORDER_ACCEPT_OUT`, `EMPTY_RETURN_IN`) |
+| `32_trn_inventory_reconciliation_sessions` | trn | Sessões de reconciliação de inventário. Status: `OPEN` ou `CLOSED` |
+| `33_trn_inventory_reconciliation_items` | trn | Itens de uma sessão: snapshot, contagem física, delta e movimento de ajuste gerado |
 
 ### 2.2 Relacionamentos Principais
 
@@ -126,25 +142,32 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 
 ### 2.3 Enums PostgreSQL
 
-| Enum | Valores |
+| Enum (Prisma) | Valores |
 |---|---|
-| `delivery_window` | `morning` \| `afternoon` |
-| `order_status` | `DRAFT` \| `CREATED` \| `PAYMENT_PENDING` \| `CONFIRMED` \| `SENT_TO_DISTRIBUTOR` \| `ACCEPTED_BY_DISTRIBUTOR` \| `REJECTED_BY_DISTRIBUTOR` \| `PICKING` \| `READY_FOR_DISPATCH` \| `OUT_FOR_DELIVERY` \| `DELIVERED` \| `DELIVERY_FAILED` \| `REDELIVERY_SCHEDULED` \| `CANCELLED` |
-| `otp_status` | `active` \| `used` \| `expired` \| `locked` |
-| `subscription_status` | `active` \| `paused` \| `cancelled` |
-| `payment_kind` | `order` \| `subscription` \| `deposit` |
-| `payment_status` | `created` \| `authorized` \| `captured` \| `failed` \| `refunded` |
-| `deposit_status` | `held` \| `refund_initiated` \| `refunded` \| `forfeited` |
-| `actor_type` | `consumer` \| `distributor_user` \| `driver` \| `support` \| `ops` \| `system` |
-| `source_app` | `consumer_web` \| `distributor_web` \| `driver_web` \| `ops_console` \| `backend` |
-| `user_subscription_status` | `pending_payment` \| `active` \| `paused` \| `cancelled` \| `completed` |
-| `delivery_date_status` | `pending` \| `delivered` \| `cancelled` |
+| `DeliveryWindow` | `MORNING` \| `AFTERNOON` |
+| `OrderStatus` | `DRAFT` \| `CREATED` \| `PAYMENT_PENDING` \| `CONFIRMED` \| `SENT_TO_DISTRIBUTOR` \| `ACCEPTED_BY_DISTRIBUTOR` \| `REJECTED_BY_DISTRIBUTOR` \| `PICKING` \| `READY_FOR_DISPATCH` \| `OUT_FOR_DELIVERY` \| `DELIVERED` \| `DELIVERY_FAILED` \| `REDELIVERY_SCHEDULED` \| `CANCELLED` |
+| `OtpStatus` | `ACTIVE` \| `USED` \| `EXPIRED` \| `LOCKED` |
+| `PaymentKind` | `ORDER` \| `SUBSCRIPTION` \| `DEPOSIT` |
+| `PaymentStatus` | `CREATED` \| `AUTHORIZED` \| `CAPTURED` \| `FAILED` \| `REFUNDED` |
+| `DepositStatus` | `HELD` \| `REFUND_INITIATED` \| `REFUNDED` \| `FORFEITED` |
+| `ActorType` | `CONSUMER` \| `DISTRIBUTOR_USER` \| `DRIVER` \| `SUPPORT` \| `OPS` \| `SYSTEM` |
+| `ConsumerRole` | `CONSUMER` \| `DISTRIBUTOR_ADMIN` \| `DRIVER` \| `SUPPORT` \| `OPS` |
+| `SourceApp` | `CONSUMER_WEB` \| `DISTRIBUTOR_WEB` \| `DRIVER_WEB` \| `OPS_CONSOLE` \| `BACKEND` |
+| `AuditEventType` | 24 tipos — ver seção 3.5 |
+| `IdempotencyStatus` | `PENDING` \| `PROCESSED` \| `FAILED` |
+| `UserSubscriptionStatus` | `PENDING_PAYMENT` \| `ACTIVE` \| `PAUSED` \| `CANCELLED` \| `COMPLETED` |
+| `DeliveryDateStatus` | `PENDING` \| `DELIVERED` \| `CANCELLED` |
+| `BannerType` | `CAROUSEL` \| `FEATURED` |
+| `InventoryItemType` | `SELLABLE_PRODUCT` \| `RETURNABLE_FULL` \| `RETURNABLE_EMPTY` \| `SUPPLY` |
+| `InventoryMovementType` | `INITIAL_LOAD` \| `ORDER_ACCEPT_OUT` \| `ORDER_CANCEL_RETURN` \| `DELIVERY_FAILED_RETURN` \| `EMPTY_RETURN_IN` \| `RECONCILIATION_ADJUSTMENT` \| `MANUAL_CORRECTION` \| `LOSS_WRITE_OFF` \| `PURCHASE_IN` |
+| `InventoryReferenceType` | `ORDER` \| `RECONCILIATION_SESSION` \| `INITIAL_LOAD` \| `MANUAL_ADJUSTMENT` \| `PURCHASE` \| `SYSTEM` |
+| `InventoryReconciliationStatus` | `OPEN` \| `CLOSED` |
 
-> ⚠️ ENUMs criados **ANTES** de qualquer tabela (bloco 00 do schema). Os enums `user_subscription_status` e `delivery_date_status` foram adicionados junto com as tabelas de assinatura v2 (tabelas 25–28).
+> 18 enums no total. Os 4 enums de inventário e `BannerType` foram adicionados com os módulos correspondentes.
 
 ### 2.4 Regras Críticas do Banco
 
-**Anti-overbooking:** `07_cfg_delivery_capacity`: `UNIQUE(zone_id, delivery_date, window)` + `CHECK(reserved <= total)`. Reserva usa `SELECT FOR UPDATE` na mesma transação. Dois checkouts simultâneos: um passa, outro recebe 409.
+**Controle de disponibilidade:** A tabela `07_cfg_delivery_capacity` foi removida (migration 2026-06-01). A disponibilidade de datas agora é controlada pelo serviço de agenda (`ScheduleService`): verifica se o dia da semana está ativo (`22_cfg_distributor_schedule`), se a data não está bloqueada (`23_cfg_distributor_blocked_dates`) e se o lead-time mínimo é respeitado. Datas/janelas indisponíveis retornam HTTP 422 com códigos `WEEKDAY_INACTIVE`, `DATE_BLOCKED` ou `LEAD_TIME_VIOLATION`.
 
 **Idempotência de webhook:** `14_cfg_payment_webhook_events`: `UNIQUE(provider, provider_event_ref)`. `INSERT ON CONFLICT DO NOTHING` — duplicado ignorado automaticamente.
 
@@ -178,78 +201,77 @@ COMMIT;
 
 ---
 
-## 3. Arquitetura do Sistema — Next.js Fullstack Unificado
+## 3. Arquitetura do Sistema — Monorepo Express + Next.js
 
-> **Regra de ouro:** nenhuma lógica de negócio fora da camada de Services. Route Handlers validam input (Zod) e delegam. Server Actions fazem o mesmo para mutações do formulário. Repositories apenas persistem. O Socket.io roda no mesmo processo via custom server.
+> **Regra de ouro:** nenhuma lógica de negócio no frontend. O `apps/web` é um cliente puro. Toda a lógica de negócio, validação (Zod), autenticação e autorização vivem no `apps/api`.
 
 ### 3.1 Camadas do Sistema
 
+#### Backend — `apps/api` (Express 5, porta 4000)
+
 | Camada | Tecnologia | Responsabilidade |
 |---|---|---|
-| **Pages (RSC)** | Next.js App Router | Renderização SSR/CSR. Server Components por padrão. Client Components só com interatividade (forms, modais, Socket.io). |
-| **State Server** | TanStack Query v5 | Cache automático, revalidação, optimistic updates, prefetch em Server Components. Toda busca de dados passa por aqui. |
-| **State Client** | Zustand v5 | Apenas UI: carrinho, sidebar, modais, theme. Persist middleware para localStorage. Zero server state. |
-| **Forms** | React Hook Form + Zod | Validação tipada no client e server (schemas compartilhados no mesmo repo). Integração nativa com shadcn/ui Form. |
-| **Route Handlers** | Next.js API Routes | `app/api/**/route.ts` — recebe HTTP, valida Zod, chama Service, retorna JSON. Substitui Fastify routes. |
-| **Server Actions** | Next.js (`use server`) | Mutações simples: aceitar pedido, marcar checklist, submit rating. Elimina fetch manual pro Route Handler. |
-| **Middleware** | Next.js `middleware.ts` | Auth JWT via cookie httpOnly. RBAC por role. Redirect automático: consumer→/catalog, driver→/deliveries. |
+| **Routes** | Express Router | Recebe HTTP, verifica JWT/RBAC, valida Zod, delega ao Service |
+| **Middleware** | `jose` + `bcryptjs` | Auth JWT: `jwtVerify` + blacklist Redis. RBAC por role do JWT. |
 | **Services** | TypeScript puro | TODA lógica de negócio: máquina de estados, caução (Regra A), OTP HMAC, KPIs, assinaturas, `emitEvent()` atômico. |
-| **Repositories** | Prisma 7.x | Queries via Prisma Client. Transações interativas (`prisma.$transaction`). Sem regra de negócio. |
-| **Infra** | fetch + SDKs | Gateway pagamento (interface desacoplada), Web Push API, SMS fallback. Troca de provider sem alterar Services. |
-| **Real-time** | Socket.io 4.x (embutido) | Custom server Next.js: mesmo processo, mesmo port. Salas `consumer:{id}`, `distributor:{id}`. Reconnect automático. |
-| **Cron** | node-cron 3.x | Roda no mesmo processo: assinaturas 06h (São Paulo), OTP cleanup cada 15min. Sem worker separado. |
-| **Banco** | PostgreSQL 16 | 21 tabelas, 9 enums, 28 índices, trigger de proteção. Schema compatível (2 tabelas de agenda adicionadas). |
-| **Cache** | Redis 7 + ioredis | Sessões JWT (blacklist), cache catálogo (5min), TTL de OTP (90min). |
-| **Offline** | Service Worker + IndexedDB | PWA (Workbox): cache assets. idb: fila offline motorista. Sync automático ao reconectar. |
+| **Repositories** | Prisma 7.x | Queries via Prisma Client com `@prisma/adapter-pg`. Transações interativas. |
+| **Socket.IO** | socket.io 4.x | Integrado ao servidor HTTP Express. Auth JWT no handshake. Salas `${role}:${userId}` e `distributor:${distributorId}`. |
+| **Queue/Worker** | BullMQ 5.x + ioredis | Worker separado em `src/worker/index.ts`. Processa webhooks de pagamento e jobs de assinatura. |
+| **Jobs HTTP** | Express Routes | `POST /api/internal/jobs/subscription`, `otp-cleanup`, `subscription-expiry`. Protegidos por `INTERNAL_JOB_SECRET`. |
+| **Banco** | PostgreSQL 16 | 30 tabelas, 18 enums, triggers, índices compostos. |
+| **Cache** | Redis 7 + ioredis | JWT blacklist, filas BullMQ, cache de sessão. |
 
-**Exemplo — Custom server Next.js com Socket.io embutido:**
+#### Frontend — `apps/web` (Next.js 16, porta 3001)
+
+| Camada | Tecnologia | Responsabilidade |
+|---|---|---|
+| **Pages** | Next.js App Router | Client Components com interatividade. Sem Server Actions de negócio. |
+| **Auth/RBAC** | `proxy.ts` + `jose` | Verifica JWT do cookie `xua-token`. Redireciona por role. Controla rotas permitidas. |
+| **State Server** | TanStack Query v5 | Cache de dados da API, revalidação automática, optimistic updates. |
+| **State Client** | Zustand v5 | UI: carrinho, checkout multi-step, modais. Persist via localStorage. |
+| **Real-time** | socket.io-client 4.x | Conecta ao servidor Socket.IO do Express. Auth token no handshake. |
+| **Offline** | Service Worker + IndexedDB | PWA: cache de assets. Fila offline do motorista com sync automático. |
+
+**Exemplo — Gateway Socket.IO no servidor Express:**
 
 ```typescript
-// server.ts — roda no mesmo processo que o Next.js
-import { createServer } from "http";
-import { parse } from "url";
-import next from "next";
-import { Server as SocketServer } from "socket.io";
-import cron from "node-cron";
-import { subscriptionCron } from "./src/services/subscription-cron";
-import { otpCleanupCron } from "./src/services/otp-cleanup";
+// apps/api/src/infra/socket/gateway.ts
+import { Server } from "socket.io";
+import { jwtVerify } from "jose";
 
-const app = next({ dev: process.env.NODE_ENV !== "production" });
-const handle = app.getRequestHandler();
-
-app.prepare().then(() => {
-  const httpServer = createServer((req, res) => {
-    handle(req, res, parse(req.url!, true));
+export function initSocketGateway(io: Server) {
+  io.use(async (socket, next) => {
+    // Auth JWT no handshake (token ou cookie xua-token)
+    const token = socket.handshake.auth.token
+      ?? socket.handshake.headers.cookie?.match(/xua-token=([^;]+)/)?.[1];
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    socket.data.userId = payload.sub;
+    socket.data.role = payload.role;
+    socket.data.distributorId = payload.distributor_id;
+    next();
   });
-
-  // Socket.io no mesmo servidor HTTP
-  const io = new SocketServer(httpServer, { cors: { origin: "*" } });
-  (global as any).__io = io; // exporta io para os Services usarem
 
   io.on("connection", (socket) => {
-    const { role, userId } = socket.handshake.auth;
+    const { role, userId, distributorId } = socket.data;
     socket.join(`${role}:${userId}`);
+    if (role === "distributor_admin" && distributorId) {
+      socket.join(`distributor:${distributorId}`);
+    }
   });
-
-  // Cron jobs no mesmo processo
-  cron.schedule("0 6 * * *", subscriptionCron, { timezone: "America/Sao_Paulo" });
-  cron.schedule("*/15 * * * *", otpCleanupCron);
-
-  httpServer.listen(3000, () => console.log("Xua Delivery rodando na porta 3000"));
-});
+}
 ```
 
-> Um processo, um deploy. Next.js + Socket.io + cron jobs. Route Handlers acessam `io` via `global`.
+> O Socket.IO corre no mesmo servidor HTTP do Express (porta 4000). Jobs são disparados via HTTP externo — sem node-cron no processo.
 
 ### 3.2 Perfis de Acesso — RBAC
 
-| Perfil | Rotas permitidas | Permissões |
+| Perfil JWT | Rotas web permitidas | Permissões |
 |---|---|---|
-| `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. **Selecionar distribuidora no checkout quando há 2+ opções. Configurar preferência de seleção automática via perfil.** Não pode ver dados de outros consumidores. |
-| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule` | Aceitar/rejeitar pedidos da sua zona, checklist, despacho, conciliação, KPIs da própria operação. **Configurar agenda semanal (ativar/desativar dias, lead_time) e datas bloqueadas.** |
-| `operator` | `/driver/deliveries`, `/driver/deliveries/[id]/*`, `/driver/sync` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
-| `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline, reagendar entregas, override de OTP com motivo obrigatório. |
-| `ops` | `/ops/*` + `/support/*` | Tudo do support + configurar zonas, dashboard KPIs global (Recharts), exportar auditoria CSV. |
+| `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. Selecionar distribuidora no checkout quando há 2+ opções. Configurar preferência de seleção automática via perfil. |
+| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory/*` | Aceitar/rejeitar pedidos, checklist, despacho, conciliação, KPIs, agenda semanal, inventário operacional. |
+| `driver` | `/driver/deliveries`, `/driver/deliveries/:id/*`, `/driver/history` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
+| `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline de auditoria, reagendar entregas, override de OTP com motivo obrigatório. |
+| `ops` | `/ops/*`, `/support/*` | Tudo do support + zonas, KPIs global, banners, produtos, planos de assinatura, exportar auditoria CSV. |
 
 ### 3.3 emitEvent() Atômico + Socket.io Pós-commit
 

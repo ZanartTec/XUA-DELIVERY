@@ -525,7 +525,7 @@ export const inventoryRepository = {
       create: {
         distributor_id: distributorId,
         inventory_item_id: inventoryItemId,
-        quantity_on_hand: quantityDelta,
+        quantity_on_hand: quantityDelta < 0 ? 0 : quantityDelta,
         last_movement_at: occurredAt,
       },
     });
