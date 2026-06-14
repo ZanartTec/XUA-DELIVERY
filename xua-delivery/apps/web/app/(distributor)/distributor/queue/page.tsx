@@ -279,6 +279,10 @@ function getOrderStageLabel(order: QueueOrder) {
   }
 }
 
+function canAssignDriver(status: string) {
+  return status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR || status === OrderStatus.READY_FOR_DISPATCH;
+}
+
 function useVirtualSlice<T>(items: T[]) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -357,6 +361,7 @@ function OrderMiniCard({
   const fromSubscription = isFromSubscription(order);
   const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
   const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
+  const canAssign = canAssignDriver(order.status);
 
   return (
     <article
@@ -413,10 +418,15 @@ function OrderMiniCard({
               <Check className="h-3 w-3" />
               Aceitar
             </Button>
-          ) : (
+          ) : canAssign ? (
             <Button size="xs" variant="outline" className="h-6 rounded-md" disabled={loading} onClick={() => onAction(order, "assign")}>
               <Truck className="h-3 w-3" />
               Mot.
+            </Button>
+          ) : (
+            <Button size="xs" variant="outline" className="h-6 rounded-md" onClick={() => onSelect(order)}>
+              <Eye className="h-3 w-3" />
+              Ver
             </Button>
           )}
 
@@ -425,12 +435,12 @@ function OrderMiniCard({
               <X className="h-3 w-3" />
               Recusar
             </Button>
-          ) : (
+          ) : canAssign ? (
             <Button size="xs" variant="ghost" className="h-6 rounded-md" onClick={() => onSelect(order)}>
               <Eye className="h-3 w-3" />
               Ver
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </article>
@@ -530,7 +540,7 @@ function OrderDetailSheet({
 
   const fromSubscription = isFromSubscription(order);
   const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
-  const canAssign = order.status !== OrderStatus.SENT_TO_DISTRIBUTOR;
+  const canAssign = canAssignDriver(order.status);
   const canChecklist = order.status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR;
   const canDispatch = order.status === OrderStatus.READY_FOR_DISPATCH;
 

@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
+import { api } from "@/src/lib/api-client";
+import { useSocket } from "@/src/hooks/use-socket";
+import { OrderStatus } from "@xua/shared/enums";
 
 const CHECKLIST_ITEMS = [
   { key: "items_checked", label: "Itens do pedido separados e conferidos" },
@@ -12,6 +15,8 @@ const CHECKLIST_ITEMS = [
 ];
 
 type Driver = { id: string; name: string };
+type DriversResponse = { drivers?: Driver[] };
+type OrderDetailResponse = { order?: { driver_id?: string | null; status?: string } | null };
 
 export default function ChecklistPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,18 +26,52 @@ export default function ChecklistPage() {
   const [error, setError] = useState<string | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState("");
+  const [orderStatus, setOrderStatus] = useState<string | null>(null);
+  const { on, off } = useSocket();
+
+  const loadChecklistContext = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      try {
+        const [driversData, orderData] = await Promise.all([
+          api.get<DriversResponse>("/api/distributor/drivers"),
+          api.get<OrderDetailResponse>(`/api/orders/${id}`),
+        ]);
+
+        if (isCancelled()) return;
+        setDrivers(driversData.drivers ?? []);
+        setSelectedDriver(orderData.order?.driver_id ?? "");
+        setOrderStatus(orderData.order?.status ?? null);
+        setError(null);
+      } catch (err) {
+        if (!isCancelled()) {
+          setError(`Não foi possível carregar dados do checklist: ${err instanceof Error ? err.message : "erro desconhecido"}`);
+        }
+      }
+    },
+    [id]
+  );
 
   useEffect(() => {
-    fetch("/api/distributor/drivers")
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error ?? `Erro ${r.status}`);
-        setDrivers(data.drivers ?? []);
-      })
-      .catch((err) => {
-        setError(`Não foi possível carregar motoristas: ${err.message}`);
-      });
-  }, []);
+    let cancelled = false;
+
+    void loadChecklistContext(() => cancelled);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadChecklistContext]);
+
+  useEffect(() => {
+    const handler = (...args: unknown[]) => {
+      const data = args[0];
+      if (typeof data === "object" && data !== null && "orderId" in data && data.orderId === id) {
+        void loadChecklistContext();
+      }
+    };
+
+    on("order_status_changed", handler);
+    return () => off("order_status_changed", handler);
+  }, [id, loadChecklistContext, off, on]);
 
   function toggle(key: string) {
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -40,22 +79,14 @@ export default function ChecklistPage() {
 
   const allChecked = CHECKLIST_ITEMS.every((item) => checks[item.key]);
   const progress = CHECKLIST_ITEMS.filter((item) => checks[item.key]).length;
-  const canDispatch = allChecked && selectedDriver !== "";
+  const blockedByStatus = orderStatus !== null && orderStatus !== OrderStatus.ACCEPTED_BY_DISTRIBUTOR;
+  const canDispatch = allChecked && selectedDriver !== "" && orderStatus === OrderStatus.ACCEPTED_BY_DISTRIBUTOR;
 
   async function handleDispatch() {
     setLoading(true);
     setError(null);
     try {
-      // Checklist + dispatch atômico em uma única chamada
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dispatch_with_checklist", driver_id: selectedDriver }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Erro ${res.status}`);
-      }
+      await api.patch(`/api/orders/${id}`, { action: "dispatch_with_checklist", driver_id: selectedDriver });
 
       router.push("/distributor/queue");
     } catch (err) {
@@ -112,6 +143,7 @@ export default function ChecklistPage() {
         <select
           value={selectedDriver}
           onChange={(e) => setSelectedDriver(e.target.value)}
+          disabled={blockedByStatus}
           className="w-full rounded-xl border border-[#e1e3e4] bg-[#f5f6f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="">Selecione o motorista...</option>
@@ -130,6 +162,12 @@ export default function ChecklistPage() {
 
       {error && (
         <p className="text-sm text-red-600 rounded-xl bg-red-50 px-3 py-2">{error}</p>
+      )}
+
+      {blockedByStatus && !error && (
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Este pedido nao esta mais aguardando checklist. Volte para a fila para ver o status atual.
+        </p>
       )}
 
       <Button

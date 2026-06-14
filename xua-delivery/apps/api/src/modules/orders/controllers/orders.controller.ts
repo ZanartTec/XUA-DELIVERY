@@ -336,7 +336,7 @@ export const ordersController = {
           break;
 
         case "dispatch":
-          if (!payload.driver_id) {
+          if (!payload.driver_id || typeof payload.driver_id !== "string") {
             res.status(400).json({ error: "ID do motorista obrigatório" });
             return;
           }
@@ -352,7 +352,7 @@ export const ordersController = {
           return;
 
         case "dispatch_with_checklist":
-          if (!payload.driver_id) {
+          if (!payload.driver_id || typeof payload.driver_id !== "string") {
             res.status(400).json({ error: "ID do motorista obrigatório" });
             return;
           }
