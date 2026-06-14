@@ -102,7 +102,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     badgeLabel: "Operacoes",
     navItems: [
       { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
-      { href: "/ops/zones", label: "Zonas", icon: MapPin },
+      //{ href: "/ops/zones", label: "Zonas", icon: MapPin },
       {
         href: "/ops/inventory",
         label: "Estoque",
