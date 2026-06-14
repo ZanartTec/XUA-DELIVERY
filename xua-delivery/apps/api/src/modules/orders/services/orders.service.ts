@@ -376,8 +376,31 @@ const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, Order
 const ASSIGNABLE_DRIVER_STATUSES = new Set<string>([
   OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
   OrderStatus.READY_FOR_DISPATCH,
-  OrderStatus.OUT_FOR_DELIVERY,
 ]);
+
+async function resolveDistributorIdForUser(distributorUserId: string): Promise<string> {
+  const distributorId = await distributorRepository.resolveDistributorId(distributorUserId);
+  if (!distributorId) {
+    throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+  }
+  return distributorId;
+}
+
+async function assertDriverBelongsToDistributor(distributorId: string, driverId: string): Promise<void> {
+  const drivers = await distributorRepository.findDriversByDistributor(distributorId);
+  if (!drivers.some((driver) => driver.id === driverId)) {
+    throw new OrderServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado para esta distribuidora");
+  }
+}
+
+function emitDistributorOrderStatusChanged(order: Order, status: OrderStatus, payload: Record<string, unknown> = {}) {
+  getIO().to(`distributor:${order.distributor_id}`).emit("order_status_changed", {
+    orderId: order.id,
+    status,
+    driverId: order.driver_id ?? null,
+    ...payload,
+  });
+}
 
 function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>) {
   const incoming = statusCounts[OrderStatus.SENT_TO_DISTRIBUTOR] ?? 0;
@@ -954,6 +977,7 @@ export const orderService = {
       orderId,
       status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
     });
+    emitDistributorOrderStatusChanged(order, OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
 
     return order;
   },
@@ -999,20 +1023,14 @@ export const orderService = {
       orderId,
       status: OrderStatus.REJECTED_BY_DISTRIBUTOR,
     });
+    emitDistributorOrderStatusChanged(order, OrderStatus.REJECTED_BY_DISTRIBUTOR);
 
     return order;
   },
 
   async assignDriver(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
-    const distributorId = await distributorRepository.resolveDistributorId(distributorUserId);
-    if (!distributorId) {
-      throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
-    }
-
-    const drivers = await distributorRepository.findDriversByDistributor(distributorId);
-    if (!drivers.some((driver) => driver.id === driverId)) {
-      throw new OrderServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado para esta distribuidora");
-    }
+    const distributorId = await resolveDistributorIdForUser(distributorUserId);
+    await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
@@ -1029,7 +1047,7 @@ export const orderService = {
 
       await auditRepository.emit(
         {
-          eventType: AuditEventType.DISPATCH_CHECKLIST_COMPLETED,
+          eventType: AuditEventType.ORDER_DRIVER_ASSIGNED,
           actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
           orderId,
           sourceApp: SourceApp.DISTRIBUTOR_WEB,
@@ -1041,12 +1059,7 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`distributor:${order.distributor_id}`).emit("order_status_changed", {
-      orderId,
-      status: order.status,
-      driverId,
-    });
+    emitDistributorOrderStatusChanged(order, order.status as OrderStatus, { driverId });
 
     return order;
   },
@@ -1081,6 +1094,8 @@ export const orderService = {
       return updated;
     });
 
+    emitDistributorOrderStatusChanged(order, OrderStatus.READY_FOR_DISPATCH);
+
     return order;
   },
 
@@ -1089,10 +1104,16 @@ export const orderService = {
    * Também gera OTP para confirmação de entrega.
    */
   async dispatch(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+    const distributorId = await resolveDistributorIdForUser(distributorUserId);
+    await assertDriverBelongsToDistributor(distributorId, driverId);
+
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+      if (current.distributor_id !== distributorId) {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
       assertTransition(current.status, OrderStatus.OUT_FOR_DELIVERY);
 
       const updated = await orderRepository.updateStatus(
@@ -1121,6 +1142,7 @@ export const orderService = {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
+    emitDistributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
     // Notifica driver
     io.to(`driver:${driverId}`).emit("new_delivery", {
@@ -1141,10 +1163,19 @@ export const orderService = {
    * Faz as duas transições em uma única transação para evitar estado inconsistente.
    */
   async dispatchWithChecklist(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+    const distributorId = await resolveDistributorIdForUser(distributorUserId);
+    await assertDriverBelongsToDistributor(distributorId, driverId);
+
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+      if (current.distributor_id !== distributorId) {
+        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+      }
+      if (current.status !== OrderStatus.ACCEPTED_BY_DISTRIBUTOR) {
+        throw new OrderServiceError("INVALID_STATUS", "Pedido precisa estar aceito para concluir checklist e despacho");
+      }
 
       // Transição 1: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH
       assertTransition(current.status, OrderStatus.READY_FOR_DISPATCH);
@@ -1159,6 +1190,19 @@ export const orderService = {
         },
         tx
       );
+
+      if (current.driver_id !== driverId) {
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.ORDER_DRIVER_ASSIGNED,
+            actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+            orderId,
+            sourceApp: SourceApp.DISTRIBUTOR_WEB,
+            payload: { action: "dispatch_with_checklist", driverId, previous_driver_id: current.driver_id },
+          },
+          tx
+        );
+      }
 
       // Transição 2: READY_FOR_DISPATCH → OUT_FOR_DELIVERY
       const updated = await orderRepository.updateStatus(
@@ -1187,6 +1231,7 @@ export const orderService = {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
+    emitDistributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
     io.to(`driver:${driverId}`).emit("new_delivery", {
       orderId,

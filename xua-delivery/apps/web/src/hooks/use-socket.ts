@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuthStore } from "@/src/store/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null);
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -26,30 +26,30 @@ export function useSocket() {
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
 
-    socketRef.current = socket;
+    setSocketInstance(socket);
 
     return () => {
       socket.disconnect();
-      socketRef.current = null;
+      setSocketInstance(null);
       setIsConnected(false);
     };
   }, [user]);
 
   const on = useCallback(
     (event: string, handler: (...args: unknown[]) => void) => {
-      socketRef.current?.on(event, handler);
+      socketInstance?.on(event, handler);
     },
-    []
+    [socketInstance]
   );
 
   const off = useCallback(
     (event: string, handler: (...args: unknown[]) => void) => {
-      socketRef.current?.off(event, handler);
+      socketInstance?.off(event, handler);
     },
-    []
+    [socketInstance]
   );
 
-  const socket = useCallback(() => socketRef.current, []);
+  const socket = useCallback(() => socketInstance, [socketInstance]);
 
   return { socket, isConnected, on, off };
 }

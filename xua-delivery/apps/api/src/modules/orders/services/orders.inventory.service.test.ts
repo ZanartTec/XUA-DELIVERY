@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => {
     inventoryService: { applyMovement: vi.fn() },
     notificationService: { send: vi.fn() },
     paymentService: { charge: vi.fn() },
-    distributorRepository: { resolveDistributorId: vi.fn() },
+    distributorRepository: { resolveDistributorId: vi.fn(), findDriversByDistributor: vi.fn() },
   };
 });
 
@@ -210,6 +210,9 @@ beforeEach(() => {
   mocks.inventoryRepository.findActiveReturnableEmptyItem.mockResolvedValue(emptyInventoryItem);
   mockInventoryBalances({ [itemA]: 10, [itemB]: 10 });
   mocks.inventoryService.applyMovement.mockResolvedValue({ idempotentReplay: false });
+  mocks.notificationService.send.mockResolvedValue(undefined);
+  mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+  mocks.distributorRepository.findDriversByDistributor.mockResolvedValue([{ id: driverId, name: "Motorista" }]);
 
   mocks.auditRepository.emit.mockResolvedValue({ id: "audit-1" });
 });
@@ -508,6 +511,89 @@ describe("orderService inventory integration", () => {
     expect(mocks.inventoryService.applyMovement).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ reference: { type: InventoryReferenceType.ORDER, id: orderId } }),
+      tx
+    );
+  });
+
+  it("bloqueia dispatch quando motorista nao pertence a distribuidora", async () => {
+    mocks.distributorRepository.findDriversByDistributor.mockResolvedValue([]);
+
+    await expect(orderService.dispatch(orderId, distributorUserId, driverId)).rejects.toMatchObject({
+      name: "OrderServiceError",
+      code: "DRIVER_NOT_FOUND",
+    });
+
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia reatribuicao de motorista quando pedido ja esta em rota", async () => {
+    const current = order({ status: OrderStatus.OUT_FOR_DELIVERY });
+    mocks.orderRepository.findById.mockResolvedValue(current);
+
+    await expect(orderService.assignDriver(orderId, distributorUserId, driverId)).rejects.toMatchObject({
+      name: "OrderServiceError",
+      code: "INVALID_STATUS",
+    });
+
+    expect(mocks.orderRepository.update).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia dispatch de pedido de outra distribuidora", async () => {
+    const current = order({ status: OrderStatus.READY_FOR_DISPATCH, distributor_id: "other-distributor" });
+    mocks.orderRepository.findById.mockResolvedValue(current);
+
+    await expect(orderService.dispatch(orderId, distributorUserId, driverId)).rejects.toMatchObject({
+      name: "OrderServiceError",
+      code: "FORBIDDEN",
+    });
+
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia dispatchWithChecklist quando pedido nao esta aceito", async () => {
+    const current = order({ status: OrderStatus.READY_FOR_DISPATCH });
+    mocks.orderRepository.findById.mockResolvedValue(current);
+
+    await expect(orderService.dispatchWithChecklist(orderId, distributorUserId, driverId)).rejects.toMatchObject({
+      name: "OrderServiceError",
+      code: "INVALID_STATUS",
+    });
+
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("registra atribuicao de motorista no dispatchWithChecklist quando driver muda", async () => {
+    const current = order({ status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR, driver_id: null });
+    mocks.orderRepository.findById.mockResolvedValue(current);
+    mockStatusUpdate(current);
+
+    const result = await orderService.dispatchWithChecklist(orderId, distributorUserId, driverId);
+
+    expect(result.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
+    expect(mocks.orderRepository.updateStatus).toHaveBeenNthCalledWith(
+      1,
+      orderId,
+      OrderStatus.READY_FOR_DISPATCH,
+      undefined,
+      tx
+    );
+    expect(mocks.orderRepository.updateStatus).toHaveBeenNthCalledWith(
+      2,
+      orderId,
+      OrderStatus.OUT_FOR_DELIVERY,
+      { dispatched_at: expect.any(Date), driver_id: driverId },
+      tx
+    );
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: AuditEventType.ORDER_DRIVER_ASSIGNED,
+        payload: expect.objectContaining({ action: "dispatch_with_checklist", driverId, previous_driver_id: null }),
+      }),
+      tx
+    );
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: AuditEventType.ORDER_DISPATCHED }),
       tx
     );
   });
