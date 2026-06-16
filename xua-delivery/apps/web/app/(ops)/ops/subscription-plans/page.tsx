@@ -321,12 +321,13 @@ export default function OpsSubscriptionPlansPage() {
         .then((r) => r.json())
         .then((d) =>
           setDistributors(
-            (d.distributors ?? []).map(
-              (dist: { id: string; name: string }) => ({
+            (d.distributors ?? [])
+              // Assinatura é online-only: só distribuidoras com gateway MP podem ser vinculadas.
+              .filter((dist: { mp_connected?: boolean }) => dist.mp_connected)
+              .map((dist: { id: string; name: string }) => ({
                 id: dist.id,
                 name: dist.name,
-              })
-            )
+              }))
           )
         ),
     ])

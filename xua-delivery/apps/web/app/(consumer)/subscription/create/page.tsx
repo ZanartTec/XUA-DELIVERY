@@ -28,9 +28,14 @@ import {
 } from "@/src/components/consumer/time-slot-picker";
 import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
 import { PaymentMethodSelector } from "@/src/components/consumer/payment-method-selector";
+import {
+  useDistributorPaymentMethods,
+  hiddenCheckoutMethods,
+} from "@/src/hooks/use-distributor-payment-methods";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import type { Address } from "@/src/types";
 import {
+  CARD_ON_DELIVERY_PAYMENT_METHOD,
   CASH_PAYMENT_METHOD,
   DEFAULT_ONLINE_PAYMENT_METHOD,
   isOnlinePaymentMethod,
@@ -52,7 +57,7 @@ interface SubscriptionPlan {
   product: { id: string; name: string; image_url: string | null };
   distributors: {
     distributor_id: string;
-    distributor: { id: string; name: string };
+    distributor: { id: string; name: string; mp_connected?: boolean };
   }[];
 }
 
@@ -167,10 +172,32 @@ export default function SubscriptionCreatePage() {
     [plans, selectedPlanId]
   );
 
+  // Assinatura é online-only: só distribuidoras com gateway MP podem ser escolhidas.
+  // (planos legados podem ter distribuidoras sem gateway ainda vinculadas)
   const planDistributors = useMemo(
-    () => selectedPlan?.distributors ?? [],
+    () => (selectedPlan?.distributors ?? []).filter((d) => d.distributor.mp_connected),
     [selectedPlan]
   );
+
+  // Se a distribuidora escolhida não está mais elegível, limpa a seleção.
+  useEffect(() => {
+    if (
+      selectedDistributorId &&
+      !planDistributors.some((d) => d.distributor_id === selectedDistributorId)
+    ) {
+      setDistributor(null);
+    }
+  }, [planDistributors, selectedDistributorId, setDistributor]);
+
+  // Assinatura é online-only: esconde métodos offline e os online que a
+  // distribuidora escolhida não habilita (ex.: só crédito, sem Pix).
+  const { methods: distributorMethods } = useDistributorPaymentMethods(selectedDistributorId);
+  const subscriptionHiddenMethods = useMemo(() => {
+    const hidden = new Set(hiddenCheckoutMethods(distributorMethods));
+    hidden.add(CASH_PAYMENT_METHOD);
+    hidden.add(CARD_ON_DELIVERY_PAYMENT_METHOD);
+    return Array.from(hidden);
+  }, [distributorMethods]);
 
   const zoneId = selectedAddress?.zone_id ?? null;
   const availabilityDays = useMemo(
@@ -782,7 +809,7 @@ export default function SubscriptionCreatePage() {
           onChange={(method) => {
             if (isOnlinePaymentMethod(method)) setPaymentMethod(method);
           }}
-          hiddenMethods={[CASH_PAYMENT_METHOD]}
+          hiddenMethods={subscriptionHiddenMethods}
         />
       </div>
     );

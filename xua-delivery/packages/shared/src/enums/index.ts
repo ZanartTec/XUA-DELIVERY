@@ -349,7 +349,7 @@ export type RejectOrderReason = (typeof REJECT_ORDER_REASON_VALUES)[number];
 export const ONLINE_PAYMENT_METHOD_VALUES = ["pix", "credit"] as const;
 export type OnlinePaymentMethod = (typeof ONLINE_PAYMENT_METHOD_VALUES)[number];
 
-export const CHECKOUT_PAYMENT_METHOD_VALUES = ["pix", "credit", "cash"] as const;
+export const CHECKOUT_PAYMENT_METHOD_VALUES = ["pix", "credit", "cash", "card_on_delivery"] as const;
 export type CheckoutPaymentMethod = (typeof CHECKOUT_PAYMENT_METHOD_VALUES)[number];
 
 export const USER_SUBSCRIPTION_PAYMENT_METHOD_VALUES = ONLINE_PAYMENT_METHOD_VALUES;

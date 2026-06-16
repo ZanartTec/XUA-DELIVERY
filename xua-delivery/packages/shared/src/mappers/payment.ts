@@ -15,6 +15,8 @@ export type CheckoutPaymentMethodMetadata = {
 export const DEFAULT_CHECKOUT_PAYMENT_METHOD: CheckoutPaymentMethod = CHECKOUT_PAYMENT_METHOD_VALUES[0];
 export const DEFAULT_ONLINE_PAYMENT_METHOD: OnlinePaymentMethod = ONLINE_PAYMENT_METHOD_VALUES[0];
 export const CASH_PAYMENT_METHOD: Extract<CheckoutPaymentMethod, "cash"> = "cash";
+export const CARD_ON_DELIVERY_PAYMENT_METHOD: Extract<CheckoutPaymentMethod, "card_on_delivery"> =
+  "card_on_delivery";
 
 export const CHECKOUT_PAYMENT_METHOD_METADATA = {
   pix: {
@@ -35,6 +37,12 @@ export const CHECKOUT_PAYMENT_METHOD_METADATA = {
     sublabel: "Pague ao motorista no ato da entrega",
     isOnline: false,
   },
+  card_on_delivery: {
+    value: "card_on_delivery",
+    label: "Cartão na entrega",
+    sublabel: "Crédito ou débito na maquininha do entregador",
+    isOnline: false,
+  },
 } as const satisfies Record<CheckoutPaymentMethod, CheckoutPaymentMethodMetadata>;
 
 export const CHECKOUT_PAYMENT_METHOD_OPTIONS = CHECKOUT_PAYMENT_METHOD_VALUES.map(
@@ -51,6 +59,14 @@ export function isOnlinePaymentMethod(value: unknown): value is OnlinePaymentMet
 
 export function isCashPaymentMethod(value: unknown): value is typeof CASH_PAYMENT_METHOD {
   return value === CASH_PAYMENT_METHOD;
+}
+
+/**
+ * Métodos pagos fora do app (na entrega): não passam pelo gateway online.
+ * Inclui dinheiro e cartão na maquininha do entregador.
+ */
+export function isOfflinePaymentMethod(value: unknown): value is CheckoutPaymentMethod {
+  return isCheckoutPaymentMethod(value) && !isOnlinePaymentMethod(value);
 }
 
 export function getCheckoutPaymentMethodMetadata(

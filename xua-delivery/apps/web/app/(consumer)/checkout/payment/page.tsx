@@ -23,6 +23,12 @@ import {
 } from "lucide-react";
 import { PaymentMethodSelector } from "@/src/components/consumer/payment-method-selector";
 import {
+  useDistributorPaymentMethods,
+  hiddenCheckoutMethods,
+} from "@/src/hooks/use-distributor-payment-methods";
+import { CHECKOUT_PAYMENT_METHOD_VALUES } from "@xua/shared/enums";
+import {
+  CARD_ON_DELIVERY_PAYMENT_METHOD,
   CASH_PAYMENT_METHOD,
   DEFAULT_ONLINE_PAYMENT_METHOD,
   isCashPaymentMethod,
@@ -153,6 +159,26 @@ function PaymentContent() {
       setPaymentMethod(DEFAULT_ONLINE_PAYMENT_METHOD);
     }
   }, [isRetryMode, paymentMethod, setPaymentMethod]);
+
+  // Métodos disponíveis dependem da distribuidora escolhida (gateway/capacidade).
+  const { methods: distributorMethods } = useDistributorPaymentMethods(selectedDistributorId);
+  const hiddenPaymentMethods = useMemo(() => {
+    const hidden = new Set(hiddenCheckoutMethods(distributorMethods));
+    if (isRetryMode) {
+      hidden.add(CASH_PAYMENT_METHOD);
+      hidden.add(CARD_ON_DELIVERY_PAYMENT_METHOD);
+    }
+    return Array.from(hidden);
+  }, [distributorMethods, isRetryMode]);
+
+  // Se o método selecionado ficou indisponível, troca para o primeiro válido.
+  useEffect(() => {
+    if (!hiddenPaymentMethods.includes(paymentMethod)) return;
+    const available = CHECKOUT_PAYMENT_METHOD_VALUES.filter(
+      (m) => !hiddenPaymentMethods.includes(m),
+    );
+    if (available.length > 0) setPaymentMethod(available[0]);
+  }, [hiddenPaymentMethods, paymentMethod, setPaymentMethod]);
 
   const subtotal = retryOrder ? retryOrder.subtotal_cents : mounted ? getSubtotalCents() : 0;
   const depositCents = retryOrder
@@ -546,7 +572,7 @@ function PaymentContent() {
               setPaymentMethod(method);
               if (!isCashPaymentMethod(method)) setCashChangeForCents(null);
             }}
-            hiddenMethods={isRetryMode ? [CASH_PAYMENT_METHOD] : []}
+            hiddenMethods={hiddenPaymentMethods}
           />
           {isRetryMode && (
             <p className="text-xs text-[#434656]">

@@ -2,17 +2,20 @@ import type { Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { ONLINE_PAYMENT_METHOD_VALUES } from "@xua/shared/enums";
+import { ONLINE_PAYMENT_METHOD_VALUES, PaymentKind } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { enqueuePaymentWebhookJob, PAYMENT_JOB_NAMES } from "../../../infra/queue/index.js";
 import { logger } from "../../../infra/logger/index.js";
 import { PAYMENT_PROVIDERS } from "../gateway/payments.gateway.js";
 import { paymentService, PaymentServiceError } from "../services/payments.service.js";
+import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
   normalizeWebhookPaymentKind,
   verifyWebhookContextSignature,
   WEBHOOK_CONTEXT_QUERY_PARAMS,
 } from "../utils/webhook-context.js";
+
+type WebhookPaymentKind = PaymentKind;
 
 const chargeSchema = z.object({
   order_id: z.string().uuid(),
@@ -26,10 +29,6 @@ function errorStatus(code: string): number {
     PROVIDER_REDIRECT_MISSING: 502,
   };
   return map[code] ?? 400;
-}
-
-function getWebhookSecret(): string | null {
-  return process.env.MERCADOPAGO_WEBHOOK_SECRET ?? process.env.PAYMENT_WEBHOOK_SECRET ?? null;
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {
@@ -101,13 +100,11 @@ function getResourceId(req: Request, body: Record<string, unknown>): string | un
   return queryValue(req.query["data.id"]) ?? (data?.id != null ? String(data.id) : undefined);
 }
 
-function validateMercadoPagoSignature(req: Request, body: Record<string, unknown>): SignatureValidationResult {
-  const secret = getWebhookSecret();
-  if (!secret) {
-    logger.error("MERCADOPAGO_WEBHOOK_SECRET não definido");
-    return { valid: false, reason: "missing_secret" };
-  }
-
+function validateMercadoPagoSignature(
+  req: Request,
+  body: Record<string, unknown>,
+  secret: string
+): SignatureValidationResult {
   const signature = headerValue(req.headers["x-signature"]);
   const requestId = headerValue(req.headers["x-request-id"]);
   if (!signature || !requestId) return { valid: false, reason: "missing_signature_headers" };
@@ -144,11 +141,21 @@ function isPaymentNotification(req: Request, body: Record<string, unknown>): boo
   return type === "payment" || topic === "payment" || Boolean(action?.startsWith("payment."));
 }
 
-function buildWebhookContext(req: Request): Prisma.InputJsonObject | undefined {
+interface VerifiedWebhookContext {
+  referenceId: string;
+  paymentKind: WebhookPaymentKind;
+}
+
+/**
+ * Extrai e VERIFICA o contexto assinado por nós (xua_*) nos query params da
+ * notification_url. Essa assinatura usa um segredo interno GLOBAL — é o que nos
+ * permite confiar no referenceId e resolver a distribuidora ANTES de validar a
+ * assinatura do Mercado Pago (que é por distribuidora).
+ */
+function extractVerifiedWebhookContext(req: Request): VerifiedWebhookContext | null {
   const referenceId = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.referenceId]);
   const rawPaymentKind = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.paymentKind]);
   const signature = queryValue(req.query[WEBHOOK_CONTEXT_QUERY_PARAMS.signature]);
-  if (!referenceId && !rawPaymentKind && !signature) return undefined;
 
   const paymentKind = normalizeWebhookPaymentKind(rawPaymentKind);
   if (
@@ -163,28 +170,53 @@ function buildWebhookContext(req: Request): Prisma.InputJsonObject | undefined {
         hasPaymentKind: Boolean(paymentKind),
         hasContextSignature: Boolean(signature),
       },
-      "Mercado Pago webhook context ignored"
+      "Mercado Pago webhook context inválido"
     );
-    return undefined;
+    return null;
   }
 
-  return { reference_id: referenceId, payment_kind: paymentKind } as Prisma.InputJsonObject;
+  return { referenceId, paymentKind };
+}
+
+/**
+ * Resolve a distribuidora dona do pagamento a partir do referenceId já
+ * verificado (pedido ou assinatura). Depósito referencia o pedido.
+ */
+async function resolveDistributorIdFromContext(
+  context: VerifiedWebhookContext
+): Promise<string | null> {
+  const prisma = getPrisma();
+  if (context.paymentKind === PaymentKind.SUBSCRIPTION) {
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { id: context.referenceId },
+      select: { distributor_id: true },
+    });
+    return subscription?.distributor_id ?? null;
+  }
+  const order = await prisma.order.findUnique({
+    where: { id: context.referenceId },
+    select: { distributor_id: true },
+  });
+  return order?.distributor_id ?? null;
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
 }
 
-function buildWebhookPayload(req: Request, body: Record<string, unknown>, resourceId: string): Prisma.InputJsonObject {
+function buildWebhookPayload(
+  body: Record<string, unknown>,
+  resourceId: string,
+  context: VerifiedWebhookContext
+): Prisma.InputJsonObject {
   const data = bodyData(body);
-  const xuaContext = buildWebhookContext(req);
   return {
     ...body,
     data: {
       ...(data ?? {}),
       id: data?.id ?? resourceId,
     },
-    ...(xuaContext ? { xua_context: xuaContext } : {}),
+    xua_context: { reference_id: context.referenceId, payment_kind: context.paymentKind },
   } as Prisma.InputJsonObject;
 }
 
@@ -254,10 +286,35 @@ export const paymentsController = {
    */
   async webhook(req: Request, res: Response): Promise<void> {
     const body = req.body as Record<string, unknown>;
-    const signature = validateMercadoPagoSignature(req, body);
+
+    // 1. Contexto assinado por nós (global) → confiamos no referenceId/kind.
+    const context = extractVerifiedWebhookContext(req);
+    if (!context) {
+      res.status(401).json({ error: "Contexto inválido" });
+      return;
+    }
+
+    // 2. Resolve a distribuidora dona do pagamento.
+    const distributorId = await resolveDistributorIdFromContext(context);
+    if (!distributorId) {
+      logger.warn({ referenceId: context.referenceId }, "Webhook sem distribuidora resolvível");
+      res.status(401).json({ error: "Distribuidora não encontrada" });
+      return;
+    }
+
+    // 3. Webhook secret DA DISTRIBUIDORA (cada uma tem seu app no Mercado Pago).
+    const secret = await distributorGatewayService.getWebhookSecret(distributorId);
+    if (!secret) {
+      logger.warn({ distributorId }, "Distribuidora sem webhook secret configurado");
+      res.status(401).json({ error: "Gateway não configurado" });
+      return;
+    }
+
+    // 4. Valida a assinatura do Mercado Pago com o secret da distribuidora.
+    const signature = validateMercadoPagoSignature(req, body, secret);
     const { resourceId, requestId } = signature;
     if (!signature.valid || !resourceId) {
-      logger.warn({ reason: signature.reason }, "Mercado Pago webhook rejected");
+      logger.warn({ reason: signature.reason, distributorId }, "Mercado Pago webhook rejected");
       res.status(401).json({ error: "Assinatura inválida" });
       return;
     }
@@ -288,7 +345,8 @@ export const paymentsController = {
           provider: PAYMENT_PROVIDERS.mercadoPago,
           provider_event_ref: providerEventRef,
           event_type: eventType,
-          payload: buildWebhookPayload(req, body, resourceId),
+          distributor_id: distributorId,
+          payload: buildWebhookPayload(body, resourceId, context),
           raw_headers: sanitizedWebhookHeaders(req) as Prisma.InputJsonObject,
           signature_valid: true,
         } satisfies Prisma.PaymentWebhookEventCreateInput;

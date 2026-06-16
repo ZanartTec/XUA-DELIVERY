@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   Truck,
   User,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import type { UserRole } from "@/src/lib/role-utils";
@@ -88,6 +89,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         match: ["/distributor/inventory"],
       },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
+      { href: "/distributor/payment-config", label: "Pagamento", icon: Wallet },
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
     ],
   },

@@ -56,7 +56,7 @@ describe("MercadoPagoAdapter", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await new MercadoPagoAdapter().charge(5000, {
+    await new MercadoPagoAdapter({ accessToken: "TEST-token" }).charge(5000, {
       orderId,
       kind: PaymentKind.ORDER,
       idempotencyKey: `mp-checkout-pro:${orderId}:pix`,
@@ -102,7 +102,7 @@ describe("MercadoPagoAdapter", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await new MercadoPagoAdapter().charge(5000, {
+    await new MercadoPagoAdapter({ accessToken: "TEST-token" }).charge(5000, {
       orderId,
       kind: PaymentKind.ORDER,
       paymentMethod: "credit",

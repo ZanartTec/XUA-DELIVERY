@@ -67,13 +67,22 @@ export function getConfiguredPaymentProvider(): PaymentProvider {
   throw new Error(`Payment provider "${provider}" não implementado`);
 }
 
+/** Credenciais por distribuidora, resolvidas na hora do pagamento. */
+export interface PaymentGatewayCredentials {
+  accessToken: string;
+}
+
 /**
- * Factory — retorna adapter baseado em PAYMENT_PROVIDER env var.
+ * Factory — retorna adapter baseado em PAYMENT_PROVIDER env var, usando as
+ * credenciais (por distribuidora) informadas. As credenciais não vêm mais do
+ * ambiente: são resolvidas a partir da config da distribuidora escolhida.
  */
-export function getPaymentGateway(): IPaymentGateway {
+export function getPaymentGateway(credentials: PaymentGatewayCredentials): IPaymentGateway {
   const provider = getConfiguredPaymentProvider();
 
-  if (provider === PAYMENT_PROVIDERS.mercadoPago) return new MercadoPagoAdapter();
+  if (provider === PAYMENT_PROVIDERS.mercadoPago) {
+    return new MercadoPagoAdapter({ accessToken: credentials.accessToken });
+  }
 
   throw new Error(`Payment provider "${provider}" não implementado`);
 }

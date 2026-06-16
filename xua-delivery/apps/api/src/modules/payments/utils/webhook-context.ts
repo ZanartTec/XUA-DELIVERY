@@ -33,10 +33,14 @@ export function requireWebhookPaymentKind(kind: string | null | undefined): Paym
   return normalized;
 }
 
+/**
+ * Segredo GLOBAL e interno para assinar/verificar o contexto (referenceId+kind)
+ * na notification_url. NÃO é credencial de gateway — o webhook secret do Mercado
+ * Pago agora é por distribuidora. Mantém-se global porque é o que permite
+ * resolver a distribuidora antes de validar a assinatura do MP.
+ */
 export function getWebhookContextSecret(): string | null {
   return process.env.PAYMENT_WEBHOOK_CONTEXT_SECRET
-    ?? process.env.MERCADOPAGO_WEBHOOK_SECRET
-    ?? process.env.PAYMENT_WEBHOOK_SECRET
     ?? process.env.INTERNAL_SECRET
     ?? null;
 }
