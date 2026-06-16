@@ -208,10 +208,7 @@ export default function LoginPage() {
                   <p className="text-2xl font-bold text-[#00E0FF]">Express</p>
                   <p className="text-[10px] uppercase font-semibold text-white/70">Entrega Ágil</p>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-[#00E0FF]">+10k</p>
-                  <p className="text-[10px] uppercase font-semibold text-white/70">Clientes Atendidos</p>
-                </div>
+
               </div>
             </div>
           </div>
