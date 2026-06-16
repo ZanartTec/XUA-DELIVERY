@@ -277,8 +277,36 @@ model Distributor {
   inventory_balances             DistributorInventoryBalance[]
   inventory_movements            InventoryMovement[]
   inventory_reconciliation_sessions InventoryReconciliationSession[]
+  payment_settings               DistributorPaymentSettings?
 
   @@map("03_mst_distributors")
+}
+
+/// Configuração de pagamento por distribuidora: métodos aceitos + credenciais
+/// do gateway (Mercado Pago) dela. access token e webhook secret são guardados
+/// CRIPTOGRAFADOS (AES-256-GCM). 1:1 com Distributor.
+model DistributorPaymentSettings {
+  id             String @id @default(uuid()) @db.Uuid
+  distributor_id String @unique @db.Uuid
+
+  // Métodos aceitos (capacidades públicas)
+  accepts_pix_online       Boolean @default(false)
+  accepts_credit_online    Boolean @default(false)
+  accepts_cash_on_delivery Boolean @default(true)
+  accepts_card_on_delivery Boolean @default(false)
+
+  // Credenciais do gateway (sensíveis)
+  provider              String  @default("mercadopago")
+  mp_access_token_enc   String?
+  mp_webhook_secret_enc String?
+  mp_public_key         String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  distributor Distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade)
+
+  @@map("34_cfg_distributor_payment_settings")
 }
 
 model Zone {
@@ -575,6 +603,7 @@ model PaymentWebhookEvent {
   provider           String
   provider_event_ref String
   event_type         String
+  distributor_id     String?   @db.Uuid
   payload            Json      @default("{}")
   raw_headers        Json?
   signature_valid    Boolean   @default(false)

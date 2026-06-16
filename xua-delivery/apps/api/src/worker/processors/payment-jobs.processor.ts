@@ -6,6 +6,7 @@ import {
 import { createLogger } from "../../infra/logger";
 import { getPrisma } from "../../infra/prisma/client";
 import { getPaymentGateway } from "../../modules/payments/gateway/payments.gateway.js";
+import { distributorGatewayService } from "../../modules/distributor-gateway/index.js";
 import {
   finalizePaymentTarget,
   processPaymentTarget,
@@ -105,7 +106,26 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
     return { ok: true, skipped: "resource_id_missing" };
   }
 
-  const gateway = getPaymentGateway();
+  // O getPayment precisa do token DA DISTRIBUIDORA dona do pagamento. O
+  // controller já gravou distributor_id no evento ao validar o webhook.
+  if (!event.distributor_id) {
+    await prisma.paymentWebhookEvent.update({
+      where: { id: event.id },
+      data: { processed_at: new Date(), processing_error: "DISTRIBUTOR_MISSING" },
+    });
+    return { ok: true, skipped: "distributor_missing" };
+  }
+
+  const credentials = await distributorGatewayService.getDecryptedCredentials(event.distributor_id);
+  if (!credentials) {
+    await prisma.paymentWebhookEvent.update({
+      where: { id: event.id },
+      data: { processed_at: new Date(), processing_error: "GATEWAY_NOT_CONFIGURED" },
+    });
+    return { ok: true, skipped: "gateway_not_configured" };
+  }
+
+  const gateway = getPaymentGateway({ accessToken: credentials.accessToken });
   if (!gateway.getPayment) {
     throw new Error("PAYMENT_PROVIDER_DOES_NOT_SUPPORT_STATUS_LOOKUP");
   }

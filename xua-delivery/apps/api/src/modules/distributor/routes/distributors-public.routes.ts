@@ -2,10 +2,19 @@ import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { distributorController } from "../controllers/distributor.controller.js";
+import { paymentSettingsController } from "../controllers/payment-settings.controller.js";
 
 const router = Router();
 
 router.use(authMiddleware);
+
+// GET /api/distributors/:distributorId/payment-methods
+// Capacidades públicas (sem segredos) para montar o checkout.
+router.get(
+  "/:distributorId/payment-methods",
+  requireRole("consumer"),
+  paymentSettingsController.getPublicMethods,
+);
 
 // GET /api/distributors?zone_id=&date=&window=
 // Lista distribuidoras disponíveis para seleção manual pelo consumidor

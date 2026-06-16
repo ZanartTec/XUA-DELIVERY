@@ -2,10 +2,23 @@ import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { distributorController } from "../controllers/distributor.controller.js";
+import { paymentSettingsController } from "../controllers/payment-settings.controller.js";
 
 const router = Router();
 
 router.use(authMiddleware);
+
+// ─── Config de pagamento (métodos aceitos + gateway MP) ───
+router.get(
+  "/payment-settings/:distributorId",
+  requireRole("distributor_admin", "ops"),
+  paymentSettingsController.get,
+);
+router.patch(
+  "/payment-settings/:distributorId",
+  requireRole("distributor_admin", "ops"),
+  paymentSettingsController.update,
+);
 
 // KPIs do distribuidor autenticado
 router.get("/kpis", requireRole("distributor_admin"), distributorController.getKpis);

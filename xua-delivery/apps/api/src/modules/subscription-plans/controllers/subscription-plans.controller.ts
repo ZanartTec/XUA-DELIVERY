@@ -41,6 +41,13 @@ export const subscriptionPlansController = {
       const plan = await subscriptionPlansService.createPlan(parsed.data);
       res.status(201).json({ plan });
     } catch (err) {
+      if (err instanceof Error && err.message === "DISTRIBUTOR_GATEWAY_REQUIRED") {
+        res.status(400).json({
+          error: "Só é possível vincular distribuidoras com gateway de pagamento (Mercado Pago) configurado.",
+          code: "DISTRIBUTOR_GATEWAY_REQUIRED",
+        });
+        return;
+      }
       next(err);
     }
   },
@@ -59,6 +66,13 @@ export const subscriptionPlansController = {
     } catch (err) {
       if (err instanceof Error && err.message === "PLAN_NOT_FOUND") {
         res.status(404).json({ error: "Plano não encontrado" });
+        return;
+      }
+      if (err instanceof Error && err.message === "DISTRIBUTOR_GATEWAY_REQUIRED") {
+        res.status(400).json({
+          error: "Só é possível vincular distribuidoras com gateway de pagamento (Mercado Pago) configurado.",
+          code: "DISTRIBUTOR_GATEWAY_REQUIRED",
+        });
         return;
       }
       next(err);

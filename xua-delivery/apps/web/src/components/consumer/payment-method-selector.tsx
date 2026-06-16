@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/src/lib/utils";
-import { CreditCard, Banknote, WalletCards, Check } from "lucide-react";
+import { CreditCard, Banknote, WalletCards, Check, Smartphone } from "lucide-react";
 import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 import { CHECKOUT_PAYMENT_METHOD_OPTIONS } from "@xua/shared/mappers/payment";
 
@@ -26,6 +26,11 @@ const PAYMENT_METHOD_VISUALS: Record<PaymentMethod, {
     icon: Banknote,
     iconBg: "bg-[#fff2dd]",
     iconColor: "text-[#7a4700]",
+  },
+  card_on_delivery: {
+    icon: Smartphone,
+    iconBg: "bg-[#ede7ff]",
+    iconColor: "text-[#4b2e83]",
   },
 };
 

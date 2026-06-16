@@ -40,14 +40,6 @@ function extractOrderReference(payment: MercadoPagoPaymentResponse): string | un
   return payment.metadata?.order_id ?? payment.external_reference;
 }
 
-function getAccessToken(): string {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN ?? process.env.MP_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error("MERCADOPAGO_ACCESS_TOKEN não definido");
-  }
-  return token;
-}
-
 function getApiBaseUrl(): string {
   return (process.env.MERCADOPAGO_API_BASE_URL ?? DEFAULT_MERCADO_PAGO_API_BASE).replace(/\/$/, "");
 }
@@ -189,33 +181,44 @@ function parseResponseBody(text: string): unknown {
   }
 }
 
-async function mercadoPagoRequest<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...options,
-    signal: options.signal ?? AbortSignal.timeout(getRequestTimeoutMs()),
-    headers: {
-      Authorization: `Bearer ${getAccessToken()}`,
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-  });
-
-  const text = await response.text();
-  const body = parseResponseBody(text);
-
-  if (!response.ok) {
-    throw new Error(
-      `Mercado Pago API error ${response.status}: ${normalizeErrorBody(body)}`
-    );
-  }
-
-  return body as T;
+export interface MercadoPagoCredentials {
+  accessToken: string;
 }
 
 export class MercadoPagoAdapter implements IPaymentGateway {
+  private readonly accessToken: string;
+
+  constructor(credentials: MercadoPagoCredentials) {
+    const token = credentials.accessToken?.trim();
+    if (!token) {
+      throw new Error("Access token do Mercado Pago da distribuidora ausente");
+    }
+    this.accessToken = token;
+  }
+
+  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      signal: options.signal ?? AbortSignal.timeout(getRequestTimeoutMs()),
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        "Content-Type": "application/json",
+        ...(options.headers ?? {}),
+      },
+    });
+
+    const text = await response.text();
+    const body = parseResponseBody(text);
+
+    if (!response.ok) {
+      throw new Error(
+        `Mercado Pago API error ${response.status}: ${normalizeErrorBody(body)}`
+      );
+    }
+
+    return body as T;
+  }
+
   async charge(
     amountCents: number,
     metadata: PaymentChargeMetadata
@@ -269,7 +272,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
     };
     const autoReturn = shouldEnableAutoReturn(backUrls.success) ? "approved" : undefined;
 
-    const preference = await mercadoPagoRequest<MercadoPagoPreferenceResponse>(
+    const preference = await this.request<MercadoPagoPreferenceResponse>(
       "/checkout/preferences",
       {
         method: "POST",
@@ -303,7 +306,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
   }
 
   async refund(externalId: string): Promise<RefundResult> {
-    const refund = await mercadoPagoRequest<{ id: string; status?: string }>(
+    const refund = await this.request<{ id: string; status?: string }>(
       `/v1/payments/${externalId}/refunds`,
       { method: "POST" }
     );
@@ -316,7 +319,7 @@ export class MercadoPagoAdapter implements IPaymentGateway {
   }
 
   async getPayment(externalId: string): Promise<ProviderPaymentDetails> {
-    const payment = await mercadoPagoRequest<MercadoPagoPaymentResponse>(
+    const payment = await this.request<MercadoPagoPaymentResponse>(
       `/v1/payments/${externalId}`
     );
 

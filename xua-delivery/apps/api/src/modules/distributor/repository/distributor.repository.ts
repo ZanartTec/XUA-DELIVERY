@@ -12,10 +12,22 @@ export type DistributorRouteStop = Order & {
 export const distributorRepository = {
   async findAllActive() {
     const prisma = getPrisma();
-    return prisma.distributor.findMany({
+    const rows = await prisma.distributor.findMany({
       where: { is_active: true },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        payment_settings: {
+          select: { mp_access_token_enc: true, mp_webhook_secret_enc: true },
+        },
+      },
     });
+    return rows.map(({ payment_settings, ...distributor }) => ({
+      ...distributor,
+      mp_connected: Boolean(
+        payment_settings?.mp_access_token_enc && payment_settings?.mp_webhook_secret_enc,
+      ),
+    }));
   },
 
   async findDriversByDistributor(distributorId: string): Promise<Array<{ id: string; name: string }>> {

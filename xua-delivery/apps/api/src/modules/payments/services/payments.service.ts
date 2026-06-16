@@ -10,9 +10,11 @@ import {
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/index.js";
+import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
+  type IPaymentGateway,
   PAYMENT_PROVIDERS,
 } from "../gateway/payments.gateway.js";
 import { createLogger } from "../../../infra/logger";
@@ -30,6 +32,30 @@ export class PaymentServiceError extends Error {
     super(message);
     this.name = "PaymentServiceError";
   }
+}
+
+/**
+ * Resolve o gateway de pagamento com as credenciais DA DISTRIBUIDORA do
+ * pedido/assinatura — é assim que o dinheiro vai para a conta dela. Falha de
+ * forma clara quando não há distribuidora ou gateway configurado.
+ */
+async function resolveDistributorGateway(
+  distributorId: string | null | undefined
+): Promise<IPaymentGateway> {
+  if (!distributorId) {
+    throw new PaymentServiceError(
+      "DISTRIBUTOR_REQUIRED",
+      "Pagamento requer uma distribuidora associada"
+    );
+  }
+  const credentials = await distributorGatewayService.getDecryptedCredentials(distributorId);
+  if (!credentials) {
+    throw new PaymentServiceError(
+      "GATEWAY_NOT_CONFIGURED",
+      "Distribuidora não possui gateway de pagamento configurado"
+    );
+  }
+  return getPaymentGateway({ accessToken: credentials.accessToken });
 }
 
 function toPaymentStatus(status: string): PaymentStatus {
@@ -114,7 +140,7 @@ export const paymentService = {
     }
 
     const idempotencyKey = `mp-checkout-pro:${order.id}:${paymentMethod}`;
-    const gateway = getPaymentGateway();
+    const gateway = await resolveDistributorGateway(order.distributor_id);
     const result = await gateway.charge(order.total_cents, {
       orderId: order.id,
       kind: PaymentKind.ORDER,
@@ -261,9 +287,10 @@ export const paymentService = {
   async charge(
     orderId: string,
     amountCents: number,
-    kind: PaymentKind
+    kind: PaymentKind,
+    distributorId: string
   ): Promise<{ payment: Payment; gatewayResult: { externalId: string; status: string } }> {
-    const gateway = getPaymentGateway();
+    const gateway = await resolveDistributorGateway(distributorId);
     const provider = getConfiguredPaymentProvider();
     const result = await gateway.charge(amountCents, { orderId, kind });
 
@@ -342,12 +369,15 @@ export const paymentService = {
     const prisma = getPrisma();
     const payment = await prisma.payment.findFirst({
       where: { order_id: orderId, status: PaymentStatus.CAPTURED },
+      include: { order: { select: { distributor_id: true } } },
     });
     if (!payment) return null;
 
-    const gateway = getPaymentGateway();
     const providerPaymentId = payment.provider_payment_ref ?? payment.external_id;
     if (!providerPaymentId) return null;
+
+    // Estorno usa as credenciais da distribuidora que recebeu o pagamento.
+    const gateway = await resolveDistributorGateway(payment.order?.distributor_id);
 
     const result = await gateway.refund(providerPaymentId);
 

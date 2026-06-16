@@ -7,7 +7,14 @@ const defaultInclude = {
   product: { select: { id: true, name: true, price_cents: true, image_url: true } },
   distributors: {
     include: {
-      distributor: { select: { id: true, name: true } },
+      distributor: {
+        select: {
+          id: true,
+          name: true,
+          // Apenas para derivar mp_connected no service — nunca exposto cru.
+          payment_settings: { select: { mp_access_token_enc: true, mp_webhook_secret_enc: true } },
+        },
+      },
     },
   },
 } satisfies Prisma.SubscriptionPlanInclude;

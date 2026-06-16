@@ -14,6 +14,7 @@ import { scheduleService } from "../../distributor/services/schedule.service.js"
 import { timeslotRepository } from "../../distributor/repository/timeslot.repository.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
@@ -91,6 +92,7 @@ async function persistSubscriptionPayment(
   tx: TxClient,
   params: {
     subscriptionId: string;
+    distributorId: string;
     consumerEmail?: string | null;
     product: { id: string; name: string };
     totalAmountCents: number;
@@ -106,7 +108,15 @@ async function persistSubscriptionPayment(
 }> {
   const provider = getConfiguredPaymentProvider();
   const idempotencyKey = `mp-subscription-checkout:${params.subscriptionId}:${params.paymentMethod}`;
-  const gateway = getPaymentGateway();
+  // Cobra na conta da distribuidora da assinatura (não na conta global).
+  const credentials = await distributorGatewayService.getDecryptedCredentials(params.distributorId);
+  if (!credentials) {
+    throw new UserSubscriptionError(
+      "GATEWAY_NOT_CONFIGURED",
+      "Distribuidora não possui gateway de pagamento configurado"
+    );
+  }
+  const gateway = getPaymentGateway({ accessToken: credentials.accessToken });
   const gatewayResult = await gateway.charge(params.totalAmountCents, {
     orderId: params.subscriptionId,
     kind: PaymentKind.SUBSCRIPTION,
@@ -307,6 +317,14 @@ export const userSubscriptionsService = {
       );
     }
 
+    // Assinatura é online-only: a distribuidora precisa ter gateway MP configurado.
+    if (!(await distributorGatewayService.hasGateway(data.distributor_id))) {
+      throw new UserSubscriptionError(
+        "GATEWAY_NOT_CONFIGURED",
+        "Distribuidora não possui gateway de pagamento configurado"
+      );
+    }
+
     // Validate total products assigned === plan.quantity
     const totalQuantity = data.delivery_dates.reduce((sum, d) => sum + (d.quantity ?? 1), 0);
     if (totalQuantity !== plan.quantity) {
@@ -378,6 +396,7 @@ export const userSubscriptionsService = {
 
       const paymentResult = await persistSubscriptionPayment(tx, {
         subscriptionId: subscription.id,
+        distributorId: data.distributor_id,
         consumerEmail: consumer?.email,
         product: plan.product,
         totalAmountCents,
@@ -471,6 +490,7 @@ export const userSubscriptionsService = {
     const result = await prisma.$transaction(async (tx: TxClient) => {
       const paymentResult = await persistSubscriptionPayment(tx, {
         subscriptionId: sub.id,
+        distributorId: sub.distributor_id,
         consumerEmail: sub.consumer.email,
         product: sub.plan.product,
         totalAmountCents,
