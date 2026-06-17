@@ -172,7 +172,8 @@ export const scheduleService = {
   async validateDeliveryDate(
     distributorId: string,
     date: string,
-    window: DeliveryWindow
+    window: DeliveryWindow,
+    options?: { bypassLeadTime?: boolean }
   ): Promise<void> {
     const [y, m, d] = date.split("-").map(Number);
     if (!y || !m || !d) {
@@ -214,15 +215,18 @@ export const scheduleService = {
       );
     }
 
-    const nowSP = nowInSaoPaulo();
-    if (!this.isWindowAfterLeadTime(date, windowLower, leadTimeHours, nowSP)) {
-      throw new ScheduleServiceError(
-        "LEAD_TIME_VIOLATION",
-        `Janela de entrega requer antecedência mínima de ${leadTimeHours}h`
-      );
+    // Pedidos de assinatura já foram validados na criação — pula lead time.
+    if (!options?.bypassLeadTime) {
+      const nowSP = nowInSaoPaulo();
+      if (!this.isWindowAfterLeadTime(date, windowLower, leadTimeHours, nowSP)) {
+        throw new ScheduleServiceError(
+          "LEAD_TIME_VIOLATION",
+          `Janela de entrega requer antecedência mínima de ${leadTimeHours}h`
+        );
+      }
     }
 
-    log.info({ distributorId, date, window, leadTimeHours }, "Delivery date validated");
+    log.info({ distributorId, date, window, leadTimeHours, bypassLeadTime: !!options?.bypassLeadTime }, "Delivery date validated");
   },
 
   async getScheduleConfig(distributorId: string, daysAhead = 30) {

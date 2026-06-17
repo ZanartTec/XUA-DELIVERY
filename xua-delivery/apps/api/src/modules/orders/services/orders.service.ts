@@ -634,6 +634,7 @@ export const orderService = {
     preferredTimeEnd?: number | null;
     paymentMethod?: CheckoutPaymentMethod;
     cashChangeForCents?: number | null;
+    bypassLeadTime?: boolean;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -682,6 +683,7 @@ export const orderService = {
         data.distributorId,
         data.deliveryDate,
         data.deliveryWindow,
+        { bypassLeadTime: data.bypassLeadTime },
       );
 
       // Snapshot imutável do horário de entrega no momento da criação.
