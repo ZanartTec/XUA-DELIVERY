@@ -222,7 +222,7 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    schedule: "0 3,11,19 * * *" # 00h, 08h e 16h São Paulo (BRT = UTC-3) = 03h, 11h, 19h UTC
+    schedule: "0 3,8,19 * * *" # 00h, 05h e 16h São Paulo (BRT = UTC-3) = 03h, 08h, 19h UTC
     buildCommand: ""
     startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription
     envVars:
