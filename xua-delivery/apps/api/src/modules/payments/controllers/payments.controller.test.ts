@@ -4,12 +4,23 @@ import type { Request, Response } from "express";
 import { PaymentKind } from "@xua/shared/enums";
 import { signWebhookContext } from "../utils/webhook-context.js";
 
+const distributorId = "00000000-0000-4000-a000-000000000010";
+
 const mocks = vi.hoisted(() => ({
   enqueuePaymentWebhookJob: vi.fn(),
+  distributorGatewayService: {
+    getWebhookSecret: vi.fn(),
+  },
   prisma: {
     paymentWebhookEvent: {
       findUnique: vi.fn(),
       create: vi.fn(),
+    },
+    order: {
+      findUnique: vi.fn(),
+    },
+    userSubscription: {
+      findUnique: vi.fn(),
     },
   },
   loggerError: vi.fn(),
@@ -32,6 +43,10 @@ vi.mock("../../../infra/logger/index.js", () => ({
 vi.mock("../services/payments.service.js", () => ({
   paymentService: {},
   PaymentServiceError: class PaymentServiceError extends Error {},
+}));
+
+vi.mock("../../distributor-gateway/index.js", () => ({
+  distributorGatewayService: mocks.distributorGatewayService,
 }));
 
 const { paymentsController } = await import("./payments.controller.js");
@@ -67,6 +82,8 @@ beforeEach(() => {
     ...data,
   }));
   mocks.enqueuePaymentWebhookJob.mockResolvedValue({ id: "job-1", correlationId: "req-1" });
+  mocks.prisma.order.findUnique.mockResolvedValue({ distributor_id: distributorId });
+  mocks.distributorGatewayService.getWebhookSecret.mockResolvedValue(secret);
 });
 
 describe("paymentsController.webhook", () => {
@@ -107,7 +124,7 @@ describe("paymentsController.webhook", () => {
     expect(response.status).toHaveBeenCalledWith(200);
   });
 
-  it("ignora contexto adulterado mesmo com webhook Mercado Pago valido", async () => {
+  it("rejeita contexto adulterado com 401", async () => {
     const requestId = "req-2";
     const ts = String(Date.now());
     const response = res();
@@ -126,16 +143,12 @@ describe("paymentsController.webhook", () => {
 
     await paymentsController.webhook(request, response);
 
-    expect(mocks.prisma.paymentWebhookEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        payload: expect.not.objectContaining({ xua_context: expect.anything() }),
-      }),
-    });
+    expect(mocks.prisma.paymentWebhookEvent.create).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ hasContextSignature: true }),
-      "Mercado Pago webhook context ignored"
+      "Mercado Pago webhook context inválido"
     );
-    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.status).toHaveBeenCalledWith(401);
   });
 
   it("aceita webhook duplicado criado por outra requisicao concorrente", async () => {
@@ -150,7 +163,11 @@ describe("paymentsController.webhook", () => {
 
     await paymentsController.webhook({
       body: { type: "payment", action: "payment.updated", data: { id: resourceId } },
-      query: {},
+      query: {
+        "xua_reference_id": orderId,
+        "xua_payment_kind": PaymentKind.ORDER,
+        "xua_context_sig": signWebhookContext(orderId, PaymentKind.ORDER, secret),
+      },
       headers: {
         "x-request-id": requestId,
         "x-signature": signature(requestId, ts),

@@ -5,6 +5,9 @@ const mocks = vi.hoisted(() => ({
   gateway: { getPayment: vi.fn() },
   auditRepository: { emit: vi.fn() },
   orderService: { confirmOrder: vi.fn(), sendToDistributor: vi.fn() },
+  distributorGatewayService: {
+    getDecryptedCredentials: vi.fn(),
+  },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   tx: {
     payment: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
@@ -41,12 +44,17 @@ vi.mock("../../infra/logger/index.js", () => ({
   createLogger: () => mocks.logger,
 }));
 
+vi.mock("../../modules/distributor-gateway/index.js", () => ({
+  distributorGatewayService: mocks.distributorGatewayService,
+}));
+
 const { processPaymentJob } = await import("./payment-jobs.processor.js");
 
 const webhookEventId = "7e1d7b55-3f52-4d10-aac3-74387c236901";
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236902";
 const paymentId = "7e1d7b55-3f52-4d10-aac3-74387c236903";
 const providerPaymentId = "1346835923";
+const distributorId = "00000000-0000-4000-a000-000000000010";
 
 function job() {
   return {
@@ -65,6 +73,7 @@ function job() {
 function event(payload: Record<string, unknown>) {
   return {
     id: webhookEventId,
+    distributor_id: distributorId,
     provider_event_ref: `payment:${providerPaymentId}:payment.updated`,
     event_type: "payment.updated",
     payload,
@@ -92,6 +101,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.prisma.$transaction.mockImplementation(async (callback) => callback(mocks.tx));
   mocks.gateway.getPayment.mockResolvedValue(providerPayment());
+  mocks.distributorGatewayService.getDecryptedCredentials.mockResolvedValue({
+    accessToken: "test-access-token",
+    webhookSecret: "test-webhook-secret",
+    publicKey: null,
+  });
   mocks.tx.payment.findFirst.mockResolvedValue({
     id: paymentId,
     order_id: orderId,

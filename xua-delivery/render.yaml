@@ -44,6 +44,10 @@ services:
       - key: INTERNAL_JOB_SECRET
         generateValue: true
 
+      # ─── Criptografia de segredos em repouso ────────────────────────────
+      - key: ENCRYPTION_MASTER_KEY
+        sync: false
+
       # ─── CORS ─────────────────────────────────────────────────────────────
       - key: APP_ORIGIN
         sync: false
@@ -141,6 +145,10 @@ services:
       - key: OTP_SECRET
         sync: false
       - key: INTERNAL_SECRET
+        sync: false
+
+      # ─── Criptografia de segredos em repouso ────────────────────────────
+      - key: ENCRYPTION_MASTER_KEY
         sync: false
 
       # ─── Pagamentos ───────────────────────────────────────────────────────
