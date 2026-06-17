@@ -144,7 +144,7 @@ export const userSubscriptionsRepository = {
     const prisma = getPrisma();
     return prisma.subscriptionDeliveryDate.findMany({
       where: {
-        delivery_date: today,
+        delivery_date: { lte: today },
         status: "PENDING",
         user_subscription: { status: "ACTIVE" },
         order_id: null,

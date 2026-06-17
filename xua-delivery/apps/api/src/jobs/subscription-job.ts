@@ -6,7 +6,7 @@ import { logger } from "../infra/logger/index.js";
 
 /**
  * Job handler: gera pedidos automáticos das entregas agendadas do modelo novo.
- * Chamado via HTTP POST pelo Render Cron Job (00h São Paulo).
+ * Chamado via HTTP POST pelo Render Cron Job (00h, 08h e 16h São Paulo).
  */
 export async function runSubscriptionJob(): Promise<{
   processed: number;
