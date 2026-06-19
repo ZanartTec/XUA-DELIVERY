@@ -35,6 +35,7 @@ function errorStatus(code: string): number {
     OTP_LOCKED: 429,
     INVALID_CASH_CHANGE: 400,
     CASH_PAYMENT_INVALID: 409,
+    PAYMENT_METHOD_NOT_ALLOWED: 400,
   };
   return map[code] ?? 400;
 }

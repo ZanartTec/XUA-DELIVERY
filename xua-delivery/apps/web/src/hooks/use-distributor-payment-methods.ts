@@ -15,7 +15,7 @@ export function hiddenCheckoutMethods(
   const hidden: CheckoutPaymentMethod[] = [];
   const pixOk = Boolean(methods?.mp_connected && methods.accepts_pix_online);
   const creditOk = Boolean(methods?.mp_connected && methods.accepts_credit_online);
-  const cashOk = methods ? methods.accepts_cash_on_delivery : true;
+  const cashOk = methods ? methods.accepts_cash_on_delivery : false;
   const cardOk = methods ? methods.accepts_card_on_delivery : false;
   if (!pixOk) hidden.push("pix");
   if (!creditOk) hidden.push("credit");

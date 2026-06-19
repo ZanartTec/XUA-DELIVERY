@@ -1,13 +1,11 @@
 import type { Request, Response } from "express";
 import { distributorPaymentSettingsUpdateSchema } from "@xua/shared/schemas/distributor-payment-settings";
-import type {
-  DistributorPaymentMethodsPublic,
-  DistributorPaymentSettingsView,
-} from "@xua/shared/schemas/distributor-payment-settings";
+import type { DistributorPaymentSettingsView } from "@xua/shared/schemas/distributor-payment-settings";
 import { createLogger } from "../../../infra/logger/index.js";
 import {
   distributorGatewayService,
   DistributorGatewayError,
+  DEFAULT_PUBLIC_PAYMENT_METHODS,
 } from "../../distributor-gateway/index.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 
@@ -15,22 +13,10 @@ const log = createLogger("distributor-payment-settings");
 
 /** Defaults para distribuidora ainda sem configuração persistida. */
 const DEFAULT_VIEW: DistributorPaymentSettingsView = {
-  accepts_pix_online: false,
-  accepts_credit_online: false,
-  accepts_cash_on_delivery: true,
-  accepts_card_on_delivery: false,
-  mp_connected: false,
+  ...DEFAULT_PUBLIC_PAYMENT_METHODS,
   provider: "mercadopago",
   mp_access_token_masked: null,
   mp_public_key: null,
-};
-
-const DEFAULT_PUBLIC: DistributorPaymentMethodsPublic = {
-  accepts_pix_online: false,
-  accepts_credit_online: false,
-  accepts_cash_on_delivery: true,
-  accepts_card_on_delivery: false,
-  mp_connected: false,
 };
 
 /** distributor_admin só acessa a própria distribuidora; ops acessa qualquer. */
@@ -104,7 +90,7 @@ export const paymentSettingsController = {
 
     try {
       const methods = await distributorGatewayService.getPublicMethods(distributorId);
-      res.json(methods ?? DEFAULT_PUBLIC);
+      res.json(methods ?? DEFAULT_PUBLIC_PAYMENT_METHODS);
     } catch (err) {
       log.error({ err, distributorId }, "Erro ao buscar métodos de pagamento");
       res.status(500).json({ error: "Erro interno" });

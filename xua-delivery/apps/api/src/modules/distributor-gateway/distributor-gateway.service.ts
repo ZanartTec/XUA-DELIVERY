@@ -1,4 +1,5 @@
 import type { DistributorPaymentSettings } from "@prisma/client";
+import type { CheckoutPaymentMethod } from "@xua/shared/enums";
 import type {
   DistributorPaymentMethodsPublic,
   DistributorPaymentSettingsUpdateInput,
@@ -36,6 +37,42 @@ function toPublicMethods(settings: DistributorPaymentSettings): DistributorPayme
     accepts_card_on_delivery: settings.accepts_card_on_delivery,
     mp_connected: hasGateway(settings),
   };
+}
+
+/** Capacidades públicas para distribuidora sem config persistida (espelha o default do schema). */
+export const DEFAULT_PUBLIC_PAYMENT_METHODS: DistributorPaymentMethodsPublic = {
+  accepts_pix_online: false,
+  accepts_credit_online: false,
+  accepts_cash_on_delivery: true,
+  accepts_card_on_delivery: false,
+  mp_connected: false,
+};
+
+/**
+ * Mesma regra do checkout (web): se a distribuidora aceita o método informado.
+ * Usada no backend para impedir a criação de pedidos com método indisponível
+ * mesmo que o frontend exiba a opção por engano.
+ */
+export function isPaymentMethodAllowed(
+  method: CheckoutPaymentMethod,
+  settings: DistributorPaymentMethodsPublic
+): boolean {
+  switch (method) {
+    case "pix":
+      return settings.mp_connected && settings.accepts_pix_online;
+    case "credit":
+      return settings.mp_connected && settings.accepts_credit_online;
+    case "cash":
+      return settings.accepts_cash_on_delivery;
+    case "card_on_delivery":
+      return settings.accepts_card_on_delivery;
+    default: {
+      // Erro de compilação se um novo CheckoutPaymentMethod for adicionado
+      // sem decidir aqui se a distribuidora pode habilitá-lo.
+      const exhaustiveCheck: never = method;
+      return exhaustiveCheck;
+    }
+  }
 }
 
 export const distributorGatewayService = {

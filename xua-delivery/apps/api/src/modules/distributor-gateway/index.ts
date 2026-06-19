@@ -2,5 +2,7 @@ export { distributorGatewayRepository } from "./distributor-gateway.repository.j
 export {
   distributorGatewayService,
   DistributorGatewayError,
+  isPaymentMethodAllowed,
+  DEFAULT_PUBLIC_PAYMENT_METHODS,
   type DistributorGatewayCredentials,
 } from "./distributor-gateway.service.js";

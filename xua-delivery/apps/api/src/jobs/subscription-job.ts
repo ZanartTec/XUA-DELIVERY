@@ -73,6 +73,11 @@ async function processNewSubscriptionDeliveries(
         distributorSelectionMode: "auto",
         timeSlotId: slot.id,
         bypassLeadTime: true,
+        // Pedido só registra uma entrega já paga via assinatura (preço 0);
+        // não há payment_method real escolhido aqui, então a checagem contra
+        // a config da distribuidora não se aplica (e poderia bloquear
+        // indevidamente entregas de assinantes que pagaram por outro método).
+        skipPaymentMethodValidation: true,
         items: [
           {
             product_id: product.id,
