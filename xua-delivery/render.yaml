@@ -35,6 +35,8 @@ services:
           property: connectionString
 
       # ─── Segurança ────────────────────────────────────────────────────────
+      - key: DUMMY_HASH
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: OTP_SECRET
