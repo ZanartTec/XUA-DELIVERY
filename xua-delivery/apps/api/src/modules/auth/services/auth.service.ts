@@ -10,6 +10,13 @@ import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";
 
 const log = createLogger("auth");
 
+// DUMMY_HASH para mitigar timing attacks (obrigatório vir do ambiente)
+const DUMMY_HASH = process.env.DUMMY_HASH as string;
+
+if (!DUMMY_HASH) {
+  throw new Error("FATAL: A variável de ambiente DUMMY_HASH não está configurada.");
+}
+
 export class AuthServiceError extends Error {
   constructor(
     message: string,
@@ -28,29 +35,32 @@ export const authService = {
   async login(input: LoginInput) {
     const consumer = await authRepository.findByEmailForAuth(input.email);
 
-    if (!consumer) {
-      log.warn({ email: input.email }, "Login attempt — email not found");
+    // Usa o hash do usuário se existir; caso contrário, usa o hash fictício
+    const hashToCompare = consumer ? consumer.password_hash : DUMMY_HASH;
+    
+    // Compara a senha independentemente de o usuário existir ou não (Mitigação de Timing Attack)
+    const valid = await comparePassword(input.password, hashToCompare);
+
+    if (!consumer || !valid) {
+      log.warn(
+        { email: input.email, userId: consumer?.id },
+        `Login attempt — ${!consumer ? "email not found" : "wrong password"}`
+      );
       throw new AuthServiceError("Credenciais inválidas", 401);
     }
 
-    const valid = await comparePassword(input.password, consumer.password_hash);
-    if (!valid) {
-      log.warn({ email: input.email, userId: consumer.id }, "Login attempt — wrong password");
-      throw new AuthServiceError("Credenciais inválidas", 401);
-    }
-
-    const rawRole = (consumer.role ?? "consumer").toLowerCase();
-    if (!isUserRole(rawRole)) {
-      log.error({ userId: consumer.id, role: rawRole }, "Role inválida no DB");
+    const role = (consumer.role ?? "consumer").toLowerCase() as UserRole;
+    
+    if (!isUserRole(role)) {
+      log.error({ userId: consumer.id, role }, "Role inválida no DB");
       throw new AuthServiceError("Conta com role inválida. Contate o suporte.", 403);
     }
-    const role: UserRole = rawRole;
 
     // Resolve distributor_id para incluir no JWT (evita query DB no socket handshake)
-    let distributor_id: string | undefined;
-    if (role === "distributor_admin" || role === "driver") {
-      distributor_id = (await distributorRepository.resolveDistributorId(consumer.id)) ?? undefined;
-    }
+    const needsDistributor = role === "distributor_admin" || role === "driver";
+    const distributor_id = needsDistributor
+      ? (await distributorRepository.resolveDistributorId(consumer.id)) ?? undefined
+      : undefined;
 
     const token = await signToken({
       sub: consumer.id,
@@ -71,19 +81,26 @@ export const authService = {
    * Retorna token JWT e dados do usuário.
    */
   async register(input: RegisterInput) {
-    const exists = await authRepository.emailExists(input.email);
-    if (exists) {
-      throw new AuthServiceError("E-mail já cadastrado", 409);
-    }
-
+    // Mitigação de Race Condition (TOCTOU)
+    // Removemos a verificação prévia 'emailExists' e delegamos ao BD a responsabilidade 
+    // de garantir unicidade, capturando o erro de constraint UNIQUE diretamente.
     const password_hash = await hashPassword(input.password);
 
-    const consumer = await authRepository.create({
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
-      password_hash,
-    });
+    let consumer;
+    try {
+      consumer = await authRepository.create({
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        password_hash,
+      });
+    } catch (error: any) {
+      // P2002 é o código de erro do Prisma para violação de constraint Unique
+      if (error.code === "P2002") {
+        throw new AuthServiceError("E-mail já cadastrado", 409);
+      }
+      throw error;
+    }
 
     const rawRole = (consumer.role ?? "consumer").toLowerCase();
     if (!isUserRole(rawRole)) {

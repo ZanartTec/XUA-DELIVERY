@@ -7,7 +7,7 @@ import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
-import { distributorService, DistributorServiceError } from "../../distributor/index.js";
+import { distributorService, DistributorServiceError, ScheduleServiceError } from "../../distributor/index.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -35,6 +35,7 @@ function errorStatus(code: string): number {
     OTP_LOCKED: 429,
     INVALID_CASH_CHANGE: 400,
     CASH_PAYMENT_INVALID: 409,
+    PAYMENT_METHOD_NOT_ALLOWED: 400,
   };
   return map[code] ?? 400;
 }
@@ -227,6 +228,10 @@ export const ordersController = {
     } catch (error) {
       if (error instanceof OrderServiceError) {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+        return;
+      }
+      if (error instanceof ScheduleServiceError) {
+        res.status(error.status).json({ error: error.message, code: error.code });
         return;
       }
       if (error instanceof DistributorServiceError) {

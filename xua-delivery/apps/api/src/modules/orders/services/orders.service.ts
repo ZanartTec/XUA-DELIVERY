@@ -33,6 +33,11 @@ import { scheduleService } from "../../distributor/services/schedule.service.js"
 import { depositService } from "../../consumers/services/deposit.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
+import {
+  distributorGatewayService,
+  isPaymentMethodAllowed,
+  DEFAULT_PUBLIC_PAYMENT_METHODS,
+} from "../../distributor-gateway/index.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import redis from "../../../infra/redis/client.js";
 
@@ -635,6 +640,13 @@ export const orderService = {
     paymentMethod?: CheckoutPaymentMethod;
     cashChangeForCents?: number | null;
     bypassLeadTime?: boolean;
+    /**
+     * Pula a checagem de método de pagamento x config da distribuidora.
+     * Uso restrito a pedidos gerados internamente (ex.: job de assinatura),
+     * onde o pagamento já foi capturado fora deste fluxo (subtotal = 0) e o
+     * `paymentMethod` aqui é só metadado — não há nada a proteger validando.
+     */
+    skipPaymentMethodValidation?: boolean;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -644,6 +656,15 @@ export const orderService = {
   }): Promise<Order> {
     const prisma = getPrisma();
     const paymentMethod = data.paymentMethod ?? DEFAULT_CHECKOUT_PAYMENT_METHOD;
+
+    // Segurança: nunca confiar no método de pagamento exibido pelo frontend.
+    // A distribuidora pode não aceitar o método escolhido (ex.: dinheiro desabilitado).
+    // Disparado já aqui (sem await) para correr em paralelo com a primeira
+    // query da transação, em vez de somar mais um round-trip sequencial.
+    const paymentSettingsPromise = data.skipPaymentMethodValidation
+      ? null
+      : distributorGatewayService.getPublicMethods(data.distributorId);
+
     const isCashPayment = isCashPaymentMethod(paymentMethod);
     const cashChangeForCents = data.cashChangeForCents ?? null;
     const subtotalCents = data.items.reduce(
@@ -652,12 +673,30 @@ export const orderService = {
     );
 
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const previousOrdersCount = await tx.order.count({
-        where: {
-          consumer_id: data.consumerId,
-          status: { not: OrderStatus.CANCELLED },
-        },
-      });
+      const [previousOrdersCount, distributorPaymentSettings] = await Promise.all([
+        tx.order.count({
+          where: {
+            consumer_id: data.consumerId,
+            status: { not: OrderStatus.CANCELLED },
+          },
+        }),
+        paymentSettingsPromise,
+      ]);
+
+      if (
+        !data.skipPaymentMethodValidation &&
+        !isPaymentMethodAllowed(paymentMethod, distributorPaymentSettings ?? DEFAULT_PUBLIC_PAYMENT_METHODS)
+      ) {
+        log.warn(
+          { distributorId: data.distributorId, consumerId: data.consumerId, paymentMethod },
+          "createOrder: método de pagamento não permitido pela distribuidora rejeitado"
+        );
+        throw new OrderServiceError(
+          "PAYMENT_METHOD_NOT_ALLOWED",
+          "Método de pagamento não disponível para esta distribuidora"
+        );
+      }
+
       const isFirstPurchase = previousOrdersCount === 0;
       const depositAmountCents = isFirstPurchase
         ? depositService.getDepositAmountCents()
