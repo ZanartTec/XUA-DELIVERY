@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
+import { rateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { RATE_LIMITS } from "../../../infra/rate-limit/limiter.js";
 import { bannersController } from "../controllers/banners.controller.js";
 
 const router = Router();
@@ -8,7 +10,12 @@ const router = Router();
 router.use(authMiddleware);
 
 // Consumer: listar banners ativos
-router.get("/", requireRole("consumer", "ops", "distributor_admin"), bannersController.list);
+router.get(
+  "/",
+  requireRole("consumer", "ops", "distributor_admin"),
+  rateLimitMiddleware("catalog:read", RATE_LIMITS.catalogRead, (req) => req.user?.sub ?? req.ip),
+  bannersController.list
+);
 
 // Ops: listar todos (inclusive inativos)
 router.get("/all", requireRole("ops"), bannersController.listAll);

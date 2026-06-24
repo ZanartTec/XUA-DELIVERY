@@ -11,19 +11,39 @@ const log = createLogger("products");
 const CACHE_KEY = "products:active";
 const CACHE_TTL = 300; // 5 minutos
 
+interface ListActiveParams {
+  search?: string;
+  category?: string;
+  page: number;
+  limit: number;
+}
+
 export const productsService = {
-  async listActive() {
-    const cached = await getCacheJson<
-      Awaited<ReturnType<typeof productsRepository.findActive>>
-    >(CACHE_KEY);
-    if (cached) {
-      log.debug("Products served from cache");
-      return cached;
+  async listActive({ search, category, page, limit }: ListActiveParams) {
+    const isDefaultView = !search && !category && page === 1;
+
+    if (isDefaultView) {
+      const cached = await getCacheJson<
+        Awaited<ReturnType<typeof productsRepository.findActive>>
+      >(CACHE_KEY);
+      if (cached) {
+        log.debug("Products served from cache");
+        return { ...cached, page, totalPages: Math.ceil(cached.total / limit), limit };
+      }
     }
 
-    const products = await productsRepository.findActive();
-    void setCacheJson(CACHE_KEY, products, CACHE_TTL);
-    return products;
+    const result = await productsRepository.findActive({ search, category, page, limit });
+
+    if (isDefaultView) {
+      void setCacheJson(CACHE_KEY, result, CACHE_TTL);
+    }
+
+    return {
+      ...result,
+      page,
+      totalPages: Math.ceil(result.total / limit),
+      limit,
+    };
   },
 
   async listAll() {
