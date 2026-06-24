@@ -28,3 +28,42 @@ export const productUpdateSchema = z
     message: "Informe ao menos um campo para atualizar",
   });
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
+
+const emptyStringToUndefined = (value: unknown) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+};
+
+const pageQuery = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce
+    .number()
+    .int("page deve ser inteiro")
+    .min(1, "page deve ser maior que zero")
+    .default(1)
+);
+const limitQuery = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce
+    .number()
+    .int("limit deve ser inteiro")
+    .min(1, "limit deve ser maior que zero")
+    .max(50, "limit deve ser no máximo 50")
+    .default(24)
+);
+
+export const productListQuerySchema = z
+  .object({
+    search: z.preprocess(
+      emptyStringToUndefined,
+      z.string().trim().min(1).max(120).optional()
+    ),
+    category: z.preprocess(
+      emptyStringToUndefined,
+      z.string().trim().max(60).optional()
+    ),
+    page: pageQuery,
+    limit: limitQuery,
+  })
+  .strict();
+export type ProductListQueryInput = z.infer<typeof productListQuerySchema>;

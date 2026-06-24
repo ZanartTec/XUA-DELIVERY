@@ -353,6 +353,7 @@ model Product {
   order_items         OrderItem[]
   subscription_plans  SubscriptionPlan[]
 
+  @@index([is_active])
   @@map("06_mst_products")
 }
 
@@ -740,6 +741,7 @@ model Banner {
   created_at       DateTime   @default(now())
   updated_at       DateTime   @updatedAt
 
+  @@index([is_active])
   @@map("19_cfg_banners")
 }
 

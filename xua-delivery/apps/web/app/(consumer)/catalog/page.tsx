@@ -1,133 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { useState } from "react";
 import { useCartStore } from "@/src/store/cart";
-import { formatCurrency } from "@/src/lib/utils";
-import { getRenderableProductImageUrl } from "@/src/lib/product-image";
-import { Droplets, Plus, PackageOpen } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { SearchBar } from "@/src/components/consumer/search-bar";
-import { PromoBannerCarousel, type BannerSlide } from "@/src/components/consumer/promo-banner-carousel";
-import { CategoryFilter, type CategoryItem } from "@/src/components/consumer/category-filter";
-import { FeaturedProductCard, type FeaturedBanner } from "@/src/components/consumer/featured-product-card";
+import { PromoBannerCarousel } from "@/src/components/consumer/promo-banner-carousel";
+import { CategoryFilter } from "@/src/components/consumer/category-filter";
+import { FeaturedProductCard } from "@/src/components/consumer/featured-product-card";
 import { CatalogCartSummaryCard } from "@/src/components/consumer/catalog-cart-summary-card";
+import { ProductGrid } from "@/src/components/consumer/product-grid";
 import { PwaInstallPrompt } from "@/src/components/shared/pwa-install-prompt";
-
-interface ProductItem {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  price_cents: number;
-  deposit_cents: number;
-  is_active: boolean;
-  categories: { id: string; name: string; value: string }[];
-}
-
-function ProductSkeleton() {
-  return (
-    <div className="animate-pulse rounded-2xl bg-white/80 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
-      <div className="h-36 rounded-t-2xl bg-[#e1e3e4]" />
-      <div className="p-3 space-y-2">
-        <div className="h-4 w-2/3 rounded-lg bg-[#e1e3e4]" />
-        <div className="h-3 w-1/2 rounded-lg bg-[#e1e3e4]" />
-        <div className="flex items-center justify-between pt-1">
-          <div className="h-5 w-16 rounded-lg bg-[#e1e3e4]" />
-          <div className="h-8 w-8 rounded-full bg-[#e1e3e4]" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
+import { useDebounce } from "@/src/hooks/use-debounce";
+import { useProducts, type ProductItem } from "@/src/hooks/consumer/use-products";
+import { useCategories } from "@/src/hooks/consumer/use-categories";
+import { useBanners } from "@/src/hooks/consumer/use-banners";
 
 export default function CatalogPage() {
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [carouselBanners, setCarouselBanners] = useState<BannerSlide[]>([]);
-  const [featuredBanner, setFeaturedBanner] = useState<FeaturedBanner | null>(null);
+  const debouncedSearch = useDebounce(search, 400);
+
+  const {
+    products,
+    isLoading,
+    isError,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useProducts({ search: debouncedSearch, category });
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { carouselBanners, featuredBanner } = useBanners();
+
   const addItem = useCartStore((s) => s.addItem);
-
-  useEffect(() => {
-    async function loadProducts() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await fetch("/api/products");
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || "Não foi possível carregar o catálogo.");
-        }
-
-        setProducts(data.products ?? []);
-      } catch (err) {
-        setProducts([]);
-        setError(err instanceof Error ? err.message : "Não foi possível carregar o catálogo.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function loadCategories() {
-      setCategoriesLoading(true);
-      try {
-        const res = await fetch("/api/categories");
-        const data = await res.json();
-        if (res.ok && data.categories) {
-          setCategories(
-            data.categories.map((c: { id: string; name: string; value: string }) => ({
-              label: c.name,
-              value: c.value,
-            }))
-          );
-        }
-      } catch {
-        // Silently fail — filter still works with "Todos"
-      } finally {
-        setCategoriesLoading(false);
-      }
-    }
-
-    async function loadBanners() {
-      try {
-        const res = await fetch("/api/banners");
-        const data = await res.json();
-        if (res.ok && data.banners) {
-          const carousel = data.banners.filter((b: { type: string }) => b.type === "CAROUSEL");
-          const featured = data.banners.find((b: { type: string }) => b.type === "FEATURED") ?? null;
-          setCarouselBanners(carousel);
-          setFeaturedBanner(featured);
-        }
-      } catch {
-        // Silently fail — components use fallback data
-      }
-    }
-
-    void loadProducts();
-    void loadCategories();
-    void loadBanners();
-  }, []);
-
-  const filtered = useMemo(() => {
-    return products.filter((p) => {
-      const matchSearch =
-        search.trim() === "" ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.description ?? "").toLowerCase().includes(search.toLowerCase());
-      const matchCategory =
-        category === "all" || p.categories.some((c) => c.value === category);
-      return matchSearch && matchCategory;
-    });
-  }, [products, search, category]);
 
   function handleAdd(product: ProductItem) {
     addItem({
@@ -161,101 +67,29 @@ export default function CatalogPage() {
       />
 
       {/* Seção destaques */}
-      <div className="flex items-center justify-between px-4">
+      <div className="px-4">
         <h2 className="text-lg font-bold font-heading text-[#191c1d]">Destaques da Semana</h2>
-        <Link
-          href="/catalog"
-          className="text-xs font-bold uppercase tracking-wide text-primary"
-        >
-          Ver todos
-        </Link>
       </div>
 
-      {error && (
+      {isError && (
         <div className="mx-4 rounded-2xl bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">
+            {error instanceof Error ? error.message : "Não foi possível carregar o catálogo."}
+          </p>
         </div>
       )}
 
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 px-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <ProductSkeleton key={i} />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
-            <PackageOpen className="h-10 w-10 text-[#5697E9]/50" />
-          </div>
-          <p className="text-[#434656]">Nenhum produto encontrado.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 px-4">
-          {filtered.map((product) => (
-            <div
-              key={product.id}
-              className="group overflow-hidden rounded-2xl bg-[#ffffff] shadow-[0_2px_12px_rgba(0,26,64,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,26,64,0.10)]"
-            >
-              {/* Imagem */}
-              <div className="relative h-36 bg-[#f3f4f5] flex items-center justify-center overflow-hidden">
-                {getRenderableProductImageUrl(product.image_url) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={getRenderableProductImageUrl(product.image_url)!}
-                    alt={product.name}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                  />
-                ) : (
-                  <Droplets className="h-10 w-10 text-primary/30" />
-                )}
-                {!product.is_active && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                    <span className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold text-destructive">
-                      Indisponível
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 space-y-1">
-                <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-[#191c1d]">
-                  {product.name}
-                </h3>
-                {product.description && (
-                  <p className="text-xs text-[#737688] line-clamp-1">{product.description}</p>
-                )}
-                <div className="flex items-center justify-between pt-1.5">
-                  <div className="flex flex-col">
-                    {/* Preço fictício original riscado se tiver promoção */}
-                    {product.price_cents < 2000 && (
-                      <span className="text-[11px] text-[#737688] line-through">
-                        {formatCurrency(Math.round(product.price_cents * 1.27))}
-                      </span>
-                    )}
-                    <span className="text-base font-bold text-primary">
-                      {formatCurrency(product.price_cents)}
-                    </span>
-                  </div>
-                  <Button
-                    size="icon"
-                    className="h-9 w-9 rounded-full bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-95"
-                    disabled={!product.is_active}
-                    onClick={() => handleAdd(product)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ProductGrid
+        products={products}
+        loading={isLoading}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onAdd={handleAdd}
+        onLoadMore={() => fetchNextPage()}
+      />
 
       {/* Card produto destaque */}
-      {featuredBanner && (
-        <FeaturedProductCard banner={featuredBanner} />
-      )}
+      {featuredBanner && <FeaturedProductCard banner={featuredBanner} />}
 
       {/* Barra flutuante do carrinho — posição fixa acima do nav */}
       <CatalogCartSummaryCard />

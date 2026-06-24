@@ -44,6 +44,7 @@ export const RATE_LIMITS = {
   global: { windowSeconds: 60, maxRequests: 100 },
   auth: { windowSeconds: 60, maxRequests: 10 },
   orders: { windowSeconds: 60, maxRequests: 30 },
+  catalogRead: { windowSeconds: 60, maxRequests: 120 },
   paymentCharge: {
     windowSeconds: numberFromEnv("PAYMENT_CHARGE_RATE_LIMIT_WINDOW_SECONDS", 60),
     maxRequests: numberFromEnv("PAYMENT_CHARGE_RATE_LIMIT_MAX", 12),

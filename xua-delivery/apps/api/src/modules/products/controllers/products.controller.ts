@@ -1,13 +1,23 @@
 import type { NextFunction, Request, Response } from "express";
-import { productCreateSchema, productUpdateSchema } from "@xua/shared/schemas/product";
+import {
+  productCreateSchema,
+  productListQuerySchema,
+  productUpdateSchema,
+} from "@xua/shared/schemas/product";
 import { productsService } from "../services/products.service.js";
 
 export const productsController = {
-  /** GET /api/products — catálogo ativo */
-  async list(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  /** GET /api/products — catálogo ativo, paginado e filtrável */
+  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = productListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
     try {
-      const products = await productsService.listActive();
-      res.json({ products });
+      const result = await productsService.listActive(parsed.data);
+      res.json(result);
     } catch (err) {
       next(err);
     }
