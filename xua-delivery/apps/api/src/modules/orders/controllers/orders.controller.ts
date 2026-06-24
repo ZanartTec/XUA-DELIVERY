@@ -15,6 +15,7 @@ import {
   nonCollectionSchema,
   rejectOrderSchema,
   distributorQueueQuerySchema,
+  consumerOrdersQuerySchema,
 } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
@@ -25,6 +26,7 @@ function errorStatus(code: string): number {
     FORBIDDEN: 403,
     INVALID_TRANSITION: 400,
     INVALID_STATUS: 400,
+    ALREADY_RATED: 409,
     STOCK_UNAVAILABLE: 409,
     IDEMPOTENCY_CONFLICT: 409,
     INVENTORY_ITEM_NOT_FOUND: 400,
@@ -72,9 +74,6 @@ export const ordersController = {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
-    const statusGroup = req.query.statusGroup as string | undefined;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
 
     try {
       // SEC-08: Scope support — busca por telefone/email/id
@@ -120,14 +119,23 @@ export const ordersController = {
         return;
       }
 
+      const parsedQuery = consumerOrdersQuerySchema.safeParse(req.query);
+      if (!parsedQuery.success) {
+        res.status(400).json({
+          error: parsedQuery.error.issues[0]?.message ?? "Query inválida",
+          code: "INVALID_QUERY",
+        });
+        return;
+      }
+
       const result = await orderService.listOrders(
         user.sub,
         user.role,
         scope,
         statusParam,
-        page,
-        limit,
-        statusGroup
+        parsedQuery.data.page,
+        parsedQuery.data.limit,
+        parsedQuery.data.statusGroup
       );
 
       // Consumer returns paginated envelope; other roles return plain array
@@ -262,7 +270,7 @@ export const ordersController = {
     const id = req.params.id as string;
 
     try {
-      const detail = await orderService.getOrderDetail(id);
+      const detail = await orderService.getOrderDetail(id, user.role);
       if (!detail) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;

@@ -1602,6 +1602,9 @@ export const orderService = {
       if (current.status !== OrderStatus.DELIVERED) {
         throw new OrderServiceError("INVALID_STATUS", "Pedido precisa estar entregue para avaliar");
       }
+      if (current.nps_score != null) {
+        throw new OrderServiceError("ALREADY_RATED", "Pedido já foi avaliado");
+      }
 
       const updated = await orderRepository.update(
         orderId,
@@ -1874,7 +1877,7 @@ export const orderService = {
   /**
    * Busca pedido por ID com itens e timeline formatados.
    */
-  async getOrderDetail(orderId: string) {
+  async getOrderDetail(orderId: string, role: string) {
     const result = await orderRepository.findByIdWithDetails(orderId);
     if (!result) return null;
 
@@ -1981,7 +1984,9 @@ export const orderService = {
         expires_at: otp.expires_at,
         created_at: otp.created_at,
       })),
-      otp_code: await redis.get(`otp:${orderId}`) ?? undefined,
+      // SEC: o código OTP só é devolvido ao próprio consumidor — motoristas devem
+      // validá-lo via action "verify_otp" (digitado pelo cliente), nunca lendo-o da API.
+      otp_code: role === "consumer" ? (await redis.get(`otp:${orderId}`) ?? undefined) : undefined,
     };
   },
 };

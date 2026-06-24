@@ -44,6 +44,21 @@ const limitQuery = z.preprocess(
     .default(20)
 );
 
+export const CONSUMER_ORDERS_STATUS_GROUP_VALUES = ["all", "active", "delivered", "cancelled"] as const;
+
+// Sem .strict(): a mesma rota GET /api/orders também atende ops/driver via
+// req.query.status (não relacionado a este schema) — validamos só os campos
+// relevantes à listagem paginada do consumer, sem rejeitar a query inteira.
+export const consumerOrdersQuerySchema = z.object({
+  statusGroup: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(CONSUMER_ORDERS_STATUS_GROUP_VALUES).default("all")
+  ),
+  page: pageQuery,
+  limit: limitQuery,
+});
+export type ConsumerOrdersQueryInput = z.infer<typeof consumerOrdersQuerySchema>;
+
 export const DISTRIBUTOR_QUEUE_STAGE_VALUES = ["all", "incoming", "preparation", "route"] as const;
 export const DISTRIBUTOR_QUEUE_ORIGIN_VALUES = ["all", "cart", "subscription"] as const;
 export const DISTRIBUTOR_QUEUE_SORT_VALUES = ["created_desc", "delivery_asc", "sla_asc"] as const;

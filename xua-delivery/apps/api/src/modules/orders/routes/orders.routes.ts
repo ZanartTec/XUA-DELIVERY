@@ -1,12 +1,20 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
+import { rateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { RATE_LIMITS } from "../../../infra/rate-limit/limiter.js";
 import { ordersController } from "../controllers/orders.controller.js";
 
 const router = Router();
 
 // Todas as rotas de pedidos requerem autenticação
 router.use(authMiddleware);
+
+const ordersReadLimit = rateLimitMiddleware(
+  "orders:read",
+  RATE_LIMITS.orders,
+  (req) => req.user?.sub ?? req.ip
+);
 
 /**
  * GET /api/orders
@@ -18,6 +26,7 @@ router.use(authMiddleware);
 router.get(
   "/",
   requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersReadLimit,
   ordersController.list
 );
 
@@ -36,6 +45,7 @@ router.post("/", requireRole("consumer"), ordersController.create);
 router.get(
   "/:id",
   requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersReadLimit,
   ordersController.getById
 );
 
@@ -56,6 +66,7 @@ router.get(
 router.patch(
   "/:id",
   requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  ordersReadLimit,
   ordersController.action
 );
 
@@ -63,7 +74,12 @@ router.patch(
  * POST /api/orders/:id/rating
  * Consumer submete avaliação NPS após entrega.
  */
-router.post("/:id/rating", requireRole("consumer"), ordersController.submitRating);
+router.post(
+  "/:id/rating",
+  requireRole("consumer"),
+  rateLimitMiddleware("orders:rating", RATE_LIMITS.orderRating, (req) => req.user?.sub ?? req.ip),
+  ordersController.submitRating
+);
 
 /**
  * POST /api/orders/:id/bottle-exchange

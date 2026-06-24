@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => {
       cancelOrder: vi.fn(),
       markDeliveryFailed: vi.fn(),
       scheduleRedelivery: vi.fn(),
+      getOrderDetail: vi.fn(),
+      submitRating: vi.fn(),
     },
     orderRepository: { findById: vi.fn() },
     orderPolicy: { canAccess: vi.fn() },
@@ -372,6 +374,82 @@ describe("ordersController inventory errors", () => {
     expect(response.json).toHaveBeenCalledWith({
       error: "Referencia de estoque divergente",
       code: "IDEMPOTENCY_CONFLICT",
+    });
+  });
+});
+
+describe("ordersController list (consumer)", () => {
+  it("retorna 400 para statusGroup inválido", async () => {
+    const response = res();
+
+    await ordersController.list(req("consumer", {}, { statusGroup: "invalido" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.listOrders).not.toHaveBeenCalled();
+  });
+
+  it("valida e repassa statusGroup/page/limit ao service", async () => {
+    const response = res();
+    mocks.orderService.listOrders.mockResolvedValueOnce({
+      orders: [],
+      total: 0,
+      page: 2,
+      totalPages: 0,
+      limit: 6,
+      summary: { all: 0, active: 0, delivered: 0, cancelled: 0 },
+    });
+
+    await ordersController.list(
+      req("consumer", {}, { statusGroup: "active", page: "2", limit: "6" }),
+      response
+    );
+
+    expect(mocks.orderService.listOrders).toHaveBeenCalledWith(
+      userId,
+      "consumer",
+      undefined,
+      undefined,
+      2,
+      6,
+      "active"
+    );
+  });
+});
+
+describe("ordersController getById", () => {
+  it("repassa o role do usuário autenticado ao service (controla exposição do OTP)", async () => {
+    const response = res();
+    mocks.orderService.getOrderDetail.mockResolvedValueOnce(existingOrder);
+
+    await ordersController.getById(req("driver", {}), response);
+
+    expect(mocks.orderService.getOrderDetail).toHaveBeenCalledWith(orderId, "driver");
+  });
+
+  it("bloqueia acesso quando orderPolicy.canAccess nega", async () => {
+    const response = res();
+    mocks.orderService.getOrderDetail.mockResolvedValueOnce(existingOrder);
+    mocks.orderPolicy.canAccess.mockResolvedValueOnce(false);
+
+    await ordersController.getById(req("consumer", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+  });
+});
+
+describe("ordersController submitRating", () => {
+  it("retorna 409 ALREADY_RATED quando o pedido já foi avaliado", async () => {
+    const response = res();
+    mocks.orderService.submitRating.mockRejectedValueOnce(
+      new mocks.OrderServiceError("ALREADY_RATED", "Pedido já foi avaliado")
+    );
+
+    await ordersController.submitRating(req("consumer", { rating: 5 }), response);
+
+    expect(response.status).toHaveBeenCalledWith(409);
+    expect(response.json).toHaveBeenCalledWith({
+      error: "Pedido já foi avaliado",
+      code: "ALREADY_RATED",
     });
   });
 });
