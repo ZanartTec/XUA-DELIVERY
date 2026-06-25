@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => {
     inventoryRepository: {
       findActiveInventoryItemsByProductIds: vi.fn(),
       findActiveReturnableEmptyItem: vi.fn(),
+      findActiveReturnableFullItem: vi.fn(),
       findBalanceForUpdate: vi.fn(),
     },
     inventoryService: { applyMovement: vi.fn() },
@@ -85,8 +86,12 @@ vi.mock("../../distributor/services/schedule.service.js", () => ({
   scheduleService: {},
 }));
 
-vi.mock("../../consumers/services/deposit.service.js", () => ({
-  depositService: {},
+vi.mock("../../deposits/services/deposit-settlement.service.js", () => ({
+  depositSettlementService: {
+    resolveBottleGroups: vi.fn(async () => []),
+    settlePerBottle: vi.fn(async () => []),
+    settleDelivery: vi.fn(async () => ({ loaned: 0, returnedFromLoan: 0 })),
+  },
 }));
 
 vi.mock("../../notifications/services/notification.service.js", () => ({

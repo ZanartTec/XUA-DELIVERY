@@ -72,8 +72,12 @@ vi.mock("../../distributor/services/schedule.service.js", () => ({
   scheduleService: {},
 }));
 
-vi.mock("../../consumers/services/deposit.service.js", () => ({
-  depositService: {},
+vi.mock("../../deposits/services/deposit-settlement.service.js", () => ({
+  depositSettlementService: {
+    resolveBottleGroups: vi.fn(),
+    settlePerBottle: vi.fn(),
+    settleDelivery: vi.fn(),
+  },
 }));
 
 vi.mock("../../notifications/services/notification.service.js", () => ({

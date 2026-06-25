@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { consumerRepository } from "../repository/consumers.repository.js";
-import { depositService } from "./deposit.service.js";
 import { fetchCep } from "../../../infra/cep/viacep.js";
 import { formatZipCode } from "../../../utils/format.js";
 import { createLogger } from "../../../infra/logger";
@@ -21,10 +20,6 @@ export const consumersService = {
   ) {
     log.info({ consumerId: id }, "Profile updated");
     return consumerRepository.update(id, data);
-  },
-
-  async getDepositPreview(consumerId: string) {
-    return depositService.getPreview(consumerId);
   },
 
   async listAddresses(consumerId: string) {
