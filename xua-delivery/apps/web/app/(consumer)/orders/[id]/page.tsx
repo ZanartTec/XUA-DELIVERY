@@ -47,14 +47,6 @@ const PAYMENT_KIND_LABELS: Record<string, string> = {
   DEPOSIT: "Caução",
 };
 
-const DEPOSIT_STATUS_LABELS: Record<string, string> = {
-  HELD: "Retida",
-  REFUND_INITIATED: "Reembolso iniciado",
-  REFUNDED: "Reembolsada",
-  FORFEITED: "Retida definitivamente",
-  CANCELLED: "Cancelada",
-};
-
 const OTP_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativo",
   USED: "Usado",
@@ -214,7 +206,6 @@ export default function OrderDetailPage() {
     !isPaymentExpired &&
     !isCashPayment;
   const { step, pct } = getProgress(order.status);
-  const latestDeposit = order.deposits[0];
   const latestOtp = order.otps[0];
   const hasDeliveryRecords = Boolean(
     order.qty_20l_sent != null ||
@@ -521,10 +512,10 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* -- Payment and deposit -- */}
+      {/* -- Payment and bottles -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Pagamento e caução
+          Pagamento e vasilhames
         </h3>
         <div className="space-y-4 text-sm">
           <div className="flex items-start gap-3">
@@ -567,24 +558,18 @@ export default function OrderDetailPage() {
               <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
             </div>
             <div className="min-w-0 flex-1">
-              {latestDeposit ? (
-                <>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#191c1d]">{labelFromMap(DEPOSIT_STATUS_LABELS, latestDeposit.status)}</p>
-                    <span className="font-bold text-[#191c1d]">{formatCurrency(latestDeposit.amount_cents)}</span>
-                  </div>
-                  <p className="text-xs text-[#737688]">
-                    {latestDeposit.refunded_at ? `Reembolsada em ${formatDateTime(latestDeposit.refunded_at)}` : `Criada em ${formatDateTime(latestDeposit.created_at)}`}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="font-semibold text-[#191c1d]">
-                    {order.deposit_cents > 0 ? formatCurrency(order.deposit_cents) : "Sem caução"}
-                  </p>
-                  <p className="text-xs text-[#737688]">Nenhum registro de caução vinculado a este pedido.</p>
-                </>
-              )}
+              <p className="font-semibold text-[#191c1d]">
+                {order.bottles_loaned > 0
+                  ? `${order.bottles_loaned} em caução`
+                  : order.bottles_sold > 0
+                  ? `${order.bottles_sold} adquirido(s)`
+                  : "Sem vasilhames adicionais"}
+              </p>
+              <p className="text-xs text-[#737688]">
+                {order.empty_bottles_provided > 0
+                  ? `${order.empty_bottles_provided} vasilhame(s) informado(s) para troca`
+                  : "Nenhum vasilhame informado para troca"}
+              </p>
             </div>
           </div>
         </div>
@@ -679,10 +664,10 @@ export default function OrderDetailPage() {
               <span>Subtotal</span>
               <span>{formatCurrency(order.subtotal_cents)}</span>
             </div>
-            {order.deposit_cents > 0 && (
+            {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents && (
               <div className="flex justify-between text-[#737688]">
-                <span>Caução</span>
-                <span>{formatCurrency(order.deposit_cents)}</span>
+                <span>Vasilhames ({order.bottles_sold})</span>
+                <span>{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-[#191c1d] pt-1.5 border-t border-[#e1e3e4]">

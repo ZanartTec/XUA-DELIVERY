@@ -551,10 +551,16 @@ export default function DistributorOrderDetailPage() {
                 <span className="shrink-0">Subtotal</span>
                 <span className="shrink-0">{formatCurrency(order.subtotal_cents)}</span>
               </div>
-              {order.deposit_cents > 0 ? (
+              {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents ? (
                 <div className="flex items-center justify-between gap-2 rounded-[14px] bg-white/5 px-3 py-2 text-white/78">
-                  <span className="shrink-0">Caução</span>
-                  <span className="shrink-0">{formatCurrency(order.deposit_cents)}</span>
+                  <span className="shrink-0">Vasilhames ({order.bottles_sold})</span>
+                  <span className="shrink-0">{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
+                </div>
+              ) : null}
+              {order.bottles_loaned > 0 ? (
+                <div className="flex items-center justify-between gap-2 rounded-[14px] bg-white/5 px-3 py-2 text-white/78">
+                  <span className="shrink-0">Em caução</span>
+                  <span className="shrink-0">{order.bottles_loaned}</span>
                 </div>
               ) : null}
               {isCashPayment ? (

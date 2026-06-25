@@ -147,6 +147,15 @@ export const DepositStatus = {
 } as const;
 export type DepositStatus = EnumValue<typeof DepositStatus>;
 
+export const PRODUCT_KIND_VALUES = ["WATER", "BOTTLE", "OTHER"] as const;
+
+export const ProductKind = {
+  WATER: "WATER",
+  BOTTLE: "BOTTLE",
+  OTHER: "OTHER",
+} as const;
+export type ProductKind = EnumValue<typeof ProductKind>;
+
 export const ACTOR_TYPE_VALUES = [
   "CONSUMER",
   "DISTRIBUTOR_USER",
@@ -210,6 +219,11 @@ export const AUDIT_EVENT_TYPE_VALUES = [
   "DEPOSIT_REFUND_INITIATED",
   "DEPOSIT_REFUNDED",
   "DAILY_RECONCILIATION_CLOSED",
+  "DEPOSIT_BOTTLES_LOANED",
+  "DEPOSIT_BOTTLES_RETURNED",
+  "DEPOSIT_BOTTLES_WRITTEN_OFF",
+  "DEPOSIT_PROGRAM_ENABLED",
+  "DEPOSIT_PROGRAM_DISABLED",
 ] as const;
 
 export const AuditEventType = {
@@ -239,6 +253,11 @@ export const AuditEventType = {
   DEPOSIT_REFUND_INITIATED: "DEPOSIT_REFUND_INITIATED",
   DEPOSIT_REFUNDED: "DEPOSIT_REFUNDED",
   DAILY_RECONCILIATION_CLOSED: "DAILY_RECONCILIATION_CLOSED",
+  DEPOSIT_BOTTLES_LOANED: "DEPOSIT_BOTTLES_LOANED",
+  DEPOSIT_BOTTLES_RETURNED: "DEPOSIT_BOTTLES_RETURNED",
+  DEPOSIT_BOTTLES_WRITTEN_OFF: "DEPOSIT_BOTTLES_WRITTEN_OFF",
+  DEPOSIT_PROGRAM_ENABLED: "DEPOSIT_PROGRAM_ENABLED",
+  DEPOSIT_PROGRAM_DISABLED: "DEPOSIT_PROGRAM_DISABLED",
 } as const;
 export type AuditEventType = EnumValue<typeof AuditEventType>;
 
@@ -284,6 +303,8 @@ export const INVENTORY_MOVEMENT_TYPE_VALUES = [
   "MANUAL_CORRECTION",
   "LOSS_WRITE_OFF",
   "PURCHASE_IN",
+  "DEPOSIT_LOAN_OUT",
+  "DEPOSIT_RETURN_IN",
 ] as const;
 
 export const InventoryMovementType = {
@@ -296,8 +317,25 @@ export const InventoryMovementType = {
   MANUAL_CORRECTION: "MANUAL_CORRECTION",
   LOSS_WRITE_OFF: "LOSS_WRITE_OFF",
   PURCHASE_IN: "PURCHASE_IN",
+  DEPOSIT_LOAN_OUT: "DEPOSIT_LOAN_OUT",
+  DEPOSIT_RETURN_IN: "DEPOSIT_RETURN_IN",
 } as const;
 export type InventoryMovementType = EnumValue<typeof InventoryMovementType>;
+
+export const DEPOSIT_MOVEMENT_TYPE_VALUES = [
+  "LOAN_OUT",
+  "RETURN_IN",
+  "MANUAL_ADJUSTMENT",
+  "WRITE_OFF",
+] as const;
+
+export const DepositMovementType = {
+  LOAN_OUT: "LOAN_OUT",
+  RETURN_IN: "RETURN_IN",
+  MANUAL_ADJUSTMENT: "MANUAL_ADJUSTMENT",
+  WRITE_OFF: "WRITE_OFF",
+} as const;
+export type DepositMovementType = EnumValue<typeof DepositMovementType>;
 
 export const INVENTORY_REFERENCE_TYPE_VALUES = [
   "ORDER",

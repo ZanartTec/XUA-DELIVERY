@@ -23,6 +23,7 @@
     "test:coverage": "vitest run --coverage",
     "payments:webhook:reprocess": "tsx scripts/reprocess-payment-webhook.ts",
     "enums:check": "tsx scripts/check-enums.ts",
+    "seed:caucao": "tsx prisma/seed-caucao.ts",
     "postinstall": "prisma generate",
     "shared:check": "tsc -p packages/shared/tsconfig.json --noEmit"
   },

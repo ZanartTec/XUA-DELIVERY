@@ -11,6 +11,7 @@ import {
   OtpStatus,
   DepositStatus,
   InventoryItemType,
+  ProductKind,
   ActorType,
   SourceApp,
   AuditEventType,
@@ -30,6 +31,7 @@ const ID = {
   // Produtos
   product20l:        "00000000-0000-4000-a000-000000000001",
   product10l:        "00000000-0000-4000-a000-000000000002",
+  productBottle20l:  "00000000-0000-4000-a000-000000000003",
 
   // Categorias
   categoryMineral:   "00000000-0000-4000-a000-000000002001",
@@ -41,6 +43,7 @@ const ID = {
   inventorySellable20l: "00000000-0000-4000-a000-000000001201",
   inventorySellable10l: "00000000-0000-4000-a000-000000001202",
   inventoryEmpty20l:    "00000000-0000-4000-a000-000000001203",
+  inventoryBottle20l:   "00000000-0000-4000-a000-000000001204",
 
   // Distribuidoras
   distributor:       "00000000-0000-4000-a000-000000000010",  // Xuá JF (principal)
@@ -208,8 +211,8 @@ async function main() {
   // USUÁRIOS
   // ════════════════════════════════════════════════════════════════
   const users = [
-    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(32) 99001-1001" },
-    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(32) 99001-1006" },
+    { id: ID.consumer,     name: "João da Silva",      email: "joao@xua.com.br",    role: ConsumerRole.CONSUMER,          phone: "(32) 99001-1001", document: "39053344705" },
+    { id: ID.consumer2,    name: "Maria Fernandes",    email: "maria@xua.com.br",   role: ConsumerRole.CONSUMER,          phone: "(32) 99001-1006", document: "11144477735" },
     { id: ID.adminUser,    name: "Ana Distribuidora",  email: "admin@xua.com.br",   role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(32) 99001-1002", distributor_id: ID.distributor },
     { id: ID.adminUser2,   name: "Bruno ÁguaFácil",    email: "admin2@xua.com.br",  role: ConsumerRole.DISTRIBUTOR_ADMIN, phone: "(32) 99001-1007", distributor_id: ID.distributor2 },
     { id: ID.driver,       name: "Carlos Motorista",   email: "driver@xua.com.br",  role: ConsumerRole.DRIVER,            phone: "(32) 99001-1003", distributor_id: ID.distributor },
@@ -217,12 +220,28 @@ async function main() {
     { id: ID.supportUser,  name: "Pedro Suporte",      email: "support@xua.com.br", role: ConsumerRole.SUPPORT,           phone: "(32) 99001-1005" },
   ];
   for (const u of users) {
+    const { document: _doc, ...rest } = u as typeof u & { document?: string };
+    const document = (u as any).document ?? null;
     await prisma.consumer.upsert({
       where: { id: u.id },
-      update: { name: u.name, email: u.email, phone: u.phone ?? null, role: u.role, distributor_id: (u as any).distributor_id ?? null },
-      create: { ...u, password_hash: passwordHash },
+      update: { name: u.name, email: u.email, phone: u.phone ?? null, role: u.role, distributor_id: (u as any).distributor_id ?? null, document },
+      create: { ...rest, password_hash: passwordHash, document },
     });
   }
+
+  // Programa de caução: João habilitado na distribuidora Xuá JF (limite 6).
+  await prisma.consumerDepositProgram.upsert({
+    where: { distributor_id_consumer_id: { distributor_id: ID.distributor, consumer_id: ID.consumer } },
+    update: { is_enabled: true, max_bottles: 6, consumer_document_snapshot: "39053344705", enabled_by: ID.adminUser },
+    create: {
+      distributor_id: ID.distributor,
+      consumer_id: ID.consumer,
+      consumer_document_snapshot: "39053344705",
+      is_enabled: true,
+      max_bottles: 6,
+      enabled_by: ID.adminUser,
+    },
+  });
   console.log("✅ Usuários: joao, maria, admin, admin2, driver, ops, support — senha: senha123");
 
   // ════════════════════════════════════════════════════════════════
@@ -312,6 +331,18 @@ async function main() {
   // PRODUTOS
   // ════════════════════════════════════════════════════════════════
   const products = [
+    // Vasilhame (BOTTLE) — produto próprio, vendido quando faltam vazios e usado em caução.
+    {
+      id: ID.productBottle20l,
+      name: "Vasilhame 20L",
+      description: "Garrafão retornável de 20L (vasilhame).",
+      image_url: null,
+      price_cents: 2000,
+      deposit_cents: 0,
+      kind: ProductKind.BOTTLE,
+      bottle_product_id: null,
+      is_active: true,
+    },
     {
       id: ID.product20l,
       name: "Galão de Água 20L",
@@ -319,6 +350,8 @@ async function main() {
       image_url: null,
       price_cents: 2500,
       deposit_cents: 1000,
+      kind: ProductKind.WATER,
+      bottle_product_id: ID.productBottle20l,
       is_active: true,
     },
     {
@@ -328,13 +361,25 @@ async function main() {
       image_url: null,
       price_cents: 1500,
       deposit_cents: 500,
+      kind: ProductKind.WATER,
+      bottle_product_id: null,
       is_active: true,
     },
   ];
   for (const p of products) {
-    await prisma.product.upsert({ where: { id: p.id }, update: {}, create: p });
+    const { bottle_product_id, ...rest } = p;
+    await prisma.product.upsert({
+      where: { id: p.id },
+      update: { kind: p.kind, bottle_product_id },
+      create: rest,
+    });
   }
-  console.log("✅ Produtos: Galão 20L (R$25,00 + R$10,00 depósito), Garrafão 10L (R$15,00 + R$5,00 depósito)");
+  // Vínculo água→vasilhame (após ambos existirem).
+  await prisma.product.update({
+    where: { id: ID.product20l },
+    data: { bottle_product_id: ID.productBottle20l },
+  });
+  console.log("✅ Produtos: Vasilhame 20L (R$20,00), Galão 20L (R$25,00), Garrafão 10L (R$15,00)");
 
   // ════════════════════════════════════════════════════════════════
   // CATEGORIAS
@@ -411,6 +456,18 @@ async function main() {
       product_id: null,
       unit_label: "un",
       low_stock_threshold: 5,
+      is_active: true,
+    },
+    {
+      // Item de estoque do vasilhame-produto: vendido (ORDER_ACCEPT_OUT) e
+      // emprestado em caução (DEPOSIT_LOAN_OUT) a partir do mesmo saldo.
+      id: ID.inventoryBottle20l,
+      code: "BOTTLE20L",
+      name: "Vasilhame 20L (vendável)",
+      type: InventoryItemType.SELLABLE_PRODUCT,
+      product_id: ID.productBottle20l,
+      unit_label: "un",
+      low_stock_threshold: 10,
       is_active: true,
     },
   ];

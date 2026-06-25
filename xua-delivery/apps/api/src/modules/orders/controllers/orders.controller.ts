@@ -222,6 +222,7 @@ export const ordersController = {
         timeSlotId: parsed.data.time_slot_id ?? null,
         paymentMethod: parsed.data.payment_method,
         cashChangeForCents: parsed.data.cash_change_for_cents ?? null,
+        emptyBottles: parsed.data.empty_bottles,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;
           return {
@@ -518,7 +519,8 @@ export const ordersController = {
 
     try {
       const order = await orderService.recordBottleExchange(id, user.sub, {
-        collectedQty: parsed.data.returned_empty_qty,
+        // Vazios coletados do consumidor (settlement). Default = returned_empty_qty (compat).
+        collectedQty: parsed.data.collected_empty_qty ?? parsed.data.returned_empty_qty,
         returnedQty: parsed.data.returned_empty_qty,
         condition: parsed.data.bottle_condition,
       });

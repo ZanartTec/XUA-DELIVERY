@@ -153,7 +153,16 @@ export const createOrderSchema = z.object({
       })
     )
     .min(1, "Adicione ao menos um item"),
-  empty_bottles_qty: z.number().int().min(0).default(0),
+  // Vazios para troca, por tipo de vasilhame (settlement de caução).
+  empty_bottles: z
+    .array(
+      z.object({
+        bottle_product_id: z.string().uuid("Vasilhame inválido"),
+        quantity: z.number().int().min(0),
+      })
+    )
+    .optional()
+    .default([]),
   payment_method: z.enum(CHECKOUT_PAYMENT_METHOD_VALUES).default(DEFAULT_CHECKOUT_PAYMENT_METHOD),
   cash_change_for_cents: z.number().int().min(0).nullable().optional(),
 }).superRefine((data, ctx) => {
@@ -175,6 +184,10 @@ export type RatingInput = z.infer<typeof ratingSchema>;
 
 export const bottleExchangeSchema = z.object({
   driver_id: z.string().uuid(),
+  // Vazios efetivamente coletados do consumidor na entrega (settlement de caução).
+  // Quando ausente, assume-se igual a returned_empty_qty (compat retroativa).
+  collected_empty_qty: z.number().int().min(0, "Quantidade inválida").optional(),
+  // Vazios devolvidos ao estoque da distribuidora (RETURNABLE_EMPTY in).
   returned_empty_qty: z.number().int().min(0, "Quantidade inválida"),
   bottle_condition: z.enum(BOTTLE_CONDITION_VALUES),
 });

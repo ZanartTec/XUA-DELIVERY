@@ -30,7 +30,7 @@ import { auditRepository } from "../../audit/audit.repository.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 import { inventoryService, InventoryServiceError } from "../../inventory/services/inventory.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
-import { depositService } from "../../consumers/services/deposit.service.js";
+import { depositSettlementService } from "../../deposits/services/deposit-settlement.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import {
@@ -647,6 +647,8 @@ export const orderService = {
      * `paymentMethod` aqui é só metadado — não há nada a proteger validando.
      */
     skipPaymentMethodValidation?: boolean;
+    /** Vazios declarados pelo consumidor, por tipo de vasilhame (settlement). */
+    emptyBottles?: Array<{ bottle_product_id: string; quantity: number }>;
     items: Array<{
       product_id: string;
       product_name: string;
@@ -673,15 +675,7 @@ export const orderService = {
     );
 
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const [previousOrdersCount, distributorPaymentSettings] = await Promise.all([
-        tx.order.count({
-          where: {
-            consumer_id: data.consumerId,
-            status: { not: OrderStatus.CANCELLED },
-          },
-        }),
-        paymentSettingsPromise,
-      ]);
+      const distributorPaymentSettings = await paymentSettingsPromise;
 
       if (
         !data.skipPaymentMethodValidation &&
@@ -697,11 +691,47 @@ export const orderService = {
         );
       }
 
-      const isFirstPurchase = previousOrdersCount === 0;
-      const depositAmountCents = isFirstPurchase
-        ? depositService.getDepositAmountCents()
-        : 0;
-      const totalCents = subtotalCents + depositAmountCents;
+      // Settlement de vasilhames (caução de vasilhames), por vasilhame-produto:
+      // - DEFAULT = venda dos vasilhames faltantes → vira item de venda real (vasilhame-produto);
+      // - caução só p/ consumidor com vínculo ativo na distribuidora escolhida e dentro do limite.
+      // Toda a decisão é do backend; o front só informa vazios por tipo de vasilhame.
+      const emptiesByBottle = new Map<string, number>(
+        (data.emptyBottles ?? []).map((e) => [e.bottle_product_id, Math.max(0, e.quantity)])
+      );
+      const bottleGroups = await depositSettlementService.resolveBottleGroups(
+        data.items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        tx
+      );
+      const settledBottles = await depositSettlementService.settlePerBottle(
+        {
+          distributorId: data.distributorId,
+          consumerId: data.consumerId,
+          groups: bottleGroups,
+          emptiesByBottle,
+        },
+        tx
+      );
+      const bottleAgg = settledBottles.reduce(
+        (acc, s) => {
+          acc.fullOrdered += s.bottlesOrdered;
+          acc.provided += s.emptiesProvided;
+          acc.sold += s.sold;
+          acc.loaned += s.loaned;
+          acc.soldAmountCents += s.sold * s.bottleUnitPriceCents;
+          return acc;
+        },
+        { fullOrdered: 0, provided: 0, sold: 0, loaned: 0, soldAmountCents: 0 }
+      );
+      // Itens de venda do vasilhame faltante (adicionados pelo backend).
+      const soldBottleItems = settledBottles
+        .filter((s) => s.sold > 0)
+        .map((s) => ({
+          product_id: s.bottleProductId,
+          product_name: s.bottleProductName,
+          unit_price_cents: s.bottleUnitPriceCents,
+          quantity: s.sold,
+        }));
+      const totalCents = subtotalCents + bottleAgg.soldAmountCents;
 
       if (!isCashPayment && cashChangeForCents != null) {
         throw new OrderServiceError(
@@ -753,8 +783,14 @@ export const orderService = {
           scheduled_time_end_hour: scheduledSnapshot.endHour,
           scheduled_time_end_minute: scheduledSnapshot.endMinute,
           subtotal_cents: subtotalCents,
-          deposit_cents: depositAmountCents,
+          // Caução financeira removida — sempre 0 (campos deprecated).
+          deposit_cents: 0,
           total_cents: totalCents,
+          // Settlement de vasilhames (agregados; detalhe por tipo nos itens/ledger)
+          bottles_full_ordered: bottleAgg.fullOrdered,
+          empty_bottles_provided: bottleAgg.provided,
+          bottles_sold: bottleAgg.sold,
+          bottles_loaned: bottleAgg.loaned,
           rating: null,
           rating_comment: null,
           nps_score: null,
@@ -770,16 +806,16 @@ export const orderService = {
           dispatched_at: null,
           delivered_at: null,
           driver_id: null,
-          deposit_amount_cents: depositAmountCents,
+          deposit_amount_cents: 0,
           qty_20l_sent: null,
           qty_20l_returned: null,
         },
         tx
       );
 
-      // Insere items do pedido
+      // Insere items do pedido + vasilhames vendidos (adicionados pelo settlement).
       await tx.orderItem.createMany({
-        data: data.items.map((item) => ({
+        data: [...data.items, ...soldBottleItems].map((item) => ({
           order_id: created.id,
           product_id: item.product_id,
           product_name: item.product_name,
@@ -838,16 +874,6 @@ export const orderService = {
             payload: { payment_method: CASH_PAYMENT_METHOD },
           },
           tx
-        );
-      }
-
-      if (isFirstPurchase) {
-        await depositService.holdDeposit(
-          data.consumerId,
-          created.id,
-          depositAmountCents,
-          tx,
-          { isFirstPurchase: true }
         );
       }
 
@@ -1696,6 +1722,26 @@ export const orderService = {
           collected_empty_qty: data.collectedQty,
           returned_empty_qty: data.returnedQty,
           bottle_condition: data.condition ?? null,
+        },
+        tx
+      );
+
+      // Settlement de caução de vasilhames com contagem REAL da entrega:
+      // empresta faltantes elegíveis e abate dívida com vazios excedentes.
+      // Idempotente por order_id. Resolve vasilhames a partir dos itens (água→vasilhame).
+      const orderItems = await tx.orderItem.findMany({
+        where: { order_id: orderId },
+        select: { product_id: true, quantity: true },
+      });
+      await depositSettlementService.settleDelivery(
+        {
+          orderId,
+          distributorId: current.distributor_id,
+          consumerId: current.consumer_id,
+          items: orderItems,
+          collectedEmpties: data.collectedQty,
+          actor: { type: ActorType.DRIVER, id: driverId },
+          sourceApp: SourceApp.DRIVER_WEB,
         },
         tx
       );

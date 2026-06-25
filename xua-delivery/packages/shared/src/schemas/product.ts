@@ -1,18 +1,33 @@
 import { z } from "zod";
+import { PRODUCT_KIND_VALUES } from "../enums/index";
 
 const NAME = z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max(120);
 const DESCRIPTION = z.string().trim().max(2000).nullish();
 const IMAGE_URL = z.string().trim().url("URL de imagem inválida").max(2048).nullish();
 const PRICE_CENTS = z.number().int("Preço deve ser inteiro (centavos)").positive("Preço deve ser positivo");
 const DEPOSIT_CENTS = z.number().int().min(0, "Caução não pode ser negativo").default(0);
+const KIND = z.enum(PRODUCT_KIND_VALUES);
+const BOTTLE_PRODUCT_ID = z.string().uuid("Vasilhame inválido").nullish();
 
-export const productCreateSchema = z.object({
-  name: NAME,
-  description: DESCRIPTION,
-  image_url: IMAGE_URL,
-  price_cents: PRICE_CENTS,
-  deposit_cents: DEPOSIT_CENTS.optional(),
-});
+export const productCreateSchema = z
+  .object({
+    name: NAME,
+    description: DESCRIPTION,
+    image_url: IMAGE_URL,
+    price_cents: PRICE_CENTS,
+    deposit_cents: DEPOSIT_CENTS.optional(),
+    kind: KIND.optional(),
+    bottle_product_id: BOTTLE_PRODUCT_ID,
+  })
+  .superRefine((data, ctx) => {
+    if (data.bottle_product_id && data.kind !== "WATER") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bottle_product_id"],
+        message: "Apenas produtos do tipo WATER podem vincular um vasilhame",
+      });
+    }
+  });
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 
 export const productUpdateSchema = z
@@ -22,6 +37,8 @@ export const productUpdateSchema = z
     image_url: IMAGE_URL,
     price_cents: PRICE_CENTS.optional(),
     deposit_cents: DEPOSIT_CENTS.optional(),
+    kind: KIND.optional(),
+    bottle_product_id: BOTTLE_PRODUCT_ID,
     is_active: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {

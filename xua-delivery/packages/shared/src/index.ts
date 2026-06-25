@@ -11,6 +11,7 @@ export * from "./schemas/distributor";
 export * from "./schemas/distributor-payment-settings";
 export * from "./schemas/schedule";
 export * from "./schemas/product";
+export * from "./schemas/deposit";
 export * from "./schemas/banner";
 export * from "./schemas/inventory";
 export * from "./schemas/subscription-plan";

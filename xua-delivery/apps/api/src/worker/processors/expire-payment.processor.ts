@@ -2,7 +2,6 @@ import type { Job } from "bullmq";
 import {
   ActorType,
   AuditEventType,
-  DepositStatus,
   OrderStatus,
   PaymentStatus,
   SourceApp,
@@ -32,7 +31,6 @@ type ExpirationResult =
       orderId: string;
       paymentId: string | undefined;
       consumerId: string;
-      depositsCancelled: number;
     };
 
 /**
@@ -123,18 +121,9 @@ export async function processPaymentExpiration(
       },
     });
 
-    // 3. Cancelar caução (nova status CANCELLED — pagamento nunca foi capturado)
-    const cancelledDeposits = await tx.deposit.updateMany({
-      where: {
-        order_id: orderId,
-        status: DepositStatus.HELD,
-      },
-      data: {
-        status: DepositStatus.CANCELLED,
-      },
-    });
-
-    // 4. Audit log
+    // 3. Audit log
+    // (Caução de vasilhames não é cancelada aqui: o empréstimo só ocorre na entrega,
+    //  então um pedido expirado por falta de pagamento nunca terá caução a reverter.)
     await auditRepository.emit(
       {
         eventType: AuditEventType.PAYMENT_EXPIRED,
@@ -146,7 +135,6 @@ export async function processPaymentExpiration(
           paymentId: payment?.id ?? null,
           previousOrderStatus: order.status,
           previousPaymentStatus: payment?.status ?? null,
-          depositsCancelled: cancelledDeposits.count,
           reason: cancellationReason,
         },
       },
@@ -157,7 +145,6 @@ export async function processPaymentExpiration(
       {
         orderId,
         paymentId: payment?.id,
-        depositsCancelled: cancelledDeposits.count,
         correlationId,
       },
       "Order expired due to payment timeout"
@@ -168,7 +155,6 @@ export async function processPaymentExpiration(
       orderId,
       paymentId: payment?.id,
       consumerId: order.consumer_id,
-      depositsCancelled: cancelledDeposits.count,
     };
   }, { maxWait: 10_000, timeout: 15_000 });
 
