@@ -3,7 +3,6 @@ import type { Order } from "@prisma/client";
 import {
   ActorType,
   AuditEventType,
-  DeliveryDateStatus,
   DeliveryWindow,
   InventoryMovementType,
   InventoryReferenceType,
@@ -24,7 +23,6 @@ import {
   type DistributorQueueStageInput,
 } from "@xua/shared/schemas/order";
 import { getPrisma } from "../../../infra/prisma/client.js";
-import { getIO } from "../../../infra/socket/gateway.js";
 import { orderRepository, type OrderForQueue, type OrderWithItems } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
@@ -33,6 +31,8 @@ import { scheduleService } from "../../distributor/services/schedule.service.js"
 import { depositSettlementService } from "../../deposits/services/deposit-settlement.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
 import { otpService } from "../../driver/services/otp.service.js";
+import { buildDistributorOrderOriginContext } from "./order-presentation.service.js";
+import { orderEventsPublisher } from "./order-events.publisher.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import {
   distributorGatewayService,
@@ -41,6 +41,15 @@ import {
 } from "../../distributor-gateway/index.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import redis from "../../../infra/redis/client.js";
+import { OrderServiceError } from "../errors.js";
+import {
+  assertTransition,
+  ASSIGNABLE_DRIVER_STATUSES,
+  CANCEL_AUTO_RETURN_STATUSES,
+  CANCEL_EXPLICIT_RETURN_STATUSES,
+} from "../state-machine/order-state-machine.js";
+
+export { OrderServiceError };
 
 const log = createLogger("orders");
 
@@ -59,50 +68,6 @@ const CASH_PAYMENT_CAPTURABLE_STATUSES = new Set<PaymentStatus>([
   PaymentStatus.AUTHORIZED,
 ]);
 
-// ARCH-03: Máquina de estados — transições válidas (com estados intermediários)
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  [OrderStatus.CREATED]: [OrderStatus.PAYMENT_PENDING, OrderStatus.CANCELLED],
-  [OrderStatus.PAYMENT_PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
-  [OrderStatus.CONFIRMED]: [OrderStatus.SENT_TO_DISTRIBUTOR, OrderStatus.CANCELLED],
-  [OrderStatus.SENT_TO_DISTRIBUTOR]: [
-    OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
-    OrderStatus.REJECTED_BY_DISTRIBUTOR,
-    OrderStatus.CANCELLED,
-  ],
-  [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: [OrderStatus.READY_FOR_DISPATCH, OrderStatus.CANCELLED],
-  [OrderStatus.REJECTED_BY_DISTRIBUTOR]: [],
-  [OrderStatus.READY_FOR_DISPATCH]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CANCELLED],
-  [OrderStatus.OUT_FOR_DELIVERY]: [
-    OrderStatus.DELIVERED,
-    OrderStatus.DELIVERY_FAILED,
-    OrderStatus.CANCELLED,
-  ],
-  [OrderStatus.DELIVERED]: [],
-  [OrderStatus.DELIVERY_FAILED]: [OrderStatus.REDELIVERY_SCHEDULED, OrderStatus.CANCELLED],
-  [OrderStatus.REDELIVERY_SCHEDULED]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CANCELLED],
-  [OrderStatus.CANCELLED]: [],
-};
-
-function assertTransition(currentStatus: string, newStatus: string): void {
-  const allowed = VALID_TRANSITIONS[currentStatus];
-  if (!allowed || !allowed.includes(newStatus)) {
-    throw new OrderServiceError(
-      "INVALID_TRANSITION",
-      `Transição inválida: ${currentStatus} → ${newStatus}`
-    );
-  }
-}
-
-export class OrderServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
-    this.name = "OrderServiceError";
-  }
-}
-
 type OrderInventoryLine = {
   productId: string;
   productName: string;
@@ -115,17 +80,6 @@ type OrderInventoryLine = {
 type StockReturnOptions = {
   returnToStock?: boolean;
 };
-
-const CANCEL_AUTO_RETURN_STATUSES = new Set<string>([
-  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
-  OrderStatus.READY_FOR_DISPATCH,
-]);
-
-const CANCEL_EXPLICIT_RETURN_STATUSES = new Set<string>([
-  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
-  OrderStatus.READY_FOR_DISPATCH,
-  OrderStatus.OUT_FOR_DELIVERY,
-]);
 
 function translateInventoryError(error: unknown): never {
   if (error instanceof InventoryServiceError) {
@@ -320,79 +274,12 @@ function inventoryAuditLines(lines: OrderInventoryLine[]) {
   }));
 }
 
-/**
- * Snapshot do horário de entrega gravado no próprio pedido (Order),
- * de forma a não depender de TimeSlot que pode ser alterado/removido depois.
- *
- * Prioridade:
- *   1. TimeSlot referenciado (label + faixa exatas configuradas pela distribuidora)
- *   2. preferred_time_start/end (faixa customizada do consumidor)
- *   3. Fallback determinístico por DeliveryWindow (MORNING 08:00-12:00, AFTERNOON 13:00-18:00)
- */
-type ScheduledTimeSnapshot = {
-  label: string | null;
-  startHour: number | null;
-  startMinute: number | null;
-  endHour: number | null;
-  endMinute: number | null;
-};
-
-const WINDOW_FALLBACK: Record<DeliveryWindow, { label: string; startHour: number; endHour: number }> = {
-  [DeliveryWindow.MORNING]: { label: "Manhã (08:00–12:00)", startHour: 8, endHour: 12 },
-  [DeliveryWindow.AFTERNOON]: { label: "Tarde (13:00–18:00)", startHour: 13, endHour: 18 },
-};
-
-function pad2(n: number): string {
-  return n.toString().padStart(2, "0");
-}
-
-type NewSubscriptionDeliveryContext = NonNullable<OrderForQueue["subscription_delivery_date"]>;
-
-type DistributorOrderOriginContext = {
-  order_origin: "cart" | "subscription";
-  user_subscription_id: string | null;
-  subscription_delivery_date_id: string | null;
-  subscription_plan_name: string | null;
-  subscription_status: string | null;
-  subscription_delivery_status: string | null;
-  delivery_sequence: number | null;
-  total_deliveries: number | null;
-  completed_deliveries: number | null;
-  remaining_deliveries: number | null;
-  remaining_after_current: number | null;
-  quantity_for_this_delivery: number | null;
-  subscription_total_quantity: number | null;
-  subscription_remaining_quantity: number | null;
-};
-
-const CART_ORDER_CONTEXT: DistributorOrderOriginContext = {
-  order_origin: "cart",
-  user_subscription_id: null,
-  subscription_delivery_date_id: null,
-  subscription_plan_name: null,
-  subscription_status: null,
-  subscription_delivery_status: null,
-  delivery_sequence: null,
-  total_deliveries: null,
-  completed_deliveries: null,
-  remaining_deliveries: null,
-  remaining_after_current: null,
-  quantity_for_this_delivery: null,
-  subscription_total_quantity: null,
-  subscription_remaining_quantity: null,
-};
-
 const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, OrderStatus[]> = {
   all: [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[],
   incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
   preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
   route: [OrderStatus.OUT_FOR_DELIVERY],
 };
-
-const ASSIGNABLE_DRIVER_STATUSES = new Set<string>([
-  OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
-  OrderStatus.READY_FOR_DISPATCH,
-]);
 
 async function resolveDistributorIdForUser(distributorUserId: string): Promise<string> {
   const distributorId = await distributorRepository.resolveDistributorId(distributorUserId);
@@ -407,15 +294,6 @@ async function assertDriverBelongsToDistributor(distributorId: string, driverId:
   if (!drivers.some((driver) => driver.id === driverId)) {
     throw new OrderServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado para esta distribuidora");
   }
-}
-
-function emitDistributorOrderStatusChanged(order: Order, status: OrderStatus, payload: Record<string, unknown> = {}) {
-  getIO().to(`distributor:${order.distributor_id}`).emit("order_status_changed", {
-    orderId: order.id,
-    status,
-    driverId: order.driver_id ?? null,
-    ...payload,
-  });
 }
 
 function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>) {
@@ -456,114 +334,6 @@ function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, 
     address: undefined,
     items: undefined,
     subscription_delivery_date: undefined,
-  };
-}
-
-function isCancelledDeliveryDate(status: unknown): boolean {
-  return status === DeliveryDateStatus.CANCELLED || status === "cancelled";
-}
-
-function sortSubscriptionDeliveryDates(
-  deliveryDates: NewSubscriptionDeliveryContext["user_subscription"]["delivery_dates"]
-) {
-  return [...deliveryDates].sort((a, b) => {
-    const dateDiff = new Date(a.delivery_date).getTime() - new Date(b.delivery_date).getTime();
-    if (dateDiff !== 0) return dateDiff;
-    const createdDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    if (createdDiff !== 0) return createdDiff;
-    return a.id.localeCompare(b.id);
-  });
-}
-
-function buildDistributorOrderOriginContext(order: {
-  subscription_delivery_date?: NewSubscriptionDeliveryContext | null;
-}): DistributorOrderOriginContext {
-  const subscriptionDeliveryDate = order.subscription_delivery_date;
-  if (!subscriptionDeliveryDate) return CART_ORDER_CONTEXT;
-
-  const userSubscription = subscriptionDeliveryDate.user_subscription;
-  const deliveryDates = sortSubscriptionDeliveryDates(userSubscription.delivery_dates).filter(
-    (deliveryDate) =>
-      deliveryDate.id === subscriptionDeliveryDate.id || !isCancelledDeliveryDate(deliveryDate.status)
-  );
-  const deliveryIndex = deliveryDates.findIndex(
-    (deliveryDate) => deliveryDate.id === subscriptionDeliveryDate.id
-  );
-  const deliverySequence = deliveryIndex >= 0 ? deliveryIndex + 1 : null;
-  const totalDeliveries = deliveryDates.length || null;
-  const completedDeliveries = deliverySequence == null ? null : Math.max(deliverySequence - 1, 0);
-  const remainingAfterCurrent =
-    deliverySequence == null || totalDeliveries == null
-      ? null
-      : Math.max(totalDeliveries - deliverySequence, 0);
-
-  return {
-    order_origin: "subscription",
-    user_subscription_id: userSubscription.id,
-    subscription_delivery_date_id: subscriptionDeliveryDate.id,
-    subscription_plan_name: userSubscription.plan.name,
-    subscription_status: userSubscription.status,
-    subscription_delivery_status: subscriptionDeliveryDate.status,
-    delivery_sequence: deliverySequence,
-    total_deliveries: totalDeliveries,
-    completed_deliveries: completedDeliveries,
-    remaining_deliveries: remainingAfterCurrent,
-    remaining_after_current: remainingAfterCurrent,
-    quantity_for_this_delivery: subscriptionDeliveryDate.quantity_for_this_delivery,
-    subscription_total_quantity: userSubscription.total_quantity,
-    subscription_remaining_quantity: userSubscription.remaining_quantity,
-  };
-}
-
-async function resolveScheduledTimeSnapshot(
-  tx: TxClient,
-  input: {
-    timeSlotId: string | null;
-    distributorId: string;
-    deliveryWindow: DeliveryWindow;
-    preferredTimeStart: number | null;
-    preferredTimeEnd: number | null;
-  }
-): Promise<ScheduledTimeSnapshot> {
-  if (input.timeSlotId) {
-    const slot = await tx.timeSlot.findFirst({
-      where: { id: input.timeSlotId, distributor_id: input.distributorId },
-      select: {
-        label: true,
-        start_hour: true,
-        start_minute: true,
-        end_hour: true,
-        end_minute: true,
-      },
-    });
-    if (slot) {
-      return {
-        label: slot.label,
-        startHour: slot.start_hour,
-        startMinute: slot.start_minute,
-        endHour: slot.end_hour,
-        endMinute: slot.end_minute,
-      };
-    }
-  }
-
-  if (input.preferredTimeStart != null && input.preferredTimeEnd != null) {
-    return {
-      label: `${pad2(input.preferredTimeStart)}:00–${pad2(input.preferredTimeEnd)}:00`,
-      startHour: input.preferredTimeStart,
-      startMinute: 0,
-      endHour: input.preferredTimeEnd,
-      endMinute: 0,
-    };
-  }
-
-  const fb = WINDOW_FALLBACK[input.deliveryWindow];
-  return {
-    label: fb.label,
-    startHour: fb.startHour,
-    startMinute: 0,
-    endHour: fb.endHour,
-    endMinute: 0,
   };
 }
 
@@ -768,7 +538,7 @@ export const orderService = {
 
       // Snapshot imutável do horário de entrega no momento da criação.
       // Garante que alterações futuras em TimeSlot não afetem o histórico do pedido.
-      const scheduledSnapshot = await resolveScheduledTimeSnapshot(tx, {
+      const scheduledSnapshot = await scheduleService.resolveScheduledTimeSnapshot(tx, {
         timeSlotId: data.timeSlotId ?? null,
         distributorId: data.distributorId,
         deliveryWindow: data.deliveryWindow,
@@ -825,16 +595,7 @@ export const orderService = {
       );
 
       // Insere items do pedido + vasilhames vendidos (adicionados pelo settlement).
-      await tx.orderItem.createMany({
-        data: [...data.items, ...soldBottleItems].map((item) => ({
-          order_id: created.id,
-          product_id: item.product_id,
-          product_name: item.product_name,
-          unit_price_cents: item.unit_price_cents,
-          quantity: item.quantity,
-          subtotal_cents: item.unit_price_cents * item.quantity,
-        })),
-      });
+      await orderRepository.createItems(created.id, [...data.items, ...soldBottleItems], tx);
 
       // Evento de auditoria na mesma transação
       await auditRepository.emit(
@@ -988,8 +749,7 @@ export const orderService = {
     }, { maxWait: 10000, timeout: 10000 });
 
     // Socket.io pós-commit: notifica distribuidor (sala da empresa)
-    const io = getIO();
-    io.to(`distributor:${order.distributor_id}`).emit("new_order", {
+    orderEventsPublisher.notifyDistributor(order.distributor_id, "new_order", {
       orderId,
       status: OrderStatus.SENT_TO_DISTRIBUTOR,
     });
@@ -1050,12 +810,11 @@ export const orderService = {
     });
 
     // Socket.io SOMENTE após commit (seção 3.3)
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
     });
-    emitDistributorOrderStatusChanged(order, OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
 
     return order;
   },
@@ -1096,12 +855,11 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.REJECTED_BY_DISTRIBUTOR,
     });
-    emitDistributorOrderStatusChanged(order, OrderStatus.REJECTED_BY_DISTRIBUTOR);
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.REJECTED_BY_DISTRIBUTOR);
 
     return order;
   },
@@ -1137,7 +895,7 @@ export const orderService = {
       return updated;
     });
 
-    emitDistributorOrderStatusChanged(order, order.status as OrderStatus, { driverId });
+    orderEventsPublisher.distributorOrderStatusChanged(order, order.status as OrderStatus, { driverId });
 
     return order;
   },
@@ -1172,7 +930,7 @@ export const orderService = {
       return updated;
     });
 
-    emitDistributorOrderStatusChanged(order, OrderStatus.READY_FOR_DISPATCH);
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.READY_FOR_DISPATCH);
 
     return order;
   },
@@ -1228,15 +986,14 @@ export const orderService = {
     // comitou — evita expor um OTP cujo registro em Postgres foi revertido.
     await otpService.cacheCode(orderId, otpCode);
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
-    emitDistributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
     // Notifica driver
-    io.to(`driver:${driverId}`).emit("new_delivery", {
+    orderEventsPublisher.notifyDriver(driverId, "new_delivery", {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
@@ -1329,14 +1086,13 @@ export const orderService = {
     // comitou — evita expor um OTP cujo registro em Postgres foi revertido.
     await otpService.cacheCode(orderId, otpCode);
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
-    emitDistributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
-    io.to(`driver:${driverId}`).emit("new_delivery", {
+    orderEventsPublisher.notifyDriver(driverId, "new_delivery", {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
@@ -1421,8 +1177,7 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.DELIVERED,
     });
@@ -1503,8 +1258,7 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.DELIVERY_FAILED,
     });
@@ -1543,8 +1297,7 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.REDELIVERY_SCHEDULED,
     });
@@ -1636,8 +1389,7 @@ export const orderService = {
       return updated;
     });
 
-    const io = getIO();
-    io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.CANCELLED,
     });
@@ -1765,10 +1517,7 @@ export const orderService = {
       // Settlement de caução de vasilhames com contagem REAL da entrega:
       // empresta faltantes elegíveis e abate dívida com vazios excedentes.
       // Idempotente por order_id. Resolve vasilhames a partir dos itens (água→vasilhame).
-      const orderItems = await tx.orderItem.findMany({
-        where: { order_id: orderId },
-        select: { product_id: true, quantity: true },
-      });
+      const orderItems = await orderRepository.findItemsByOrderId(orderId, tx);
       await depositSettlementService.settleDelivery(
         {
           orderId,

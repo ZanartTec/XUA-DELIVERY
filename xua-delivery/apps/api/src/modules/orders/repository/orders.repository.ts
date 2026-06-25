@@ -276,23 +276,6 @@ export const orderRepository = {
     });
   },
 
-  async findByConsumer(
-    consumerId: string,
-    options?: { status?: OrderStatus; limit?: number; offset?: number },
-    tx?: TxClient
-  ): Promise<Order[]> {
-    const prisma = getPrisma();
-    return (tx ?? prisma).order.findMany({
-      where: {
-        consumer_id: consumerId,
-        ...(options?.status ? { status: options.status } : {}),
-      },
-      orderBy: { created_at: "desc" },
-      ...(options?.limit ? { take: options.limit } : {}),
-      ...(options?.offset ? { skip: options.offset } : {}),
-    });
-  },
-
   /**
    * Lista pedidos paginados de um consumidor, aplicando filtros no banco.
    * Retorna também contagens por grupo para os chips de filtro.
@@ -364,27 +347,6 @@ export const orderRepository = {
     return { orders, total, summary };
   },
 
-  async findByDistributor(
-    distributorId: string,
-    statuses?: OrderStatus[],
-    tx?: TxClient
-  ): Promise<OrderForQueue[]> {
-    const prisma = getPrisma();
-    return (tx ?? prisma).order.findMany({
-      where: {
-        distributor_id: distributorId,
-        ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
-      },
-      orderBy: { created_at: "desc" },
-      include: {
-        consumer: { select: { name: true } },
-        address: { select: { street: true, number: true, neighborhood: true } },
-        items: { select: { quantity: true, product_name: true } },
-        subscription_delivery_date: newSubscriptionDeliveryInclude,
-      },
-    }) as unknown as Promise<OrderForQueue[]>;
-  },
-
   async findByDistributorPaged(
     distributorId: string,
     options: DistributorQueuePagedOptions,
@@ -431,28 +393,6 @@ export const orderRepository = {
     return { orders, total, statusCounts };
   },
 
-  async findByDriver(
-    driverId: string,
-    status?: OrderStatus,
-    date?: Date,
-    tx?: TxClient
-  ): Promise<Order[]> {
-    const prisma = getPrisma();
-    const startOfDay = date ? new Date(date.setHours(0, 0, 0, 0)) : undefined;
-    const endOfDay = date ? new Date(date.setHours(23, 59, 59, 999)) : undefined;
-
-    return (tx ?? prisma).order.findMany({
-      where: {
-        driver_id: driverId,
-        ...(status ? { status } : {}),
-        ...(startOfDay && endOfDay
-          ? { delivery_date: { gte: startOfDay, lte: endOfDay } }
-          : {}),
-      },
-      orderBy: { created_at: "desc" },
-    });
-  },
-
   async findAll(
     options?: { status?: OrderStatus; limit?: number; offset?: number },
     tx?: TxClient
@@ -472,6 +412,42 @@ export const orderRepository = {
   ): Promise<Order> {
     const prisma = getPrisma();
     return (tx ?? prisma).order.create({ data });
+  },
+
+  /** Insere os itens de um pedido (venda + vasilhames vendidos pelo settlement). */
+  async createItems(
+    orderId: string,
+    items: Array<{
+      product_id: string;
+      product_name: string;
+      unit_price_cents: number;
+      quantity: number;
+    }>,
+    tx?: TxClient
+  ): Promise<void> {
+    const prisma = getPrisma();
+    await (tx ?? prisma).orderItem.createMany({
+      data: items.map((item) => ({
+        order_id: orderId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        unit_price_cents: item.unit_price_cents,
+        quantity: item.quantity,
+        subtotal_cents: item.unit_price_cents * item.quantity,
+      })),
+    });
+  },
+
+  /** Busca os itens (produto + quantidade) de um pedido, para settlement de vasilhames. */
+  async findItemsByOrderId(
+    orderId: string,
+    tx?: TxClient
+  ): Promise<Array<{ product_id: string; quantity: number }>> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).orderItem.findMany({
+      where: { order_id: orderId },
+      select: { product_id: true, quantity: true },
+    });
   },
 
   async updateStatus(

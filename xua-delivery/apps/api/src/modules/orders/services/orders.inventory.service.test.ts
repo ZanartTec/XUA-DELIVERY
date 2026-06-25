@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
       findByIdWithItemsForUpdate: vi.fn(),
       updateStatus: vi.fn(),
       update: vi.fn(),
+      findItemsByOrderId: vi.fn(),
     },
     auditRepository: { emit: vi.fn() },
     inventoryRepository: {
@@ -213,6 +214,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback) => callback(tx));
   tx.orderItem.findMany.mockResolvedValue([]);
+  mocks.orderRepository.findItemsByOrderId.mockResolvedValue([]);
   mocks.socketTo.mockReturnValue({ emit: mocks.socketEmit });
   mocks.inventoryRepository.findActiveInventoryItemsByProductIds.mockResolvedValue([
     inventoryItemA,

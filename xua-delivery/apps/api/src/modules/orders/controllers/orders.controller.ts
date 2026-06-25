@@ -409,6 +409,9 @@ export const ordersController = {
           break;
 
         case "otp_override":
+          // Defesa em profundidade: já bloqueado acima por ORDER_ACTION_ROLES,
+          // mas mantido aqui para não depender só desse mapa numa ação sensível
+          // (bypass de OTP) caso ele seja alterado no futuro sem revisão.
           if (user.role !== "ops" && user.role !== "support") {
             res.status(403).json({ error: "Apenas ops/support pode fazer override de OTP" });
             return;
@@ -453,6 +456,7 @@ export const ordersController = {
           break;
 
         case "schedule_redelivery":
+          // Defesa em profundidade (ver comentário em "otp_override" acima).
           if (user.role !== "ops" && user.role !== "support") {
             res.status(403).json({ error: "Apenas ops/support pode reagendar entregas" });
             return;

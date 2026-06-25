@@ -28,6 +28,24 @@ export const timeslotRepository = {
     return (tx ?? prisma).timeSlot.findUnique({ where: { id: slotId } });
   },
 
+  /**
+   * Busca slot por ID restrito à distribuidora (ownership) — usado para
+   * gerar o snapshot imutável de horário gravado no pedido.
+   */
+  async findByIdForDistributor(slotId: string, distributorId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).timeSlot.findFirst({
+      where: { id: slotId, distributor_id: distributorId },
+      select: {
+        label: true,
+        start_hour: true,
+        start_minute: true,
+        end_hour: true,
+        end_minute: true,
+      },
+    });
+  },
+
   /** Cria ou atualiza um slot. */
   async upsertSlot(
     distributorId: string,
