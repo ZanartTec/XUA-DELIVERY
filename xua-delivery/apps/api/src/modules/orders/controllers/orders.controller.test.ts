@@ -13,8 +13,19 @@ const mocks = vi.hoisted(() => {
     }
   }
 
+  class MockOtpServiceError extends Error {
+    constructor(
+      public code: string,
+      message: string
+    ) {
+      super(message);
+      this.name = "OtpServiceError";
+    }
+  }
+
   return {
     OrderServiceError: MockOrderServiceError,
+    OtpServiceError: MockOtpServiceError,
     orderService: {
       listOrders: vi.fn(),
       searchOrders: vi.fn(),
@@ -63,6 +74,7 @@ vi.mock("../repository/orders.repository.js", () => ({
 
 vi.mock("../../driver/services/otp.service.js", () => ({
   otpService: mocks.otpService,
+  OtpServiceError: mocks.OtpServiceError,
 }));
 
 vi.mock("../../../infra/socket/gateway.js", () => ({
@@ -343,6 +355,52 @@ describe("ordersController action RBAC", () => {
     expect(mocks.orderService.markDeliveryFailed).toHaveBeenCalledWith(orderId, userId, "Ausente", {
       returnToStock: true,
     });
+  });
+});
+
+describe("ordersController action verify_otp", () => {
+  it("retorna 429 quando o OTP ja estava bloqueado por tentativas anteriores", async () => {
+    const response = res();
+    mocks.otpService.validate.mockRejectedValueOnce(
+      new mocks.OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas")
+    );
+
+    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(429);
+    expect(response.json).toHaveBeenCalledWith({
+      error: "OTP bloqueado por excesso de tentativas",
+      code: "OTP_LOCKED",
+    });
+    expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando o OTP esta expirado", async () => {
+    const response = res();
+    mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_EXPIRED", "OTP expirado"));
+
+    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ error: "OTP expirado", code: "OTP_EXPIRED" });
+  });
+
+  it("retorna 404 quando o OTP nao existe", async () => {
+    const response = res();
+    mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_NOT_FOUND", "OTP não encontrado"));
+
+    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(404);
+  });
+
+  it("entrega o pedido quando o codigo informado e valido", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
+
+    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
   });
 });
 

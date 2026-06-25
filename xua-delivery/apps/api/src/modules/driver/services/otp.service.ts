@@ -53,41 +53,61 @@ export interface OtpValidationResult {
  */
 export const otpService = {
   /**
-   * Gera OTP de 6 dígitos e armazena apenas o hash HMAC-SHA256.
-   * Retorna o código em texto claro (para enviar via push/SMS ao consumidor).
+   * Gera OTP de 6 dígitos e persiste apenas o hash HMAC-SHA256, dentro de uma
+   * transação já aberta pelo chamador (ex.: dispatch do pedido). Não toca o
+   * Redis — isso fica para `cacheCode`, chamado só após o commit da transação
+   * externa, para nunca expor um código cujo registro em Postgres foi revertido.
    */
-  async generate(orderId: string, distributorUserId: string): Promise<string> {
-    const prisma = getPrisma();
+  async generateInTx(orderId: string, distributorUserId: string, tx: TxClient): Promise<string> {
     const code = String(randomInt(100000, 999999));
     const hash = hmacHash(code);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-    await prisma.$transaction(async (tx: TxClient) => {
-      // Invalida OTPs anteriores do mesmo pedido
-      await tx.orderOtp.updateMany({
-        where: { order_id: orderId, status: OtpStatus.ACTIVE },
-        data: { status: OtpStatus.EXPIRED },
-      });
-
-      await otpRepository.create(
-        { order_id: orderId, otp_hash: hash, expires_at: expiresAt },
-        tx
-      );
-
-      await auditRepository.emit(
-        {
-          eventType: AuditEventType.OTP_GENERATED,
-          actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
-          orderId,
-          sourceApp: SourceApp.DISTRIBUTOR_WEB,
-        },
-        tx
-      );
+    // Invalida OTPs anteriores do mesmo pedido
+    await tx.orderOtp.updateMany({
+      where: { order_id: orderId, status: OtpStatus.ACTIVE },
+      data: { status: OtpStatus.EXPIRED },
     });
 
+    await otpRepository.create(
+      { order_id: orderId, otp_hash: hash, expires_at: expiresAt },
+      tx
+    );
+
+    await auditRepository.emit(
+      {
+        eventType: AuditEventType.OTP_GENERATED,
+        actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+        orderId,
+        sourceApp: SourceApp.DISTRIBUTOR_WEB,
+      },
+      tx
+    );
+
     logger.info({ orderId }, "OTP generated");
-    // Armazena código em claro no Redis por 90min para exibição ao consumer
+    return code;
+  },
+
+  /**
+   * Armazena o código em claro no Redis por 90min, para exibição ao consumer.
+   * Só deve ser chamado depois que a transação que persistiu o OTP no Postgres
+   * já tiver comitado (ver `generateInTx`).
+   */
+  async cacheCode(orderId: string, code: string): Promise<void> {
     await redis.set(`otp:${orderId}`, code, "EX", OTP_TTL_MINUTES * 60);
+  },
+
+  /**
+   * Gera OTP de 6 dígitos e armazena apenas o hash HMAC-SHA256.
+   * Retorna o código em texto claro (para enviar via push/SMS ao consumidor).
+   * Abre sua própria transação — usar `generateInTx` quando já existir uma.
+   */
+  async generate(orderId: string, distributorUserId: string): Promise<string> {
+    const prisma = getPrisma();
+    const code = await prisma.$transaction((tx: TxClient) =>
+      otpService.generateInTx(orderId, distributorUserId, tx)
+    );
+    await otpService.cacheCode(orderId, code);
     return code;
   },
 
@@ -170,7 +190,7 @@ export const otpService = {
 
       await auditRepository.emit(
         {
-          eventType: AuditEventType.ORDER_DELIVERED,
+          eventType: AuditEventType.OTP_OVERRIDE,
           actor: { type: ActorType.SUPPORT, id: actorId },
           orderId,
           sourceApp: SourceApp.OPS_CONSOLE,

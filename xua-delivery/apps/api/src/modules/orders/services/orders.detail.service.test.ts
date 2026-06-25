@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     notificationService: { send: vi.fn() },
     paymentService: { charge: vi.fn() },
     distributorRepository: { resolveDistributorId: vi.fn(), findDriversByDistributor: vi.fn() },
+    otpService: { generateInTx: vi.fn(), cacheCode: vi.fn() },
   };
 });
 
@@ -90,6 +91,10 @@ vi.mock("../../payments/services/payments.service.js", () => ({
 
 vi.mock("../../distributor/repository/distributor.repository.js", () => ({
   distributorRepository: mocks.distributorRepository,
+}));
+
+vi.mock("../../driver/services/otp.service.js", () => ({
+  otpService: mocks.otpService,
 }));
 
 const { orderService } = await import("./orders.service.js");

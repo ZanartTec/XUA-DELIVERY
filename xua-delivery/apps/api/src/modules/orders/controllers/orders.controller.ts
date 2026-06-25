@@ -5,7 +5,7 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
-import { otpService } from "../../driver/services/otp.service.js";
+import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
 import { distributorService, DistributorServiceError, ScheduleServiceError } from "../../distributor/index.js";
 import {
@@ -349,36 +349,40 @@ export const ordersController = {
           updatedOrder = await orderService.completeChecklist(id, user.sub);
           break;
 
-        case "dispatch":
+        case "dispatch": {
           if (!payload.driver_id || typeof payload.driver_id !== "string") {
             res.status(400).json({ error: "ID do motorista obrigatório" });
             return;
           }
-          updatedOrder = await orderService.dispatch(id, user.sub, payload.driver_id);
-          // Gera OTP após dispatch
-          const otpCode = await otpService.generate(id, user.sub);
+          // OTP já é gerado dentro da mesma transação do dispatch (ver orderService.dispatch)
+          const dispatchResult = await orderService.dispatch(id, user.sub, payload.driver_id);
           // Envia OTP em tempo real ao consumer via Socket.IO
-          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
+          getIO().to(`consumer:${dispatchResult.order.consumer_id}`).emit("otp_generated", {
             orderId: id,
-            code: otpCode,
+            code: dispatchResult.otpCode,
           });
-          res.json({ order: updatedOrder, otp: otpCode });
+          res.json({ order: dispatchResult.order, otp: dispatchResult.otpCode });
           return;
+        }
 
-        case "dispatch_with_checklist":
+        case "dispatch_with_checklist": {
           if (!payload.driver_id || typeof payload.driver_id !== "string") {
             res.status(400).json({ error: "ID do motorista obrigatório" });
             return;
           }
-          updatedOrder = await orderService.dispatchWithChecklist(id, user.sub, payload.driver_id);
-          const otpCodeChecklist = await otpService.generate(id, user.sub);
+          const dispatchChecklistResult = await orderService.dispatchWithChecklist(
+            id,
+            user.sub,
+            payload.driver_id
+          );
           // Envia OTP em tempo real ao consumer via Socket.IO
-          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
+          getIO().to(`consumer:${dispatchChecklistResult.order.consumer_id}`).emit("otp_generated", {
             orderId: id,
-            code: otpCodeChecklist,
+            code: dispatchChecklistResult.otpCode,
           });
-          res.json({ order: updatedOrder, otp: otpCodeChecklist });
+          res.json({ order: dispatchChecklistResult.order, otp: dispatchChecklistResult.otpCode });
           return;
+        }
 
         case "deliver":
           updatedOrder = await orderService.deliverOrder(id, user.sub);
@@ -467,7 +471,7 @@ export const ordersController = {
 
       res.json({ order: updatedOrder });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
+      if (error instanceof OrderServiceError || error instanceof OtpServiceError) {
         res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
         return;
       }

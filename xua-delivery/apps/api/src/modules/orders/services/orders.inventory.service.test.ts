@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => {
     notificationService: { send: vi.fn() },
     paymentService: { charge: vi.fn() },
     distributorRepository: { resolveDistributorId: vi.fn(), findDriversByDistributor: vi.fn() },
+    otpService: { generateInTx: vi.fn(), cacheCode: vi.fn() },
   };
 });
 
@@ -106,9 +107,13 @@ vi.mock("../../distributor/repository/distributor.repository.js", () => ({
   distributorRepository: mocks.distributorRepository,
 }));
 
+vi.mock("../../driver/services/otp.service.js", () => ({
+  otpService: mocks.otpService,
+}));
+
 const { orderService, OrderServiceError } = await import("./orders.service.js");
 
-const tx = { tx: true };
+const tx = { tx: true, orderItem: { findMany: vi.fn() } };
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236801";
 const consumerId = "7e1d7b55-3f52-4d10-aac3-74387c236802";
 const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236803";
@@ -207,6 +212,7 @@ function mockInventoryBalances(balancesByItem: Record<string, number | null>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback) => callback(tx));
+  tx.orderItem.findMany.mockResolvedValue([]);
   mocks.socketTo.mockReturnValue({ emit: mocks.socketEmit });
   mocks.inventoryRepository.findActiveInventoryItemsByProductIds.mockResolvedValue([
     inventoryItemA,
@@ -220,6 +226,8 @@ beforeEach(() => {
   mocks.distributorRepository.findDriversByDistributor.mockResolvedValue([{ id: driverId, name: "Motorista" }]);
 
   mocks.auditRepository.emit.mockResolvedValue({ id: "audit-1" });
+  mocks.otpService.generateInTx.mockResolvedValue("123456");
+  mocks.otpService.cacheCode.mockResolvedValue(undefined);
 });
 
 describe("orderService inventory integration", () => {
@@ -402,6 +410,43 @@ describe("orderService inventory integration", () => {
     );
   });
 
+  it("cancelamento em rota por driver alegando retorno fisico NAO credita estoque", async () => {
+    const current = order({ status: OrderStatus.OUT_FOR_DELIVERY });
+    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
+    mockStatusUpdate(current);
+
+    await orderService.cancelOrder(orderId, driverId, "driver", "Motorista cancelou", {
+      returnToStock: true,
+    });
+
+    expect(mocks.inventoryService.applyMovement).not.toHaveBeenCalled();
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: AuditEventType.ORDER_CANCELLED,
+        payload: expect.objectContaining({ physical_return_confirmed: false }),
+      }),
+      tx
+    );
+  });
+
+  it("cancelamento em rota por distribuidora confirmando retorno fisico credita estoque", async () => {
+    const current = order({ status: OrderStatus.OUT_FOR_DELIVERY });
+    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
+    mockStatusUpdate(current);
+
+    await orderService.cancelOrder(orderId, distributorUserId, "distributor", "Distribuidora cancelou", {
+      returnToStock: true,
+    });
+
+    expect(mocks.inventoryService.applyMovement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        movementType: InventoryMovementType.ORDER_CANCEL_RETURN,
+        actor: { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId },
+      }),
+      tx
+    );
+  });
+
   it("falha de entrega com retorno fisico confirmado devolve saldo", async () => {
     const current = order({ status: OrderStatus.OUT_FOR_DELIVERY });
     mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
@@ -575,7 +620,10 @@ describe("orderService inventory integration", () => {
 
     const result = await orderService.dispatchWithChecklist(orderId, distributorUserId, driverId);
 
-    expect(result.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
+    expect(result.order.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
+    expect(result.otpCode).toBe("123456");
+    expect(mocks.otpService.generateInTx).toHaveBeenCalledWith(orderId, distributorUserId, tx);
+    expect(mocks.otpService.cacheCode).toHaveBeenCalledWith(orderId, "123456");
     expect(mocks.orderRepository.updateStatus).toHaveBeenNthCalledWith(
       1,
       orderId,

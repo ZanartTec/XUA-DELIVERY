@@ -32,6 +32,7 @@ import { inventoryService, InventoryServiceError } from "../../inventory/service
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { depositSettlementService } from "../../deposits/services/deposit-settlement.service.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
+import { otpService } from "../../driver/services/otp.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import {
   distributorGatewayService,
@@ -294,10 +295,20 @@ async function applyOrderInventoryMovements(params: {
 
 function shouldReturnCancelledOrderToStock(
   previousStatus: string,
-  options?: StockReturnOptions
+  options: StockReturnOptions | undefined,
+  actorType: "consumer" | "ops" | "distributor" | "driver"
 ): boolean {
   if (options?.returnToStock === false) return false;
-  if (options?.returnToStock === true) return CANCEL_EXPLICIT_RETURN_STATUSES.has(previousStatus);
+  if (options?.returnToStock === true) {
+    // Pedido já está em poder do motorista: só a distribuidora pode confirmar
+    // que o produto físico de fato retornou. Não confiamos na alegação do
+    // próprio ator (consumer/driver/ops) que está cancelando — evita creditar
+    // estoque de volta sem confirmação física real.
+    if (previousStatus === OrderStatus.OUT_FOR_DELIVERY && actorType !== "distributor") {
+      return false;
+    }
+    return CANCEL_EXPLICIT_RETURN_STATUSES.has(previousStatus);
+  }
   return CANCEL_AUTO_RETURN_STATUSES.has(previousStatus);
 }
 
@@ -1170,11 +1181,16 @@ export const orderService = {
    * Despacha pedido: READY_FOR_DISPATCH → OUT_FOR_DELIVERY
    * Também gera OTP para confirmação de entrega.
    */
-  async dispatch(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+  async dispatch(
+    orderId: string,
+    distributorUserId: string,
+    driverId: string
+  ): Promise<{ order: Order; otpCode: string }> {
     const distributorId = await resolveDistributorIdForUser(distributorUserId);
     await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
+    let otpCode = "";
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
@@ -1201,8 +1217,16 @@ export const orderService = {
         tx
       );
 
+      // OTP é gerado na mesma transação do dispatch: se o commit falhar, o
+      // pedido não fica OUT_FOR_DELIVERY sem nenhum OTP ativo.
+      otpCode = await otpService.generateInTx(orderId, distributorUserId, tx);
+
       return updated;
     });
+
+    // Só cacheia o código em claro no Redis depois que a transação acima
+    // comitou — evita expor um OTP cujo registro em Postgres foi revertido.
+    await otpService.cacheCode(orderId, otpCode);
 
     const io = getIO();
     io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
@@ -1217,23 +1241,27 @@ export const orderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
-    // Push notification - OTP será gerado e enviado pelo controller após esta chamada
     notificationService
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
 
-    return order;
+    return { order, otpCode };
   },
 
   /**
    * Checklist + Dispatch atômico: ACCEPTED_BY_DISTRIBUTOR → READY_FOR_DISPATCH → OUT_FOR_DELIVERY
    * Faz as duas transições em uma única transação para evitar estado inconsistente.
    */
-  async dispatchWithChecklist(orderId: string, distributorUserId: string, driverId: string): Promise<Order> {
+  async dispatchWithChecklist(
+    orderId: string,
+    distributorUserId: string,
+    driverId: string
+  ): Promise<{ order: Order; otpCode: string }> {
     const distributorId = await resolveDistributorIdForUser(distributorUserId);
     await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
+    let otpCode = "";
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
@@ -1290,8 +1318,16 @@ export const orderService = {
         tx
       );
 
+      // OTP é gerado na mesma transação do dispatch: se o commit falhar, o
+      // pedido não fica OUT_FOR_DELIVERY sem nenhum OTP ativo.
+      otpCode = await otpService.generateInTx(orderId, distributorUserId, tx);
+
       return updated;
     });
+
+    // Só cacheia o código em claro no Redis depois que a transação acima
+    // comitou — evita expor um OTP cujo registro em Postgres foi revertido.
+    await otpService.cacheCode(orderId, otpCode);
 
     const io = getIO();
     io.to(`consumer:${order.consumer_id}`).emit("order_status_changed", {
@@ -1309,7 +1345,7 @@ export const orderService = {
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
 
-    return order;
+    return { order, otpCode };
   },
 
   /**
@@ -1547,7 +1583,7 @@ export const orderService = {
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.CANCELLED);
 
-      const shouldReturnToStock = shouldReturnCancelledOrderToStock(current.status, options);
+      const shouldReturnToStock = shouldReturnCancelledOrderToStock(current.status, options, actorType);
       const inventoryLines = shouldReturnToStock
         ? await resolveOrderInventoryLines(current, tx)
         : [];

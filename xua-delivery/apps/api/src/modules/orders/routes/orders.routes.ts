@@ -35,7 +35,12 @@ router.get(
  * Cria novo pedido.
  * Apenas consumers podem criar pedidos.
  */
-router.post("/", requireRole("consumer"), ordersController.create);
+router.post(
+  "/",
+  requireRole("consumer"),
+  rateLimitMiddleware("orders:create", RATE_LIMITS.orderCreate, (req) => req.user?.sub ?? req.ip),
+  ordersController.create
+);
 
 /**
  * GET /api/orders/:id
@@ -81,16 +86,32 @@ router.post(
   ordersController.submitRating
 );
 
+const driverActionLimit = rateLimitMiddleware(
+  "orders:driver-action",
+  RATE_LIMITS.orderDriverAction,
+  (req) => req.user?.sub ?? req.ip
+);
+
 /**
  * POST /api/orders/:id/bottle-exchange
  * Motorista registra troca de vasilhame.
  */
-router.post("/:id/bottle-exchange", requireRole("driver"), ordersController.recordBottleExchange);
+router.post(
+  "/:id/bottle-exchange",
+  requireRole("driver"),
+  driverActionLimit,
+  ordersController.recordBottleExchange
+);
 
 /**
  * POST /api/orders/:id/empty-not-collected
  * Motorista registra vasilhame não coletado.
  */
-router.post("/:id/empty-not-collected", requireRole("driver"), ordersController.recordEmptyNotCollected);
+router.post(
+  "/:id/empty-not-collected",
+  requireRole("driver"),
+  driverActionLimit,
+  ordersController.recordEmptyNotCollected
+);
 
 export { router as ordersRoutes };
