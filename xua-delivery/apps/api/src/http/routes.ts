@@ -8,7 +8,6 @@ import { paymentsRoutes } from "../modules/payments/index.js";
 import { zonesRoutes } from "../modules/zones/index.js";
 import { opsRoutes } from "../modules/ops/index.js";
 import { notificationsRoutes } from "../modules/notifications/index.js";
-import { jobsRoutes } from "../jobs/index.js";
 import { distributorRoutes } from "../modules/distributor/routes/distributor.routes.js";
 import { distributorsPublicRoutes } from "../modules/distributor/routes/distributors-public.routes.js";
 import { bannersRoutes } from "../modules/banners/index.js";
@@ -25,9 +24,6 @@ import { categoriesRoutes } from "../modules/categories/index.js";
 // PR 10 → internal jobs ✓
 // PR 11 → distributor (kpis, capacity) ✓
 export function registerRoutes(app: Application): void {
-  // Jobs internos (protegidos por INTERNAL_JOB_SECRET, não por JWT)
-  app.use("/api/internal/jobs", jobsRoutes);
-
   app.use("/api/auth", authRoutes);
   app.use("/api/orders", ordersRoutes);
   app.use("/api/driver", driverRoutes);
