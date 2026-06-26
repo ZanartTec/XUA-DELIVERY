@@ -169,9 +169,21 @@ beforeEach(() => {
     status: OrderStatus.SENT_TO_DISTRIBUTOR,
   });
   mocks.orderService.acceptOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR });
+  mocks.orderService.rejectOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.REJECTED_BY_DISTRIBUTOR });
   mocks.orderService.assignDriver.mockResolvedValue({ ...existingOrder, driver_id: userId });
+  mocks.orderService.completeChecklist.mockResolvedValue({ ...existingOrder, status: OrderStatus.READY_FOR_DISPATCH });
+  mocks.orderService.dispatch.mockResolvedValue({
+    order: { ...existingOrder, status: OrderStatus.OUT_FOR_DELIVERY },
+    otpCode: "654321",
+  });
+  mocks.orderService.dispatchWithChecklist.mockResolvedValue({
+    order: { ...existingOrder, status: OrderStatus.OUT_FOR_DELIVERY },
+    otpCode: "654321",
+  });
+  mocks.orderService.deliverOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.DELIVERED });
   mocks.orderService.cancelOrder.mockResolvedValue({ ...existingOrder, status: OrderStatus.CANCELLED });
   mocks.orderService.markDeliveryFailed.mockResolvedValue({ ...existingOrder, status: OrderStatus.DELIVERY_FAILED });
+  mocks.orderService.scheduleRedelivery.mockResolvedValue({ ...existingOrder, status: OrderStatus.REDELIVERY_SCHEDULED });
 });
 
 describe("ordersController list distributor queue", () => {
@@ -283,20 +295,31 @@ describe("ordersController create", () => {
   });
 });
 
-describe("ordersController action RBAC", () => {
-  it("bloqueia consumer em aceite de distribuidora", async () => {
+describe("ordersController accept/reject (ownership)", () => {
+  it("retorna 404 quando o pedido nao existe", async () => {
     const response = res();
+    mocks.orderRepository.findById.mockResolvedValueOnce(null);
 
-    await ordersController.action(req("consumer", { action: "accept" }), response);
+    await ordersController.accept(req("distributor_admin", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(mocks.orderService.acceptOrder).not.toHaveBeenCalled();
+  });
+
+  it("retorna 403 quando orderPolicy.canAccess nega", async () => {
+    const response = res();
+    mocks.orderPolicy.canAccess.mockResolvedValueOnce(false);
+
+    await ordersController.accept(req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(403);
     expect(mocks.orderService.acceptOrder).not.toHaveBeenCalled();
   });
 
-  it("permite distributor_admin aceitar pedido", async () => {
+  it("aceita pedido e devolve o resultado do service", async () => {
     const response = res();
 
-    await ordersController.action(req("distributor_admin", { action: "accept" }), response);
+    await ordersController.accept(req("distributor_admin", {}), response);
 
     expect(mocks.orderService.acceptOrder).toHaveBeenCalledWith(orderId, userId);
     expect(response.json).toHaveBeenCalledWith({
@@ -304,10 +327,29 @@ describe("ordersController action RBAC", () => {
     });
   });
 
-  it("permite distributor_admin atribuir motorista", async () => {
+  it("rejeita pedido com motivo validado pelo schema", async () => {
     const response = res();
 
-    await ordersController.action(req("distributor_admin", { action: "assign_driver", driver_id: userId }), response);
+    await ordersController.reject(req("distributor_admin", { reason: "out_of_stock" }), response);
+
+    expect(mocks.orderService.rejectOrder).toHaveBeenCalledWith(orderId, userId, "out_of_stock", undefined);
+  });
+
+  it("retorna 400 quando o motivo de rejeicao e invalido", async () => {
+    const response = res();
+
+    await ordersController.reject(req("distributor_admin", { reason: "not_a_valid_reason" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.rejectOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("ordersController assignDriver/completeChecklist/dispatch", () => {
+  it("atribui motorista validando driver_id", async () => {
+    const response = res();
+
+    await ordersController.assignDriver(req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.assignDriver).toHaveBeenCalledWith(orderId, userId, userId);
     expect(response.json).toHaveBeenCalledWith({
@@ -315,57 +357,63 @@ describe("ordersController action RBAC", () => {
     });
   });
 
-  it("bloqueia support em cancelamento que pode afetar estoque", async () => {
+  it("retorna 400 quando driver_id nao e um uuid valido", async () => {
     const response = res();
 
-    await ordersController.action(req("support", { action: "cancel", reason: "Suporte" }), response);
+    await ordersController.assignDriver(req("distributor_admin", { driver_id: "not-a-uuid" }), response);
 
-    expect(response.status).toHaveBeenCalledWith(403);
-    expect(mocks.orderService.cancelOrder).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.assignDriver).not.toHaveBeenCalled();
   });
 
-  it("permite OPS cancelar sem tratar support como ator de estoque", async () => {
+  it("completa checklist de despacho", async () => {
     const response = res();
 
-    await ordersController.action(
-      req("ops", { action: "cancel", reason: "Operacao", return_to_stock: true }),
-      response
-    );
+    await ordersController.completeChecklist(req("distributor_admin", {}), response);
 
-    expect(mocks.orderService.cancelOrder).toHaveBeenCalledWith(orderId, userId, "ops", "Operacao", {
-      returnToStock: true,
+    expect(mocks.orderService.completeChecklist).toHaveBeenCalledWith(orderId, userId);
+  });
+
+  it("despacha pedido e emite OTP via socket", async () => {
+    const response = res();
+
+    await ordersController.dispatch(req("distributor_admin", { driver_id: userId }), response);
+
+    expect(mocks.orderService.dispatch).toHaveBeenCalledWith(orderId, userId, userId);
+    expect(mocks.socketTo).toHaveBeenCalledWith(`consumer:${userId}`);
+    expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "654321" });
+    expect(response.json).toHaveBeenCalledWith({
+      order: expect.objectContaining({ status: OrderStatus.OUT_FOR_DELIVERY }),
+      otp: "654321",
     });
   });
 
-  it("bloqueia OPS em falha de entrega e permite driver com retorno fisico", async () => {
-    const opsResponse = res();
-    const driverResponse = res();
+  it("despacha com checklist atomico e emite OTP via socket", async () => {
+    const response = res();
 
-    await ordersController.action(req("ops", { action: "delivery_failed", reason: "Ausente" }), opsResponse);
-    await ordersController.action(
-      req("driver", {
-        action: "delivery_failed",
-        reason: "Ausente",
-        physical_return_confirmed: true,
-      }),
-      driverResponse
-    );
+    await ordersController.dispatchWithChecklist(req("distributor_admin", { driver_id: userId }), response);
 
-    expect(opsResponse.status).toHaveBeenCalledWith(403);
-    expect(mocks.orderService.markDeliveryFailed).toHaveBeenCalledWith(orderId, userId, "Ausente", {
-      returnToStock: true,
-    });
+    expect(mocks.orderService.dispatchWithChecklist).toHaveBeenCalledWith(orderId, userId, userId);
+    expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "654321" });
   });
 });
 
-describe("ordersController action verify_otp", () => {
+describe("ordersController deliver/verifyOtp/otpOverride", () => {
+  it("entrega pedido diretamente (uso administrativo)", async () => {
+    const response = res();
+
+    await ordersController.deliver(req("driver", {}), response);
+
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+  });
+
   it("retorna 429 quando o OTP ja estava bloqueado por tentativas anteriores", async () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(
       new mocks.OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas")
     );
 
-    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(429);
     expect(response.json).toHaveBeenCalledWith({
@@ -379,7 +427,7 @@ describe("ordersController action verify_otp", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_EXPIRED", "OTP expirado"));
 
-    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({ error: "OTP expirado", code: "OTP_EXPIRED" });
@@ -389,7 +437,7 @@ describe("ordersController action verify_otp", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_NOT_FOUND", "OTP não encontrado"));
 
-    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(404);
   });
@@ -398,9 +446,101 @@ describe("ordersController action verify_otp", () => {
     const response = res();
     mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
 
-    await ordersController.action(req("driver", { action: "verify_otp", code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
     expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+  });
+
+  it("retorna 400 quando o codigo informado nao tem 6 digitos", async () => {
+    const response = res();
+
+    await ordersController.verifyOtp(req("driver", { code: "123" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.validate).not.toHaveBeenCalled();
+  });
+
+  it("faz override do OTP com motivo obrigatorio e entrega o pedido", async () => {
+    const response = res();
+
+    await ordersController.otpOverride(req("ops", { reason: "Cliente sem celular" }), response);
+
+    expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "Cliente sem celular");
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+  });
+
+  it("retorna 400 quando o override nao informa motivo", async () => {
+    const response = res();
+
+    await ordersController.otpOverride(req("ops", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.override).not.toHaveBeenCalled();
+  });
+});
+
+describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
+  it("cancela pedido repassando actorType conforme a role", async () => {
+    const response = res();
+
+    await ordersController.cancel(req("ops", { reason: "Operacao", return_to_stock: true }), response);
+
+    expect(mocks.orderService.cancelOrder).toHaveBeenCalledWith(orderId, userId, "ops", "Operacao", {
+      returnToStock: true,
+    });
+  });
+
+  it("usa motivo padrao quando reason nao e informado no cancelamento", async () => {
+    const response = res();
+
+    await ordersController.cancel(req("consumer", {}), response);
+
+    expect(mocks.orderService.cancelOrder).toHaveBeenCalledWith(
+      orderId,
+      userId,
+      "consumer",
+      "Cancelado pelo usuário",
+      undefined
+    );
+  });
+
+  it("registra falha de entrega com retorno fisico confirmado", async () => {
+    const response = res();
+
+    await ordersController.deliveryFailed(
+      req("driver", { reason: "Ausente", physical_return_confirmed: true }),
+      response
+    );
+
+    expect(mocks.orderService.markDeliveryFailed).toHaveBeenCalledWith(orderId, userId, "Ausente", {
+      returnToStock: true,
+    });
+  });
+
+  it("retorna 400 quando delivery-failed nao informa motivo", async () => {
+    const response = res();
+
+    await ordersController.deliveryFailed(req("driver", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.markDeliveryFailed).not.toHaveBeenCalled();
+  });
+
+  it("agenda reentrega com nova data valida", async () => {
+    const response = res();
+
+    await ordersController.scheduleRedelivery(req("ops", { new_date: "2026-07-01" }), response);
+
+    expect(mocks.orderService.scheduleRedelivery).toHaveBeenCalledWith(orderId, userId, new Date("2026-07-01"));
+  });
+
+  it("retorna 400 quando a nova data de reentrega e invalida", async () => {
+    const response = res();
+
+    await ordersController.scheduleRedelivery(req("ops", { new_date: "data-invalida" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.scheduleRedelivery).not.toHaveBeenCalled();
   });
 });
 
@@ -411,7 +551,7 @@ describe("ordersController inventory errors", () => {
       new mocks.OrderServiceError("STOCK_UNAVAILABLE", "Saldo insuficiente")
     );
 
-    await ordersController.action(req("distributor_admin", { action: "accept" }), response);
+    await ordersController.accept(req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(response.json).toHaveBeenCalledWith({
@@ -426,7 +566,7 @@ describe("ordersController inventory errors", () => {
       new mocks.OrderServiceError("IDEMPOTENCY_CONFLICT", "Referencia de estoque divergente")
     );
 
-    await ordersController.action(req("distributor_admin", { action: "accept" }), response);
+    await ordersController.accept(req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(response.json).toHaveBeenCalledWith({

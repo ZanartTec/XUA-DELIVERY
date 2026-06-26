@@ -10,11 +10,12 @@ const router = Router();
 // Todas as rotas de pedidos requerem autenticação
 router.use(authMiddleware);
 
-const ordersReadLimit = rateLimitMiddleware(
-  "orders:read",
-  RATE_LIMITS.orders,
-  (req) => req.user?.sub ?? req.ip
-);
+const rateLimitByUser = (scope: string, config: (typeof RATE_LIMITS)[keyof typeof RATE_LIMITS]) =>
+  rateLimitMiddleware(scope, config, (req) => req.user?.sub ?? req.ip);
+
+const ordersReadLimit = rateLimitByUser("orders:read", RATE_LIMITS.orders);
+const ordersActionLimit = rateLimitByUser("orders:action", RATE_LIMITS.orders);
+const driverActionLimit = rateLimitByUser("orders:driver-action", RATE_LIMITS.orderDriverAction);
 
 /**
  * GET /api/orders
@@ -38,7 +39,7 @@ router.get(
 router.post(
   "/",
   requireRole("consumer"),
-  rateLimitMiddleware("orders:create", RATE_LIMITS.orderCreate, (req) => req.user?.sub ?? req.ip),
+  rateLimitByUser("orders:create", RATE_LIMITS.orderCreate),
   ordersController.create
 );
 
@@ -55,24 +56,110 @@ router.get(
 );
 
 /**
- * PATCH /api/orders/:id
- * Ações de mudança de estado:
- * - accept: distribuidor aceita pedido
- * - reject: distribuidor rejeita pedido
- * - complete_checklist: distribuidor completa checklist
- * - dispatch: distribuidor despacha pedido (requer driver_id)
- * - deliver: motorista entrega pedido
- * - verify_otp: motorista valida OTP e entrega
- * - otp_override: ops/support faz override do OTP
- * - cancel: cancela pedido
- * - delivery_failed: motorista marca falha na entrega
- * - schedule_redelivery: ops agenda reentrega
+ * PATCH /api/orders/:id/accept
+ * Distribuidor aceita o pedido.
+ */
+router.patch("/:id/accept", requireRole("distributor_admin"), ordersActionLimit, ordersController.accept);
+
+/**
+ * PATCH /api/orders/:id/reject
+ * Distribuidor rejeita o pedido.
+ */
+router.patch("/:id/reject", requireRole("distributor_admin"), ordersActionLimit, ordersController.reject);
+
+/**
+ * PATCH /api/orders/:id/assign-driver
+ * Distribuidor atribui (ou reatribui) motorista ao pedido.
  */
 router.patch(
-  "/:id",
-  requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
-  ordersReadLimit,
-  ordersController.action
+  "/:id/assign-driver",
+  requireRole("distributor_admin"),
+  ordersActionLimit,
+  ordersController.assignDriver
+);
+
+/**
+ * PATCH /api/orders/:id/complete-checklist
+ * Distribuidor completa o checklist de despacho.
+ */
+router.patch(
+  "/:id/complete-checklist",
+  requireRole("distributor_admin"),
+  ordersActionLimit,
+  ordersController.completeChecklist
+);
+
+/**
+ * PATCH /api/orders/:id/dispatch
+ * Distribuidor despacha o pedido (gera OTP).
+ */
+router.patch("/:id/dispatch", requireRole("distributor_admin"), ordersActionLimit, ordersController.dispatch);
+
+/**
+ * PATCH /api/orders/:id/dispatch-with-checklist
+ * Checklist + dispatch numa única chamada (gera OTP).
+ */
+router.patch(
+  "/:id/dispatch-with-checklist",
+  requireRole("distributor_admin"),
+  ordersActionLimit,
+  ordersController.dispatchWithChecklist
+);
+
+/**
+ * PATCH /api/orders/:id/deliver
+ * Motorista confirma entrega (uso administrativo/teste, sem validar OTP).
+ */
+router.patch("/:id/deliver", requireRole("driver"), driverActionLimit, ordersController.deliver);
+
+/**
+ * PATCH /api/orders/:id/verify-otp
+ * Motorista valida o código informado pelo cliente e confirma a entrega.
+ */
+router.patch("/:id/verify-otp", requireRole("driver"), driverActionLimit, ordersController.verifyOtp);
+
+/**
+ * PATCH /api/orders/:id/otp-override
+ * Ops/support faz bypass do OTP (sempre com motivo obrigatório).
+ */
+router.patch(
+  "/:id/otp-override",
+  requireRole("ops", "support"),
+  ordersActionLimit,
+  ordersController.otpOverride
+);
+
+/**
+ * PATCH /api/orders/:id/cancel
+ * Cancela o pedido (consumer, distributor_admin, driver ou ops).
+ */
+router.patch(
+  "/:id/cancel",
+  requireRole("consumer", "distributor_admin", "driver", "ops"),
+  ordersActionLimit,
+  ordersController.cancel
+);
+
+/**
+ * PATCH /api/orders/:id/delivery-failed
+ * Motorista registra falha na entrega.
+ */
+router.patch(
+  "/:id/delivery-failed",
+  requireRole("driver"),
+  driverActionLimit,
+  ordersController.deliveryFailed
+);
+
+/**
+ * PATCH /api/orders/:id/schedule-redelivery
+ * Ops/support agenda uma reentrega.
+ */
+router.patch(
+  "/:id/schedule-redelivery",
+  requireRole("ops", "support"),
+  ordersActionLimit,
+  ordersController.scheduleRedelivery
 );
 
 /**
@@ -82,14 +169,8 @@ router.patch(
 router.post(
   "/:id/rating",
   requireRole("consumer"),
-  rateLimitMiddleware("orders:rating", RATE_LIMITS.orderRating, (req) => req.user?.sub ?? req.ip),
+  rateLimitByUser("orders:rating", RATE_LIMITS.orderRating),
   ordersController.submitRating
-);
-
-const driverActionLimit = rateLimitMiddleware(
-  "orders:driver-action",
-  RATE_LIMITS.orderDriverAction,
-  (req) => req.user?.sub ?? req.ip
 );
 
 /**

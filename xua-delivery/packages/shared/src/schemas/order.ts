@@ -240,3 +240,58 @@ export const rescheduleSchema = z.object({
 });
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;
 
+// --- Schemas das sub-rotas PATCH /orders/:id/* (uma ação por rota) ---
+
+const driverIdSchema = z.object({
+  driver_id: z.string().uuid("ID do motorista obrigatório"),
+});
+
+export const assignDriverSchema = driverIdSchema;
+export type AssignDriverInput = z.infer<typeof assignDriverSchema>;
+
+export const dispatchSchema = driverIdSchema;
+export type DispatchInput = z.infer<typeof dispatchSchema>;
+
+export const dispatchWithChecklistSchema = driverIdSchema;
+export type DispatchWithChecklistInput = z.infer<typeof dispatchWithChecklistSchema>;
+
+export const verifyOtpSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Código OTP deve ter 6 dígitos"),
+});
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+export const otpOverrideSchema = z.object({
+  reason: z.string().trim().min(1, "Motivo obrigatório para override"),
+});
+export type OtpOverrideInput = z.infer<typeof otpOverrideSchema>;
+
+// Aceita os três aliases legados do boolean de retorno físico ao estoque
+// (return_to_stock / returned_to_stock / physical_return_confirmed) — a
+// resolução de qual prevalece é feita em `stockReturnOptions()` no controller.
+const stockReturnFields = {
+  return_to_stock: z.boolean().optional(),
+  returned_to_stock: z.boolean().optional(),
+  physical_return_confirmed: z.boolean().optional(),
+};
+
+export const cancelOrderSchema = z.object({
+  reason: z.string().trim().optional(),
+  ...stockReturnFields,
+});
+export type CancelOrderInput = z.infer<typeof cancelOrderSchema>;
+
+export const deliveryFailedSchema = z.object({
+  reason: z.string().trim().min(1, "Motivo obrigatório"),
+  ...stockReturnFields,
+});
+export type DeliveryFailedInput = z.infer<typeof deliveryFailedSchema>;
+
+export const scheduleRedeliverySchema = z.object({
+  new_date: z
+    .string()
+    .trim()
+    .min(1, "Nova data obrigatória")
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Nova data inválida"),
+});
+export type ScheduleRedeliveryInput = z.infer<typeof scheduleRedeliverySchema>;
+

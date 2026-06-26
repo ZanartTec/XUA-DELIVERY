@@ -114,7 +114,7 @@ vi.mock("../../driver/services/otp.service.js", () => ({
 
 const { orderService, OrderServiceError } = await import("./orders.service.js");
 
-const tx = { tx: true, orderItem: { findMany: vi.fn() } };
+const tx = { tx: true, orderItem: { findMany: vi.fn() }, payment: { findFirst: vi.fn(), update: vi.fn() } };
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236801";
 const consumerId = "7e1d7b55-3f52-4d10-aac3-74387c236802";
 const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236803";
@@ -214,6 +214,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback) => callback(tx));
   tx.orderItem.findMany.mockResolvedValue([]);
+  tx.payment.findFirst.mockResolvedValue(null);
   mocks.orderRepository.findItemsByOrderId.mockResolvedValue([]);
   mocks.socketTo.mockReturnValue({ emit: mocks.socketEmit });
   mocks.inventoryRepository.findActiveInventoryItemsByProductIds.mockResolvedValue([
@@ -359,6 +360,26 @@ describe("orderService inventory integration", () => {
       orderId,
       OrderStatus.REJECTED_BY_DISTRIBUTOR,
       { cancellation_reason: "out_of_stock" },
+      tx
+    );
+  });
+
+  it("rejeicao com pagamento capturado sinaliza revisao manual de reembolso na auditoria", async () => {
+    const current = order();
+    mocks.orderRepository.findById.mockResolvedValue(current);
+    mockStatusUpdate(current);
+    tx.payment.findFirst.mockResolvedValue({ id: "payment-1", status: "captured" });
+
+    await orderService.rejectOrder(orderId, distributorUserId, "out_of_stock", "Sem saldo fisico");
+
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: AuditEventType.ORDER_REJECTED_BY_DISTRIBUTOR,
+        payload: expect.objectContaining({
+          requires_manual_refund_review: true,
+          captured_payment_id: "payment-1",
+        }),
+      }),
       tx
     );
   });

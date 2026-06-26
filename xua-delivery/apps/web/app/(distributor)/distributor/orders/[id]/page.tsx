@@ -261,10 +261,10 @@ export default function DistributorOrderDetailPage() {
     setActionLoading(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await fetch(`/api/orders/${id}/${action}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...body }),
+        body: JSON.stringify(body ?? {}),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

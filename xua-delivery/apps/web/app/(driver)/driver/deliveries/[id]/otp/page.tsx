@@ -65,10 +65,10 @@ export default function OtpVerifyPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await fetch(`/api/orders/${id}/verify-otp`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify_otp", code }),
+        body: JSON.stringify({ code }),
       });
 
       if (!res.ok) {
