@@ -20,10 +20,10 @@ export default function OtpOverridePage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/orders/${orderId}/otp-override`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "otp_override", reason }),
+        body: JSON.stringify({ reason }),
       });
       if (!res.ok) {
         const body = await res.json();

@@ -8,6 +8,8 @@ import { Droplets, Pencil, Plus, Save, X } from "lucide-react";
 import { formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
 
+type ProductKind = "WATER" | "BOTTLE" | "OTHER";
+
 interface ProductItem {
   id: string;
   name: string;
@@ -15,6 +17,8 @@ interface ProductItem {
   image_url: string | null;
   price_cents: number;
   deposit_cents: number;
+  kind: ProductKind;
+  bottle_product_id: string | null;
   is_active: boolean;
 }
 
@@ -24,6 +28,8 @@ interface ProductDraft {
   image_url: string;
   price_cents: string;
   deposit_cents: string;
+  kind: ProductKind;
+  bottle_product_id: string;
 }
 
 const EMPTY_DRAFT: ProductDraft = {
@@ -32,6 +38,8 @@ const EMPTY_DRAFT: ProductDraft = {
   image_url: "",
   price_cents: "",
   deposit_cents: "",
+  kind: "OTHER",
+  bottle_product_id: "",
 };
 
 function draftFromProduct(p: ProductItem): ProductDraft {
@@ -41,6 +49,8 @@ function draftFromProduct(p: ProductItem): ProductDraft {
     image_url: p.image_url ?? "",
     price_cents: (p.price_cents / 100).toFixed(2),
     deposit_cents: (p.deposit_cents / 100).toFixed(2),
+    kind: p.kind ?? "OTHER",
+    bottle_product_id: p.bottle_product_id ?? "",
   };
 }
 
@@ -51,6 +61,8 @@ function draftToPayload(d: ProductDraft) {
     image_url: d.image_url || null,
     price_cents: Math.round(parseFloat(d.price_cents || "0") * 100),
     deposit_cents: Math.round(parseFloat(d.deposit_cents || "0") * 100),
+    kind: d.kind,
+    bottle_product_id: d.kind === "WATER" ? d.bottle_product_id || null : null,
   };
 }
 
@@ -68,9 +80,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ProductForm({
   draft,
   onChange,
+  bottleOptions,
 }: {
   draft: ProductDraft;
   onChange: (d: ProductDraft) => void;
+  bottleOptions: { id: string; name: string }[];
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -82,6 +96,33 @@ function ProductForm({
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
+      <Field label="Tipo *">
+        <select
+          value={draft.kind}
+          onChange={(e) => onChange({ ...draft, kind: e.target.value as ProductKind })}
+          className="w-full rounded-xl border border-[#d9dde3] px-3 py-2 text-sm"
+        >
+          <option value="WATER">Água (refil)</option>
+          <option value="BOTTLE">Vasilhame</option>
+          <option value="OTHER">Outro</option>
+        </select>
+      </Field>
+      {draft.kind === "WATER" && (
+        <Field label="Vasilhame vinculado">
+          <select
+            value={draft.bottle_product_id}
+            onChange={(e) => onChange({ ...draft, bottle_product_id: e.target.value })}
+            className="w-full rounded-xl border border-[#d9dde3] px-3 py-2 text-sm"
+          >
+            <option value="">— Sem vínculo —</option>
+            {bottleOptions.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="Descrição">
         <Input
           value={draft.description}
@@ -101,7 +142,7 @@ function ProductForm({
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
-      <Field label="Depósito (R$)">
+      <Field label="Depósito legado (R$)">
         <Input
           type="number"
           step="0.01"
@@ -135,6 +176,10 @@ export default function OpsProductsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ProductDraft>({ ...EMPTY_DRAFT });
   const [saving, setSaving] = useState(false);
+
+  const bottleOptions = products
+    .filter((p) => p.kind === "BOTTLE")
+    .map((p) => ({ id: p.id, name: p.name }));
 
   useEffect(() => {
     fetch("/api/products/all")
@@ -271,7 +316,7 @@ export default function OpsProductsPage() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <ProductForm draft={draft} onChange={setDraft} />
+          <ProductForm draft={draft} onChange={setDraft} bottleOptions={bottleOptions} />
           <Button
             size="sm"
             disabled={saving}
@@ -305,7 +350,7 @@ export default function OpsProductsPage() {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <ProductForm draft={editDraft} onChange={setEditDraft} />
+                <ProductForm draft={editDraft} onChange={setEditDraft} bottleOptions={bottleOptions} />
                 <Button
                   size="sm"
                   disabled={saving}
@@ -346,7 +391,7 @@ export default function OpsProductsPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatCurrency(product.price_cents)}
                         {product.deposit_cents > 0 &&
-                          ` + depósito ${formatCurrency(product.deposit_cents)}`}
+                          ` • vasilhame ${formatCurrency(product.deposit_cents)}`}
                       </p>
                     </div>
                   </div>

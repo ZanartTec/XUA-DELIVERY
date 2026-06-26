@@ -117,6 +117,7 @@ enum AuditEventType {
   OTP_GENERATED
   OTP_SENT
   OTP_VALIDATION_ATTEMPTED
+  OTP_OVERRIDE
   ORDER_DELIVERED
   BOTTLE_EXCHANGE_RECORDED
   EMPTY_NOT_COLLECTED
@@ -126,10 +127,17 @@ enum AuditEventType {
   PAYMENT_CAPTURED
   PAYMENT_FAILED
   PAYMENT_EXPIRED
+  PAYMENT_REFUNDED
+  PAYMENT_REFUND_FAILED
   DEPOSIT_HELD
   DEPOSIT_REFUND_INITIATED
   DEPOSIT_REFUNDED
   DAILY_RECONCILIATION_CLOSED
+  DEPOSIT_BOTTLES_LOANED
+  DEPOSIT_BOTTLES_RETURNED
+  DEPOSIT_BOTTLES_WRITTEN_OFF
+  DEPOSIT_PROGRAM_ENABLED
+  DEPOSIT_PROGRAM_DISABLED
 
   @@map("audit_event_type")
 }
@@ -169,6 +177,16 @@ enum InventoryItemType {
   @@map("inventory_item_type")
 }
 
+/// Tipo de produto do catálogo (caução de vasilhames):
+/// WATER (refil/água), BOTTLE (vasilhame retornável), OTHER (demais).
+enum ProductKind {
+  WATER   @map("water")
+  BOTTLE  @map("bottle")
+  OTHER   @map("other")
+
+  @@map("product_kind")
+}
+
 enum InventoryMovementType {
   INITIAL_LOAD
   ORDER_ACCEPT_OUT
@@ -179,8 +197,21 @@ enum InventoryMovementType {
   MANUAL_CORRECTION
   LOSS_WRITE_OFF
   PURCHASE_IN
+  DEPOSIT_LOAN_OUT
+  DEPOSIT_RETURN_IN
 
   @@map("inventory_movement_type")
+}
+
+/// Movimentos do saldo de vasilhames caucionados (ConsumerDepositMovement).
+/// O saldo materializado (ConsumerDepositBalance) é a soma destes deltas.
+enum DepositMovementType {
+  LOAN_OUT          @map("loan_out")
+  RETURN_IN         @map("return_in")
+  MANUAL_ADJUSTMENT @map("manual_adjustment")
+  WRITE_OFF         @map("write_off")
+
+  @@map("deposit_movement_type")
 }
 
 enum InventoryReferenceType {
@@ -208,6 +239,9 @@ model Consumer {
   name                     String
   email                    String       @unique
   phone                    String?
+  // Documento (CPF/CNPJ) normalizado — somente dígitos. Usado para busca/vinculação
+  // ao programa de caução. É mutável; o vínculo persiste consumer_id (FK) + snapshot.
+  document                 String?      @unique
   password_hash            String
   role                     ConsumerRole @default(CONSUMER)
   is_b2b                   Boolean      @default(false)
@@ -224,6 +258,9 @@ model Consumer {
   push_tokens            ConsumerPushToken[]
   deposits               Deposit[]
   user_subscriptions     UserSubscription[]
+  deposit_programs       ConsumerDepositProgram[]
+  deposit_balances       ConsumerDepositBalance[]
+  deposit_movements      ConsumerDepositMovement[]
 
   @@map("01_mst_consumers")
 }
@@ -278,6 +315,9 @@ model Distributor {
   inventory_movements            InventoryMovement[]
   inventory_reconciliation_sessions InventoryReconciliationSession[]
   payment_settings               DistributorPaymentSettings?
+  deposit_programs               ConsumerDepositProgram[]
+  deposit_balances               ConsumerDepositBalance[]
+  deposit_movements              ConsumerDepositMovement[]
 
   @@map("03_mst_distributors")
 }
@@ -338,22 +378,32 @@ model ZoneCoverage {
 }
 
 model Product {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String      @id @default(uuid()) @db.Uuid
   name          String
   description   String?
   image_url     String?
   price_cents   Int
-  deposit_cents Int      @default(0)
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  // DEPRECATED: era a "caução financeira" por produto. Não usado na caução de vasilhames
+  // (o vasilhame é um Product próprio kind=BOTTLE com seu price_cents). Removido na limpeza final.
+  deposit_cents Int         @default(0)
+  // Tipo do produto: WATER (refil), BOTTLE (vasilhame), OTHER.
+  kind          ProductKind @default(OTHER)
+  // Vasilhame vinculado a uma água (kind=WATER → BOTTLE). Usado p/ adicionar o
+  // vasilhame certo automaticamente quando faltam vazios. 1 água → 1 vasilhame.
+  bottle_product_id String? @db.Uuid
+  is_active     Boolean     @default(true)
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
 
+  bottle_product      Product?           @relation("WaterBottle", fields: [bottle_product_id], references: [id])
+  water_products      Product[]          @relation("WaterBottle")
   categories          Category[]
   inventory_items     InventoryItem[]
   order_items         OrderItem[]
   subscription_plans  SubscriptionPlan[]
 
   @@index([is_active])
+  @@index([bottle_product_id])
   @@map("06_mst_products")
 }
 
@@ -386,6 +436,8 @@ model InventoryItem {
   distributor_balances DistributorInventoryBalance[]
   inventory_movements InventoryMovement[]
   inventory_reconciliation_items InventoryReconciliationItem[]
+  deposit_balances   ConsumerDepositBalance[]
+  deposit_movements  ConsumerDepositMovement[]
 
   @@index([product_id])
   @@map("29_mst_inventory_items")
@@ -515,9 +567,17 @@ model Order {
   scheduled_time_end_hour      Int?
   scheduled_time_end_minute    Int?
   subtotal_cents             Int            @default(0)
+  // DEPRECATED (caução financeira) — mantidos temporariamente p/ compat; sempre 0 na
+  // nova lógica de caução de vasilhames. Removidos na migração destrutiva final.
   deposit_cents              Int            @default(0)
   deposit_amount_cents       Int            @default(0)
   total_cents                Int            @default(0)
+  // Settlement de vasilhames (caução de vasilhames):
+  // faltantes = max(0, bottles_full_ordered - empty_bottles_provided) = bottles_sold + bottles_loaned
+  bottles_full_ordered       Int            @default(0)
+  empty_bottles_provided     Int            @default(0)
+  bottles_sold               Int            @default(0)
+  bottles_loaned             Int            @default(0)
   qty_20l_sent               Int?
   qty_20l_returned           Int?
   rating                     Int?
@@ -545,6 +605,7 @@ model Order {
   items       OrderItem[]
   payments    Payment[]
   deposits    Deposit[]
+  deposit_movements ConsumerDepositMovement[]
   otps        OrderOtp[]
   audit_events AuditEvent[]
   subscription_delivery_date  SubscriptionDeliveryDate?
@@ -552,6 +613,7 @@ model Order {
   @@index([distributor_id, status, created_at], map: "09_trn_orders_distributor_status_created_idx")
   @@index([distributor_id, delivery_date, status], map: "09_trn_orders_distributor_delivery_status_idx")
   @@index([distributor_id, driver_id, status], map: "09_trn_orders_distributor_driver_status_idx")
+  @@index([consumer_id, created_at], map: "09_trn_orders_consumer_created_idx")
   @@map("09_trn_orders")
 }
 
@@ -568,6 +630,7 @@ model OrderItem {
   order   Order   @relation(fields: [order_id], references: [id])
   product Product @relation(fields: [product_id], references: [id])
 
+  @@index([order_id], map: "10_trn_order_items_order_idx")
   @@map("10_trn_order_items")
 }
 
@@ -630,7 +693,85 @@ model Deposit {
   order    Order    @relation(fields: [order_id], references: [id])
   consumer Consumer @relation(fields: [consumer_id], references: [id])
 
+  @@index([order_id], map: "15_trn_deposits_order_idx")
+  @@index([consumer_id, status], map: "15_trn_deposits_consumer_status_idx")
   @@map("15_trn_deposits")
+}
+
+/// Programa de caução de vasilhames — habilitação por par Distribuidora×Consumidor.
+/// Fonte da verdade da exceção operacional. Vínculo via consumer_id (FK estável);
+/// consumer_document_snapshot guarda o CPF/CNPJ usado na concessão (dado, não FK).
+model ConsumerDepositProgram {
+  id                         String   @id @default(uuid()) @db.Uuid
+  distributor_id             String   @db.Uuid
+  consumer_id                String   @db.Uuid
+  consumer_document_snapshot String
+  is_enabled                 Boolean  @default(true)
+  // 0 = bloqueado (sem caução). NUNCA significa "ilimitado".
+  max_bottles                Int      @default(0)
+  notes                      String?
+  enabled_by                 String
+  enabled_at                 DateTime @default(now())
+  disabled_by                String?
+  disabled_at                DateTime?
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
+  consumer    Consumer    @relation(fields: [consumer_id], references: [id])
+
+  @@unique([distributor_id, consumer_id])
+  @@index([consumer_id, is_enabled], map: "35_cfg_consumer_deposit_programs_consumer_idx")
+  @@index([distributor_id, is_enabled], map: "35_cfg_consumer_deposit_programs_distributor_idx")
+  @@map("35_cfg_consumer_deposit_programs")
+}
+
+/// Saldo materializado de vasilhames caucionados por (distribuidora, consumidor, item).
+/// É a soma dos ConsumerDepositMovement. bottles_on_loan nunca negativo.
+model ConsumerDepositBalance {
+  id                String    @id @default(uuid()) @db.Uuid
+  distributor_id    String    @db.Uuid
+  consumer_id       String    @db.Uuid
+  inventory_item_id String    @db.Uuid
+  bottles_on_loan   Int       @default(0)
+  last_movement_at  DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  distributor    Distributor   @relation(fields: [distributor_id], references: [id])
+  consumer       Consumer      @relation(fields: [consumer_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@unique([distributor_id, consumer_id, inventory_item_id])
+  @@index([consumer_id], map: "36_trn_consumer_deposit_balances_consumer_idx")
+  @@index([distributor_id], map: "36_trn_consumer_deposit_balances_distributor_idx")
+  @@map("36_trn_consumer_deposit_balances")
+}
+
+/// Histórico (event-sourcing) das movimentações de caução de vasilhames.
+model ConsumerDepositMovement {
+  id                String              @id @default(uuid()) @db.Uuid
+  distributor_id    String              @db.Uuid
+  consumer_id       String              @db.Uuid
+  inventory_item_id String              @db.Uuid
+  bottles_delta     Int
+  movement_type     DepositMovementType
+  actor_type        ActorType
+  actor_id          String
+  source_app        SourceApp
+  order_id          String?             @db.Uuid
+  notes             String?
+  occurred_at       DateTime            @default(now())
+
+  distributor    Distributor   @relation(fields: [distributor_id], references: [id])
+  consumer       Consumer      @relation(fields: [consumer_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+  order          Order?        @relation(fields: [order_id], references: [id])
+
+  @@index([distributor_id, consumer_id, occurred_at], map: "37_log_consumer_deposit_movements_dist_consumer_idx")
+  @@index([consumer_id, occurred_at], map: "37_log_consumer_deposit_movements_consumer_idx")
+  @@index([order_id], map: "37_log_consumer_deposit_movements_order_idx")
+  @@map("37_log_consumer_deposit_movements")
 }
 
 model OrderOtp {
@@ -678,6 +819,7 @@ model AuditEvent {
 
   order Order? @relation(fields: [order_id], references: [id])
 
+  @@index([order_id, occurred_at], map: "18_aud_audit_events_order_occurred_idx")
   @@map("18_aud_audit_events")
 }
 

@@ -4,6 +4,7 @@ export const QUEUE_NAMES = {
   paymentWebhooks: "payment-webhooks",
   payments: "payments",
   paymentReconciliation: "payment-reconciliation",
+  paymentRefunds: "payment-refunds",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -20,6 +21,7 @@ export const PAYMENT_JOB_NAMES = {
   chargePayment: "charge-payment",
   reconcilePayment: "reconcile-payment",
   expirePayment: "expire-payment",
+  refundPayment: "refund-payment",
 } as const;
 
 export type InternalJobName =
@@ -59,9 +61,16 @@ export interface PaymentExpirationJobPayload extends BaseJobPayload {
   orderId: string;
 }
 
+export interface PaymentRefundJobPayload extends BaseJobPayload {
+  jobName: typeof PAYMENT_JOB_NAMES.refundPayment;
+  orderId: string;
+  paymentId: string;
+}
+
 export type QueueJobPayload =
   | InternalJobPayload
   | PaymentWebhookJobPayload
   | PaymentChargeJobPayload
   | PaymentReconciliationJobPayload
-  | PaymentExpirationJobPayload;
+  | PaymentExpirationJobPayload
+  | PaymentRefundJobPayload;

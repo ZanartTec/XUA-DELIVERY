@@ -86,7 +86,7 @@ export default function ChecklistPage() {
     setLoading(true);
     setError(null);
     try {
-      await api.patch(`/api/orders/${id}`, { action: "dispatch_with_checklist", driver_id: selectedDriver });
+      await api.patch(`/api/orders/${id}/dispatch-with-checklist`, { driver_id: selectedDriver });
 
       router.push("/distributor/queue");
     } catch (err) {

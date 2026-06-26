@@ -3,10 +3,43 @@ import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { distributorController } from "../controllers/distributor.controller.js";
 import { paymentSettingsController } from "../controllers/payment-settings.controller.js";
+import { depositController } from "../../deposits/index.js";
 
 const router = Router();
 
 router.use(authMiddleware);
+
+// ─── Programa de caução de vasilhames ─────────────────────
+router.get(
+  "/deposit-program/lookup",
+  requireRole("distributor_admin", "ops"),
+  depositController.lookup,
+);
+router.get(
+  "/deposit-program",
+  requireRole("distributor_admin", "ops"),
+  depositController.listPrograms,
+);
+router.post(
+  "/deposit-program",
+  requireRole("distributor_admin", "ops"),
+  depositController.enroll,
+);
+router.patch(
+  "/deposit-program/:consumerId",
+  requireRole("distributor_admin", "ops"),
+  depositController.patch,
+);
+router.get(
+  "/deposit/balances",
+  requireRole("distributor_admin", "ops"),
+  depositController.listBalances,
+);
+router.post(
+  "/deposit/:consumerId/adjust",
+  requireRole("distributor_admin", "ops"),
+  depositController.adjust,
+);
 
 // ─── Config de pagamento (métodos aceitos + gateway MP) ───
 router.get(

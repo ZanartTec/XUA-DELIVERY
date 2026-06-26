@@ -67,27 +67,6 @@ export const consumersController = {
     }
   },
 
-  // ─── Deposit Preview ─────────────────────────────────────
-
-  /** GET /api/consumers/:id/deposit-preview */
-  async depositPreview(req: Request, res: Response): Promise<void> {
-    const user = req.user!;
-    const id = req.params.id as string;
-
-    if (user.sub !== id) {
-      res.status(403).json({ error: "Acesso negado" });
-      return;
-    }
-
-    try {
-      const preview = await consumersService.getDepositPreview(id);
-      res.json(preview);
-    } catch (error) {
-      logger.error({ error }, "Error getting deposit preview");
-      res.status(500).json({ error: "Erro interno" });
-    }
-  },
-
   // ─── Assign Mode ──────────────────────────────────────────
 
   /** PATCH /api/consumers/:id/assign-mode */

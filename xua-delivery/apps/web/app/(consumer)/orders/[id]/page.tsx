@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSocket } from "@/src/hooks/use-socket";
-import { OrderTimeline, type TimelineEvent } from "@/src/components/shared/order-timeline";
+import { OrderTimeline } from "@/src/components/shared/order-timeline";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
@@ -27,79 +27,10 @@ import {
   UserRound,
   AlertTriangle,
 } from "lucide-react";
-import type { Order } from "@/src/types";
 import { getCheckoutPaymentMethodLabel, isCashPaymentMethod } from "@xua/shared/mappers/payment";
-
-interface PaymentSummary {
-  id: string;
-  kind: string;
-  status: string;
-  amount_cents: number;
-  payment_method?: string | null;
-  cash_change_for_cents?: number | null;
-  provider?: string | null;
-  paid_at?: string | null;
-  created_at: string;
-}
-
-interface DepositSummary {
-  id: string;
-  amount_cents: number;
-  status: string;
-  refunded_at?: string | null;
-  created_at: string;
-}
-
-interface OtpSummary {
-  id: string;
-  status: string;
-  attempts: number;
-  expires_at: string;
-  created_at: string;
-}
-
-interface OrderDetail extends Order {
-  items: {
-    product_name: string;
-    qty: number;
-    unit_price_cents: number;
-    subtotal_cents: number;
-    image_url: string | null;
-  }[];
-  events: TimelineEvent[];
-  payments: PaymentSummary[];
-  deposits: DepositSummary[];
-  otps: OtpSummary[];
-  otp_code?: string;
-  consumer_name: string;
-  consumer_email?: string | null;
-  consumer_phone?: string | null;
-  distributor_name: string;
-  distributor_phone?: string | null;
-  distributor_email?: string | null;
-  driver_name?: string | null;
-  driver_phone?: string | null;
-  zone_name: string;
-  sla_deadline?: string | null;
-  total_items_qty: number;
-  time_slot?: {
-    label: string;
-    start_hour: number;
-    start_minute: number;
-    end_hour: number;
-    end_minute: number;
-  } | null;
-  address_line?: string;
-  address_details?: {
-    street: string;
-    number: string;
-    complement?: string | null;
-    neighborhood: string;
-    city: string;
-    state: string;
-    zip_code: string;
-  };
-}
+import { useOrderDetail } from "@/src/hooks/consumer/use-order-detail";
+import { useSubmitRating } from "@/src/hooks/consumer/use-submit-rating";
+import { ApiError } from "@/src/lib/api-client";
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   CREATED: "Criado",
@@ -114,14 +45,6 @@ const PAYMENT_KIND_LABELS: Record<string, string> = {
   ORDER: "Pedido",
   SUBSCRIPTION: "Assinatura",
   DEPOSIT: "Caução",
-};
-
-const DEPOSIT_STATUS_LABELS: Record<string, string> = {
-  HELD: "Retida",
-  REFUND_INITIATED: "Reembolso iniciado",
-  REFUNDED: "Reembolsada",
-  FORFEITED: "Retida definitivamente",
-  CANCELLED: "Cancelada",
 };
 
 const OTP_STATUS_LABELS: Record<string, string> = {
@@ -195,16 +118,17 @@ function getProgress(status: string) {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { order, isLoading: loading, error: loadErrorRaw } = useOrderDetail(id);
+  const loadError = loadErrorRaw instanceof Error ? loadErrorRaw.message : null;
   const [nps, setNps] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
   const [npsSubmitted, setNpsSubmitted] = useState(false);
-  const [npsSubmitting, setNpsSubmitting] = useState(false);
   const [npsMessage, setNpsMessage] = useState("");
+  const [npsError, setNpsError] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const { on, off } = useSocket();
+  const submitRating = useSubmitRating();
+  const npsSubmitting = submitRating.isPending;
 
   useEffect(() => {
     const handler = (...args: unknown[]) => {
@@ -215,40 +139,25 @@ export default function OrderDetailPage() {
     return () => off("otp_generated", handler);
   }, [id, on, off]);
 
-  useEffect(() => {
-    fetch(`/api/orders/${id}`)
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error ?? `Erro ${response.status}`);
-        }
-        setOrder(data.order ?? null);
-        setLoadError(null);
-      })
-      .catch((error) => {
-        setOrder(null);
-        setLoadError(error instanceof Error ? error.message : "Erro ao carregar pedido");
-      })
-      .finally(() => setLoading(false));
-  }, [id]);
-
   async function submitNps() {
     if (nps === null || npsSubmitting) return;
-    setNpsSubmitting(true);
-    const payload: { rating: number; comment?: string } = { rating: nps };
-    if (npsComment.trim()) payload.comment = npsComment.trim();
-    await fetch(`/api/orders/${id}/rating`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    setNpsMessage(
-      nps <= 2
-        ? "Sentimos muito! Abrimos um chamado de suporte."
-        : "Obrigado pela avaliação!"
-    );
-    setNpsSubmitted(true);
-    setNpsSubmitting(false);
+    setNpsError(null);
+    try {
+      await submitRating.mutateAsync({ orderId: id, rating: nps, comment: npsComment.trim() || undefined });
+      setNpsMessage(
+        nps <= 2
+          ? "Sentimos muito! Abrimos um chamado de suporte."
+          : "Obrigado pela avaliação!"
+      );
+      setNpsSubmitted(true);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setNpsMessage("Você já avaliou este pedido.");
+        setNpsSubmitted(true);
+        return;
+      }
+      setNpsError(err instanceof ApiError ? err.message : "Erro de conexão. Tente novamente.");
+    }
   }
 
   if (loading) {
@@ -297,7 +206,6 @@ export default function OrderDetailPage() {
     !isPaymentExpired &&
     !isCashPayment;
   const { step, pct } = getProgress(order.status);
-  const latestDeposit = order.deposits[0];
   const latestOtp = order.otps[0];
   const hasDeliveryRecords = Boolean(
     order.qty_20l_sent != null ||
@@ -604,10 +512,10 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* -- Payment and deposit -- */}
+      {/* -- Payment and bottles -- */}
       <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
         <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Pagamento e caução
+          Pagamento e vasilhames
         </h3>
         <div className="space-y-4 text-sm">
           <div className="flex items-start gap-3">
@@ -650,24 +558,18 @@ export default function OrderDetailPage() {
               <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
             </div>
             <div className="min-w-0 flex-1">
-              {latestDeposit ? (
-                <>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#191c1d]">{labelFromMap(DEPOSIT_STATUS_LABELS, latestDeposit.status)}</p>
-                    <span className="font-bold text-[#191c1d]">{formatCurrency(latestDeposit.amount_cents)}</span>
-                  </div>
-                  <p className="text-xs text-[#737688]">
-                    {latestDeposit.refunded_at ? `Reembolsada em ${formatDateTime(latestDeposit.refunded_at)}` : `Criada em ${formatDateTime(latestDeposit.created_at)}`}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="font-semibold text-[#191c1d]">
-                    {order.deposit_cents > 0 ? formatCurrency(order.deposit_cents) : "Sem caução"}
-                  </p>
-                  <p className="text-xs text-[#737688]">Nenhum registro de caução vinculado a este pedido.</p>
-                </>
-              )}
+              <p className="font-semibold text-[#191c1d]">
+                {order.bottles_loaned > 0
+                  ? `${order.bottles_loaned} em caução`
+                  : order.bottles_sold > 0
+                  ? `${order.bottles_sold} adquirido(s)`
+                  : "Sem vasilhames adicionais"}
+              </p>
+              <p className="text-xs text-[#737688]">
+                {order.empty_bottles_provided > 0
+                  ? `${order.empty_bottles_provided} vasilhame(s) informado(s) para troca`
+                  : "Nenhum vasilhame informado para troca"}
+              </p>
             </div>
           </div>
         </div>
@@ -762,10 +664,10 @@ export default function OrderDetailPage() {
               <span>Subtotal</span>
               <span>{formatCurrency(order.subtotal_cents)}</span>
             </div>
-            {order.deposit_cents > 0 && (
+            {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents && (
               <div className="flex justify-between text-[#737688]">
-                <span>Caução</span>
-                <span>{formatCurrency(order.deposit_cents)}</span>
+                <span>Vasilhames ({order.bottles_sold})</span>
+                <span>{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-[#191c1d] pt-1.5 border-t border-[#e1e3e4]">
@@ -851,6 +753,9 @@ export default function OrderDetailPage() {
             >
               {npsSubmitting ? "Enviando..." : "Enviar avaliação"}
             </Button>
+            {npsError && (
+              <p className="text-center text-sm font-medium text-red-500">{npsError}</p>
+            )}
           </div>
         </div>
       )}

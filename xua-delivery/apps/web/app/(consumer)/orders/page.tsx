@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
@@ -11,10 +11,13 @@ import {
   Truck,
   Home,
   Droplets,
+  AlertTriangle,
 } from "lucide-react";
 import type { Order } from "@/src/types";
 import { FilterChips, type FilterOption } from "@/src/components/shared/filter-chips";
 import { Pagination } from "@/src/components/shared/pagination";
+import { Button } from "@/src/components/ui/button";
+import { useOrders, type OrdersFilterValue } from "@/src/hooks/consumer/use-orders";
 
 /* -- helpers -- */
 const STATUS_LABELS: Record<string, string> = {
@@ -54,21 +57,6 @@ function shortId(id: string) {
   return id.slice(0, 8).toUpperCase();
 }
 
-/* -- filter types -- */
-type FilterValue = "all" | "active" | "delivered" | "cancelled";
-
-const PAGE_SIZE = 6;
-
-/* -- API response shape -- */
-interface OrdersResponse {
-  orders: Order[];
-  total: number;
-  page: number;
-  totalPages: number;
-  limit: number;
-  summary: { all: number; active: number; delivered: number; cancelled: number };
-}
-
 function OrderSkeleton() {
   return (
     <div className="animate-pulse rounded-2xl bg-white/80 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
@@ -82,37 +70,11 @@ function OrderSkeleton() {
 }
 
 export default function OrdersPage() {
-  const [data, setData] = useState<OrdersResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterValue>("all");
+  const [filter, setFilter] = useState<OrdersFilterValue>("all");
   const [page, setPage] = useState(1);
+  const { data, isLoading: loading, isError, refetch } = useOrders(filter, page);
 
-  const fetchOrders = useCallback(
-    async (currentFilter: FilterValue, currentPage: number) => {
-      setLoading(true);
-      const params = new URLSearchParams({
-        statusGroup: currentFilter,
-        page: String(currentPage),
-        limit: String(PAGE_SIZE),
-      });
-      try {
-        const res = await fetch(`/api/orders?${params.toString()}`);
-        const json: OrdersResponse = await res.json();
-        setData(json);
-      } catch {
-        // mantém dado anterior
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    fetchOrders(filter, page);
-  }, [filter, page, fetchOrders]);
-
-  function handleFilterChange(val: FilterValue) {
+  function handleFilterChange(val: OrdersFilterValue) {
     setFilter(val);
     setPage(1);
   }
@@ -125,7 +87,7 @@ export default function OrdersPage() {
   const totalPages = data?.totalPages ?? 1;
 
   /* -- filter options -- */
-  const filterOptions: FilterOption<FilterValue>[] = [
+  const filterOptions: FilterOption<OrdersFilterValue>[] = [
     { label: "Todos", value: "all", count: summary.all },
     { label: "Ativos", value: "active", count: summary.active },
     { label: "Entregues", value: "delivered", count: summary.delivered },
@@ -156,6 +118,16 @@ export default function OrdersPage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <OrderSkeleton key={i} />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center px-5">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+            <AlertTriangle className="h-8 w-8 text-red-400" />
+          </div>
+          <p className="text-[#737688]">Não foi possível carregar seus pedidos.</p>
+          <Button variant="ghost" className="mt-4 text-primary" onClick={() => refetch()}>
+            Tentar novamente
+          </Button>
         </div>
       ) : orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center px-5">

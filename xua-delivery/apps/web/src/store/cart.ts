@@ -8,16 +8,19 @@ interface CartItem {
   unit_price_cents: number;
   quantity: number;
   image_url?: string | null;
+  // Vasilhame vinculado (apenas itens de água kind=WATER). Usado no settlement de caução.
+  bottle_product_id?: string | null;
 }
 
 interface CartState {
   items: CartItem[];
-  emptyBottlesQty: number;
+  // Vazios para troca por tipo de vasilhame: { [bottle_product_id]: quantidade }.
+  emptyBottlesByBottle: Record<string, number>;
   selectedDistributorId: string | null;
   addItem: (item: Omit<CartItem, "quantity">) => void;
   removeItem: (productId: string) => void;
   updateQty: (productId: string, quantity: number) => void;
-  setEmptyBottles: (qty: number) => void;
+  setEmptyBottlesForBottle: (bottleProductId: string, qty: number) => void;
   setSelectedDistributorId: (id: string | null) => void;
   clearCart: () => void;
   getTotalItems: () => number;
@@ -28,7 +31,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
-      emptyBottlesQty: 0,
+      emptyBottlesByBottle: {},
       selectedDistributorId: null,
 
       addItem: (item) =>
@@ -68,11 +71,17 @@ export const useCartStore = create<CartState>()(
                 ),
         })),
 
-      setEmptyBottles: (qty) => set({ emptyBottlesQty: qty }),
+      setEmptyBottlesForBottle: (bottleProductId, qty) =>
+        set((state) => ({
+          emptyBottlesByBottle: {
+            ...state.emptyBottlesByBottle,
+            [bottleProductId]: Math.max(0, qty),
+          },
+        })),
 
       setSelectedDistributorId: (id) => set({ selectedDistributorId: id }),
 
-      clearCart: () => set({ items: [], emptyBottlesQty: 0, selectedDistributorId: null }),
+      clearCart: () => set({ items: [], emptyBottlesByBottle: {}, selectedDistributorId: null }),
 
       getTotalItems: () =>
         get().items.reduce((sum, item) => sum + item.quantity, 0),

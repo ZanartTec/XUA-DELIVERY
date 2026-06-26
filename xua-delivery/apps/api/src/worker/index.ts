@@ -8,12 +8,14 @@ import {
   QUEUE_NAMES,
   type InternalJobPayload,
   type PaymentExpirationJobPayload,
+  type PaymentRefundJobPayload,
   type PaymentWebhookJobPayload,
 } from "../infra/queue/contracts";
 import { closeQueueInfra } from "../infra/queue/queues";
 import { processInternalJob } from "./processors/internal-jobs.processor";
 import { processPaymentJob } from "./processors/payment-jobs.processor";
 import { processPaymentExpiration } from "./processors/expire-payment.processor";
+import { processPaymentRefund } from "./processors/process-payment-refund.processor";
 
 const log = createLogger("worker");
 
@@ -63,6 +65,21 @@ const paymentsWorker = new Worker<PaymentExpirationJobPayload>(
 );
 
 const paymentsEvents = new QueueEvents(QUEUE_NAMES.payments, {
+  connection: createQueueRedisConnection(),
+  prefix: QUEUE_PREFIX,
+});
+
+const paymentRefundsWorker = new Worker<PaymentRefundJobPayload>(
+  QUEUE_NAMES.paymentRefunds,
+  processPaymentRefund,
+  {
+    connection: createQueueRedisConnection(),
+    prefix: QUEUE_PREFIX,
+    concurrency: parseConcurrency(process.env.PAYMENT_REFUNDS_WORKER_CONCURRENCY),
+  }
+);
+
+const paymentRefundsEvents = new QueueEvents(QUEUE_NAMES.paymentRefunds, {
   connection: createQueueRedisConnection(),
   prefix: QUEUE_PREFIX,
 });
@@ -148,15 +165,53 @@ paymentsEvents.on("failed", ({ jobId, failedReason }) => {
   log.warn({ jobId, failedReason }, "Payment job moved to failed state");
 });
 
+paymentRefundsWorker.on("completed", (job) => {
+  log.info(
+    {
+      jobId: job.id,
+      jobName: job.name,
+      correlationId: job.data.correlationId,
+    },
+    "Payment refund job completed"
+  );
+});
+
+paymentRefundsWorker.on("failed", (job, err) => {
+  const attempts = job?.opts.attempts ?? 1;
+  const exhausted = job != null && job.attemptsMade >= attempts;
+
+  log.error(
+    {
+      err,
+      jobId: job?.id,
+      jobName: job?.name,
+      correlationId: job?.data.correlationId,
+      orderId: job?.data.orderId,
+      paymentId: job?.data.paymentId,
+      attemptsMade: job?.attemptsMade,
+      exhausted,
+    },
+    exhausted
+      ? "Payment refund job exhausted all retries — requires manual ops follow-up (ver auditoria PAYMENT_REFUND_FAILED)"
+      : "Payment refund job failed, will retry"
+  );
+});
+
+paymentRefundsEvents.on("failed", ({ jobId, failedReason }) => {
+  log.warn({ jobId, failedReason }, "Payment refund job moved to failed state");
+});
+
 log.info(
   {
     queue: QUEUE_NAMES.internalJobs,
     paymentWebhookQueue: QUEUE_NAMES.paymentWebhooks,
     paymentsQueue: QUEUE_NAMES.payments,
+    paymentRefundsQueue: QUEUE_NAMES.paymentRefunds,
     prefix: QUEUE_PREFIX,
     internalConcurrency: internalJobsWorker.opts.concurrency,
     paymentWebhookConcurrency: paymentWebhooksWorker.opts.concurrency,
     paymentsConcurrency: paymentsWorker.opts.concurrency,
+    paymentRefundsConcurrency: paymentRefundsWorker.opts.concurrency,
   },
   "XUA worker started"
 );
@@ -172,9 +227,11 @@ async function shutdown(signal: string): Promise<void> {
   await internalJobsWorker.close();
   await paymentWebhooksWorker.close();
   await paymentsWorker.close();
+  await paymentRefundsWorker.close();
   await internalJobsEvents.close();
   await paymentWebhooksEvents.close();
   await paymentsEvents.close();
+  await paymentRefundsEvents.close();
   await closeQueueInfra();
   await disconnectPrisma();
   await disconnectRedis();

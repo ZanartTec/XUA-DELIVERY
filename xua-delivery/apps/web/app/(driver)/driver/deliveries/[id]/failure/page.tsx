@@ -39,10 +39,10 @@ export default function DriverFailurePage() {
 
     try {
       const finalReason = needsDetails ? `${reason}: ${details.trim()}` : reason;
-      const response = await fetch(`/api/orders/${id}`, {
+      const response = await fetch(`/api/orders/${id}/delivery-failed`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delivery_failed", reason: finalReason }),
+        body: JSON.stringify({ reason: finalReason }),
       });
 
       if (!response.ok) {

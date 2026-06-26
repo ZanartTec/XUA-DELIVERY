@@ -44,6 +44,21 @@ const limitQuery = z.preprocess(
     .default(20)
 );
 
+export const CONSUMER_ORDERS_STATUS_GROUP_VALUES = ["all", "active", "delivered", "cancelled"] as const;
+
+// Sem .strict(): a mesma rota GET /api/orders também atende ops/driver via
+// req.query.status (não relacionado a este schema) — validamos só os campos
+// relevantes à listagem paginada do consumer, sem rejeitar a query inteira.
+export const consumerOrdersQuerySchema = z.object({
+  statusGroup: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(CONSUMER_ORDERS_STATUS_GROUP_VALUES).default("all")
+  ),
+  page: pageQuery,
+  limit: limitQuery,
+});
+export type ConsumerOrdersQueryInput = z.infer<typeof consumerOrdersQuerySchema>;
+
 export const DISTRIBUTOR_QUEUE_STAGE_VALUES = ["all", "incoming", "preparation", "route"] as const;
 export const DISTRIBUTOR_QUEUE_ORIGIN_VALUES = ["all", "cart", "subscription"] as const;
 export const DISTRIBUTOR_QUEUE_SORT_VALUES = ["created_desc", "delivery_asc", "sla_asc"] as const;
@@ -138,7 +153,16 @@ export const createOrderSchema = z.object({
       })
     )
     .min(1, "Adicione ao menos um item"),
-  empty_bottles_qty: z.number().int().min(0).default(0),
+  // Vazios para troca, por tipo de vasilhame (settlement de caução).
+  empty_bottles: z
+    .array(
+      z.object({
+        bottle_product_id: z.string().uuid("Vasilhame inválido"),
+        quantity: z.number().int().min(0),
+      })
+    )
+    .optional()
+    .default([]),
   payment_method: z.enum(CHECKOUT_PAYMENT_METHOD_VALUES).default(DEFAULT_CHECKOUT_PAYMENT_METHOD),
   cash_change_for_cents: z.number().int().min(0).nullable().optional(),
 }).superRefine((data, ctx) => {
@@ -160,6 +184,10 @@ export type RatingInput = z.infer<typeof ratingSchema>;
 
 export const bottleExchangeSchema = z.object({
   driver_id: z.string().uuid(),
+  // Vazios efetivamente coletados do consumidor na entrega (settlement de caução).
+  // Quando ausente, assume-se igual a returned_empty_qty (compat retroativa).
+  collected_empty_qty: z.number().int().min(0, "Quantidade inválida").optional(),
+  // Vazios devolvidos ao estoque da distribuidora (RETURNABLE_EMPTY in).
   returned_empty_qty: z.number().int().min(0, "Quantidade inválida"),
   bottle_condition: z.enum(BOTTLE_CONDITION_VALUES),
 });
@@ -211,4 +239,59 @@ export const rescheduleSchema = z.object({
   reason: z.string().min(5, "Motivo deve ter ao menos 5 caracteres"),
 });
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;
+
+// --- Schemas das sub-rotas PATCH /orders/:id/* (uma ação por rota) ---
+
+const driverIdSchema = z.object({
+  driver_id: z.string().uuid("ID do motorista obrigatório"),
+});
+
+export const assignDriverSchema = driverIdSchema;
+export type AssignDriverInput = z.infer<typeof assignDriverSchema>;
+
+export const dispatchSchema = driverIdSchema;
+export type DispatchInput = z.infer<typeof dispatchSchema>;
+
+export const dispatchWithChecklistSchema = driverIdSchema;
+export type DispatchWithChecklistInput = z.infer<typeof dispatchWithChecklistSchema>;
+
+export const verifyOtpSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Código OTP deve ter 6 dígitos"),
+});
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+export const otpOverrideSchema = z.object({
+  reason: z.string().trim().min(1, "Motivo obrigatório para override"),
+});
+export type OtpOverrideInput = z.infer<typeof otpOverrideSchema>;
+
+// Aceita os três aliases legados do boolean de retorno físico ao estoque
+// (return_to_stock / returned_to_stock / physical_return_confirmed) — a
+// resolução de qual prevalece é feita em `stockReturnOptions()` no controller.
+const stockReturnFields = {
+  return_to_stock: z.boolean().optional(),
+  returned_to_stock: z.boolean().optional(),
+  physical_return_confirmed: z.boolean().optional(),
+};
+
+export const cancelOrderSchema = z.object({
+  reason: z.string().trim().optional(),
+  ...stockReturnFields,
+});
+export type CancelOrderInput = z.infer<typeof cancelOrderSchema>;
+
+export const deliveryFailedSchema = z.object({
+  reason: z.string().trim().min(1, "Motivo obrigatório"),
+  ...stockReturnFields,
+});
+export type DeliveryFailedInput = z.infer<typeof deliveryFailedSchema>;
+
+export const scheduleRedeliverySchema = z.object({
+  new_date: z
+    .string()
+    .trim()
+    .min(1, "Nova data obrigatória")
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Nova data inválida"),
+});
+export type ScheduleRedeliveryInput = z.infer<typeof scheduleRedeliverySchema>;
 

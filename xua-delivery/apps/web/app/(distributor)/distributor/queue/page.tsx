@@ -77,6 +77,13 @@ type QueueOrigin = "all" | "cart" | "subscription";
 type QueueSort = "created_desc" | "delivery_asc" | "sla_asc";
 type QuickAction = "accept" | "reject" | "assign_driver" | "dispatch";
 
+const QUICK_ACTION_ROUTE: Record<QuickAction, string> = {
+  accept: "accept",
+  reject: "reject",
+  assign_driver: "assign-driver",
+  dispatch: "dispatch",
+};
+
 interface QueueOrder extends Order {
   consumer_name: string;
   address_summary: string;
@@ -817,7 +824,7 @@ function DistributorQueueContent() {
 
   const actionMutation = useMutation({
     mutationFn: ({ orderId, action, payload }: { orderId: string; action: QuickAction; payload?: Record<string, unknown> }) =>
-      api.patch<{ order: QueueOrder }>(`/api/orders/${orderId}`, { action, ...payload }),
+      api.patch<{ order: QueueOrder }>(`/api/orders/${orderId}/${QUICK_ACTION_ROUTE[action]}`, payload ?? {}),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
       setRejectOrder(null);

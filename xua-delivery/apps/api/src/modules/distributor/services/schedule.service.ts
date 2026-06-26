@@ -1,9 +1,12 @@
-import type { DeliveryWindow } from "@xua/shared/enums";
+import type { Prisma } from "@prisma/client";
+import { DeliveryWindow } from "@xua/shared/enums";
 import { scheduleRepository } from "../repository/schedule.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
 const log = createLogger("schedule-service");
+
+type TxClient = Prisma.TransactionClient;
 
 const SP_TZ = "America/Sao_Paulo";
 
@@ -43,6 +46,32 @@ const WINDOW_START_HOUR: Record<string, number> = {
   morning: 8,
   afternoon: 12,
 };
+
+/**
+ * Snapshot do horário de entrega gravado no próprio pedido (Order),
+ * de forma a não depender de TimeSlot que pode ser alterado/removido depois.
+ *
+ * Prioridade:
+ *   1. TimeSlot referenciado (label + faixa exatas configuradas pela distribuidora)
+ *   2. preferred_time_start/end (faixa customizada do consumidor)
+ *   3. Fallback determinístico por DeliveryWindow (MORNING 08:00-12:00, AFTERNOON 13:00-18:00)
+ */
+export type ScheduledTimeSnapshot = {
+  label: string | null;
+  startHour: number | null;
+  startMinute: number | null;
+  endHour: number | null;
+  endMinute: number | null;
+};
+
+const WINDOW_FALLBACK: Record<DeliveryWindow, { label: string; startHour: number; endHour: number }> = {
+  [DeliveryWindow.MORNING]: { label: "Manhã (08:00–12:00)", startHour: 8, endHour: 12 },
+  [DeliveryWindow.AFTERNOON]: { label: "Tarde (13:00–18:00)", startHour: 13, endHour: 18 },
+};
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
 
 export class ScheduleServiceError extends Error {
   constructor(public code: string, message: string, public status = 422) {
@@ -227,6 +256,54 @@ export const scheduleService = {
     }
 
     log.info({ distributorId, date, window, leadTimeHours, bypassLeadTime: !!options?.bypassLeadTime }, "Delivery date validated");
+  },
+
+  /**
+   * Resolve o snapshot imutável de horário a ser gravado no pedido no momento
+   * da criação (ver `ScheduledTimeSnapshot`). Roda dentro da transação de
+   * criação do pedido — recebe o `tx` do chamador.
+   */
+  async resolveScheduledTimeSnapshot(
+    tx: TxClient,
+    input: {
+      timeSlotId: string | null;
+      distributorId: string;
+      deliveryWindow: DeliveryWindow;
+      preferredTimeStart: number | null;
+      preferredTimeEnd: number | null;
+    }
+  ): Promise<ScheduledTimeSnapshot> {
+    if (input.timeSlotId) {
+      const slot = await timeslotRepository.findByIdForDistributor(input.timeSlotId, input.distributorId, tx);
+      if (slot) {
+        return {
+          label: slot.label,
+          startHour: slot.start_hour,
+          startMinute: slot.start_minute,
+          endHour: slot.end_hour,
+          endMinute: slot.end_minute,
+        };
+      }
+    }
+
+    if (input.preferredTimeStart != null && input.preferredTimeEnd != null) {
+      return {
+        label: `${pad2(input.preferredTimeStart)}:00–${pad2(input.preferredTimeEnd)}:00`,
+        startHour: input.preferredTimeStart,
+        startMinute: 0,
+        endHour: input.preferredTimeEnd,
+        endMinute: 0,
+      };
+    }
+
+    const fb = WINDOW_FALLBACK[input.deliveryWindow];
+    return {
+      label: fb.label,
+      startHour: fb.startHour,
+      startMinute: 0,
+      endHour: fb.endHour,
+      endMinute: 0,
+    };
   },
 
   async getScheduleConfig(distributorId: string, daysAhead = 30) {

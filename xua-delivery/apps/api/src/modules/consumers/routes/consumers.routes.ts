@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { consumersController } from "../controllers/consumers.controller.js";
+import { depositController } from "../../deposits/index.js";
 
 const router = Router();
 
@@ -19,8 +20,9 @@ router.patch("/:id", consumersController.updateProfile);
 // Assign mode (auto/manual distributor)
 router.patch("/:id/assign-mode", consumersController.updateAssignMode);
 
-// Deposit preview
-router.get("/:id/deposit-preview", consumersController.depositPreview);
+// Caução de vasilhames: preview de settlement (checkout) + saldo do consumidor
+router.post("/:id/deposit/preview", depositController.consumerPreview);
+router.get("/:id/deposit/balance", depositController.consumerBalance);
 
 // Addresses
 router.get("/:id/addresses", consumersController.listAddresses);

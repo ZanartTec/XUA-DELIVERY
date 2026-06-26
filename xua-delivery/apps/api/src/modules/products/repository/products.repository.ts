@@ -8,6 +8,8 @@ const PRODUCT_SELECT = {
   image_url: true,
   price_cents: true,
   deposit_cents: true,
+  kind: true,
+  bottle_product_id: true,
   is_active: true,
   categories: {
     select: {
@@ -112,6 +114,8 @@ export const productsRepository = {
     image_url?: string | null;
     price_cents: number;
     deposit_cents?: number;
+    kind?: "WATER" | "BOTTLE" | "OTHER";
+    bottle_product_id?: string | null;
   }) {
     const prisma = getPrisma();
     return prisma.product.create({ data, select: PRODUCT_SELECT });
@@ -125,6 +129,8 @@ export const productsRepository = {
       image_url?: string | null;
       price_cents?: number;
       deposit_cents?: number;
+      kind?: "WATER" | "BOTTLE" | "OTHER";
+      bottle_product_id?: string | null;
       is_active?: boolean;
     }
   ) {

@@ -1,11 +1,11 @@
 import type { Request, Response } from "express";
-import type { Product } from "@prisma/client";
+import type { Order, Product } from "@prisma/client";
 import type { DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
-import { otpService } from "../../driver/services/otp.service.js";
+import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
 import { distributorService, DistributorServiceError, ScheduleServiceError } from "../../distributor/index.js";
 import {
@@ -14,17 +14,27 @@ import {
   bottleExchangeSchema,
   nonCollectionSchema,
   rejectOrderSchema,
+  assignDriverSchema,
+  dispatchSchema,
+  dispatchWithChecklistSchema,
+  verifyOtpSchema,
+  otpOverrideSchema,
+  cancelOrderSchema,
+  deliveryFailedSchema,
+  scheduleRedeliverySchema,
   distributorQueueQuerySchema,
+  consumerOrdersQuerySchema,
 } from "@xua/shared/schemas/order";
 import { logger } from "../../../infra/logger/index.js";
 
-/** Helper: mapeia OrderServiceError para HTTP status */
+/** Helper: mapeia OrderServiceError/OtpServiceError para HTTP status */
 function errorStatus(code: string): number {
   const map: Record<string, number> = {
     ORDER_NOT_FOUND: 404,
     FORBIDDEN: 403,
     INVALID_TRANSITION: 400,
     INVALID_STATUS: 400,
+    ALREADY_RATED: 409,
     STOCK_UNAVAILABLE: 409,
     IDEMPOTENCY_CONFLICT: 409,
     INVENTORY_ITEM_NOT_FOUND: 400,
@@ -40,20 +50,36 @@ function errorStatus(code: string): number {
   return map[code] ?? 400;
 }
 
-const ORDER_ACTION_ROLES: Record<string, string[]> = {
-  accept: ["distributor_admin"],
-  reject: ["distributor_admin"],
-  assign_driver: ["distributor_admin"],
-  complete_checklist: ["distributor_admin"],
-  dispatch: ["distributor_admin"],
-  dispatch_with_checklist: ["distributor_admin"],
-  deliver: ["driver"],
-  verify_otp: ["driver"],
-  delivery_failed: ["driver"],
-  cancel: ["consumer", "distributor_admin", "driver", "ops"],
-  otp_override: ["ops", "support"],
-  schedule_redelivery: ["ops", "support"],
-};
+/** Encaminha erros conhecidos (OrderServiceError/OtpServiceError) para o status certo; o resto vira 500. */
+function handleActionError(error: unknown, res: Response, logMessage: string): void {
+  if (error instanceof OrderServiceError || error instanceof OtpServiceError) {
+    res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+    return;
+  }
+  logger.error({ error }, logMessage);
+  res.status(500).json({ error: "Erro interno" });
+}
+
+/**
+ * SEC-05: carrega o pedido e verifica ownership antes de qualquer ação.
+ * Responde 404/403 e retorna `null` quando o acesso já foi negado — o
+ * chamador deve checar o retorno e simplesmente `return` nesse caso.
+ */
+async function loadOwnedOrder(req: Request, res: Response): Promise<Order | null> {
+  const user = req.user!;
+  const id = req.params.id as string;
+
+  const existing = await orderRepository.findById(id);
+  if (!existing) {
+    res.status(404).json({ error: "Pedido não encontrado" });
+    return null;
+  }
+  if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) {
+    res.status(403).json({ error: "Acesso negado" });
+    return null;
+  }
+  return existing;
+}
 
 function stockReturnOptions(payload: Record<string, unknown>) {
   const value = payload.return_to_stock ?? payload.returned_to_stock ?? payload.physical_return_confirmed;
@@ -72,9 +98,6 @@ export const ordersController = {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
-    const statusGroup = req.query.statusGroup as string | undefined;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
 
     try {
       // SEC-08: Scope support — busca por telefone/email/id
@@ -120,14 +143,23 @@ export const ordersController = {
         return;
       }
 
+      const parsedQuery = consumerOrdersQuerySchema.safeParse(req.query);
+      if (!parsedQuery.success) {
+        res.status(400).json({
+          error: parsedQuery.error.issues[0]?.message ?? "Query inválida",
+          code: "INVALID_QUERY",
+        });
+        return;
+      }
+
       const result = await orderService.listOrders(
         user.sub,
         user.role,
         scope,
         statusParam,
-        page,
-        limit,
-        statusGroup
+        parsedQuery.data.page,
+        parsedQuery.data.limit,
+        parsedQuery.data.statusGroup
       );
 
       // Consumer returns paginated envelope; other roles return plain array
@@ -214,6 +246,7 @@ export const ordersController = {
         timeSlotId: parsed.data.time_slot_id ?? null,
         paymentMethod: parsed.data.payment_method,
         cashChangeForCents: parsed.data.cash_change_for_cents ?? null,
+        emptyBottles: parsed.data.empty_bottles,
         items: parsed.data.items.map((i) => {
           const product = productMap.get(i.product_id)!;
           return {
@@ -262,7 +295,7 @@ export const ordersController = {
     const id = req.params.id as string;
 
     try {
-      const detail = await orderService.getOrderDetail(id);
+      const detail = await orderService.getOrderDetail(id, user.role);
       if (!detail) {
         res.status(404).json({ error: "Pedido não encontrado" });
         return;
@@ -281,189 +314,301 @@ export const ordersController = {
   },
 
   /**
-   * PATCH /api/orders/:id
-   * Ações de mudança de estado no pedido.
+   * PATCH /api/orders/:id/accept
+   * Distribuidor aceita o pedido.
    */
-  async action(req: Request, res: Response): Promise<void> {
-    const user = req.user!;
-    const id = req.params.id as string;
-    const { action, ...payload } = req.body;
-
+  async accept(req: Request, res: Response): Promise<void> {
     try {
-      // SEC-05: Verifica ownership antes de permitir ação
-      const existing = await orderRepository.findById(id);
-      if (!existing) {
-        res.status(404).json({ error: "Pedido não encontrado" });
-        return;
-      }
-      if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) {
-        res.status(403).json({ error: "Acesso negado" });
-        return;
-      }
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
 
-      const allowedRoles = typeof action === "string" ? ORDER_ACTION_ROLES[action] : undefined;
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
-        res.status(403).json({ error: "Acesso negado" });
-        return;
-      }
-
-      let updatedOrder;
-
-      switch (action) {
-        case "accept":
-          updatedOrder = await orderService.acceptOrder(id, user.sub);
-          break;
-
-        case "reject":
-          const rejectParsed = rejectOrderSchema.safeParse(payload);
-          if (!rejectParsed.success) {
-            res.status(400).json({ error: rejectParsed.error.issues[0].message });
-            return;
-          }
-          updatedOrder = await orderService.rejectOrder(
-            id,
-            user.sub,
-            rejectParsed.data.reason,
-            rejectParsed.data.details
-          );
-          break;
-
-        case "assign_driver":
-          if (!payload.driver_id || typeof payload.driver_id !== "string") {
-            res.status(400).json({ error: "ID do motorista obrigatório" });
-            return;
-          }
-          updatedOrder = await orderService.assignDriver(id, user.sub, payload.driver_id);
-          break;
-
-        case "complete_checklist":
-          updatedOrder = await orderService.completeChecklist(id, user.sub);
-          break;
-
-        case "dispatch":
-          if (!payload.driver_id || typeof payload.driver_id !== "string") {
-            res.status(400).json({ error: "ID do motorista obrigatório" });
-            return;
-          }
-          updatedOrder = await orderService.dispatch(id, user.sub, payload.driver_id);
-          // Gera OTP após dispatch
-          const otpCode = await otpService.generate(id, user.sub);
-          // Envia OTP em tempo real ao consumer via Socket.IO
-          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
-            orderId: id,
-            code: otpCode,
-          });
-          res.json({ order: updatedOrder, otp: otpCode });
-          return;
-
-        case "dispatch_with_checklist":
-          if (!payload.driver_id || typeof payload.driver_id !== "string") {
-            res.status(400).json({ error: "ID do motorista obrigatório" });
-            return;
-          }
-          updatedOrder = await orderService.dispatchWithChecklist(id, user.sub, payload.driver_id);
-          const otpCodeChecklist = await otpService.generate(id, user.sub);
-          // Envia OTP em tempo real ao consumer via Socket.IO
-          getIO().to(`consumer:${updatedOrder.consumer_id}`).emit("otp_generated", {
-            orderId: id,
-            code: otpCodeChecklist,
-          });
-          res.json({ order: updatedOrder, otp: otpCodeChecklist });
-          return;
-
-        case "deliver":
-          updatedOrder = await orderService.deliverOrder(id, user.sub);
-          break;
-
-        case "verify_otp":
-          if (!payload.code) {
-            res.status(400).json({ error: "Código OTP obrigatório" });
-            return;
-          }
-          const validation = await otpService.validate(id, payload.code, user.sub);
-          if (!validation.isValid) {
-            res.status(validation.locked ? 429 : 400).json({
-              error: validation.locked
-                ? "Código bloqueado por excesso de tentativas"
-                : "Código incorreto",
-              code: validation.locked ? "OTP_LOCKED" : "OTP_INVALID",
-              attempts: validation.attempts,
-              max_attempts: validation.maxAttempts,
-            });
-            return;
-          }
-          updatedOrder = await orderService.deliverOrder(id, user.sub);
-          break;
-
-        case "otp_override":
-          if (user.role !== "ops" && user.role !== "support") {
-            res.status(403).json({ error: "Apenas ops/support pode fazer override de OTP" });
-            return;
-          }
-          if (!payload.reason) {
-            res.status(400).json({ error: "Motivo obrigatório para override" });
-            return;
-          }
-          await otpService.override(id, user.sub, payload.reason);
-          updatedOrder = await orderService.deliverOrder(id, user.sub);
-          break;
-
-        case "cancel":
-          const actorType =
-            user.role === "consumer"
-              ? "consumer"
-              : user.role === "distributor_admin"
-                ? "distributor"
-                : user.role === "driver"
-                  ? "driver"
-                  : "ops";
-          updatedOrder = await orderService.cancelOrder(
-            id,
-            user.sub,
-            actorType,
-            payload.reason ?? "Cancelado pelo usuário",
-            stockReturnOptions(payload)
-          );
-          break;
-
-        case "delivery_failed":
-          if (!payload.reason) {
-            res.status(400).json({ error: "Motivo obrigatório" });
-            return;
-          }
-          updatedOrder = await orderService.markDeliveryFailed(
-            id,
-            user.sub,
-            payload.reason,
-            stockReturnOptions(payload)
-          );
-          break;
-
-        case "schedule_redelivery":
-          if (user.role !== "ops" && user.role !== "support") {
-            res.status(403).json({ error: "Apenas ops/support pode reagendar entregas" });
-            return;
-          }
-          if (!payload.new_date) {
-            res.status(400).json({ error: "Nova data obrigatória" });
-            return;
-          }
-          updatedOrder = await orderService.scheduleRedelivery(id, user.sub, new Date(payload.new_date));
-          break;
-
-        default:
-          res.status(400).json({ error: "Ação desconhecida" });
-          return;
-      }
-
+      const updatedOrder = await orderService.acceptOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+      handleActionError(error, res, "Error accepting order");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/reject
+   * Distribuidor rejeita o pedido.
+   */
+  async reject(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = rejectOrderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
         return;
       }
-      logger.error({ error }, "Error processing order action");
-      res.status(500).json({ error: "Erro interno" });
+
+      const updatedOrder = await orderService.rejectOrder(
+        existing.id,
+        req.user!.sub,
+        parsed.data.reason,
+        parsed.data.details
+      );
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error rejecting order");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/assign-driver
+   * Distribuidor atribui (ou reatribui) motorista ao pedido.
+   */
+  async assignDriver(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = assignDriverSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const updatedOrder = await orderService.assignDriver(existing.id, req.user!.sub, parsed.data.driver_id);
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error assigning driver");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/complete-checklist
+   * Distribuidor completa o checklist de despacho.
+   */
+  async completeChecklist(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const updatedOrder = await orderService.completeChecklist(existing.id, req.user!.sub);
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error completing checklist");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/dispatch
+   * Distribuidor despacha o pedido (gera OTP).
+   */
+  async dispatch(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = dispatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const result = await orderService.dispatch(existing.id, req.user!.sub, parsed.data.driver_id);
+      // Envia OTP em tempo real ao consumer via Socket.IO
+      getIO().to(`consumer:${result.order.consumer_id}`).emit("otp_generated", {
+        orderId: existing.id,
+        code: result.otpCode,
+      });
+      res.json({ order: result.order, otp: result.otpCode });
+    } catch (error) {
+      handleActionError(error, res, "Error dispatching order");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/dispatch-with-checklist
+   * Checklist + dispatch numa única chamada (gera OTP).
+   */
+  async dispatchWithChecklist(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = dispatchWithChecklistSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const result = await orderService.dispatchWithChecklist(existing.id, req.user!.sub, parsed.data.driver_id);
+      getIO().to(`consumer:${result.order.consumer_id}`).emit("otp_generated", {
+        orderId: existing.id,
+        code: result.otpCode,
+      });
+      res.json({ order: result.order, otp: result.otpCode });
+    } catch (error) {
+      handleActionError(error, res, "Error dispatching order with checklist");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/deliver
+   * Motorista confirma entrega (sem validar OTP — uso administrativo/teste).
+   */
+  async deliver(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error delivering order");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/verify-otp
+   * Motorista valida o código informado pelo cliente e confirma a entrega.
+   */
+  async verifyOtp(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = verifyOtpSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub);
+      if (!validation.isValid) {
+        res.status(validation.locked ? 429 : 400).json({
+          error: validation.locked
+            ? "Código bloqueado por excesso de tentativas"
+            : "Código incorreto",
+          code: validation.locked ? "OTP_LOCKED" : "OTP_INVALID",
+          attempts: validation.attempts,
+          max_attempts: validation.maxAttempts,
+        });
+        return;
+      }
+
+      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error verifying OTP");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/otp-override
+   * Ops/support faz bypass do OTP (sempre com motivo obrigatório).
+   */
+  async otpOverride(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = otpOverrideSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      await otpService.override(existing.id, req.user!.sub, parsed.data.reason);
+      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error overriding OTP");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/cancel
+   * Cancela o pedido (consumer, distributor_admin, driver ou ops).
+   */
+  async cancel(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = cancelOrderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const user = req.user!;
+      const actorType =
+        user.role === "consumer"
+          ? "consumer"
+          : user.role === "distributor_admin"
+            ? "distributor"
+            : user.role === "driver"
+              ? "driver"
+              : "ops";
+
+      const updatedOrder = await orderService.cancelOrder(
+        existing.id,
+        user.sub,
+        actorType,
+        parsed.data.reason ?? "Cancelado pelo usuário",
+        stockReturnOptions(parsed.data)
+      );
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error cancelling order");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/delivery-failed
+   * Motorista registra falha na entrega.
+   */
+  async deliveryFailed(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = deliveryFailedSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const updatedOrder = await orderService.markDeliveryFailed(
+        existing.id,
+        req.user!.sub,
+        parsed.data.reason,
+        stockReturnOptions(parsed.data)
+      );
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error marking delivery failed");
+    }
+  },
+
+  /**
+   * PATCH /api/orders/:id/schedule-redelivery
+   * Ops/support agenda uma reentrega.
+   */
+  async scheduleRedelivery(req: Request, res: Response): Promise<void> {
+    try {
+      const existing = await loadOwnedOrder(req, res);
+      if (!existing) return;
+
+      const parsed = scheduleRedeliverySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const updatedOrder = await orderService.scheduleRedelivery(
+        existing.id,
+        req.user!.sub,
+        new Date(parsed.data.new_date)
+      );
+      res.json({ order: updatedOrder });
+    } catch (error) {
+      handleActionError(error, res, "Error scheduling redelivery");
     }
   },
 
@@ -510,7 +655,8 @@ export const ordersController = {
 
     try {
       const order = await orderService.recordBottleExchange(id, user.sub, {
-        collectedQty: parsed.data.returned_empty_qty,
+        // Vazios coletados do consumidor (settlement). Default = returned_empty_qty (compat).
+        collectedQty: parsed.data.collected_empty_qty ?? parsed.data.returned_empty_qty,
         returnedQty: parsed.data.returned_empty_qty,
         condition: parsed.data.bottle_condition,
       });

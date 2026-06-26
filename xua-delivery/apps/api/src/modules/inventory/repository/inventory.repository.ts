@@ -243,6 +243,22 @@ export const inventoryRepository = {
     });
   },
 
+  /**
+   * Vasilhame cheio retornável — item canônico usado como "vasilhame" no settlement
+   * de caução (empréstimo/venda). Mantém o mesmo padrão de findActiveReturnableEmptyItem.
+   */
+  async findActiveReturnableFullItem(tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryItem.findFirst({
+      where: {
+        type: InventoryItemTypeValue.RETURNABLE_FULL,
+        is_active: true,
+      },
+      select: INVENTORY_ITEM_SELECT,
+      orderBy: { code: "asc" },
+    });
+  },
+
   async listInventoryItems(
     params: InventoryItemListParams,
     tx?: TxClient

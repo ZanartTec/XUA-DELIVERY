@@ -26,24 +26,31 @@ export default function CartPage() {
   );
 
   const items = useCartStore((s) => s.items);
-  const emptyBottlesQty = useCartStore((s) => s.emptyBottlesQty);
+  const emptyBottlesByBottle = useCartStore((s) => s.emptyBottlesByBottle);
   const removeItem = useCartStore((s) => s.removeItem);
   const updateQty = useCartStore((s) => s.updateQty);
-  const setEmptyBottles = useCartStore((s) => s.setEmptyBottles);
+  const setEmptyBottlesForBottle = useCartStore((s) => s.setEmptyBottlesForBottle);
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
 
   const subtotal = mounted ? getSubtotalCents() : 0;
   const totalCents = subtotal;
   const isEmpty = mounted ? items.length === 0 : true;
 
-  const gallonCount = items
-    .filter(
-      (i) =>
-        i.product_name.toLowerCase().includes("galão") ||
-        i.product_name.toLowerCase().includes("garrafão") ||
-        i.product_name.toLowerCase().includes("20l"),
-    )
-    .reduce((acc, i) => acc + i.quantity, 0);
+  // Agrupa vasilhames retornáveis (águas com vínculo) por tipo de vasilhame.
+  const bottleGroups = Object.values(
+    items
+      .filter((i) => i.bottle_product_id)
+      .reduce<Record<string, { bottleProductId: string; names: string[]; ordered: number }>>(
+        (acc, i) => {
+          const id = i.bottle_product_id as string;
+          if (!acc[id]) acc[id] = { bottleProductId: id, names: [], ordered: 0 };
+          if (!acc[id].names.includes(i.product_name)) acc[id].names.push(i.product_name);
+          acc[id].ordered += i.quantity;
+          return acc;
+        },
+        {},
+      ),
+  );
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-8rem)] pb-4">
@@ -155,60 +162,60 @@ export default function CartPage() {
             ))}
           </div>
 
-          {/* Empty Gallons for Exchange */}
-          <div className="mx-4 mt-4 rounded-2xl bg-[#5697E9]/10 p-4">
+          {/* Vasilhames vazios para troca — um stepper por tipo de vasilhame */}
+          {bottleGroups.length > 0 && (
+            <div className="mx-4 mt-4 rounded-2xl bg-[#5697E9]/10 p-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5697E9]/15">
                   <Recycle className="h-5 w-5 text-[#5697E9]" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-sm text-[#191c1d] font-heading">
-                    Garrafões Vazios para Troca
+                    Vasilhames Vazios para Troca
                   </h3>
                   <p className="text-xs text-[#444] mt-1 leading-relaxed">
-                    Informe quantos garrafões vazios você tem para devolver.
+                    Informe quantos vasilhames vazios você tem para devolver.
                   </p>
 
-                  {/* Stepper for empty bottles */}
-                  <div className="flex items-center mt-2.5 rounded-full bg-white/70 p-0.5 w-fit">
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
-                      onClick={() =>
-                        setEmptyBottles(Math.max(0, emptyBottlesQty - 1))
-                      }
-                    >
-                      <Minus className="h-3 w-3 text-[#191c1d]" />
-                    </button>
-                    <span className="w-7 text-center text-xs font-semibold text-[#191c1d]">
-                      {String(emptyBottlesQty).padStart(2, "0")}
-                    </span>
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
-                      onClick={() => setEmptyBottles(emptyBottlesQty + 1)}
-                    >
-                      <Plus className="h-3 w-3 text-[#191c1d]" />
-                    </button>
+                  <div className="mt-3 space-y-3">
+                    {bottleGroups.map((g) => {
+                      const qty = emptyBottlesByBottle[g.bottleProductId] ?? 0;
+                      return (
+                        <div key={g.bottleProductId} className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-[#191c1d] truncate">{g.names.join(", ")}</span>
+                          <div className="flex items-center rounded-full bg-white/70 p-0.5 w-fit shrink-0">
+                            <button
+                              type="button"
+                              className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
+                              onClick={() => setEmptyBottlesForBottle(g.bottleProductId, Math.max(0, qty - 1))}
+                            >
+                              <Minus className="h-3 w-3 text-[#191c1d]" />
+                            </button>
+                            <span className="w-7 text-center text-xs font-semibold text-[#191c1d]">
+                              {String(qty).padStart(2, "0")}
+                            </span>
+                            <button
+                              type="button"
+                              className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
+                              onClick={() => setEmptyBottlesForBottle(g.bottleProductId, qty + 1)}
+                            >
+                              <Plus className="h-3 w-3 text-[#191c1d]" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-              {emptyBottlesQty === 0 ? (
-                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
-                  <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  <p className="text-[11px] text-amber-600 leading-tight font-medium">
-                    Primeira compra? Será cobrada caução de R$ 30 por garrafão.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
-                  <Info className="h-3.5 w-3.5 text-primary/60 shrink-0" />
-                  <p className="text-[10px] text-primary/70 leading-tight">
-                    Necessário para preço de refil
-                  </p>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
+                <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <p className="text-[11px] text-amber-600 leading-tight font-medium">
+                  Faltando vasilhames? Os que faltarem serão adquiridos junto ao pedido (ou cedidos em caução, se você participar do programa).
+                </p>
+              </div>
             </div>
+          )}
 
           {/* Cost Breakdown */}
           <div className="mx-4 mt-4 rounded-2xl bg-white p-4 shadow-[0_1px_8px_rgba(0,26,64,0.07)]">
