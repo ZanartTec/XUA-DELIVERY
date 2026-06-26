@@ -4,6 +4,7 @@ import {
   PAYMENT_JOB_NAMES,
   QUEUE_NAMES,
   type PaymentExpirationJobPayload,
+  type PaymentRefundJobPayload,
   type PaymentWebhookJobPayload,
 } from "./contracts";
 
@@ -74,5 +75,41 @@ export async function schedulePaymentExpiration(orderId: string) {
     name: job.name,
     correlationId,
     delayMs,
+  };
+}
+
+// ─── Refund de Pagamento ────────────────────────────────────────
+
+/**
+ * Enfileira o reembolso de um pagamento capturado (ex.: pedido rejeitado
+ * pela distribuidora após pagamento já ter sido capturado pelo gateway).
+ *
+ * Idempotência: usa `jobId: refund-payment-${paymentId}` — BullMQ ignora
+ * jobs com ID duplicado, garantindo no máximo 1 job por pagamento. O próprio
+ * `paymentService.refund()` também é idempotente (só age sobre pagamento
+ * ainda CAPTURED), então reexecuções do job são seguras.
+ */
+export async function enqueueRefundPaymentJob(orderId: string, paymentId: string) {
+  const correlationId = randomUUID();
+  const payload: PaymentRefundJobPayload = {
+    jobName: PAYMENT_JOB_NAMES.refundPayment,
+    orderId,
+    paymentId,
+    correlationId,
+    requestedAt: new Date().toISOString(),
+    source: "api",
+  };
+
+  const queue = getQueue(QUEUE_NAMES.paymentRefunds);
+  const job = await queue.add(PAYMENT_JOB_NAMES.refundPayment, payload, {
+    jobId: `refund-payment-${paymentId}`,
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5_000 },
+  });
+
+  return {
+    id: job.id,
+    name: job.name,
+    correlationId,
   };
 }

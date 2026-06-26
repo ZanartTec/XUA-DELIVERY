@@ -363,7 +363,9 @@ export const paymentService = {
   },
 
   /**
-   * Reembolsa pagamento — usado em cancelamentos.
+   * Reembolsa pagamento — usado em cancelamentos e rejeições de pedido.
+   * Idempotente: só age sobre pagamento com status CAPTURED, então uma
+   * segunda chamada após sucesso não encontra mais nada a reembolsar.
    */
   async refund(orderId: string): Promise<{ externalId: string; status: string } | null> {
     const prisma = getPrisma();
@@ -381,12 +383,46 @@ export const paymentService = {
 
     const result = await gateway.refund(providerPaymentId);
 
-    if (result.status === "refunded") {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: PaymentStatus.REFUNDED },
+    await prisma.$transaction(async (tx: TxClient) => {
+      if (result.status === "refunded") {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+      }
+
+      await tx.paymentTransaction.create({
+        data: {
+          payment_id: payment.id,
+          action: "refund",
+          provider_status: result.status,
+          provider_response: (result.raw ?? {}) as Prisma.InputJsonObject,
+        },
       });
+
+      await auditRepository.emit(
+        {
+          eventType:
+            result.status === "refunded"
+              ? AuditEventType.PAYMENT_REFUNDED
+              : AuditEventType.PAYMENT_REFUND_FAILED,
+          actor: { type: ActorType.SYSTEM, id: "payment-gateway" },
+          orderId,
+          sourceApp: SourceApp.BACKEND,
+          payload: {
+            paymentId: payment.id,
+            externalId: result.externalId,
+            status: result.status,
+          },
+        },
+        tx
+      );
+    });
+
+    if (result.status === "refunded") {
       log.info({ orderId, paymentId: payment.id }, "Payment refunded");
+    } else {
+      log.warn({ orderId, paymentId: payment.id, result }, "Payment refund attempt failed");
     }
 
     return result;

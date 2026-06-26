@@ -6,6 +6,7 @@ import {
   InventoryMovementType,
   InventoryReferenceType,
   OrderStatus,
+  PaymentStatus,
   SourceApp,
 } from "@xua/shared/enums";
 
@@ -46,6 +47,7 @@ const mocks = vi.hoisted(() => {
     paymentService: { charge: vi.fn() },
     distributorRepository: { resolveDistributorId: vi.fn(), findDriversByDistributor: vi.fn() },
     otpService: { generateInTx: vi.fn(), cacheCode: vi.fn() },
+    enqueueRefundPaymentJob: vi.fn(),
   };
 });
 
@@ -110,6 +112,10 @@ vi.mock("../../distributor/repository/distributor.repository.js", () => ({
 
 vi.mock("../../driver/services/otp.service.js", () => ({
   otpService: mocks.otpService,
+}));
+
+vi.mock("../../../infra/queue/payment-jobs.producer.js", () => ({
+  enqueueRefundPaymentJob: mocks.enqueueRefundPaymentJob,
 }));
 
 const { orderService, OrderServiceError } = await import("./orders.service.js");
@@ -231,6 +237,7 @@ beforeEach(() => {
   mocks.auditRepository.emit.mockResolvedValue({ id: "audit-1" });
   mocks.otpService.generateInTx.mockResolvedValue("123456");
   mocks.otpService.cacheCode.mockResolvedValue(undefined);
+  mocks.enqueueRefundPaymentJob.mockResolvedValue({ id: "job-1", name: "refund-payment", correlationId: "corr-1" });
 });
 
 describe("orderService inventory integration", () => {
@@ -364,11 +371,11 @@ describe("orderService inventory integration", () => {
     );
   });
 
-  it("rejeicao com pagamento capturado sinaliza revisao manual de reembolso na auditoria", async () => {
+  it("rejeicao com pagamento capturado dispara reembolso automatico", async () => {
     const current = order();
     mocks.orderRepository.findById.mockResolvedValue(current);
     mockStatusUpdate(current);
-    tx.payment.findFirst.mockResolvedValue({ id: "payment-1", status: "captured" });
+    tx.payment.findFirst.mockResolvedValue({ id: "payment-1", status: PaymentStatus.CAPTURED });
 
     await orderService.rejectOrder(orderId, distributorUserId, "out_of_stock", "Sem saldo fisico");
 
@@ -376,12 +383,36 @@ describe("orderService inventory integration", () => {
       expect.objectContaining({
         eventType: AuditEventType.ORDER_REJECTED_BY_DISTRIBUTOR,
         payload: expect.objectContaining({
-          requires_manual_refund_review: true,
-          captured_payment_id: "payment-1",
+          refund_auto_initiated: true,
+          requires_manual_refund_review: false,
+          payment_id: "payment-1",
         }),
       }),
       tx
     );
+    expect(mocks.enqueueRefundPaymentJob).toHaveBeenCalledWith(orderId, "payment-1");
+  });
+
+  it("rejeicao com pagamento apenas autorizado (sem captura) so sinaliza revisao manual", async () => {
+    const current = order();
+    mocks.orderRepository.findById.mockResolvedValue(current);
+    mockStatusUpdate(current);
+    tx.payment.findFirst.mockResolvedValue({ id: "payment-2", status: PaymentStatus.AUTHORIZED });
+
+    await orderService.rejectOrder(orderId, distributorUserId, "out_of_stock", "Sem saldo fisico");
+
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: AuditEventType.ORDER_REJECTED_BY_DISTRIBUTOR,
+        payload: expect.objectContaining({
+          refund_auto_initiated: false,
+          requires_manual_refund_review: true,
+          payment_id: "payment-2",
+        }),
+      }),
+      tx
+    );
+    expect(mocks.enqueueRefundPaymentJob).not.toHaveBeenCalled();
   });
 
   it("cancelamento pos-aceite devolve saldo quando o item permanece disponivel", async () => {
