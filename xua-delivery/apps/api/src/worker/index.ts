@@ -16,6 +16,7 @@ import { processInternalJob } from "./processors/internal-jobs.processor";
 import { processPaymentJob } from "./processors/payment-jobs.processor";
 import { processPaymentExpiration } from "./processors/expire-payment.processor";
 import { processPaymentRefund } from "./processors/process-payment-refund.processor";
+import { registerRepeatableJobs } from "./register-repeatable-jobs";
 
 const log = createLogger("worker");
 
@@ -199,6 +200,13 @@ paymentRefundsWorker.on("failed", (job, err) => {
 
 paymentRefundsEvents.on("failed", ({ jobId, failedReason }) => {
   log.warn({ jobId, failedReason }, "Payment refund job moved to failed state");
+});
+
+// Agenda os Job Schedulers que substituem os antigos crons do Render
+// (subscription-cron, subscription-expiry, otp-cleanup). Idempotente —
+// seguro chamar em todo boot/restart do worker.
+registerRepeatableJobs().catch((err) => {
+  log.fatal({ err }, "Failed to register repeatable jobs");
 });
 
 log.info(

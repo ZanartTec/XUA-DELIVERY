@@ -43,8 +43,6 @@ services:
         sync: false
       - key: INTERNAL_SECRET
         sync: false
-      - key: INTERNAL_JOB_SECRET
-        generateValue: true
 
       # ─── Criptografia de segredos em repouso ────────────────────────────
       - key: ENCRYPTION_MASTER_KEY
@@ -97,14 +95,6 @@ services:
       # Tempo em minutos antes de um pedido pendente ser cancelado (padrão: 15)
       - key: PAYMENT_EXPIRATION_MINUTES
         value: "15"
-
-      # ─── BullMQ rollout ───────────────────────────────────────────────────
-      - key: USE_BULLMQ_OTP_CLEANUP
-        value: "true"
-      - key: USE_BULLMQ_SUBSCRIPTION
-        value: "true"
-      - key: USE_BULLMQ_SUBSCRIPTION_EXPIRY
-        value: "true"
 
       # ─── Push Notifications (VAPID) ────────────────────────────────────────
       - key: VAPID_PUBLIC_KEY
@@ -216,60 +206,3 @@ services:
           name: xua-api
           type: web
           envVarKey: VAPID_PUBLIC_KEY
-
-  # ─── Cron: Geração de assinaturas diárias ─────────────────────────────────
-  - type: cron
-    name: subscription-cron
-    rootDir: xua-delivery
-    runtime: node
-    plan: starter
-    region: oregon
-    schedule: "0 3,8,19 * * *" # 00h, 05h e 16h São Paulo (BRT = UTC-3) = 03h, 08h, 19h UTC
-    buildCommand: ""
-    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription
-    envVars:
-      - key: INTERNAL_JOB_SECRET
-        fromService:
-          name: xua-api
-          type: web
-          envVarKey: INTERNAL_JOB_SECRET
-      - key: API_URL
-        value: http://xua-api:3000
-
-  # ─── Cron: Expiração de assinaturas ───────────────────────────────────────
-  - type: cron
-    name: subscription-expiry
-    rootDir: xua-delivery
-    runtime: node
-    plan: starter
-    region: oregon
-    schedule: "30 9 * * *" # 06h30 São Paulo = 09h30 UTC
-    buildCommand: ""
-    startCommand: npx tsx apps/api/src/jobs/trigger.ts subscription-expiry
-    envVars:
-      - key: INTERNAL_JOB_SECRET
-        fromService:
-          name: xua-api
-          type: web
-          envVarKey: INTERNAL_JOB_SECRET
-      - key: API_URL
-        value: http://xua-api:3000
-
-  # ─── Cron: Limpeza de OTPs expirados ──────────────────────────────────────
-  - type: cron
-    name: otp-cleanup
-    rootDir: xua-delivery
-    runtime: node
-    plan: starter
-    region: oregon
-    schedule: "*/15 * * * *" # A cada 15 minutos
-    buildCommand: ""
-    startCommand: npx tsx apps/api/src/jobs/trigger.ts otp-cleanup
-    envVars:
-      - key: INTERNAL_JOB_SECRET
-        fromService:
-          name: xua-api
-          type: web
-          envVarKey: INTERNAL_JOB_SECRET
-      - key: API_URL
-        value: http://xua-api:3000
