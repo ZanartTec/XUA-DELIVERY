@@ -140,8 +140,13 @@ services:
         sync: false
 
       # ─── Criptografia de segredos em repouso ────────────────────────────
+      # Precisa ser IDÊNTICA à do xua-api (cifra lá, decifra aqui) — herdada
+      # automaticamente em vez de exigir entrada manual duplicada no dashboard.
       - key: ENCRYPTION_MASTER_KEY
-        sync: false
+        fromService:
+          name: xua-api
+          type: web
+          envVarKey: ENCRYPTION_MASTER_KEY
 
       # ─── Pagamentos ───────────────────────────────────────────────────────
       - key: PAYMENT_PROVIDER

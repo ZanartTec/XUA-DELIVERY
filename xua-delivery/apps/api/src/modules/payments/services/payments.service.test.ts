@@ -25,6 +25,7 @@ vi.mock("../gateway/payments.gateway.js", () => ({
   PAYMENT_PROVIDERS: { mercadoPago: "mercadopago" },
   getConfiguredPaymentProvider: () => "mercadopago",
   getPaymentGateway: () => mocks.gateway,
+  isRegisteredGatewayProvider: (provider: string | null | undefined) => provider === "mercadopago",
 }));
 
 vi.mock("../../audit/index.js", () => ({
@@ -54,6 +55,7 @@ function capturedPayment(overrides: Record<string, unknown> = {}) {
     id: paymentId,
     order_id: orderId,
     status: PaymentStatus.CAPTURED,
+    provider: "mercadopago",
     provider_payment_ref: "mp-123",
     external_id: "mp-123",
     order: { distributor_id: distributorId },
@@ -87,6 +89,29 @@ describe("paymentService.refund", () => {
 
     expect(result).toBeNull();
     expect(mocks.gateway.refund).not.toHaveBeenCalled();
+  });
+
+  it("fecha localmente sem chamar o gateway quando o provider nao e mercadopago", async () => {
+    mocks.prisma.payment.findFirst.mockResolvedValue(
+      capturedPayment({ provider: "mock", provider_payment_ref: null, external_id: "mock-123" })
+    );
+
+    const result = await paymentService.refund(orderId);
+
+    expect(result).toEqual({ externalId: "mock-123", status: "refunded" });
+    expect(mocks.gateway.refund).not.toHaveBeenCalled();
+    expect(mocks.tx.payment.update).toHaveBeenCalledWith({
+      where: { id: paymentId },
+      data: { status: PaymentStatus.REFUNDED },
+    });
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: AuditEventType.PAYMENT_REFUNDED,
+        orderId,
+        payload: expect.objectContaining({ paymentId, provider: "mock", status: "refunded" }),
+      }),
+      mocks.tx
+    );
   });
 
   it("reembolsa com sucesso: atualiza status, grava transacao e audita PAYMENT_REFUNDED", async () => {

@@ -5,7 +5,7 @@ import type {
   ProviderPaymentDetails,
   RefundResult,
 } from "../gateway/payments.gateway.js";
-import type { CheckoutPaymentMethod } from "@xua/shared/enums";
+import { PaymentStatus, type CheckoutPaymentMethod } from "@xua/shared/enums";
 import {
   buildWebhookContextQueryParams,
   requireWebhookPaymentKind,
@@ -14,6 +14,16 @@ import {
 const DEFAULT_MERCADO_PAGO_API_BASE = "https://api.mercadopago.com";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_STATEMENT_DESCRIPTOR = "XUA DELIVERY";
+
+/** Tradução do status bruto do Mercado Pago para o PaymentStatus canônico. */
+const PAYMENT_STATUS_BY_MERCADO_PAGO_STATUS: Record<string, PaymentStatus> = {
+  approved: PaymentStatus.CAPTURED,
+  authorized: PaymentStatus.AUTHORIZED,
+  rejected: PaymentStatus.FAILED,
+  cancelled: PaymentStatus.FAILED,
+  refunded: PaymentStatus.REFUNDED,
+  charged_back: PaymentStatus.REFUNDED,
+};
 
 interface MercadoPagoPreferenceResponse {
   id: string;
@@ -335,5 +345,9 @@ export class MercadoPagoAdapter implements IPaymentGateway {
       paidAt: payment.date_approved ? new Date(payment.date_approved) : undefined,
       raw: sanitizePaymentResponse(payment),
     };
+  }
+
+  normalizeStatus(rawStatus: string): PaymentStatus {
+    return PAYMENT_STATUS_BY_MERCADO_PAGO_STATUS[rawStatus] ?? PaymentStatus.CREATED;
   }
 }
