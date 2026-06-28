@@ -7,6 +7,7 @@ import {
   DistributorGatewayError,
   DEFAULT_PUBLIC_PAYMENT_METHODS,
 } from "../../distributor-gateway/index.js";
+import { PAYMENT_PROVIDERS } from "../../payments/gateway/payments.gateway.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 
 const log = createLogger("distributor-payment-settings");
@@ -14,7 +15,7 @@ const log = createLogger("distributor-payment-settings");
 /** Defaults para distribuidora ainda sem configuração persistida. */
 const DEFAULT_VIEW: DistributorPaymentSettingsView = {
   ...DEFAULT_PUBLIC_PAYMENT_METHODS,
-  provider: "mercadopago",
+  provider: PAYMENT_PROVIDERS.mercadoPago,
   mp_access_token_masked: null,
   mp_public_key: null,
 };
