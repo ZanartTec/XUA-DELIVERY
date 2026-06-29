@@ -10,12 +10,14 @@ import {
   type PaymentExpirationJobPayload,
   type PaymentRefundJobPayload,
   type PaymentWebhookJobPayload,
+  type SubscriptionExpirationJobPayload,
 } from "../infra/queue/contracts";
 import { closeQueueInfra } from "../infra/queue/queues";
 import { processInternalJob } from "./processors/internal-jobs.processor";
 import { processPaymentJob } from "./processors/payment-jobs.processor";
 import { processPaymentExpiration } from "./processors/expire-payment.processor";
 import { processPaymentRefund } from "./processors/process-payment-refund.processor";
+import { processSubscriptionExpiration } from "./processors/expire-subscription.processor";
 import { registerRepeatableJobs } from "./register-repeatable-jobs";
 
 const log = createLogger("worker");
@@ -81,6 +83,21 @@ const paymentRefundsWorker = new Worker<PaymentRefundJobPayload>(
 );
 
 const paymentRefundsEvents = new QueueEvents(QUEUE_NAMES.paymentRefunds, {
+  connection: createQueueRedisConnection(),
+  prefix: QUEUE_PREFIX,
+});
+
+const subscriptionExpirationWorker = new Worker<SubscriptionExpirationJobPayload>(
+  QUEUE_NAMES.subscriptionExpiration,
+  processSubscriptionExpiration,
+  {
+    connection: createQueueRedisConnection(),
+    prefix: QUEUE_PREFIX,
+    concurrency: parseConcurrency(process.env.SUBSCRIPTION_EXPIRATION_WORKER_CONCURRENCY),
+  }
+);
+
+const subscriptionExpirationEvents = new QueueEvents(QUEUE_NAMES.subscriptionExpiration, {
   connection: createQueueRedisConnection(),
   prefix: QUEUE_PREFIX,
 });
@@ -202,6 +219,35 @@ paymentRefundsEvents.on("failed", ({ jobId, failedReason }) => {
   log.warn({ jobId, failedReason }, "Payment refund job moved to failed state");
 });
 
+subscriptionExpirationWorker.on("completed", (job) => {
+  log.info(
+    {
+      jobId: job.id,
+      jobName: job.name,
+      correlationId: job.data.correlationId,
+      subscriptionId: job.data.subscriptionId,
+    },
+    "Subscription expiration job completed"
+  );
+});
+
+subscriptionExpirationWorker.on("failed", (job, err) => {
+  log.error(
+    {
+      err,
+      jobId: job?.id,
+      jobName: job?.name,
+      correlationId: job?.data.correlationId,
+      subscriptionId: job?.data.subscriptionId,
+    },
+    "Subscription expiration job failed"
+  );
+});
+
+subscriptionExpirationEvents.on("failed", ({ jobId, failedReason }) => {
+  log.warn({ jobId, failedReason }, "Subscription expiration job moved to failed state");
+});
+
 // Agenda os Job Schedulers que substituem os antigos crons do Render
 // (subscription-cron, subscription-expiry, otp-cleanup). Idempotente —
 // seguro chamar em todo boot/restart do worker.
@@ -215,11 +261,13 @@ log.info(
     paymentWebhookQueue: QUEUE_NAMES.paymentWebhooks,
     paymentsQueue: QUEUE_NAMES.payments,
     paymentRefundsQueue: QUEUE_NAMES.paymentRefunds,
+    subscriptionExpirationQueue: QUEUE_NAMES.subscriptionExpiration,
     prefix: QUEUE_PREFIX,
     internalConcurrency: internalJobsWorker.opts.concurrency,
     paymentWebhookConcurrency: paymentWebhooksWorker.opts.concurrency,
     paymentsConcurrency: paymentsWorker.opts.concurrency,
     paymentRefundsConcurrency: paymentRefundsWorker.opts.concurrency,
+    subscriptionExpirationConcurrency: subscriptionExpirationWorker.opts.concurrency,
   },
   "XUA worker started"
 );
@@ -236,10 +284,12 @@ async function shutdown(signal: string): Promise<void> {
   await paymentWebhooksWorker.close();
   await paymentsWorker.close();
   await paymentRefundsWorker.close();
+  await subscriptionExpirationWorker.close();
   await internalJobsEvents.close();
   await paymentWebhooksEvents.close();
   await paymentsEvents.close();
   await paymentRefundsEvents.close();
+  await subscriptionExpirationEvents.close();
   await closeQueueInfra();
   await disconnectPrisma();
   await disconnectRedis();
