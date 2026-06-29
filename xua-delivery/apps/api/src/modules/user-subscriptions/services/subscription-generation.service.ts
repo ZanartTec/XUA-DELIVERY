@@ -141,13 +141,15 @@ async function generateOrderForDelivery(deliveryDateId: string): Promise<
       ],
     });
 
-    // Marca a entrega (interino: DELIVERED na Fase 1 — vira ORDER_CREATED na Fase 2)
-    // e vincula o pedido. Reagendamento atualiza a data efetiva.
+    // Marca a entrega como ORDER_CREATED (pedido gerado; entrega real em andamento),
+    // vincula o pedido e conta a tentativa de geração (teto p/ falha persistente — D13).
+    // Reagendamento atualiza a data efetiva.
     await tx.subscriptionDeliveryDate.update({
       where: { id: delivery.id },
       data: {
-        status: DeliveryDateStatus.DELIVERED,
+        status: DeliveryDateStatus.ORDER_CREATED,
         order_id: order.id,
+        generation_attempts: { increment: 1 },
         ...(rescheduled ? { delivery_date: new Date(dateIso) } : {}),
       },
     });

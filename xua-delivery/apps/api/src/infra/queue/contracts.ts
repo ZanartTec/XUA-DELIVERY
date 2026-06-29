@@ -44,6 +44,12 @@ export interface BaseJobPayload {
 
 export interface InternalJobPayload extends BaseJobPayload {
   jobName: InternalJobName;
+  /**
+   * Alvo opcional da geração de assinatura (jobName = subscriptionGeneration).
+   * Presente quando a geração é direcionada por evento (ativação do pagamento);
+   * ausente no disparo do cron (varredura global). Ver D4 da arquitetura.
+   */
+  subscriptionId?: string;
 }
 
 export interface PaymentWebhookJobPayload extends BaseJobPayload {

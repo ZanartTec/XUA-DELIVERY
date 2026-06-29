@@ -93,11 +93,19 @@ export const UserSubscriptionStatus = {
 } as const;
 export type UserSubscriptionStatus = EnumValue<typeof UserSubscriptionStatus>;
 
-export const DELIVERY_DATE_STATUS_VALUES = ["PENDING", "DELIVERED", "CANCELLED"] as const;
+export const DELIVERY_DATE_STATUS_VALUES = [
+  "PENDING",
+  "ORDER_CREATED",
+  "DELIVERED",
+  "FAILED",
+  "CANCELLED",
+] as const;
 
 export const DeliveryDateStatus = {
   PENDING: "PENDING",
+  ORDER_CREATED: "ORDER_CREATED",
   DELIVERED: "DELIVERED",
+  FAILED: "FAILED",
   CANCELLED: "CANCELLED",
 } as const;
 export type DeliveryDateStatus = EnumValue<typeof DeliveryDateStatus>;

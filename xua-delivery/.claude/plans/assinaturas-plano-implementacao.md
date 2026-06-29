@@ -94,27 +94,24 @@ volta na assinatura (compensação) com teto de tentativas. Disparar geração p
 **Cobre:** A5, M6, M7, D4, D7, D8, D13.
 
 ### Tarefas
-- [ ] **T2.1** Migration: adicionar `ORDER_CREATED` **e `FAILED`** ao enum `DeliveryDateStatus` (D8)
-    + coluna `generation_attempts Int @default(0)` em `SubscriptionDeliveryDate` (D13).
-- [ ] **T2.2** Geração passa a marcar `DeliveryDate` como `ORDER_CREATED` (não `DELIVERED`) e a
-    incrementar `generation_attempts`.
-- [ ] **T2.3** `subscriptionSettlementService` (novo): reflete resultado do pedido (D7) com teto (D13).
-  - Order `DELIVERED` → DeliveryDate `DELIVERED`.
-  - Order `REJECTED_BY_DISTRIBUTOR` / `DELIVERY_FAILED` / `CANCELLED`:
-    - se `generation_attempts < 3` → DeliveryDate `PENDING` (re-elegível) + `remaining += qty`;
-    - se `generation_attempts >= 3` → DeliveryDate `FAILED` (não re-elegível) + `remaining += qty` +
-      **notificar Operação e consumidor** (push). Reverter `COMPLETED` se aplicável.
-- [ ] **T2.4** Hooks de chamada: invocar o settlement dentro de `deliver-order`, `reject-order`,
-    `cancel-order` e no caminho de `DELIVERY_FAILED`. Só atua se `order` tiver `subscription_delivery_date`.
-- [ ] **T2.5** Geração por evento (M7/D4): no webhook handler de ativação, enfileirar job de geração
-    das entregas elegíveis da assinatura (fila `internalJobs`). Esta é a prevenção principal de
-    entregas vencidas (complementa o reagendamento defensivo de T1.3).
-  - **Contrato do job (resolver ambiguidade publisher/consumer):** o job atual `runSubscriptionJob()`
-    varre toda a base e **não aceita alvo**. Definir um payload com `subscriptionId` (novo `jobName`
-    ou campo opcional no payload existente) e ajustar `internal-jobs.processor` + `runSubscriptionJob`
-    para aceitar geração **direcionada** a uma assinatura. O cron continua chamando a varredura global
-    (sem `subscriptionId`); o evento chama a versão direcionada. Ambos compartilham a mesma função de
-    geração idempotente (D2) — sem risco de duplicação mesmo se cron e evento coincidirem.
+- [x] **T2.1** Migration `20260628000000_add_delivery_order_created_failed_and_attempts`:
+    `ORDER_CREATED` + `FAILED` no enum `delivery_date_status` + coluna `generation_attempts`
+    (default 0). Schema Prisma + enums compartilhados atualizados. **Commit A** (aditivo).
+- [x] **T2.2** Geração marca `ORDER_CREATED` (não `DELIVERED`) e incrementa `generation_attempts`.
+- [x] **T2.3** `subscription-settlement.service.ts` (novo): `settleDelivered`, `settleFailed`
+    (teto 3 → `FAILED` + recredita + reverte `COMPLETED`→`ACTIVE`), `notifyPersistentFailure`
+    (push consumidor + log estruturado p/ ops — sem novo `AuditEventType`/canal de push de ops).
+- [x] **T2.4** Hooks: settlement chamado em `deliver-order` (settleDelivered), `reject-order` e
+    `cancel-order` (settleFailed, com notificação pós-commit). No-op se o pedido não for de assinatura.
+  - **Decisão (desvio do plano):** **NÃO** hook em `DELIVERY_FAILED`. Esse estado é **não-terminal**
+    (pode ir a `REDELIVERY_SCHEDULED → OUT_FOR_DELIVERY → DELIVERED`); compensar ali recreditaria
+    cedo demais. Se a entrega falha e não é redelivered, ela acaba em `CANCELLED` — e o hook de
+    `cancel-order` compensa. Assim evita-se double-count.
+- [x] **T2.5** Geração por evento (M7/D4): handler de assinatura do webhook agora tem
+    `finalize` (na captura) que enfileira `enqueueSubscriptionGeneration(subscriptionId)`.
+  - **Contrato resolvido:** `InternalJobPayload.subscriptionId?` opcional; `internal-jobs.processor`
+    chama `runSubscriptionJob(subscriptionId)`; `runSubscriptionJob`/`generateDueDeliveries` aceitam
+    alvo. Cron = global (sem id); evento = direcionado. Mesma função idempotente — sem duplicação.
 > Nota: cancelamento de assinatura foi **descontinuado** (D9/T1.9). Não há tarefa de estorno nesta fase.
 
 ### Dependências

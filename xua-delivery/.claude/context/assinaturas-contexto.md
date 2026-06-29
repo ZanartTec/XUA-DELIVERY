@@ -4,7 +4,7 @@
 > **Atualizar ao FIM de cada fase.** Design completo: `.claude/architecture/assinaturas-arquitetura.md`.
 > Plano/checklist: `.claude/plans/assinaturas-plano-implementacao.md`.
 >
-> Última atualização: 2026-06-27 · Estado: **FASE 1 IMPLEMENTADA (não commitada) — próxima: Fase 2**
+> Última atualização: 2026-06-28 · Estado: **FASE 2 IMPLEMENTADA (não commitada) — próxima: Fase 3**
 
 ## Resumo da arquitetura (1 parágrafo)
 Assinatura é pré-pago online (MP na conta da distribuidora). Cada `SubscriptionDeliveryDate` vira
@@ -66,14 +66,33 @@ reentrante + catch-up reenvia, sem duplicar) · **D9 cancelamento de assinatura 
 - ALT `infra/queue/contracts.ts`, `worker/index.ts` — fila/worker `subscription-expiration`.
 - Testes: `expire-subscription.processor.test.ts`, `subscription-generation.service.test.ts`.
 
+### Arquivos novos/alterados na Fase 2
+- MIGRATION `prisma/migrations/20260628000000_add_delivery_order_created_failed_and_attempts/`.
+- ALT `prisma/schema.prisma` + `packages/shared/src/enums/index.ts` — `ORDER_CREATED`/`FAILED` +
+  coluna `generation_attempts`.
+- NOVO `modules/user-subscriptions/services/subscription-settlement.service.ts` — compensação
+  (settleDelivered/settleFailed/notifyPersistentFailure).
+- ALT `subscription-generation.service.ts` — grava `ORDER_CREATED` + incrementa `generation_attempts`.
+- ALT `deliver-order` / `reject-order` / `cancel-order` — hooks de settlement.
+- ALT `payment-webhook.handlers.ts` — `finalize` enfileira geração na ativação (D4).
+- ALT `infra/queue/contracts.ts` (`subscriptionId?`), `subscription-jobs.producer.ts`
+  (`enqueueSubscriptionGeneration`), `internal-jobs.processor.ts`, `jobs/subscription-job.ts`.
+- Teste: `subscription-settlement.service.test.ts`.
+
 ## Fases concluídas
-- **Fase 1 (T1.1–T1.9)** — implementada, typecheck de produção limpo. **Testes não rodados localmente**
-  (ambiente sem `vitest`); rodar no CI. Ainda **não commitada**.
+- **Fase 1 (T1.1–T1.9)** — commitada na develop.
+- **Fase 2 (T2.1–T2.5)** — implementada, typecheck de produção + `shared:check` limpos.
+  **Testes não rodados localmente** (sem `vitest`); rodar no CI. **Não commitada.**
+  - Decisão: `DELIVERY_FAILED` **não** dispara compensação (não-terminal; tratado via `cancel`).
 
 ## Próximas tarefas
-- Validar/rodar os testes da Fase 1 no CI (ou ambiente com devDeps).
-- Commitar Fase 1 (commit isolado — sem migration).
-- Iniciar **Fase 2 / T2.1** (migration: `ORDER_CREATED` + `FAILED` + `generation_attempts`).
+- Commitar Fase 2. **Cuidado de deploy:** migration (commit A) antes do código (commit B), OU aceitar
+  o auto-heal por retry do BullMQ (migration é aditiva). O DATABASE_URL ativo aponta p/ `db.prisma.io`.
+- Iniciar **Fase 3** (T3.1–T3.4): endpoints/painel ops (leitura + reprocessar entrega/FAILED + pausar).
+
+## Atenção p/ Fase 3
+- Reprocessar entrega `FAILED`: resetar `generation_attempts` (=0) e voltar a `PENDING`, depois
+  reusar `subscriptionGenerationService.generateDueDeliveries({ subscriptionId })`.
 
 ## Pendências / decisões abertas
 - (nenhuma) — as 4 decisões de negócio foram fechadas (ver acima). Pendências remanescentes são

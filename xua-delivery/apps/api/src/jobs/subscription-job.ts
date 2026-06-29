@@ -14,8 +14,8 @@ import { logger } from "../infra/logger/index.js";
  * A lógica de geração (atômica, idempotente, com reagendamento defensivo e
  * recuperação de pedidos órfãos) vive em `subscriptionGenerationService`.
  */
-export async function runSubscriptionJob(): Promise<GenerationResult> {
-  const result = await subscriptionGenerationService.generateDueDeliveries();
-  logger.info(result, "subscription-job: entregas de assinatura processadas");
+export async function runSubscriptionJob(subscriptionId?: string): Promise<GenerationResult> {
+  const result = await subscriptionGenerationService.generateDueDeliveries({ subscriptionId });
+  logger.info({ ...result, subscriptionId }, "subscription-job: entregas de assinatura processadas");
   return result;
 }

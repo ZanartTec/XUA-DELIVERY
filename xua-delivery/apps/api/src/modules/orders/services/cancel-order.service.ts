@@ -16,6 +16,10 @@ import {
   inventoryAuditLines,
   resolveOrderInventoryLines,
 } from "./order-inventory.helpers.js";
+import {
+  subscriptionSettlementService,
+  type PersistentFailureNotice,
+} from "../../user-subscriptions/services/subscription-settlement.service.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -69,6 +73,7 @@ export const cancelOrderService = {
     const sourceApp = sourceAppMap[actorType];
 
     const prisma = getPrisma();
+    let persistentFailureNotice: PersistentFailureNotice | null = null;
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
@@ -124,8 +129,16 @@ export const cancelOrderService = {
         tx
       );
 
+      // Compensação de assinatura (no-op se não for pedido de assinatura):
+      // recredita o saldo e re-elegibiliza a entrega, ou marca FAILED no teto.
+      persistentFailureNotice = await subscriptionSettlementService.settleFailed(tx, orderId);
+
       return updated;
     });
+
+    if (persistentFailureNotice) {
+      await subscriptionSettlementService.notifyPersistentFailure(persistentFailureNotice);
+    }
 
     orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,

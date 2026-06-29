@@ -8,6 +8,7 @@ import {
   UserSubscriptionStatus,
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
+import { enqueueSubscriptionGeneration } from "../../../infra/queue/subscription-jobs.producer.js";
 import { auditRepository } from "../../../modules/audit/index.js";
 import { orderService } from "../../../modules/orders/index.js";
 import {
@@ -192,6 +193,15 @@ async function finishOrderAfterPaymentCaptured(target: PaymentTarget): Promise<v
   }
 }
 
+/**
+ * Pós-ativação da assinatura: dispara a geração direcionada dos pedidos das
+ * entregas já elegíveis (data <= hoje), sem esperar o cron (D4). Idempotente —
+ * a geração usa lock + guard order_id, então reexecuções não duplicam.
+ */
+async function generateSubscriptionOrdersAfterActivation(target: PaymentTarget): Promise<void> {
+  await enqueueSubscriptionGeneration(target.id);
+}
+
 const ORDER_PAYMENT_HANDLER: PaymentTargetHandler = {
   async findPayment(tx, target, existingPayment) {
     return existingPayment?.order_id === target.id
@@ -312,7 +322,9 @@ const SUBSCRIPTION_PAYMENT_HANDLER: PaymentTargetHandler = {
       tx
     );
   },
-  shouldFinalize: () => false,
+  // Na captura do pagamento, dispara a geração direcionada dos pedidos (D4).
+  shouldFinalize: (nextStatus) => nextStatus === PaymentStatus.CAPTURED,
+  finalize: generateSubscriptionOrdersAfterActivation,
 };
 
 const PAYMENT_TARGET_HANDLERS: Record<PaymentTargetKind, PaymentTargetHandler> = {

@@ -9,6 +9,10 @@ import { enqueueRefundPaymentJob } from "../../../infra/queue/payment-jobs.produ
 import { OrderServiceError } from "../errors.js";
 import { assertTransition } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import {
+  subscriptionSettlementService,
+  type PersistentFailureNotice,
+} from "../../user-subscriptions/services/subscription-settlement.service.js";
 
 const log = createLogger("orders");
 
@@ -35,6 +39,7 @@ export const rejectOrderService = {
   ): Promise<Order> {
     const prisma = getPrisma();
     let capturedPaymentId: string | null = null;
+    let persistentFailureNotice: PersistentFailureNotice | null = null;
 
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
@@ -89,8 +94,16 @@ export const rejectOrderService = {
         );
       }
 
+      // Compensação de assinatura (no-op se não for pedido de assinatura):
+      // recredita o saldo e re-elegibiliza a entrega, ou marca FAILED no teto.
+      persistentFailureNotice = await subscriptionSettlementService.settleFailed(tx, orderId);
+
       return updated;
     });
+
+    if (persistentFailureNotice) {
+      await subscriptionSettlementService.notifyPersistentFailure(persistentFailureNotice);
+    }
 
     if (capturedPaymentId) {
       enqueueRefundPaymentJob(orderId, capturedPaymentId).catch((err) => {

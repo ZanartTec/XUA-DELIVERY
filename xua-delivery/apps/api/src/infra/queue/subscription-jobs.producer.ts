@@ -1,10 +1,32 @@
 import { randomUUID } from "node:crypto";
 import { getQueue } from "./queues";
 import {
+  INTERNAL_JOB_NAMES,
   SUBSCRIPTION_JOB_NAMES,
   QUEUE_NAMES,
+  type InternalJobPayload,
   type SubscriptionExpirationJobPayload,
 } from "./contracts";
+
+/**
+ * Enfileira a geração direcionada de pedidos de uma assinatura recém-ativada
+ * (geração por evento — D4). Reusa a fila `internalJobs` e o mesmo handler
+ * idempotente do cron; passar `subscriptionId` restringe à assinatura.
+ */
+export async function enqueueSubscriptionGeneration(subscriptionId: string) {
+  const correlationId = randomUUID();
+  const payload: InternalJobPayload = {
+    jobName: INTERNAL_JOB_NAMES.subscriptionGeneration,
+    subscriptionId,
+    correlationId,
+    requestedAt: new Date().toISOString(),
+    source: "worker",
+  };
+
+  const queue = getQueue(QUEUE_NAMES.internalJobs);
+  const job = await queue.add(INTERNAL_JOB_NAMES.subscriptionGeneration, payload);
+  return { id: job.id, name: job.name, correlationId };
+}
 
 function getSubscriptionExpirationDelayMs(): number {
   const minutes = Number(process.env.PAYMENT_EXPIRATION_MINUTES);
