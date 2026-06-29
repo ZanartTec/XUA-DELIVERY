@@ -17,7 +17,6 @@ import {
   getWebhookPaymentContext,
   resolvePaymentTarget,
 } from "./payment-webhook/payment-webhook.resolver.js";
-import { paymentStatusFromMercadoPago } from "./payment-webhook/payment-webhook.status.js";
 import {
   NonRetryablePaymentWebhookError,
 } from "./payment-webhook/payment-webhook.types.js";
@@ -129,10 +128,13 @@ async function processWebhook(job: Job<PaymentWebhookJobPayload>) {
   if (!gateway.getPayment) {
     throw new Error("PAYMENT_PROVIDER_DOES_NOT_SUPPORT_STATUS_LOOKUP");
   }
+  if (!gateway.normalizeStatus) {
+    throw new Error("PAYMENT_PROVIDER_DOES_NOT_SUPPORT_STATUS_NORMALIZATION");
+  }
 
   const providerPayment = await gateway.getPayment(providerPaymentId);
   const webhookContext = getWebhookPaymentContext(event.payload);
-  const nextStatus = paymentStatusFromMercadoPago(providerPayment.status);
+  const nextStatus = gateway.normalizeStatus(providerPayment.status);
 
   const outcome = await prisma.$transaction(async (tx) => {
     const existingPayment = await findExistingPayment(tx, providerPayment, webhookContext);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PaymentKind } from "@xua/shared/enums";
+import { PaymentKind, PaymentStatus } from "@xua/shared/enums";
 import { MercadoPagoAdapter } from "./mercadopago-adapter.js";
 import { verifyWebhookContextSignature } from "../utils/webhook-context.js";
 
@@ -114,5 +114,24 @@ describe("MercadoPagoAdapter", () => {
 
     expect(body.back_urls.success).toContain("http://localhost:3001/checkout/confirmation");
     expect(body.auto_return).toBeUndefined();
+  });
+
+  describe("normalizeStatus", () => {
+    const adapter = new MercadoPagoAdapter({ accessToken: "TEST-token" });
+
+    it.each([
+      ["approved", PaymentStatus.CAPTURED],
+      ["authorized", PaymentStatus.AUTHORIZED],
+      ["rejected", PaymentStatus.FAILED],
+      ["cancelled", PaymentStatus.FAILED],
+      ["refunded", PaymentStatus.REFUNDED],
+      ["charged_back", PaymentStatus.REFUNDED],
+    ])("traduz status bruto \"%s\" para %s", (rawStatus, expected) => {
+      expect(adapter.normalizeStatus(rawStatus)).toBe(expected);
+    });
+
+    it("usa CREATED como fallback para status desconhecido", () => {
+      expect(adapter.normalizeStatus("algo_desconhecido")).toBe(PaymentStatus.CREATED);
+    });
   });
 });

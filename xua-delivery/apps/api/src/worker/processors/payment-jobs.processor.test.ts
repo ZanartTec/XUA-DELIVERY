@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderStatus, PaymentKind, PaymentStatus } from "@xua/shared/enums";
 
 const mocks = vi.hoisted(() => ({
-  gateway: { getPayment: vi.fn() },
+  gateway: { getPayment: vi.fn(), normalizeStatus: vi.fn() },
   auditRepository: { emit: vi.fn() },
   orderService: { confirmOrder: vi.fn(), sendToDistributor: vi.fn() },
   distributorGatewayService: {
@@ -101,6 +101,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.prisma.$transaction.mockImplementation(async (callback) => callback(mocks.tx));
   mocks.gateway.getPayment.mockResolvedValue(providerPayment());
+  mocks.gateway.normalizeStatus.mockReturnValue(PaymentStatus.CAPTURED);
   mocks.distributorGatewayService.getDecryptedCredentials.mockResolvedValue({
     accessToken: "test-access-token",
     webhookSecret: "test-webhook-secret",

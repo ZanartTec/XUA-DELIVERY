@@ -2,15 +2,6 @@ import { AuditEventType, PaymentStatus } from "@xua/shared/enums";
 import type { ProviderPaymentDetails } from "../../../modules/payments/gateway/payments.gateway.js";
 import { NonRetryablePaymentWebhookError } from "./payment-webhook.types.js";
 
-const PAYMENT_STATUS_BY_MERCADO_PAGO_STATUS: Record<string, PaymentStatus> = {
-  approved: PaymentStatus.CAPTURED,
-  authorized: PaymentStatus.AUTHORIZED,
-  rejected: PaymentStatus.FAILED,
-  cancelled: PaymentStatus.FAILED,
-  refunded: PaymentStatus.REFUNDED,
-  charged_back: PaymentStatus.REFUNDED,
-};
-
 const ORDER_PAYMENT_STATUS_BY_PAYMENT_STATUS: Record<PaymentStatus, string> = {
   [PaymentStatus.CAPTURED]: "paid",
   [PaymentStatus.FAILED]: "failed",
@@ -44,10 +35,6 @@ const EXACT_AMOUNT_STATUSES = new Set<PaymentStatus>([
   PaymentStatus.CAPTURED,
   PaymentStatus.AUTHORIZED,
 ]);
-
-export function paymentStatusFromMercadoPago(status: string): PaymentStatus {
-  return PAYMENT_STATUS_BY_MERCADO_PAGO_STATUS[status] ?? PaymentStatus.CREATED;
-}
 
 export function paymentStatusToOrderPaymentStatus(status: PaymentStatus): string {
   return ORDER_PAYMENT_STATUS_BY_PAYMENT_STATUS[status];

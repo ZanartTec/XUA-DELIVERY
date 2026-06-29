@@ -14,8 +14,9 @@ import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
+  isRegisteredGatewayProvider,
   type IPaymentGateway,
-  PAYMENT_PROVIDERS,
+  type RefundResult,
 } from "../gateway/payments.gateway.js";
 import { createLogger } from "../../../infra/logger";
 import { schedulePaymentExpiration } from "../../../infra/queue/payment-jobs.producer.js";
@@ -84,6 +85,57 @@ function extractRedirectUrl(transactions: { provider_response: Prisma.JsonValue 
   return null;
 }
 
+/**
+ * Persiste o desfecho de um refund (real ou fechado localmente): atualiza o
+ * pagamento quando reembolsado, grava a transação e audita. Usado tanto pelo
+ * caminho de gateway real quanto pelo de provider sem gateway online.
+ */
+async function recordRefundOutcome(
+  prisma: ReturnType<typeof getPrisma>,
+  orderId: string,
+  payment: Payment,
+  result: RefundResult,
+  options?: { providerStatus?: string; note?: string }
+): Promise<void> {
+  await prisma.$transaction(async (tx: TxClient) => {
+    if (result.status === "refunded") {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.REFUNDED },
+      });
+    }
+
+    await tx.paymentTransaction.create({
+      data: {
+        payment_id: payment.id,
+        action: "refund",
+        provider_status: options?.providerStatus ?? result.status,
+        provider_response: (result.raw ?? { provider: payment.provider }) as Prisma.InputJsonObject,
+      },
+    });
+
+    await auditRepository.emit(
+      {
+        eventType:
+          result.status === "refunded"
+            ? AuditEventType.PAYMENT_REFUNDED
+            : AuditEventType.PAYMENT_REFUND_FAILED,
+        actor: { type: ActorType.SYSTEM, id: "payment-gateway" },
+        orderId,
+        sourceApp: SourceApp.BACKEND,
+        payload: {
+          paymentId: payment.id,
+          provider: payment.provider,
+          externalId: result.externalId,
+          status: result.status,
+          ...(options?.note ? { note: options.note } : {}),
+        },
+      },
+      tx
+    );
+  });
+}
+
 export const paymentService = {
   async createCheckoutPayment(
     orderId: string,
@@ -115,10 +167,11 @@ export const paymentService = {
       );
     }
 
+    const provider = getConfiguredPaymentProvider();
     const existing = await prisma.payment.findFirst({
       where: {
         order_id: order.id,
-        provider: PAYMENT_PROVIDERS.mercadoPago,
+        provider,
         status: { in: [PaymentStatus.CREATED, PaymentStatus.AUTHORIZED] },
       },
       orderBy: { created_at: "desc" },
@@ -178,7 +231,7 @@ export const paymentService = {
           kind: PaymentKind.ORDER,
           amount_cents: order.total_cents,
           status,
-          provider: PAYMENT_PROVIDERS.mercadoPago,
+          provider,
           provider_payment_ref: result.providerPaymentRef ?? result.externalId,
           external_id: result.externalId,
           idempotency_key: idempotencyKey,
@@ -204,7 +257,7 @@ export const paymentService = {
       await auditRepository.emit(
         {
           eventType: AuditEventType.PAYMENT_CREATED,
-          actor: { type: ActorType.SYSTEM, id: PAYMENT_PROVIDERS.mercadoPago },
+          actor: { type: ActorType.SYSTEM, id: "payment-gateway" },
           orderId: order.id,
           sourceApp: SourceApp.BACKEND,
           payload: {
@@ -375,49 +428,35 @@ export const paymentService = {
     });
     if (!payment) return null;
 
+    if (!isRegisteredGatewayProvider(payment.provider)) {
+      // Pagamento sem gateway online por trás (ex.: dado legado/mock) — não
+      // há dinheiro real a estornar externamente. Fecha localmente em vez de
+      // chamar um gateway com uma referência que nunca existiu lá.
+      const result: RefundResult = {
+        externalId: payment.external_id ?? payment.id,
+        status: "refunded",
+      };
+
+      await recordRefundOutcome(prisma, orderId, payment, result, {
+        providerStatus: "skipped_non_gateway_provider",
+        note: "Pagamento sem gateway online associado — fechado sem chamada externa de reembolso",
+      });
+
+      log.warn(
+        { orderId, paymentId: payment.id, provider: payment.provider },
+        "Payment refund skipped — provider sem gateway online, pagamento fechado localmente"
+      );
+      return result;
+    }
+
     const providerPaymentId = payment.provider_payment_ref ?? payment.external_id;
     if (!providerPaymentId) return null;
 
     // Estorno usa as credenciais da distribuidora que recebeu o pagamento.
     const gateway = await resolveDistributorGateway(payment.order?.distributor_id);
-
     const result = await gateway.refund(providerPaymentId);
 
-    await prisma.$transaction(async (tx: TxClient) => {
-      if (result.status === "refunded") {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: { status: PaymentStatus.REFUNDED },
-        });
-      }
-
-      await tx.paymentTransaction.create({
-        data: {
-          payment_id: payment.id,
-          action: "refund",
-          provider_status: result.status,
-          provider_response: (result.raw ?? {}) as Prisma.InputJsonObject,
-        },
-      });
-
-      await auditRepository.emit(
-        {
-          eventType:
-            result.status === "refunded"
-              ? AuditEventType.PAYMENT_REFUNDED
-              : AuditEventType.PAYMENT_REFUND_FAILED,
-          actor: { type: ActorType.SYSTEM, id: "payment-gateway" },
-          orderId,
-          sourceApp: SourceApp.BACKEND,
-          payload: {
-            paymentId: payment.id,
-            externalId: result.externalId,
-            status: result.status,
-          },
-        },
-        tx
-      );
-    });
+    await recordRefundOutcome(prisma, orderId, payment, result);
 
     if (result.status === "refunded") {
       log.info({ orderId, paymentId: payment.id }, "Payment refunded");
