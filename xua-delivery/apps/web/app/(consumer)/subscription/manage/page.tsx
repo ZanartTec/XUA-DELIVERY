@@ -93,7 +93,9 @@ function statusBadgeClass(s: UserSubscriptionStatus): string {
 function deliveryDateStatusLabel(s: DeliveryDateStatus): string {
   const map: Record<DeliveryDateStatus, string> = {
     PENDING: "Agendada",
+    ORDER_CREATED: "Em andamento",
     DELIVERED: "Entregue",
+    FAILED: "Falha",
     CANCELLED: "Cancelada",
   };
   return map[s] ?? s;
@@ -102,7 +104,9 @@ function deliveryDateStatusLabel(s: DeliveryDateStatus): string {
 function deliveryDateStatusClass(s: DeliveryDateStatus): string {
   const map: Record<DeliveryDateStatus, string> = {
     PENDING: "bg-blue-50 text-blue-700",
+    ORDER_CREATED: "bg-amber-50 text-amber-700",
     DELIVERED: "bg-emerald-50 text-emerald-700",
+    FAILED: "bg-red-50 text-red-700",
     CANCELLED: "bg-gray-100 text-gray-500",
   };
   return map[s] ?? "bg-gray-100 text-gray-500";
