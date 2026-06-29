@@ -165,6 +165,8 @@ services:
         value: "2"
       - key: PAYMENTS_WORKER_CONCURRENCY
         value: "2"
+      - key: SUBSCRIPTION_EXPIRATION_WORKER_CONCURRENCY
+        value: "2"
 
       # ─── App (para Socket.IO e notificações) ──────────────────────────────
       - key: APP_ORIGIN

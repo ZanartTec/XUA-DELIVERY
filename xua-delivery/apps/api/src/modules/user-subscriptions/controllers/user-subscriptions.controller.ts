@@ -99,17 +99,6 @@ export const userSubscriptionsController = {
     }
   },
 
-  async cancel(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const consumerId = req.user!.sub;
-      const id = req.params.id as string;
-      const sub = await userSubscriptionsService.cancel(id, consumerId);
-      res.json(sub);
-    } catch (err) {
-      handleDomainError(err, res, next);
-    }
-  },
-
   async pause(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const consumerId = req.user!.sub;

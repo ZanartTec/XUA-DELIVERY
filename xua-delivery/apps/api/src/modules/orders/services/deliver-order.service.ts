@@ -27,6 +27,7 @@ import {
   CASH_PAYMENT_INVALID_CAPTURE_STATUSES,
   PAYMENT_PAID_STATUS,
 } from "./payment-constants.js";
+import { subscriptionSettlementService } from "../../user-subscriptions/services/subscription-settlement.service.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -107,6 +108,10 @@ export const deliverOrderService = {
         },
         tx
       );
+
+      // Compensação de assinatura (no-op se não for pedido de assinatura):
+      // entrega concluída → SubscriptionDeliveryDate DELIVERED.
+      await subscriptionSettlementService.settleDelivered(tx, orderId);
 
       return updated;
     });

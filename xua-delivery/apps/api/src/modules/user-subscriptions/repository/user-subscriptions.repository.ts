@@ -141,12 +141,24 @@ export const userSubscriptionsRepository = {
   },
 
   async findPendingDeliveriesToday(today: Date) {
+    return this.findDueDeliveries(today);
+  },
+
+  /**
+   * Entregas elegíveis para virar pedido: data <= hoje, ainda PENDING, sem pedido
+   * e com assinatura ACTIVE. `subscriptionId` opcional restringe a uma assinatura
+   * (usado pela geração direcionada por evento — Fase 2).
+   */
+  async findDueDeliveries(today: Date, subscriptionId?: string) {
     const prisma = getPrisma();
     return prisma.subscriptionDeliveryDate.findMany({
       where: {
         delivery_date: { lte: today },
         status: "PENDING",
-        user_subscription: { status: "ACTIVE" },
+        user_subscription: {
+          status: "ACTIVE",
+          ...(subscriptionId ? { id: subscriptionId } : {}),
+        },
         order_id: null,
       },
       include: {
@@ -160,5 +172,40 @@ export const userSubscriptionsRepository = {
         time_slot: true,
       },
     });
+  },
+
+  /**
+   * Entregas cujo pedido foi criado mas ficou preso em CONFIRMED (falha pós-commit
+   * no envio ao distribuidor). Usadas para reenvio idempotente — ver D12 da arquitetura.
+   */
+  async findOrphanConfirmedDeliveries(subscriptionId?: string) {
+    const prisma = getPrisma();
+    return prisma.subscriptionDeliveryDate.findMany({
+      where: {
+        order_id: { not: null },
+        order: { status: "CONFIRMED" },
+        ...(subscriptionId
+          ? { user_subscription: { id: subscriptionId } }
+          : {}),
+      },
+      select: { id: true, order_id: true, user_subscription_id: true },
+    });
+  },
+
+  /**
+   * Lock pessimista de uma entrega ainda elegível (PENDING, sem pedido).
+   * Retorna o id se o lock foi obtido; null se a linha já foi processada ou está
+   * travada por outro worker (SKIP LOCKED). Deve ser chamado dentro de uma transação.
+   */
+  async lockDueDeliveryForUpdate(tx: TxClient, deliveryDateId: string): Promise<string | null> {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM "28_trn_subscription_delivery_dates"
+      WHERE id = ${deliveryDateId}::uuid
+        AND status = 'pending'
+        AND order_id IS NULL
+      FOR UPDATE SKIP LOCKED
+    `;
+    return rows.length > 0 ? rows[0].id : null;
   },
 };

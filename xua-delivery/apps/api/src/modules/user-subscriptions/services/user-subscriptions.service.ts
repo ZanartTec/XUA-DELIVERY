@@ -19,6 +19,7 @@ import {
   getConfiguredPaymentProvider,
   getPaymentGateway,
 } from "../../payments/gateway/payments.gateway.js";
+import { scheduleSubscriptionExpiration } from "../../../infra/queue/subscription-jobs.producer.js";
 
 const log = createLogger("user-subscriptions");
 
@@ -420,6 +421,17 @@ export const userSubscriptionsService = {
       "UserSubscription created"
     );
 
+    // Agenda a expiração da assinatura não paga (timeout). Idempotente e no-op se
+    // o pagamento já foi capturado (assinatura ACTIVE) — ver D6/D11.
+    if (result.status !== PaymentStatus.CAPTURED) {
+      await scheduleSubscriptionExpiration(result.subscriptionId).catch((err) => {
+        log.error(
+          { subscriptionId: result.subscriptionId, err },
+          "Failed to schedule subscription expiration"
+        );
+      });
+    }
+
     return {
       subscription: await userSubscriptionsRepository.findById(result.subscriptionId),
       payment: result.payment,
@@ -460,6 +472,10 @@ export const userSubscriptionsService = {
     if (existing?.external_id) {
       const redirectUrl = extractRedirectUrl(existing.transactions);
       if (redirectUrl) {
+        // Re-arma a janela de expiração: o consumidor está retomando o pagamento (D11).
+        await scheduleSubscriptionExpiration(sub.id).catch((err) => {
+          log.error({ subscriptionId: sub.id, err }, "Failed to re-arm subscription expiration");
+        });
         return {
           subscription: sub,
           payment: existing,
@@ -510,6 +526,14 @@ export const userSubscriptionsService = {
       return paymentResult;
     });
 
+    // Re-arma a janela de expiração após gerar o novo pagamento, exceto se já
+    // capturado (assinatura ACTIVE) — ver D11.
+    if (result.status !== PaymentStatus.CAPTURED) {
+      await scheduleSubscriptionExpiration(sub.id).catch((err) => {
+        log.error({ subscriptionId: sub.id, err }, "Failed to re-arm subscription expiration");
+      });
+    }
+
     return {
       subscription: await userSubscriptionsRepository.findById(sub.id),
       payment: result.payment,
@@ -517,22 +541,6 @@ export const userSubscriptionsService = {
       preferenceId: result.preferenceId,
       status: result.status,
     };
-  },
-
-  async cancel(id: string, consumerId?: string) {
-    const sub = await userSubscriptionsRepository.findById(id);
-    if (!sub) throw new UserSubscriptionError("NOT_FOUND", "Assinatura não encontrada");
-    if (consumerId && sub.consumer_id !== consumerId) {
-      throw new UserSubscriptionError("FORBIDDEN", "Acesso negado");
-    }
-    if (
-      sub.status === UserSubscriptionStatus.CANCELLED ||
-      sub.status === UserSubscriptionStatus.COMPLETED
-    ) {
-      throw new UserSubscriptionError("INVALID_STATUS", "Assinatura já encerrada");
-    }
-
-    return userSubscriptionsRepository.updateStatus(id, UserSubscriptionStatus.CANCELLED);
   },
 
   async pause(id: string, consumerId?: string) {

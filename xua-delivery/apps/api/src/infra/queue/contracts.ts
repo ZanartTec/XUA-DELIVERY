@@ -5,6 +5,7 @@ export const QUEUE_NAMES = {
   payments: "payments",
   paymentReconciliation: "payment-reconciliation",
   paymentRefunds: "payment-refunds",
+  subscriptionExpiration: "subscription-expiration",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -24,10 +25,16 @@ export const PAYMENT_JOB_NAMES = {
   refundPayment: "refund-payment",
 } as const;
 
+export const SUBSCRIPTION_JOB_NAMES = {
+  expireSubscription: "expire-subscription",
+} as const;
+
 export type InternalJobName =
   (typeof INTERNAL_JOB_NAMES)[keyof typeof INTERNAL_JOB_NAMES];
 export type PaymentJobName =
   (typeof PAYMENT_JOB_NAMES)[keyof typeof PAYMENT_JOB_NAMES];
+export type SubscriptionJobName =
+  (typeof SUBSCRIPTION_JOB_NAMES)[keyof typeof SUBSCRIPTION_JOB_NAMES];
 
 export interface BaseJobPayload {
   correlationId: string;
@@ -37,6 +44,12 @@ export interface BaseJobPayload {
 
 export interface InternalJobPayload extends BaseJobPayload {
   jobName: InternalJobName;
+  /**
+   * Alvo opcional da geração de assinatura (jobName = subscriptionGeneration).
+   * Presente quando a geração é direcionada por evento (ativação do pagamento);
+   * ausente no disparo do cron (varredura global). Ver D4 da arquitetura.
+   */
+  subscriptionId?: string;
 }
 
 export interface PaymentWebhookJobPayload extends BaseJobPayload {
@@ -67,10 +80,16 @@ export interface PaymentRefundJobPayload extends BaseJobPayload {
   paymentId: string;
 }
 
+export interface SubscriptionExpirationJobPayload extends BaseJobPayload {
+  jobName: typeof SUBSCRIPTION_JOB_NAMES.expireSubscription;
+  subscriptionId: string;
+}
+
 export type QueueJobPayload =
   | InternalJobPayload
   | PaymentWebhookJobPayload
   | PaymentChargeJobPayload
   | PaymentReconciliationJobPayload
   | PaymentExpirationJobPayload
-  | PaymentRefundJobPayload;
+  | PaymentRefundJobPayload
+  | SubscriptionExpirationJobPayload;

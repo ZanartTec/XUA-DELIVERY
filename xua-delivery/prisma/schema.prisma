@@ -161,9 +161,11 @@ enum UserSubscriptionStatus {
 }
 
 enum DeliveryDateStatus {
-  PENDING    @map("pending")
-  DELIVERED  @map("delivered")
-  CANCELLED  @map("cancelled")
+  PENDING        @map("pending")
+  ORDER_CREATED  @map("order_created")
+  DELIVERED      @map("delivered")
+  FAILED         @map("failed")
+  CANCELLED      @map("cancelled")
 
   @@map("delivery_date_status")
 }
@@ -1001,6 +1003,7 @@ model SubscriptionDeliveryDate {
   quantity_for_this_delivery Int
   status                     DeliveryDateStatus @default(PENDING)
   order_id                   String?            @db.Uuid @unique
+  generation_attempts        Int                @default(0)
   created_at                 DateTime           @default(now())
   updated_at                 DateTime           @default(now()) @updatedAt
 

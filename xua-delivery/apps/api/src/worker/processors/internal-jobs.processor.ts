@@ -11,8 +11,8 @@ import { runSubscriptionJob } from "../../jobs/subscription-job.js";
 const log = createLogger("internal-jobs-worker");
 
 export async function processInternalJob(job: Job<InternalJobPayload>) {
-  const { jobName, correlationId } = job.data;
-  log.info({ jobId: job.id, jobName, correlationId }, "Internal job started");
+  const { jobName, correlationId, subscriptionId } = job.data;
+  log.info({ jobId: job.id, jobName, correlationId, subscriptionId }, "Internal job started");
 
   switch (jobName) {
     case INTERNAL_JOB_NAMES.noop:
@@ -23,7 +23,8 @@ export async function processInternalJob(job: Job<InternalJobPayload>) {
     case INTERNAL_JOB_NAMES.otpCleanup:
       return runOtpCleanupJob();
     case INTERNAL_JOB_NAMES.subscriptionGeneration:
-      return runSubscriptionJob();
+      // subscriptionId presente → geração direcionada (evento); ausente → cron global.
+      return runSubscriptionJob(subscriptionId);
     case INTERNAL_JOB_NAMES.subscriptionExpiry:
       return runSubscriptionExpiryJob();
   }
