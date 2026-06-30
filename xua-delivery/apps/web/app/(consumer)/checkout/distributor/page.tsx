@@ -73,11 +73,11 @@ export default function CheckoutDistributorPage() {
     [setSelectedDistributorId, setCartDistributorId],
   );
 
-  const handleSkip = useCallback(() => {
-    setSelectedDistributorId(null);
-    setCartDistributorId(null);
+  // Chamado quando há exatamente 1 distribuidora e foi auto-selecionada.
+  // Navega para o próximo passo sem apagar o ID do store.
+  const handleAutoSelected = useCallback(() => {
     router.push("/checkout/schedule");
-  }, [setSelectedDistributorId, setCartDistributorId, router]);
+  }, [router]);
 
   function handleContinue() {
     router.push("/checkout/schedule");
@@ -136,7 +136,7 @@ export default function CheckoutDistributorPage() {
             zoneId={zoneId}
             selectedId={selectedDistributorId}
             onSelect={handleSelect}
-            onSkip={handleSkip}
+            onAutoSelected={handleAutoSelected}
           />
         ) : selectedAddress ? (
           <div className="rounded-2xl bg-amber-50 p-4">
