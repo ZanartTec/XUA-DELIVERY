@@ -17,7 +17,7 @@ interface DistributorSelectorProps {
   window?: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onSkip: () => void;
+  onAutoSelected: () => void;
 }
 
 export function DistributorSelector({
@@ -26,7 +26,7 @@ export function DistributorSelector({
   window: deliveryWindow,
   selectedId,
   onSelect,
-  onSkip,
+  onAutoSelected,
 }: DistributorSelectorProps) {
   const [distributors, setDistributors] = useState<AvailableDistributor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,13 +55,12 @@ export function DistributorSelector({
         const list: AvailableDistributor[] = body.distributors ?? [];
         setDistributors(list);
 
-        // Se só uma distribuidora, seleciona automaticamente e pula
+        // Única distribuidora: seleciona e avança preservando o ID no store
         if (list.length === 1) {
           onSelect(list[0].id);
-          onSkip();
-        } else if (list.length === 0) {
-          onSkip();
+          onAutoSelected();
         }
+        // list.length === 0: renderiza mensagem de erro inline (sem navegar)
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Erro de conexão");
@@ -73,7 +72,7 @@ export function DistributorSelector({
 
     void load();
     return () => { cancelled = true; };
-  }, [zoneId, date, deliveryWindow, onSkip, onSelect]);
+  }, [zoneId, date, deliveryWindow, onAutoSelected, onSelect]);
 
   if (loading) {
     return (
@@ -91,7 +90,17 @@ export function DistributorSelector({
     );
   }
 
-  if (distributors.length <= 1) return null;
+  if (distributors.length === 0) {
+    return (
+      <div className="rounded-2xl bg-amber-50 p-4">
+        <p className="text-sm text-amber-700">
+          Nenhuma distribuidora disponível para este endereço. Tente outro endereço de entrega.
+        </p>
+      </div>
+    );
+  }
+
+  if (distributors.length === 1) return null;
 
   return (
     <div className="space-y-3">

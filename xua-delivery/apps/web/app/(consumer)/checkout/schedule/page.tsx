@@ -97,12 +97,12 @@ export default function CheckoutSchedulePage() {
   const setSelectedDistributorId = useCheckoutStore((s) => s.setSelectedDistributorId);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
 
-  // Se não tem endereço, redireciona para distribuidora (primeiro passo)
+  // Garante que endereço e distribuidora foram selecionados antes de prosseguir
   useEffect(() => {
-    if (!storedAddressId) {
+    if (!storedAddressId || !selectedDistributorId) {
       router.replace("/checkout/distributor");
     }
-  }, [storedAddressId, router]);
+  }, [storedAddressId, selectedDistributorId, router]);
 
   // Address state (full object loaded from API, id persisted in store)
   const [selectedAddress, setSelectedAddressLocal] = useState<Address | null>(null);

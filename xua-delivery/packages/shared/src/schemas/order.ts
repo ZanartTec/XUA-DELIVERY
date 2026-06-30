@@ -143,7 +143,7 @@ export const createOrderSchema = z.object({
   address_id: z.string().uuid("Endereço inválido"),
   delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
   delivery_window: z.enum(DELIVERY_WINDOW_INPUT_VALUES),
-  distributor_id: z.string().uuid("Distribuidora inválida").optional(),
+  distributor_id: z.string().uuid("Distribuidora inválida"),
   time_slot_id: z.string().uuid("Horário inválido").optional(),
   items: z
     .array(
