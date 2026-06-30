@@ -413,6 +413,10 @@ function PaymentContent() {
       setError("Selecione um endereço de entrega.");
       return;
     }
+    if (!selectedDistributorId) {
+      router.replace("/checkout/distributor");
+      return;
+    }
     if (cashChangeInvalid) {
       setError("O valor para troco deve ser maior ou igual ao total do pedido.");
       return;
@@ -433,7 +437,7 @@ function PaymentContent() {
           delivery_date: date,
           delivery_window: deliveryWindow,
           ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
-          ...(selectedDistributorId ? { distributor_id: selectedDistributorId } : {}),
+          distributor_id: selectedDistributorId,
           payment_method: paymentMethod,
           ...(isCashPayment && cashChangeForCents != null
             ? { cash_change_for_cents: cashChangeForCents }
