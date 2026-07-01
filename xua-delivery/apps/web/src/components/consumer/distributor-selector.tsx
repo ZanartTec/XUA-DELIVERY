@@ -17,7 +17,6 @@ interface DistributorSelectorProps {
   window?: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onAutoSelected: () => void;
 }
 
 export function DistributorSelector({
@@ -26,7 +25,6 @@ export function DistributorSelector({
   window: deliveryWindow,
   selectedId,
   onSelect,
-  onAutoSelected,
 }: DistributorSelectorProps) {
   const [distributors, setDistributors] = useState<AvailableDistributor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,10 +53,10 @@ export function DistributorSelector({
         const list: AvailableDistributor[] = body.distributors ?? [];
         setDistributors(list);
 
-        // Única distribuidora: seleciona e avança preservando o ID no store
+        // Única distribuidora: apenas pré-seleciona (sem navegar). O card é
+        // exibido e o usuário confirma no botão "Continuar" — não pulamos a etapa.
         if (list.length === 1) {
           onSelect(list[0].id);
-          onAutoSelected();
         }
         // list.length === 0: renderiza mensagem de erro inline (sem navegar)
       } catch (err) {
@@ -72,7 +70,7 @@ export function DistributorSelector({
 
     void load();
     return () => { cancelled = true; };
-  }, [zoneId, date, deliveryWindow, onAutoSelected, onSelect]);
+  }, [zoneId, date, deliveryWindow, onSelect]);
 
   if (loading) {
     return (
@@ -99,8 +97,6 @@ export function DistributorSelector({
       </div>
     );
   }
-
-  if (distributors.length === 1) return null;
 
   return (
     <div className="space-y-3">

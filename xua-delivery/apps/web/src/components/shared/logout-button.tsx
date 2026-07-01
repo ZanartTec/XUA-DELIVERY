@@ -22,6 +22,7 @@ export function LogoutButton({ variant = "icon", className }: LogoutButtonProps)
         cache: "no-store",
       });
     } finally {
+      localStorage.clear();
       window.location.replace("/login");
     }
   }
