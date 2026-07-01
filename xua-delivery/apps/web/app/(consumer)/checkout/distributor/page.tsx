@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/src/store/auth";
 import { useCheckoutStore } from "@/src/store/checkout";
@@ -16,7 +16,6 @@ export default function CheckoutDistributorPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
 
-  const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
   const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const setSelectedDistributorId = useCheckoutStore((s) => s.setSelectedDistributorId);
@@ -25,7 +24,11 @@ export default function CheckoutDistributorPage() {
 
   const [selectedAddress, setSelectedAddressLocal] = useState<Address | null>(null);
   const [addressLoading, setAddressLoading] = useState(true);
+  const [addressError, setAddressError] = useState(false);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+
+  // Guard: impede que o fetch seja disparado mais de uma vez na montagem
+  const hasFetched = useRef(false);
 
   const zoneId = selectedAddress?.zone_id ?? null;
 
@@ -38,33 +41,39 @@ export default function CheckoutDistributorPage() {
     setCartDistributorId(null);
   }, [setSelectedAddressId, setSelectedDistributorId, setCartDistributorId]);
 
-  // Load default address
-  const loadDefaultAddress = useCallback(async () => {
-    if (!user?.id) return;
-    setAddressLoading(true);
-    try {
-      const res = await fetch(`/api/consumers/${user.id}/addresses`);
-      const data = await res.json();
-      const list: Address[] = data.addresses ?? [];
-      if (list.length > 0) {
-        const currentStoredId = useCheckoutStore.getState().selectedAddressId;
-        const fromStore = currentStoredId
-          ? list.find((a) => a.id === currentStoredId)
-          : null;
-        const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
-        setSelectedAddressLocal(def);
-        setSelectedAddressId(def.id);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setAddressLoading(false);
-    }
-  }, [user?.id, setSelectedAddressId]);
-
+  // Load default address — dispara UMA única vez ao montar o componente
   useEffect(() => {
+    if (!user?.id || hasFetched.current) return;
+    hasFetched.current = true;
+
+    async function loadDefaultAddress() {
+      setAddressLoading(true);
+      setAddressError(false);
+      try {
+        const res = await fetch(`/api/consumers/${user!.id}/addresses`);
+        if (!res.ok) {
+          setAddressError(true);
+          return;
+        }
+        const data = await res.json();
+        const list: Address[] = data.addresses ?? [];
+        if (list.length > 0) {
+          // Lê o estado do Zustand de forma imperativa para não criar dependência reativa
+          const storedId = useCheckoutStore.getState().selectedAddressId;
+          const fromStore = storedId ? list.find((a) => a.id === storedId) : null;
+          const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
+          setSelectedAddressLocal(def);
+          setSelectedAddressId(def.id);
+        }
+      } catch {
+        setAddressError(true);
+      } finally {
+        setAddressLoading(false);
+      }
+    }
+
     void loadDefaultAddress();
-  }, [loadDefaultAddress]);
+  }, [user?.id, setSelectedAddressId]);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -125,6 +134,12 @@ export default function CheckoutDistributorPage() {
         {addressLoading ? (
           <div className="flex items-center justify-center py-12">
             <Droplets className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : addressError ? (
+          <div className="rounded-2xl bg-red-50 p-4">
+            <p className="text-sm text-red-600">
+              Não foi possível carregar seus endereços. Verifique sua conexão e tente novamente.
+            </p>
           </div>
         ) : zoneId ? (
           <DistributorSelector

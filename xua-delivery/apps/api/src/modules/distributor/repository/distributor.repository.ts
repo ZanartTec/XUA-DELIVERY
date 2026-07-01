@@ -159,8 +159,23 @@ export const distributorRepository = {
   },
 
   /**
-   * Busca distribuidoras ativas com allows_consumer_choice=true que atendem
+   * Busca distribuidoras ativas com `allows_consumer_choice=true` que atendem
    * a mesma área geográfica (via ZoneCoverage) da zona informada.
+   *
+   * @param zoneId - ID da zona do endereço selecionado pelo consumidor.
+   * @param _date  - Reservado para uso futuro (filtragem por disponibilidade de data).
+   *                 Atualmente ignorado — todas as distribuidoras ativas são retornadas.
+   * @param _window - Reservado para uso futuro (filtragem por janela MORNING/AFTERNOON).
+   *                  Atualmente ignorado.
+   *
+   * Performance:
+   *   - O match geográfico usa os índices `05_mst_zone_coverage_neighborhood_idx`
+   *     e `05_mst_zone_coverage_zip_code_idx` criados em `20260630000000_add_zone_coverage_indexes`.
+   *   - O cálculo de avg_nps usa o índice `09_trn_orders_distributor_nps_idx` (parcial
+   *     WHERE nps_score IS NOT NULL) criado em `20260701120000_add_orders_nps_index`.
+   *
+   * @returns Array ordenado por avg_nps DESC; `next_available_date` sempre null
+   *          até que o cálculo de disponibilidade por agenda seja implementado.
    */
   async findAvailableForZone(
     zoneId: string,
@@ -212,6 +227,7 @@ export const distributorRepository = {
       id: r.id,
       name: r.name,
       avg_nps: r.avg_nps,
+      // TODO: calcular com base na agenda da distribuidora (weekdays + blocked dates)
       next_available_date: null,
     }));
   },
