@@ -43,6 +43,9 @@ services:
         sync: false
       - key: INTERNAL_SECRET
         sync: false
+      # Segredo HMAC dos tokens de redefinição de senha ("esqueci a senha")
+      - key: PASSWORD_RESET_SECRET
+        sync: false
 
       # ─── Criptografia de segredos em repouso ────────────────────────────
       - key: ENCRYPTION_MASTER_KEY
@@ -50,6 +53,13 @@ services:
 
       # ─── CORS ─────────────────────────────────────────────────────────────
       - key: APP_ORIGIN
+        sync: false
+
+      # ─── E-mail (Resend) — redefinição de senha ────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+      # Remetente. Requer domínio verificado no Resend p/ enviar a qualquer e-mail.
+      - key: MAIL_FROM
         sync: false
 
       # ─── Pagamentos (Mercado Pago) ─────────────────────────────────────────

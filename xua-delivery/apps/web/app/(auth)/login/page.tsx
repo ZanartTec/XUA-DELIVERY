@@ -126,9 +126,9 @@ export default function LoginPage() {
                   >
                     Senha
                   </label>
-                  <button type="button" className="text-xs font-semibold text-[#1B4A9A]">
+                  <Link href="/forgot-password" className="text-xs font-semibold text-[#1B4A9A]">
                     Esqueceu?
-                  </button>
+                  </Link>
                 </div>
                 <Input
                   id="password"

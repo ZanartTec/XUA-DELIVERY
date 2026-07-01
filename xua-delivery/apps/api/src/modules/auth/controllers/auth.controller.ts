@@ -1,8 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
-import { loginSchema, registerSchema } from "@xua/shared/schemas/auth";
+import {
+  loginSchema,
+  registerSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "@xua/shared/schemas/auth";
 import { verifyToken } from "../../../infra/auth/jwt.js";
 import { isBlacklisted } from "../../../infra/auth/blacklist.js";
 import { authService } from "../services/auth.service.js";
+import { passwordResetService } from "../services/password-reset.service.js";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -48,6 +54,48 @@ export const authController = {
 
       res.cookie("xua-token", token, COOKIE_OPTIONS);
       res.status(201).json({ user });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/auth/forgot-password
+   * Resposta SEMPRE uniforme — não revela se o e-mail existe (anti-enumeração).
+   */
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = forgotPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      await passwordResetService.requestReset(parsed.data.email);
+
+      res.json({
+        ok: true,
+        message: "Se o e-mail estiver cadastrado, enviaremos as instruções de redefinição.",
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/auth/reset-password
+   * Recebe o token do link + a nova senha.
+   */
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = resetPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      await passwordResetService.resetPassword(parsed.data.token, parsed.data.password);
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
