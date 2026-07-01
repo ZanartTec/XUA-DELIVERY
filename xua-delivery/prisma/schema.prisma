@@ -616,6 +616,7 @@ model Order {
   @@index([distributor_id, delivery_date, status], map: "09_trn_orders_distributor_delivery_status_idx")
   @@index([distributor_id, driver_id, status], map: "09_trn_orders_distributor_driver_status_idx")
   @@index([consumer_id, created_at], map: "09_trn_orders_consumer_created_idx")
+  @@index([distributor_id, nps_score], map: "09_trn_orders_distributor_nps_idx")
   @@map("09_trn_orders")
 }
 

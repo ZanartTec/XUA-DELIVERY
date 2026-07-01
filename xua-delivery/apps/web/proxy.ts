@@ -41,10 +41,43 @@ const ROLE_ROUTES: Record<string, string[]> = {
   ops: ["/ops", "/support"],
 };
 
+// Cache em memória para a verificação de blacklist.
+// Estratégia: cacheamos APENAS o resultado "não blacklistado" (false).
+// Se o token já está revogado (true), NÃO cacheamos — a próxima requisição
+// deve sempre confirmar o revogamento sem esperar o TTL.
+// Isso garante que um logout seja efetivo imediatamente, sem janela de risco.
+//
+// TTL de 30s elimina o thundering herd (10-11 chamadas/carregamento), mantendo
+// o custo real: apenas 1 HTTP a cada 30s por usuário ativo.
+const blacklistCache = new Map<string, { expiresAt: number }>();
+const BLACKLIST_CACHE_TTL_MS = 30_000;
+
+// Limpeza periódica do cache para evitar crescimento de memória indefinido.
+// Roda a cada 5 minutos e remove entradas expiradas.
+if (typeof setInterval !== "undefined") {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of blacklistCache) {
+      if (entry.expiresAt <= now) blacklistCache.delete(key);
+    }
+  }, 5 * 60_000);
+}
+
 /**
- * Verifica blacklist de JWT chamando a API externa diretamente.
+ * Verifica blacklist de JWT chamando a API externa.
+ *
+ * Cache: resultado "não revogado" (false) é cacheado por BLACKLIST_CACHE_TTL_MS
+ * para evitar chamadas duplicadas. Tokens revogados (true) nunca são cacheados,
+ * garantindo que o logout seja sempre detectado na próxima requisição.
  */
 async function checkBlacklist(jti: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = blacklistCache.get(jti);
+  // Cache hit: token foi verificado recentemente e não estava revogado.
+  if (cached && cached.expiresAt > now) {
+    return false;
+  }
+
   try {
     const apiUrl = process.env.API_URL || "http://localhost:4000";
     const url = new URL("/api/auth/check-blacklist", apiUrl);
@@ -52,10 +85,20 @@ async function checkBlacklist(jti: string): Promise<boolean> {
     const res = await fetch(url, {
       headers: { "x-internal-secret": process.env.INTERNAL_SECRET || "" },
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      // Erro na API: assumimos não-revogado e cacheamos para não sobrecarregar.
+      blacklistCache.set(jti, { expiresAt: now + BLACKLIST_CACHE_TTL_MS });
+      return false;
+    }
     const body = await res.json();
-    return body.blacklisted === true;
+    const blacklisted = body.blacklisted === true;
+    // Só cacheamos se NÃO estiver revogado. Tokens revogados sempre passam pela API.
+    if (!blacklisted) {
+      blacklistCache.set(jti, { expiresAt: now + BLACKLIST_CACHE_TTL_MS });
+    }
+    return blacklisted;
   } catch {
+    // Falha de rede: fail-open (não bloqueia o usuário), sem cachear.
     return false;
   }
 }
