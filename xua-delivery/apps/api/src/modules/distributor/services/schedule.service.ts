@@ -57,6 +57,13 @@ const WINDOW_START_HOUR: Record<string, number> = {
  *   3. Fallback determinístico por DeliveryWindow (MORNING 08:00-12:00, AFTERNOON 13:00-18:00)
  */
 export type ScheduledTimeSnapshot = {
+  /**
+   * Slot validado: o `timeSlotId` de entrada apenas quando existe e pertence
+   * à distribuidora; caso contrário `null`. Deve ser a ÚNICA fonte do valor
+   * gravado em Order.time_slot_id — assim a FK nunca é violada por um slot
+   * obsoleto vindo do frontend.
+   */
+  timeSlotId: string | null;
   label: string | null;
   startHour: number | null;
   startMinute: number | null;
@@ -277,6 +284,7 @@ export const scheduleService = {
       const slot = await timeslotRepository.findByIdForDistributor(input.timeSlotId, input.distributorId, tx);
       if (slot) {
         return {
+          timeSlotId: input.timeSlotId,
           label: slot.label,
           startHour: slot.start_hour,
           startMinute: slot.start_minute,
@@ -284,10 +292,18 @@ export const scheduleService = {
           endMinute: slot.end_minute,
         };
       }
+      // Slot inexistente ou de outra distribuidora (ex.: ID obsoleto persistido
+      // no checkout do frontend). Ignora o slot e cai no fallback com
+      // timeSlotId: null — evita violar a FK 09_trn_orders_time_slot_id_fkey.
+      log.warn(
+        { timeSlotId: input.timeSlotId, distributorId: input.distributorId },
+        "Time slot inválido para a distribuidora; ignorado no snapshot"
+      );
     }
 
     if (input.preferredTimeStart != null && input.preferredTimeEnd != null) {
       return {
+        timeSlotId: null,
         label: `${pad2(input.preferredTimeStart)}:00–${pad2(input.preferredTimeEnd)}:00`,
         startHour: input.preferredTimeStart,
         startMinute: 0,
@@ -298,6 +314,7 @@ export const scheduleService = {
 
     const fb = WINDOW_FALLBACK[input.deliveryWindow];
     return {
+      timeSlotId: null,
       label: fb.label,
       startHour: fb.startHour,
       startMinute: 0,

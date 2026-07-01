@@ -204,6 +204,15 @@ export default function CheckoutSchedulePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
+  // Distribuidora sem time slots: nunca deve haver slot selecionado. Limpa
+  // qualquer selectedSlotId obsoleto (persistido de um checkout anterior),
+  // senão ele seria enviado ao criar o pedido e violaria a FK de time_slot_id.
+  useEffect(() => {
+    if (!hasTimeSlots && selectedSlotId) {
+      setSelectedSlotId(null);
+    }
+  }, [hasTimeSlots, selectedSlotId, setSelectedSlotId]);
+
   const isClient = useIsClient();
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
   const items = useCartStore((s) => s.items);

@@ -207,7 +207,9 @@ async function buildOrderInTx(
       status: initialStatus,
       delivery_date: new Date(data.deliveryDate),
       delivery_window: data.deliveryWindow,
-      time_slot_id: data.timeSlotId ?? null,
+      // Usa o slot já validado pelo snapshot (existe + pertence à distribuidora).
+      // Nunca o `data.timeSlotId` cru: um ID obsoleto violaria a FK do pedido.
+      time_slot_id: scheduledSnapshot.timeSlotId,
       preferred_time_start: data.preferredTimeStart ?? null,
       preferred_time_end: data.preferredTimeEnd ?? null,
       scheduled_time_label: scheduledSnapshot.label,
