@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────
 //  Versão do cache — incremente ao mudar assets
 // ─────────────────────────────────────────────
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_NAME = `xua-static-${CACHE_VERSION}`;
 const API_CACHE  = `xua-api-${CACHE_VERSION}`;
 

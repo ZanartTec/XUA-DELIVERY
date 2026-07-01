@@ -258,6 +258,7 @@ model Consumer {
   addresses              Address[]
   orders                 Order[]            @relation("ConsumerOrders")
   push_tokens            ConsumerPushToken[]
+  password_reset_tokens  PasswordResetToken[]
   deposits               Deposit[]
   user_subscriptions     UserSubscription[]
   deposit_programs       ConsumerDepositProgram[]
@@ -790,6 +791,23 @@ model OrderOtp {
   order Order @relation(fields: [order_id], references: [id])
 
   @@map("16_sec_order_otps")
+}
+
+/// Token de redefinição de senha ("esqueci a senha"). Guarda apenas o HASH
+/// HMAC-SHA256 do token — o valor em claro só existe no link enviado por e-mail.
+/// Uso único (used_at) e expiração curta (expires_at).
+model PasswordResetToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  consumer_id String    @db.Uuid
+  token_hash  String    @unique
+  expires_at  DateTime
+  used_at     DateTime?
+  created_at  DateTime  @default(now())
+
+  consumer Consumer @relation(fields: [consumer_id], references: [id])
+
+  @@index([consumer_id])
+  @@map("38_sec_password_reset_tokens")
 }
 
 model Reconciliation {

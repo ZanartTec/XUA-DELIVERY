@@ -43,6 +43,8 @@ export async function checkRateLimit(
 export const RATE_LIMITS = {
   global: { windowSeconds: 60, maxRequests: 100 },
   auth: { windowSeconds: 60, maxRequests: 10 },
+  // Esqueci a senha — janela larga e limite baixo para evitar abuso/e-mail bombing.
+  passwordReset: { windowSeconds: 900, maxRequests: 5 },
   orders: { windowSeconds: 60, maxRequests: 30 },
   orderRating: { windowSeconds: 60, maxRequests: 5 },
   orderCreate: { windowSeconds: 60, maxRequests: 10 },

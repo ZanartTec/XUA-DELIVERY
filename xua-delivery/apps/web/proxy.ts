@@ -21,7 +21,7 @@ const JWT_SECRET_RAW = validateJwtSecret(process.env.JWT_SECRET);
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 // Rotas públicas que não requerem autenticação
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 // Mapa de redirecionamento por role (seção 3.2 do guia técnico)
 const ROLE_REDIRECTS: Record<string, string> = {

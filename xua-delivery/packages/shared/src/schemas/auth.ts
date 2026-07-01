@@ -14,3 +14,16 @@ export const registerSchema = z.object({
   password: z.string().min(8, "Senha deve ter ao menos 8 caracteres").max(64, "Senha excessivamente longa"),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+// ─── Esqueci a senha (password reset) ──────────────────────────
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().min(1, "E-mail obrigatório").email("E-mail inválido"),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1, "Token obrigatório"),
+  password: z.string().min(8, "Senha deve ter ao menos 8 caracteres").max(64, "Senha excessivamente longa"),
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
