@@ -47,8 +47,9 @@ export default function CheckoutDistributorPage() {
       const data = await res.json();
       const list: Address[] = data.addresses ?? [];
       if (list.length > 0) {
-        const fromStore = storedAddressId
-          ? list.find((a) => a.id === storedAddressId)
+        const currentStoredId = useCheckoutStore.getState().selectedAddressId;
+        const fromStore = currentStoredId
+          ? list.find((a) => a.id === currentStoredId)
           : null;
         const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
         setSelectedAddressLocal(def);
@@ -59,7 +60,7 @@ export default function CheckoutDistributorPage() {
     } finally {
       setAddressLoading(false);
     }
-  }, [user?.id, storedAddressId, setSelectedAddressId]);
+  }, [user?.id, setSelectedAddressId]);
 
   useEffect(() => {
     void loadDefaultAddress();
