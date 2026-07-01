@@ -183,23 +183,28 @@ export const distributorRepository = {
         avg_nps: number | null;
       }>
     >`
+      WITH target_distributors AS (
+        SELECT DISTINCT d.id, d.name
+        FROM "03_mst_distributors" d
+        JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
+        JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
+        JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
+        WHERE d.is_active = true
+          AND d.allows_consumer_choice = true
+          AND (
+            (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
+            OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
+          )
+      )
       SELECT
         d.id,
         d.name,
-        ROUND(AVG(o.nps_score)::numeric, 1)::float AS avg_nps
-      FROM "03_mst_distributors" d
-      JOIN "04_mst_zones" z2 ON z2.distributor_id = d.id AND z2.is_active = true
-      JOIN "05_mst_zone_coverage" zc2 ON zc2.zone_id = z2.id
-      JOIN "05_mst_zone_coverage" zc_orig ON zc_orig.zone_id = ${zoneId}::uuid
-      LEFT JOIN "09_trn_orders" o
-        ON o.distributor_id = d.id AND o.nps_score IS NOT NULL
-      WHERE d.is_active = true
-        AND d.allows_consumer_choice = true
-        AND (
-          (zc2.neighborhood IS NOT NULL AND zc2.neighborhood = zc_orig.neighborhood)
-          OR (zc2.zip_code IS NOT NULL AND zc2.zip_code = zc_orig.zip_code)
-        )
-      GROUP BY d.id, d.name
+        (
+          SELECT ROUND(AVG(o.nps_score)::numeric, 1)::float
+          FROM "09_trn_orders" o
+          WHERE o.distributor_id = d.id AND o.nps_score IS NOT NULL
+        ) AS avg_nps
+      FROM target_distributors d
       ORDER BY avg_nps DESC NULLS LAST, d.name ASC
     `;
 
