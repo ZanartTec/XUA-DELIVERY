@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../infra/auth/jwt";
 import { isBlacklisted } from "../infra/auth/blacklist";
+import { isTokenStale } from "../infra/auth/password-change";
 import { logger } from "../infra/logger";
 import type { JwtPayload } from "@xua/shared/types";
 
@@ -41,6 +42,12 @@ export async function authMiddleware(
       }
     }
 
+    // SEC: Rejeita tokens emitidos antes da última troca de senha do usuário.
+    if (await isTokenStale(payload.sub, payload.iat)) {
+      res.status(401).json({ error: "Sessão expirada. Faça login novamente." });
+      return;
+    }
+
     req.user = payload;
     next();
   } catch (err) {
@@ -67,7 +74,9 @@ export async function optionalAuthMiddleware(
 
   try {
     const payload = await verifyToken(token);
-    if (payload.jti && !(await isBlacklisted(payload.jti))) {
+    const revoked = payload.jti ? await isBlacklisted(payload.jti) : false;
+    const stale = await isTokenStale(payload.sub, payload.iat);
+    if (!revoked && !stale) {
       req.user = payload;
     }
   } catch {

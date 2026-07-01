@@ -64,16 +64,17 @@ if (typeof setInterval !== "undefined") {
 }
 
 /**
- * Verifica blacklist de JWT chamando a API externa.
+ * Verifica se o JWT foi invalidado — por logout (blacklist por jti) OU por troca
+ * de senha (sessão obsoleta, comparando iat com o instante da troca).
  *
- * Cache: resultado "não revogado" (false) é cacheado por BLACKLIST_CACHE_TTL_MS
- * para evitar chamadas duplicadas. Tokens revogados (true) nunca são cacheados,
- * garantindo que o logout seja sempre detectado na próxima requisição.
+ * Cache: resultado "válido" (false) é cacheado por BLACKLIST_CACHE_TTL_MS para
+ * evitar chamadas duplicadas. Tokens invalidados nunca são cacheados, garantindo
+ * que logout/troca de senha sejam detectados já na próxima requisição.
  */
-async function checkBlacklist(jti: string): Promise<boolean> {
+async function checkRevoked(jti: string, sub: string, iat?: number): Promise<boolean> {
   const now = Date.now();
   const cached = blacklistCache.get(jti);
-  // Cache hit: token foi verificado recentemente e não estava revogado.
+  // Cache hit: token foi verificado recentemente e estava válido.
   if (cached && cached.expiresAt > now) {
     return false;
   }
@@ -82,21 +83,23 @@ async function checkBlacklist(jti: string): Promise<boolean> {
     const apiUrl = process.env.API_URL || "http://localhost:4000";
     const url = new URL("/api/auth/check-blacklist", apiUrl);
     url.searchParams.set("jti", jti);
+    if (sub) url.searchParams.set("sub", sub);
+    if (iat) url.searchParams.set("iat", String(iat));
     const res = await fetch(url, {
       headers: { "x-internal-secret": process.env.INTERNAL_SECRET || "" },
     });
     if (!res.ok) {
-      // Erro na API: assumimos não-revogado e cacheamos para não sobrecarregar.
+      // Erro na API: assumimos válido e cacheamos para não sobrecarregar.
       blacklistCache.set(jti, { expiresAt: now + BLACKLIST_CACHE_TTL_MS });
       return false;
     }
     const body = await res.json();
-    const blacklisted = body.blacklisted === true;
-    // Só cacheamos se NÃO estiver revogado. Tokens revogados sempre passam pela API.
-    if (!blacklisted) {
+    const revoked = body.blacklisted === true || body.stale === true;
+    // Só cacheamos se estiver válido. Tokens invalidados sempre passam pela API.
+    if (!revoked) {
       blacklistCache.set(jti, { expiresAt: now + BLACKLIST_CACHE_TTL_MS });
     }
-    return blacklisted;
+    return revoked;
   } catch {
     // Falha de rede: fail-open (não bloqueia o usuário), sem cachear.
     return false;
@@ -127,10 +130,14 @@ export async function proxy(request: NextRequest) {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = payload.role as string;
 
-    // SEC-01: Verifica se o JWT foi invalidado (logout)
+    // SEC-01: Verifica se o JWT foi invalidado (logout ou troca de senha)
     if (payload.jti) {
-      const blacklisted = await checkBlacklist(payload.jti as string);
-      if (blacklisted) {
+      const revoked = await checkRevoked(
+        payload.jti as string,
+        payload.sub as string,
+        typeof payload.iat === "number" ? payload.iat : undefined
+      );
+      if (revoked) {
         const response = NextResponse.redirect(new URL("/login", request.url));
         response.cookies.delete("xua-token");
         return response;
