@@ -4,6 +4,7 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { authRepository } from "../repository/auth.repository.js";
 import { passwordResetRepository } from "../repository/password-reset.repository.js";
 import { sendMail } from "../../../infra/mail/mailer.js";
+import { markPasswordChanged } from "../../../infra/auth/password-change.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { AuthServiceError } from "./auth.service.js";
 
@@ -77,16 +78,16 @@ export const passwordResetService = {
 
     await passwordResetRepository.create({ consumer_id: consumer.id, token_hash, expires_at });
 
-    try {
-      await sendMail({
-        to: consumer.email,
-        subject: "Redefinição de senha — Xuá Delivery",
-        html: resetEmailHtml(consumer.name, buildResetLink(rawToken)),
-      });
-    } catch (err) {
-      // Não vaza para o cliente (resposta uniforme). Token permanece válido até expirar.
+    // Envio fire-and-forget: NÃO aguardamos aqui. Isso elimina a diferença de
+    // tempo de resposta entre e-mail existente (que enviaria) e inexistente
+    // (que retorna cedo), fechando a brecha de enumeração por timing.
+    void sendMail({
+      to: consumer.email,
+      subject: "Redefinição de senha — Xuá Delivery",
+      html: resetEmailHtml(consumer.name, buildResetLink(rawToken)),
+    }).catch((err) => {
       log.error({ err, consumerId: consumer.id }, "Falha ao enviar e-mail de reset");
-    }
+    });
 
     log.info({ consumerId: consumer.id }, "Token de reset gerado");
   },
@@ -104,12 +105,17 @@ export const passwordResetService = {
     }
 
     const password_hash = await hashPassword(newPassword);
+    const changedAt = new Date();
     const prisma = getPrisma();
 
     await prisma.$transaction(async (tx) => {
-      // Revalida dentro da transação para evitar corrida (token usado em paralelo).
-      const locked = await tx.passwordResetToken.findUnique({ where: { id: record.id } });
-      if (!locked || locked.used_at !== null || locked.expires_at < new Date()) {
+      // Consumo atômico do token: o UPDATE condicional (used_at IS NULL e não
+      // expirado) garante que apenas UM request concorrente vença a corrida.
+      const claim = await tx.passwordResetToken.updateMany({
+        where: { id: record.id, used_at: null, expires_at: { gt: changedAt } },
+        data: { used_at: changedAt },
+      });
+      if (claim.count === 0) {
         throw new AuthServiceError("Token inválido ou expirado", 400);
       }
 
@@ -117,11 +123,11 @@ export const passwordResetService = {
         where: { id: record.consumer_id },
         data: { password_hash },
       });
-      await tx.passwordResetToken.update({
-        where: { id: record.id },
-        data: { used_at: new Date() },
-      });
     });
+
+    // Invalida todas as sessões JWT emitidas antes desta troca (SEC): se a conta
+    // foi comprometida, redefinir a senha derruba o atacante no próximo request.
+    await markPasswordChanged(record.consumer_id, changedAt.getTime());
 
     log.info({ consumerId: record.consumer_id }, "Senha redefinida via token");
   },

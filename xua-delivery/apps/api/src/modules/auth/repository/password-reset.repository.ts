@@ -25,4 +25,17 @@ export const passwordResetRepository = {
       data: { used_at: new Date() },
     });
   },
+
+  /**
+   * Remove tokens já usados ou expirados. Chamado pelo job de limpeza periódico.
+   * Retorna a quantidade de linhas removidas.
+   */
+  async deleteExpired(): Promise<number> {
+    const result = await prisma.passwordResetToken.deleteMany({
+      where: {
+        OR: [{ expires_at: { lt: new Date() } }, { used_at: { not: null } }],
+      },
+    });
+    return result.count;
+  },
 };

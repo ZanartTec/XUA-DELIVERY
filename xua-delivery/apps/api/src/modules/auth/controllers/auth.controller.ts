@@ -7,6 +7,7 @@ import {
 } from "@xua/shared/schemas/auth";
 import { verifyToken } from "../../../infra/auth/jwt.js";
 import { isBlacklisted } from "../../../infra/auth/blacklist.js";
+import { isTokenStale } from "../../../infra/auth/password-change.js";
 import { authService } from "../services/auth.service.js";
 import { passwordResetService } from "../services/password-reset.service.js";
 
@@ -159,13 +160,15 @@ export const authController = {
       }
 
       const jti = req.query.jti as string | undefined;
-      if (!jti) {
-        res.json({ blacklisted: false });
-        return;
-      }
+      const sub = req.query.sub as string | undefined;
+      const iat = req.query.iat ? Number(req.query.iat) : undefined;
 
-      const blacklisted = await isBlacklisted(jti);
-      res.json({ blacklisted });
+      const blacklisted = jti ? await isBlacklisted(jti) : false;
+      // Também sinaliza sessão obsoleta (senha trocada depois da emissão do token),
+      // para o proxy do Next redirecionar ao login já na navegação.
+      const stale = sub ? await isTokenStale(sub, iat) : false;
+
+      res.json({ blacklisted, stale });
     } catch (err) {
       next(err);
     }
