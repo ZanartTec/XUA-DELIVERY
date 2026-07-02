@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ActorType,
+  InventoryItemType,
   InventoryMovementType,
   InventoryReferenceType,
   SourceApp,
@@ -15,6 +16,9 @@ const mocks = vi.hoisted(() => ({
     inventoryMovement: {
       findMany: vi.fn(),
       count: vi.fn(),
+    },
+    inventoryItem: {
+      findMany: vi.fn(),
     },
   },
 }));
@@ -251,5 +255,38 @@ describe("inventoryRepository leitura distribuidor", () => {
         select: expect.not.objectContaining({ distributor_id: true }),
       })
     );
+  });
+});
+
+describe("inventoryRepository findActiveInventoryItemsByProductIds", () => {
+  it("busca itens ativos vendaveis e retornaveis vinculados aos produtos", async () => {
+    const productId = "7e1d7b55-3f52-4d10-aac3-74387c236205";
+    mocks.prisma.inventoryItem.findMany.mockResolvedValue([inventoryItemA]);
+
+    const result = await inventoryRepository.findActiveInventoryItemsByProductIds([productId]);
+
+    expect(result).toEqual([inventoryItemA]);
+    expect(mocks.prisma.inventoryItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          product_id: { in: [productId] },
+          type: {
+            in: [
+              InventoryItemType.SELLABLE_PRODUCT,
+              InventoryItemType.RETURNABLE_FULL,
+              InventoryItemType.RETURNABLE_EMPTY,
+            ],
+          },
+          is_active: true,
+        },
+      })
+    );
+  });
+
+  it("retorna vazio sem consultar o banco quando nao ha produtos", async () => {
+    const result = await inventoryRepository.findActiveInventoryItemsByProductIds([]);
+
+    expect(result).toEqual([]);
+    expect(mocks.prisma.inventoryItem.findMany).not.toHaveBeenCalled();
   });
 });
