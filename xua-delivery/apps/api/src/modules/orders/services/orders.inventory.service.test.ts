@@ -286,6 +286,50 @@ describe("orderService inventory integration", () => {
     );
   });
 
+  it("aceita pedido quando itens vinculados sao RETURNABLE_FULL/RETURNABLE_EMPTY", async () => {
+    const current = order();
+    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
+    mocks.inventoryRepository.findActiveInventoryItemsByProductIds.mockResolvedValue([
+      { ...inventoryItemA, type: "RETURNABLE_FULL" },
+      { ...inventoryItemB, type: "RETURNABLE_EMPTY" },
+    ]);
+    mockStatusUpdate(current);
+
+    const result = await orderService.acceptOrder(orderId, distributorUserId);
+
+    expect(result.status).toBe(OrderStatus.ACCEPTED_BY_DISTRIBUTOR);
+    expect(mocks.inventoryService.applyMovement).toHaveBeenCalledTimes(2);
+    expect(mocks.inventoryService.applyMovement).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        inventoryItemId: itemA,
+        quantityDelta: -3,
+        movementType: InventoryMovementType.ORDER_ACCEPT_OUT,
+      }),
+      tx
+    );
+    expect(mocks.inventoryService.applyMovement).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ inventoryItemId: itemB, quantityDelta: -1 }),
+      tx
+    );
+  });
+
+  it("falha com INVENTORY_ITEM_NOT_FOUND quando produto nao tem item de estoque ativo", async () => {
+    const current = order();
+    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
+    mocks.inventoryRepository.findActiveInventoryItemsByProductIds.mockResolvedValue([]);
+
+    await expect(orderService.acceptOrder(orderId, distributorUserId)).rejects.toMatchObject({
+      name: "OrderServiceError",
+      code: "INVENTORY_ITEM_NOT_FOUND",
+    });
+
+    expect(mocks.inventoryService.applyMovement).not.toHaveBeenCalled();
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+    expect(mocks.auditRepository.emit).not.toHaveBeenCalled();
+  });
+
   it("reprocessa aceite quando ledger retorna replay idempotente", async () => {
     const current = order();
     mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);

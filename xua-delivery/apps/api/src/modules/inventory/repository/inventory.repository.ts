@@ -216,6 +216,11 @@ export const inventoryRepository = {
     });
   },
 
+  /**
+   * Itens de estoque ativos movimentáveis por venda, vinculados aos produtos.
+   * Aceita qualquer tipo vendável/retornável (SELLABLE_PRODUCT, RETURNABLE_FULL,
+   * RETURNABLE_EMPTY); SUPPLY fica de fora por ser suprimento interno.
+   */
   async findActiveInventoryItemsByProductIds(productIds: string[], tx?: TxClient) {
     if (productIds.length === 0) return [];
 
@@ -223,7 +228,13 @@ export const inventoryRepository = {
     return (tx ?? prisma).inventoryItem.findMany({
       where: {
         product_id: { in: productIds },
-        type: InventoryItemTypeValue.SELLABLE_PRODUCT,
+        type: {
+          in: [
+            InventoryItemTypeValue.SELLABLE_PRODUCT,
+            InventoryItemTypeValue.RETURNABLE_FULL,
+            InventoryItemTypeValue.RETURNABLE_EMPTY,
+          ],
+        },
         is_active: true,
       },
       select: INVENTORY_ITEM_SELECT,
