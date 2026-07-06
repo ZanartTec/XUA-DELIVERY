@@ -116,14 +116,6 @@ function PaymentContent() {
   const resetCheckout = useCheckoutStore((s) => s.resetCheckout);
 
   const items = useCartStore((s) => s.items);
-  const emptyBottlesByBottle = useCartStore((s) => s.emptyBottlesByBottle);
-  const emptyBottlesPayload = useMemo(
-    () =>
-      Object.entries(emptyBottlesByBottle)
-        .filter(([, qty]) => qty > 0)
-        .map(([bottle_product_id, quantity]) => ({ bottle_product_id, quantity })),
-    [emptyBottlesByBottle],
-  );
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
   const clearCart = useCartStore((s) => s.clearCart);
 
@@ -137,12 +129,6 @@ function PaymentContent() {
   const [retryOrder, setRetryOrder] = useState<RetryOrder | null>(null);
   const [retryLoading, setRetryLoading] = useState(isRetryMode);
   const [retryError, setRetryError] = useState<string | null>(null);
-  // Settlement de vasilhames (caução de vasilhames). Tudo calculado no backend.
-  const [settlement, setSettlement] = useState({
-    bottlesSold: 0,
-    bottlesLoaned: 0,
-    soldAmountCents: 0,
-  });
 
   // Address
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
@@ -190,9 +176,7 @@ function PaymentContent() {
   }, [hiddenPaymentMethods, paymentMethod, setPaymentMethod]);
 
   const subtotal = retryOrder ? retryOrder.subtotal_cents : mounted ? getSubtotalCents() : 0;
-  // Valor da venda de vasilhames faltantes (caução de vasilhames substitui a antiga caução fixa).
-  const bottlesSoldCents = retryOrder ? 0 : settlement.soldAmountCents;
-  const totalCents = retryOrder ? retryOrder.total_cents : subtotal + bottlesSoldCents;
+  const totalCents = retryOrder ? retryOrder.total_cents : subtotal;
   const displayItems = useMemo(
     () =>
       retryOrder
@@ -256,37 +240,10 @@ function PaymentContent() {
 
         if (!consumerId) throw new Error("AUTH_REQUIRED");
 
-        // Preview do settlement de vasilhames (backend decide venda x caução).
-        const previewItems = items.map((it) => ({ product_id: it.product_id, quantity: it.quantity }));
-        const previewPromise =
-          selectedDistributorId && previewItems.length > 0
-            ? fetch(`/api/consumers/${consumerId}/deposit/preview`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  distributor_id: selectedDistributorId,
-                  items: previewItems,
-                  empty_bottles: emptyBottlesPayload,
-                }),
-              })
-            : Promise.resolve(null);
-
-        const [previewRes, addrRes] = await Promise.all([
-          previewPromise,
-          fetch(`/api/consumers/${consumerId}/addresses`),
-        ]);
-        const previewBody = previewRes ? await previewRes.json() : null;
+        const addrRes = await fetch(`/api/consumers/${consumerId}/addresses`);
         const addrBody = await addrRes.json();
 
         if (!cancelled) {
-          if (previewBody && previewRes?.ok) {
-            setSettlement({
-              bottlesSold: Number(previewBody.bottles_sold ?? 0),
-              bottlesLoaned: Number(previewBody.bottles_loaned ?? 0),
-              soldAmountCents: Number(previewBody.sold_amount_cents ?? 0),
-            });
-          }
-
           const addrList: Address[] = addrBody.addresses ?? [];
           // Try to use address from schedule params, then default, then first
           const fromParams = storedAddressId
@@ -315,7 +272,7 @@ function PaymentContent() {
     return () => {
       cancelled = true;
     };
-  }, [isRetryMode, user?.id, storedAddressId, isRedirecting, selectedDistributorId, emptyBottlesPayload, items]);
+  }, [isRetryMode, user?.id, storedAddressId, isRedirecting]);
 
   useEffect(() => {
     if (isRedirecting) return;
@@ -433,7 +390,6 @@ function PaymentContent() {
             product_id: i.product_id,
             quantity: i.quantity,
           })),
-          empty_bottles: emptyBottlesPayload,
           delivery_date: date,
           delivery_window: deliveryWindow,
           ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
@@ -746,30 +702,6 @@ function PaymentContent() {
                 {mounted ? formatCurrency(subtotal) : "—"}
               </span>
             </div>
-            {!previewLoading && settlement.bottlesSold > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-amber-700">
-                  Vasilhames ({settlement.bottlesSold})
-                </span>
-                <span className="text-amber-700 font-semibold">
-                  {formatCurrency(bottlesSoldCents)}
-                </span>
-              </div>
-            )}
-            {!previewLoading && settlement.bottlesLoaned > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-[#5697E9]">
-                  Vasilhames em caução ({settlement.bottlesLoaned})
-                </span>
-                <span className="text-[#5697E9] font-semibold">Sem cobrança</span>
-              </div>
-            )}
-            {previewLoading && (
-              <div className="flex justify-between text-sm text-[#434656]">
-                <span>Vasilhames</span>
-                <span>Calculando...</span>
-              </div>
-            )}
             <div className="flex justify-between text-lg font-extrabold pt-3 border-t border-[#e1e3e4]">
               <span className="text-[#191c1d]">Total</span>
               <span className="text-primary">
@@ -795,6 +727,18 @@ function PaymentContent() {
             {retryError}
           </div>
         )}
+
+        {/* Aviso de troca de vasilhame (antes da finalização) */}
+        <div className="rounded-xl bg-[#5697E9]/10 p-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-4 w-4 shrink-0 text-[#5697E9] mt-0.5" />
+            <p className="text-xs text-[#32466e] leading-relaxed">
+              Para a água <strong>sem galão incluso</strong>, tenha 1 vasilhame vazio de 20L,
+              em bom estado e dentro da validade, para entregar na troca de cada garrafão.
+              Vasilhame danificado, vencido ou ausente pode gerar cobrança adicional na entrega.
+            </p>
+          </div>
+        </div>
 
         {/* CTA Button */}
         <Button

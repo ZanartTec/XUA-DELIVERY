@@ -240,9 +240,10 @@ export default function CheckoutSchedulePage() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#f0f2f4] transition-colors"
+          aria-label="Voltar"
+          className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-[#f0f2f4] transition-colors"
         >
-          <ArrowLeft className="h-5 w-5 text-[#191c1d]" />
+          <ArrowLeft className="h-7 w-7 text-[#191c1d]" strokeWidth={2.5} />
         </button>
         <span className="text-lg font-bold font-heading text-[#191c1d]">Xuá</span>
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#191c1d]">
