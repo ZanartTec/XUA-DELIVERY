@@ -4,7 +4,7 @@ Documento de referência do banco de dados do Xuá Delivery, gerado a partir do 
 
 ## Visão geral
 
-- O schema atual possui 30 tabelas mapeadas no Prisma.
+- O schema atual possui 36 tabelas mapeadas no Prisma (numeração de `01` a `38`, sem `11` e `12`).
 - A convenção de nomes segue o padrão `<ordem>_<tipo>_<nome>`.
 - Tipos usados no nome da tabela:
   - `mst`: cadastro mestre
@@ -13,6 +13,7 @@ Documento de referência do banco de dados do Xuá Delivery, gerado a partir do 
   - `piv`: tabela de associação
   - `sec`: segurança
   - `aud`: auditoria
+  - `log`: histórico append-only (event-sourcing)
 
 ## Tabelas de cadastro mestre
 
@@ -85,6 +86,16 @@ Mantém o catálogo de produtos vendidos no sistema. Guarda nome, descrição, i
 
 Relacionamentos principais:
 - 1:N com `10_trn_order_items`
+- N:N com `07_mst_categories`
+
+Observação: o campo `kind` (`ProductKind`: `WATER`, `BOTTLE`, `OTHER`) classifica o produto para o fluxo de caução de vasilhames — águas (`WATER`) podem apontar para o vasilhame correspondente via `bottle_product_id` (produto `BOTTLE` com preço próprio).
+
+### 07_mst_categories
+
+Organiza os produtos do catálogo em categorias, com nome, ordem de exibição e status de ativação. É usada pela vitrine do consumidor para agrupar e filtrar produtos.
+
+Relacionamentos principais:
+- N:N com `06_mst_products` (relação implícita do Prisma)
 
 ## Tabelas de configuração operacional
 
@@ -135,6 +146,25 @@ Relacionamentos principais:
 - 1:N com `09_trn_orders`
 - 1:N com `28_trn_subscription_delivery_dates`
 
+### 34_cfg_distributor_payment_settings
+
+Configuração de pagamento por distribuidora. Define quais métodos a distribuidora aceita (`accepts_pix_online`, `accepts_credit_online`, `accepts_cash_on_delivery`, `accepts_card_on_delivery`) e guarda as credenciais do gateway Mercado Pago da própria distribuidora — `mp_access_token_enc` e `mp_webhook_secret_enc` são armazenados criptografados (AES-256-GCM), além da `mp_public_key`.
+
+Com ela, cada distribuidora recebe os pagamentos online na sua própria conta Mercado Pago, em vez de uma conta única da plataforma. Registro único por distribuidora (`UNIQUE(distributor_id)`).
+
+Relacionamentos principais:
+- 1:1 com `03_mst_distributors`
+
+### 35_cfg_consumer_deposit_programs
+
+Habilitação do programa de caução de vasilhames (v2) por consumidor e por distribuidora. O operador da distribuidora habilita clientes de confiança informando o limite de vasilhames (`max_bottles` — `0` significa bloqueado, nunca "ilimitado"), com snapshot do documento do cliente e trilha de quem habilitou/desabilitou e quando.
+
+Chave única: `(distributor_id, consumer_id)`.
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- N:1 com `01_mst_consumers`
+
 ## Tabelas transacionais
 
 ### 09_trn_orders
@@ -178,13 +208,36 @@ Relacionamentos principais:
 
 ### 15_trn_deposits
 
-Registra a caução de vasilhame vinculada ao pedido e ao consumidor. Guarda valor, status da caução e quando houve devolução.
+Registra a caução financeira (v1, legado) vinculada ao pedido e ao consumidor. Guarda valor, status da caução e quando houve devolução.
 
-Essa tabela existe para controlar o dinheiro retido até que o fluxo de retorno do vasilhame seja concluído conforme a regra operacional.
+Essa tabela existia para controlar o dinheiro retido até o retorno do vasilhame. O modelo atual de caução é o **programa de vasilhames (v2)** — `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances` e `37_log_consumer_deposit_movements` — que controla vasilhames emprestados por quantidade, não por valor retido.
 
 Relacionamentos principais:
 - N:1 com `09_trn_orders`
 - N:1 com `01_mst_consumers`
+
+### 36_trn_consumer_deposit_balances
+
+Saldo materializado de vasilhames caucionados por combinação `(distribuidora, consumidor, item de inventário)`. O campo `bottles_on_loan` (nunca negativo) é a soma dos deltas registrados em `37_log_consumer_deposit_movements`, com `last_movement_at` indicando a última movimentação.
+
+Chave única: `(distributor_id, consumer_id, inventory_item_id)`.
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- N:1 com `01_mst_consumers`
+- N:1 com `29_mst_inventory_items`
+
+### 37_log_consumer_deposit_movements
+
+Histórico append-only (event-sourcing) das movimentações de caução de vasilhames. Cada registro guarda o delta de vasilhames (`bottles_delta`), o tipo de movimento (`DepositMovementType`: `LOAN_OUT`, `RETURN_IN`, `MANUAL_ADJUSTMENT`, `WRITE_OFF`), o ator, a origem (`source_app`) e o pedido relacionado quando aplicável.
+
+É a fonte de verdade da caução v2 — o saldo em `36_trn_consumer_deposit_balances` é derivado destes eventos.
+
+Relacionamentos principais:
+- N:1 com `03_mst_distributors`
+- N:1 com `01_mst_consumers`
+- N:1 com `29_mst_inventory_items`
+- N:1 opcional com `09_trn_orders`
 
 ### 17_trn_reconciliations
 
@@ -224,6 +277,13 @@ Ela suporta a confirmação segura da entrega, reduzindo risco de fraude e permi
 Relacionamentos principais:
 - N:1 com `09_trn_orders`
 
+### 38_sec_password_reset_tokens
+
+Tokens de redefinição de senha ("esqueci minha senha"). Armazena apenas o hash HMAC-SHA256 do token (`token_hash`, único) — o valor em claro existe somente no link enviado por e-mail. Cada token tem expiração curta (30 minutos) e uso único, marcado por `used_at`.
+
+Relacionamentos principais:
+- N:1 com `01_mst_consumers`
+
 ## Tabelas de auditoria
 
 ### 18_aud_audit_events
@@ -238,12 +298,14 @@ Relacionamentos principais:
 ## Leitura rápida por domínio
 
 - Cadastro de usuários: `01_mst_consumers`, `02_mst_addresses`
+- Segurança e acesso: `38_sec_password_reset_tokens`, `16_sec_order_otps`, `08_sec_consumer_push_tokens`
 - Operação de distribuidores: `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `22_cfg_distributor_schedule`, `23_cfg_distributor_blocked_dates`, `24_cfg_time_slots`
-- Catálogo e vitrine: `06_mst_products`, `19_cfg_banners`
+- Catálogo e vitrine: `06_mst_products`, `07_mst_categories`, `19_cfg_banners`
 - Pedidos: `09_trn_orders`, `10_trn_order_items`, `16_sec_order_otps`, `18_aud_audit_events`
 - Assinaturas v2 (planos pré-definidos): `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions`, `28_trn_subscription_delivery_dates`
-- Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`
-- Caução e operação física: `15_trn_deposits`, `17_trn_reconciliations`
+- Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`, `34_cfg_distributor_payment_settings`
+- Caução de vasilhames (v2): `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances`, `37_log_consumer_deposit_movements`
+- Caução financeira (v1, legado) e conciliação: `15_trn_deposits`, `17_trn_reconciliations`
 - Inventário operacional: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`
 - Notificações: `08_sec_consumer_push_tokens`
 
@@ -294,11 +356,11 @@ Relacionamentos principais:
 
 Detalha cada data de entrega agendada dentro de uma assinatura. O consumidor distribui a quantidade total do plano entre múltiplas datas ao criar a assinatura, e cada data pode ter sua própria faixa horária e quantidade.
 
-Quando o pedido gerado para aquela data é entregue, o campo `order_id` é preenchido e o status passa a `DELIVERED`.
+O worker de geração cria o pedido da data agendada e preenche `order_id` (status `ORDER_CREATED`). Quando o pedido é entregue, o status passa a `DELIVERED`. Se a geração ou a entrega falhar, há retry com recrédito da quantidade — o campo `generation_attempts` conta as tentativas e, após 3 falhas, a data é marcada como `FAILED`.
 
-Campos principais: `user_subscription_id`, `delivery_date`, `time_slot_id`, `quantity_for_this_delivery`, `status`, `order_id`.
+Campos principais: `user_subscription_id`, `delivery_date`, `time_slot_id`, `quantity_for_this_delivery`, `status`, `order_id`, `generation_attempts`.
 
-Status possíveis (`DeliveryDateStatus`): `PENDING`, `DELIVERED`, `CANCELLED`.
+Status possíveis (`DeliveryDateStatus`): `PENDING`, `ORDER_CREATED`, `DELIVERED`, `FAILED`, `CANCELLED`.
 
 Relacionamentos principais:
 - N:1 com `27_trn_user_subscriptions`
@@ -357,9 +419,15 @@ Relacionamentos principais:
 
 ## Observação importante
 
-O schema atual possui **30 tabelas**. Em relação às versões anteriores documentadas:
+O schema atual possui **36 tabelas** e **20 enums**. Em relação às versões anteriores documentadas:
 
-- A tabela `07_cfg_delivery_capacity` (controle de overbooking por slot) foi **removida** na migration `20260601000000_remove_delivery_capacity`. O controle de disponibilidade agora é gerenciado via agenda da distribuidora (`22_cfg_distributor_schedule`), datas bloqueadas (`23_cfg_distributor_blocked_dates`) e validação de lead-time no serviço de agendamento.
-- **5 novas tabelas de inventário operacional** foram adicionadas: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`.
+- A tabela `07_cfg_delivery_capacity` (controle de overbooking por slot) foi **removida** na migration `20260601000000_remove_delivery_capacity`. O número `07` foi reutilizado por `07_mst_categories`. O controle de disponibilidade agora é gerenciado via agenda da distribuidora (`22_cfg_distributor_schedule`), datas bloqueadas (`23_cfg_distributor_blocked_dates`) e validação de lead-time no serviço de agendamento.
+- **5 tabelas de inventário operacional** foram adicionadas: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`.
+- **Configuração de pagamento por distribuidora** (`34_cfg_distributor_payment_settings`): credenciais Mercado Pago próprias de cada distribuidora, criptografadas com AES-256-GCM (migration de junho/2026).
+- **Caução de vasilhames v2** (migration `20260624030000_add_bottle_deposit_program`): `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances`, `37_log_consumer_deposit_movements`. Substitui o modelo de caução financeira de `15_trn_deposits` (mantida como legado).
+- **Retry de assinaturas** (migration `20260628000000`): status `ORDER_CREATED`/`FAILED` e campo `generation_attempts` em `28_trn_subscription_delivery_dates`.
+- **Redefinição de senha** (migration `20260701140000_add_password_reset_tokens`): tabela `38_sec_password_reset_tokens`.
 
-Este documento reflete o estado atual do banco no repositório (junho 2026).
+Este documento reflete o estado atual do banco no repositório.
+
+**Última atualização: 06 de julho de 2026.**

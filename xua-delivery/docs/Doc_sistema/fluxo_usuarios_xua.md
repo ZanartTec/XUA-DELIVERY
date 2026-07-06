@@ -33,7 +33,13 @@ Abre o navegador -> /login
 │   │       ├── role=distributor_admin  -> redirect /distributor/queue
 │   │       ├── role=driver             -> redirect /driver/deliveries
 │   │       └── role=ops                -> redirect /ops/kpis
-│   └── [Novo?] -> /register -> nome + e-mail + senha (min 8 chars)
+│   ├── [Esqueci minha senha] -> /forgot-password
+│   │   ├── Informa e-mail -> POST /api/auth/forgot-password (rate limit 5/min por IP)
+│   │   ├── Mensagem neutra (não revela se o e-mail existe)
+│   │   ├── E-mail via Resend com link /reset-password?token=... (válido 30 min, uso único)
+│   │   └── /reset-password -> nova senha -> POST /api/auth/reset-password
+│   │       └── [Sucesso] -> JWTs antigos invalidados + redirect /login
+│   └── [Novo?] -> /register -> nome + e-mail + telefone + senha (min 8 chars)
 │       ├── Validação inline com Zod + React Hook Form
 │       └── [Sucesso] -> redirect /profile/addresses (cadastrar endereço)
 ```
@@ -176,7 +182,7 @@ Perfil (/profile)
 ---
 
 ## Fluxo 2 — Distribuidor
-**7 páginas · Web responsivo**
+**11 páginas · Web responsivo**
 
 ```
 Login (role: distributor_admin) -> middleware redirect /distributor/queue
@@ -245,6 +251,23 @@ Configuração de agenda (/distributor/schedule) — NOVA PÁGINA
 │   ├── Remover: DELETE /api/distributor/schedule/:distributorId/block-date
 │   └── Lista de datas bloqueadas exibida abaixo do grid
 └── Impacto: reflete imediatamente no calendário do consumidor em /checkout/schedule
+
+Inventário (/distributor/inventory e /distributor/inventory/reconciliation)
+├── Saldo de estoque por item (30_trn_distributor_inventory_balances)
+├── Alertas de estoque baixo (low_stock_threshold)
+└── Sessões de reconciliação: abrir sessão, contar itens, fechar com ajuste + justificativa
+
+Configuração de pagamento (/distributor/payment-config) — NOVA PÁGINA
+├── Toggles de métodos aceitos: Pix online, cartão online, dinheiro/cartão na entrega
+├── Credenciais Mercado Pago da própria distribuidora (access token + webhook secret)
+│   └── Persistidas criptografadas (AES-256-GCM) em 34_cfg_distributor_payment_settings
+└── GET/PATCH /api/distributor/payment-settings/:distributorId
+
+Programa de caução de vasilhames (/distributor/deposit-program) — NOVA PÁGINA
+├── Lista de consumidores habilitados no programa (caução v2)
+├── Habilitar cliente: documento + max_bottles (0 = bloqueado)
+├── Desabilitar cliente (trilha de quem/quando em 35_cfg_consumer_deposit_programs)
+└── Saldo de vasilhames emprestados por cliente (36_trn_consumer_deposit_balances)
 ```
 
 ---
@@ -367,7 +390,7 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Filtros:
 │   ├── Período: data início + data fim (Calendar shadcn)
 │   ├── Distribuidor: select (todos ou específico)
-│   └── Tipo de evento: multi-select dos 24 tipos
+│   └── Tipo de evento: multi-select dos 34 tipos
 ├── Preview: tabela com primeiros 50 resultados
 ├── Botão 'Exportar CSV' -> Route Handler gera e retorna download
 └── CSV com colunas: event_id, event_type, occurred_at, actor_type,
@@ -397,7 +420,8 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 
 - **Sem endereço confirmado** → catálogo não carrega (sem zona detectada = sem produto)
 - **Sem slot disponível** → checkout bloqueado (anti-overbooking com `SELECT FOR UPDATE`, retorna 409)
-- **Caução** → cobrada apenas na 1ª compra, devolvida automaticamente quando motorista coleta ≥ 1 vasilhame (Regra A no DepositService)
+- **Caução de vasilhames (v2)** → programa habilitado pela distribuidora por cliente (`max_bottles`; 0 = bloqueado). Empréstimos e devoluções geram movimentos append-only; saldo por cliente nunca negativo. A caução financeira da 1ª compra (Regra A) é o modelo v1, legado.
+- **Redefinição de senha** → link por e-mail com token de uso único e validade de 30 min; resposta nunca revela se o e-mail existe
 - **OTP** → gerado ao despachar com HMAC-SHA256, TTL 90min, max 5 tentativas. Após 5 erros → status `locked` → só override de ops/support
 - **Despachar** → botão bloqueado até checklist 100% marcado (3/3 itens). Não tem bypass.
 - **Não coleta** → motivo obrigatório sempre. Campo de texto livre NUNCA é a única opção (select + opcional texto).
@@ -411,10 +435,13 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | Rota | Layout | Perfil | Descrição |
 |---|---|---|---|
 | `/login` | (auth) | todos | Login e-mail + senha. Middleware redireciona por role. |
-| `/register` | (auth) | consumer | Cadastro: nome + email + senha (min 8). Redirect → `/profile/addresses`. |
+| `/register` | (auth) | consumer | Cadastro: nome + email + telefone + senha (min 8). Redirect → `/profile/addresses`. |
+| `/forgot-password` | (auth) | todos | **[NOVO]** Solicitar redefinição de senha por e-mail (Resend). |
+| `/reset-password` | (auth) | todos | **[NOVO]** Definir nova senha via token do link (30 min, uso único). |
 | `/catalog` | (consumer) | consumer | Catálogo: garrafão 20L com preço + disponibilidade. Requer endereço. |
 | `/cart` | (consumer) | consumer | Carrinho: qty + garrafões vazios (obrigatório) + banner caução 1ª compra. |
 | `/checkout/schedule` | (consumer) | consumer | Agendamento: Calendar 14 dias + pills manhã/tarde + filtra agenda/bloqueios/lead_time. |
+| `/checkout/distributor` | (consumer) | consumer | Seleção de distribuidora quando há 2+ opções (auto-skip se ≤1). |
 | `/checkout/payment` | (consumer) | consumer | Resumo (produto+frete+caução) + SDK gateway + retry. |
 | `/checkout/confirmation` | (consumer) | consumer | Confirmação: animação sucesso + botão acompanhar pedido. |
 | `/orders` | (consumer) | consumer | Histórico paginado + filtro status + "Repetir pedido" 1 clique. |
@@ -430,16 +457,24 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/distributor/routes/[id]` | (distributor) | dist_admin | Paradas: por zona/janela + link Google Maps. |
 | `/distributor/reconciliation` | (distributor) | dist_admin | Conciliação: saídas/retornos/delta + justificativa obrigatória. |
 | `/distributor/kpis` | (distributor) | dist_admin | KPIs: 3 cards Recharts + seletor período. |
-| `/distributor/schedule` | (distributor) | dist_admin | **[NOVO]** Agenda semanal: grid 7 dias (toggle + lead_time) + CRUD datas bloqueadas. |
+| `/distributor/schedule` | (distributor) | dist_admin | Agenda semanal: grid 7 dias (toggle + lead_time) + CRUD datas bloqueadas. |
+| `/distributor/inventory` | (distributor) | dist_admin | Saldo de estoque por item + alertas de estoque baixo. |
+| `/distributor/inventory/reconciliation` | (distributor) | dist_admin | Sessões de reconciliação de inventário (abrir, contar, fechar). |
+| `/distributor/payment-config` | (distributor) | dist_admin | **[NOVO]** Métodos de pagamento aceitos + credenciais Mercado Pago da distribuidora. |
+| `/distributor/deposit-program` | (distributor) | dist_admin | **[NOVO]** Programa de caução de vasilhames v2: habilitar clientes + max_bottles + saldos. |
 | `/driver/deliveries` | (driver) | driver | Lista entregas do dia (funciona offline via Service Worker). |
 | `/driver/deliveries/[id]/otp` | (driver) | driver | OTP: 6 inputs auto-avanço + shake erro + contador tentativas. |
-| `/driver/deliveries/[id]/exchange` | (driver) | driver | Troca: stepper qty→condição. Caução Regra A automática. |
+| `/driver/deliveries/[id]/exchange` | (driver) | driver | Troca: stepper qty→condição. |
 | `/driver/deliveries/[id]/non-collection` | (driver) | driver | Não-coleta: select motivo obrigatório + texto opcional. |
-| `/driver/sync` | (driver) | driver | Status fila offline: eventos pendentes + progresso sync. |
-| `/ops/zones` | (ops) | ops | Configurar zonas: CRUD + capacidade por dia/janela. |
-| `/ops/zones/create` | (ops) | ops | Nova zona: nome + distribuidor + bairros/CEPs + capacidade. |
-| `/ops/zones/[id]` | (ops) | ops | Editar zona existente. |
+| `/driver/deliveries/[id]/failure` | (driver) | driver | Reportar falha de entrega com motivo. |
+| `/driver/history` | (driver) | driver | Histórico de entregas realizadas. |
+| `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
+| `/ops/banners` | (ops) | ops | CRUD de banners promocionais do catálogo. |
+| `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. |
+| `/ops/subscription-plans` | (ops) | ops | CRUD de planos de assinatura + vínculo de distribuidoras. |
+| `/ops/inventory` | (ops) | ops | Visão global de inventário. |
+| `/ops/inventory/reconciliations` | (ops) | ops | Reconciliações de inventário de todas as distribuidoras. |
 | `/support` | (ops) | ops/support | Console: busca telefone/email/order_id + lista pedidos. |
 | `/support/[id]` | (ops) | ops/support | Detalhe: timeline audit_events + reagendar (Dialog). |
 | `/ops/otp-override` | (ops) | ops/support | Override OTP: confirmar sem código + motivo obrigatório. |
@@ -447,6 +482,6 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 
 ---
 
-*Xuá Delivery — Fluxo de Usuários v4.0 (Monorepo Express + Next.js)*
-*Zanart · Junho 2026*
-*33 rotas · 4 perfis · 32 páginas · Socket.io (Express, porta 4000) · PWA offline*
+*Xuá Delivery — Fluxo de Usuários v4.1 (Monorepo Express + Next.js)*
+*Zanart · Última atualização: 06 de julho de 2026*
+*46 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*
