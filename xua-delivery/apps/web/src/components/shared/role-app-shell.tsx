@@ -18,7 +18,6 @@ import {
   KeyRound,
   MapPin,
   Package,
-  Recycle,
   Repeat,
   ReceiptText,
   ShoppingBag,
@@ -91,7 +90,9 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/payment-config", label: "Pagamento", icon: Wallet },
-      { href: "/distributor/deposit-program", label: "Caução", icon: Recycle },
+      // Venda simples (sem caução): entrada oculta até a feature Comodato B2B.
+      // Tela continua acessível por rota direta (/distributor/deposit-program).
+      // { href: "/distributor/deposit-program", label: "Caução", icon: Recycle },
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
     ],
   },
