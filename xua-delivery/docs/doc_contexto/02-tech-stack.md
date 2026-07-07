@@ -1,6 +1,6 @@
 # 02 — Tech Stack: Tecnologias, Arquitetura e Regras
 
-> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/Doc_sistema/`. Última consolidação: 06/07/2026.
+> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/doc_sistema/`. Última consolidação: 06/07/2026.
 
 ---
 

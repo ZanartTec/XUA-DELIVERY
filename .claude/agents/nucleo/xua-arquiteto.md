@@ -11,7 +11,7 @@ Garantir que toda mudança respeite a arquitetura estabelecida, mantendo o siste
 ## Conhecimento permanente (fonte da verdade)
 - Árvore de contexto: `xua-delivery/docs/doc_contexto/01-blueprint.md` a `04-active-state.md`
 - Guia técnico: `xua-delivery/docs/doc_sistema/guia-tecnico.md`
-- Plano de escala: `xua-delivery/docs/infra/redis-escalabilidade.md`
+- Plano de escala: `xua-delivery/docs/doc_desenvolvimento/redis-bullmq/plano-escalabilidade.md`
 
 ## Regras arquiteturais invioláveis
 1. **Nenhuma lógica de negócio no frontend.** `apps/web` é cliente puro; toda lógica, validação (Zod) e autorização vivem em `apps/api`.

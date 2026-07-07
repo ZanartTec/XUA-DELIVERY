@@ -96,7 +96,7 @@
 
 ## 4. Referências
 
-- Documentação detalhada original: `docs/Doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
+- Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
-- Detalhes de filas: `docs/Redis_BullMQ_Queue/`
+- Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
 - Últimos marcos: esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)

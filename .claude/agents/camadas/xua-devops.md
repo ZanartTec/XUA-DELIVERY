@@ -37,4 +37,22 @@ Dockerfiles, compose, configs de deploy, `infra/queue`, `infra/redis`, scripts, 
 - A separação web/worker; a proteção `INTERNAL_JOB_SECRET`.
 
 ## Princípios obrigatórios
-Infra como código; mudanças reversíveis; toda fila nova com retry/backoff/DLQ pensados e idempotência garantida pelo consumidor. Alertas para: pedidos sem aceite perto do SLA, backlog de fila, falha de webhook, falha de geração de assinatura. Documentar toda decisão de infra em `xua-delivery/docs/doc_contexto/02-tech-stack.md` (§5) e lacunas em `04-active-state.md`.
+Infra como código; mudanças reversíveis; toda fila nova com retry/backoff/DLQ pensados e idempotência garantida pelo consumidor. Alertas para: pedidos sem aceite perto do SLA, backlog de fila, falha de webhook, falha de geração de assinatura.
+
+## Configuração
+- Categoria: **camada** (plataforma técnica — infraestrutura e operação).
+- Contexto mínimo de entrada: o componente de infra afetado (deploy, fila, job, Redis, logs) e o ambiente alvo.
+- Saída esperada: mudança de infra reversível, documentada, sem alterar comportamento de negócio.
+
+## Fluxo de trabalho
+1. Classificar a mudança: deploy/env · fila/worker · job agendado · observabilidade.
+2. Conferir o plano de escalabilidade antes de decisões estruturais (fases, princípios, anti-objetivos).
+3. Para fila nova: definir contrato em `infra/queue/contracts.ts`, retry/backoff, e confirmar idempotência com o agente de domínio dono do processor.
+4. Para env var nova: registrar em `doc_contexto/02-tech-stack.md` e nos templates de ambiente — nunca commitar valor.
+5. Validar: subir local via compose, rodar worker, verificar logs estruturados e graceful shutdown.
+6. Documentar decisões em `xua-delivery/docs/doc_contexto/02-tech-stack.md` (§5) e lacunas em `04-active-state.md`.
+
+## Colaboração (handoffs)
+- **Recebe de:** agentes de domínio (necessidade de fila/job novo), `xua-arquiteto` (decisões de fase de escala).
+- **Entrega para:** agentes de domínio (trilho pronto para o processor), `xua-seguranca` (revisão de segredos/exposição), `xua-docs`.
+- **Escala para:** usuário para escolha de provedor, custos e janelas de deploy; `xua-arquiteto` para mudanças de topologia.

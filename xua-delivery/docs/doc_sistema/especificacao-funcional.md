@@ -66,7 +66,7 @@ Além disso, existe o **módulo do entregador** ( “modo entregas”, no mesmo 
 
 **2-bis) Arquitetura técnica de runtime (visão de implementação)**
 
-> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/Redis_BullMQ_Queue/`.
+> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/doc_desenvolvimento/redis-bullmq/`.
 
 - **Monorepo** npm workspaces: `apps/web`, `apps/api`, `packages/shared` (Zod schemas, enums e types compartilhados front/back). Prisma na raiz (`prisma/schema.prisma`).
 - **API (`apps/api`)** — Express, monólito modular (`routes → controllers → services → repository`). 16 módulos sob `/api/*`: `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.

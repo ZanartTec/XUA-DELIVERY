@@ -1,6 +1,6 @@
 # 01 — Blueprint: Escopo, Público e Entidades
 
-> **Árvore de Contexto — Raiz.** Consolidado a partir de `doc_sistema.md`, `fluxo_atual_pedidos_xua.md`, `fluxo_usuarios_xua.md`, `guia_tecnico_xua.md` e `tabelas_banco_xua.md`. Última consolidação: 06/07/2026.
+> **Árvore de Contexto — Raiz.** Consolidado a partir de `doc_sistema.md`, `fluxo-pedidos.md`, `fluxo-usuarios.md`, `guia-tecnico.md` e `banco-de-dados.md`. Última consolidação: 06/07/2026.
 
 ---
 
