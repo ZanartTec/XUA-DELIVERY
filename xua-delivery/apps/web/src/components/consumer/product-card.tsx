@@ -15,8 +15,8 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
   const imageUrl = getRenderableProductImageUrl(product.image_url);
 
   return (
-    <div className="group overflow-hidden rounded-2xl bg-[#ffffff] shadow-[0_2px_12px_rgba(0,26,64,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,26,64,0.10)]">
-      <div className="relative h-36 bg-[#f3f4f5] flex items-center justify-center overflow-hidden">
+    <div className="group flex h-full flex-col overflow-hidden rounded-2xl bg-[#ffffff] shadow-[0_2px_12px_rgba(0,26,64,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,26,64,0.10)]">
+      <div className="relative h-36 shrink-0 bg-[#f3f4f5] flex items-center justify-center overflow-hidden">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -36,14 +36,16 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
         )}
       </div>
 
-      <div className="p-3 space-y-1">
+      {/* flex-1 + mt-auto no rodapé: preço/botão sempre alinhados entre cards,
+          mesmo com descrições de tamanhos diferentes */}
+      <div className="flex flex-1 flex-col gap-1 p-3">
         <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-[#191c1d]">
           {product.name}
         </h3>
         {product.description && (
           <p className="text-xs text-[#737688] leading-relaxed">{product.description}</p>
         )}
-        <div className="flex items-center justify-between pt-1.5">
+        <div className="mt-auto flex items-center justify-between pt-1.5">
           <span className="text-base font-bold text-primary">
             {formatCurrency(product.price_cents)}
           </span>

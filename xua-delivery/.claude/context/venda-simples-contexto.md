@@ -21,6 +21,16 @@ Arquivos alterados (Fase 2): `cart/page.tsx`, `checkout/payment/page.tsx`,
 `checkout/schedule/page.tsx`, `orders/[id]/page.tsx` (consumer), `role-app-shell.tsx`.
 Novo: `prisma/seed-venda-simples.ts`.
 
+Ajustes pós-teste do Matheus (commit `1bb3729`): card do catálogo corrigido —
+imagem `object-contain` (sem corte do garrafão), descrição completa (sem line-clamp),
+e removido o desconto FAKE hardcoded (`price*1.27` riscado p/ produtos < R$20, por isso
+só a água de R$12 mostrava desconto).
+
+Pendente de decisão: formulário de produto da ops ainda expõe campos legados —
+"Caução (R$)" (`deposit_cents`, morto, pode sair) e Tipo/Vínculo de vasilhame
+(`kind`/`bottle_product_id` — esconder da UI evita religar caução sem querer;
+backend deve continuar aceitando p/ Comodato B2B futuro).
+
 ## Decisões já tomadas (não rediscutir sem motivo novo)
 
 1. **Não remover** código/tabelas de caução — desligamento por DADOS (produtos sem
