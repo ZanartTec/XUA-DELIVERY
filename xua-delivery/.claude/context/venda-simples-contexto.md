@@ -26,10 +26,10 @@ imagem `object-contain` (sem corte do garrafão), descrição completa (sem line
 e removido o desconto FAKE hardcoded (`price*1.27` riscado p/ produtos < R$20, por isso
 só a água de R$12 mostrava desconto).
 
-Pendente de decisão: formulário de produto da ops ainda expõe campos legados —
-"Caução (R$)" (`deposit_cents`, morto, pode sair) e Tipo/Vínculo de vasilhame
-(`kind`/`bottle_product_id` — esconder da UI evita religar caução sem querer;
-backend deve continuar aceitando p/ Comodato B2B futuro).
+Resolvido (commit `f155843`): cards do catálogo nivelados (flex + mt-auto no rodapé);
+form de produto da ops sem os campos legados (Tipo, Vasilhame vinculado, Depósito
+legado) — produto novo nasce `kind=OTHER`, edição preserva o kind, backend segue
+aceitando os campos (base do Comodato B2B).
 
 ## Decisões já tomadas (não rediscutir sem motivo novo)
 
