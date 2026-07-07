@@ -22,7 +22,7 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
           <img
             src={imageUrl}
             alt={product.name}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            className="h-full w-full object-contain p-2 transition-transform group-hover:scale-105"
           />
         ) : (
           <Droplets className="h-10 w-10 text-primary/30" />
@@ -41,19 +41,12 @@ export function ProductCard({ product, onAdd }: ProductCardProps) {
           {product.name}
         </h3>
         {product.description && (
-          <p className="text-xs text-[#737688] line-clamp-1">{product.description}</p>
+          <p className="text-xs text-[#737688] leading-relaxed">{product.description}</p>
         )}
         <div className="flex items-center justify-between pt-1.5">
-          <div className="flex flex-col">
-            {product.price_cents < 2000 && (
-              <span className="text-[11px] text-[#737688] line-through">
-                {formatCurrency(Math.round(product.price_cents * 1.27))}
-              </span>
-            )}
-            <span className="text-base font-bold text-primary">
-              {formatCurrency(product.price_cents)}
-            </span>
-          </div>
+          <span className="text-base font-bold text-primary">
+            {formatCurrency(product.price_cents)}
+          </span>
           <Button
             size="icon"
             className="h-9 w-9 rounded-full bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-95"
