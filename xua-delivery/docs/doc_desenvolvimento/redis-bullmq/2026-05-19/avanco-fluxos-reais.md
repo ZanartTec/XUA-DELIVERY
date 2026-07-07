@@ -4,8 +4,8 @@
 
 Este documento complementa dois materiais anteriores:
 
-- docs/Redis_BullMQ_Queue/explicacao_fundacao_bullmq.md
-- docs/Redis_BullMQ_Queue/plano_escalabilidade_redis_bullmq.md
+- docs/doc_desenvolvimento/redis-bullmq/fundacao-bullmq.md
+- docs/doc_desenvolvimento/redis-bullmq/plano-escalabilidade.md
 
 Na documentacao anterior, a conclusao era: a fundacao da fila existia, mas os fluxos reais ainda nao tinham sido migrados.
 

@@ -80,12 +80,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ProductForm({
   draft,
   onChange,
-  bottleOptions,
 }: {
   draft: ProductDraft;
   onChange: (d: ProductDraft) => void;
-  bottleOptions: { id: string; name: string }[];
 }) {
+  // Venda simples: campos de caução (Tipo, Vasilhame vinculado, Depósito legado)
+  // saíram da UI. kind fica OTHER p/ produto novo (EMPTY_DRAFT) e é preservado ao
+  // editar produto existente; o backend segue aceitando os campos (Comodato B2B).
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Nome *">
@@ -96,33 +97,6 @@ function ProductForm({
           className="rounded-xl border-[#d9dde3] text-sm"
         />
       </Field>
-      <Field label="Tipo *">
-        <select
-          value={draft.kind}
-          onChange={(e) => onChange({ ...draft, kind: e.target.value as ProductKind })}
-          className="w-full rounded-xl border border-[#d9dde3] px-3 py-2 text-sm"
-        >
-          <option value="WATER">Água (refil)</option>
-          <option value="BOTTLE">Vasilhame</option>
-          <option value="OTHER">Outro</option>
-        </select>
-      </Field>
-      {draft.kind === "WATER" && (
-        <Field label="Vasilhame vinculado">
-          <select
-            value={draft.bottle_product_id}
-            onChange={(e) => onChange({ ...draft, bottle_product_id: e.target.value })}
-            className="w-full rounded-xl border border-[#d9dde3] px-3 py-2 text-sm"
-          >
-            <option value="">— Sem vínculo —</option>
-            {bottleOptions.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
       <Field label="Descrição">
         <Input
           value={draft.description}
@@ -138,17 +112,6 @@ function ProductForm({
           min="0"
           value={draft.price_cents}
           onChange={(e) => onChange({ ...draft, price_cents: e.target.value })}
-          placeholder="0.00"
-          className="rounded-xl border-[#d9dde3] text-sm"
-        />
-      </Field>
-      <Field label="Depósito legado (R$)">
-        <Input
-          type="number"
-          step="0.01"
-          min="0"
-          value={draft.deposit_cents}
-          onChange={(e) => onChange({ ...draft, deposit_cents: e.target.value })}
           placeholder="0.00"
           className="rounded-xl border-[#d9dde3] text-sm"
         />
@@ -176,10 +139,6 @@ export default function OpsProductsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ProductDraft>({ ...EMPTY_DRAFT });
   const [saving, setSaving] = useState(false);
-
-  const bottleOptions = products
-    .filter((p) => p.kind === "BOTTLE")
-    .map((p) => ({ id: p.id, name: p.name }));
 
   useEffect(() => {
     fetch("/api/products/all")
@@ -316,7 +275,7 @@ export default function OpsProductsPage() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <ProductForm draft={draft} onChange={setDraft} bottleOptions={bottleOptions} />
+          <ProductForm draft={draft} onChange={setDraft} />
           <Button
             size="sm"
             disabled={saving}
@@ -350,7 +309,7 @@ export default function OpsProductsPage() {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <ProductForm draft={editDraft} onChange={setEditDraft} bottleOptions={bottleOptions} />
+                <ProductForm draft={editDraft} onChange={setEditDraft} />
                 <Button
                   size="sm"
                   disabled={saving}

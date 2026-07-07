@@ -2,7 +2,7 @@
 
 ## Auditoria funcional do sistema como está implementado hoje
 
-> Data de referência: 02/06/2026
+> Data de referência: 06/07/2026
 > Escopo: fluxo de compra, persistência do pedido, papel da distribuidora Xuá, visibilidade por perfil e causas do pedido não aparecer nas telas operacionais.
 
 ---
@@ -24,7 +24,9 @@ O foco aqui não é descrever o comportamento ideal do produto, mas sim responde
 
 ## 2. Resumo executivo
 
-Hoje, o pedido do cliente e salvo de verdade no banco de dados. O que está mockado no ambiente atual nao e o pedido, e sim o pagamento.
+Hoje, o pedido do cliente e salvo de verdade no banco de dados, e o pagamento e processado por gateway real.
+
+**Atualização (julho/2026):** o pagamento deixou de ser mockado como padrão. O provider configurado é o **Mercado Pago** (`PAYMENT_PROVIDER` com default `mercadopago`), usando as credenciais da própria distribuidora armazenadas criptografadas em `34_cfg_distributor_payment_settings`. O provider `mock` continua disponível apenas como opção de ambiente de desenvolvimento.
 
 Em termos práticos, o fluxo atual funciona assim:
 
@@ -32,8 +34,8 @@ Em termos práticos, o fluxo atual funciona assim:
 2. O frontend faz um POST para a API de pedidos.
 3. A API valida endereco, zona e produtos.
 4. A API grava o pedido, os itens do pedido e o evento de auditoria no banco.
-5. Como o ambiente atual usa pagamento mock, o backend tenta avancar automaticamente o pedido para os estados de pagamento e envio ao distribuidor.
-6. O pedido deveria entao entrar na fila da distribuidora responsavel pela zona do endereco.
+5. A cobranca e criada no gateway da distribuidora; a confirmacao chega via webhook idempotente e avanca o pedido para os estados de pagamento e envio ao distribuidor.
+6. O pedido entra na fila da distribuidora responsavel pela zona do endereco (ou da distribuidora escolhida pelo consumidor).
 7. Depois de aceito e despachado, o pedido passa a ficar visivel para o motorista designado.
 
 O principal problema atual nao e a ausencia de persistencia. O problema e que existem falhas de visibilidade e associacao de identidade entre:
@@ -213,42 +215,26 @@ Entao, para a pergunta "o pedido e salvo no banco?", a resposta e:
 
 ---
 
-## 5.4. Etapa 4 — o pagamento esta mockado
+## 5.4. Etapa 4 — o pagamento e real (Mercado Pago por distribuidora)
 
-Embora o pedido seja persistido de verdade, o ambiente atual usa pagamento mock.
+O pedido e persistido de verdade e a cobranca tambem e real.
 
-Isso significa que:
+**Atualização (julho/2026):**
 
-- o sistema nao depende de uma cobranca real para continuar o fluxo em desenvolvimento
-- o backend tenta simular automaticamente o ciclo de pagamento
+- O gateway padrao e o Mercado Pago (`PAYMENT_PROVIDER` default `mercadopago`); o adapter `mock` existe apenas como opcao de desenvolvimento.
+- As credenciais usadas na cobranca sao as da **propria distribuidora** do pedido, lidas de `34_cfg_distributor_payment_settings` (tokens criptografados com AES-256-GCM). Cada distribuidora tambem define quais metodos aceita (Pix online, cartao online, dinheiro/cartao na entrega).
+- A confirmacao chega via webhook (`POST /api/payments/webhook`), com validacao de assinatura HMAC e idempotencia por `14_cfg_payment_webhook_events` + `20_cfg_idempotency_keys`, processada de forma resiliente via fila BullMQ.
 
-Na implementacao atual, depois de criar o pedido, o backend tenta avancar automaticamente pelos estados:
+Depois de criar o pedido, os estados avancam:
 
 - CREATED
 - PAYMENT_PENDING
-- CONFIRMED
+- CONFIRMED (apos captura do pagamento)
 - SENT_TO_DISTRIBUTOR
-
-Portanto, o comportamento correto de desenvolvimento hoje e:
-
-- pedido real
-- pagamento simulado
 
 ### Ponto importante
 
-Essa simulacao de pagamento acontece de forma assincrona, depois da criacao do pedido.
-
-Isso abre uma possibilidade importante:
-
-- o pedido pode ser criado com sucesso
-- o frontend pode redirecionar o consumidor para a tela de confirmacao
-- mas a simulacao de pagamento pode falhar depois
-- se isso acontecer, o pedido pode permanecer em CREATED e nao chegar ate SENT_TO_DISTRIBUTOR
-
-Entao existem dois niveis de problema possiveis:
-
-1. problema de visibilidade da distribuidora e do motorista
-2. eventual falha na simulacao mock que impede o avancar do status
+A confirmacao de pagamento e assincrona (webhook). Ate o webhook chegar, o pedido permanece em PAYMENT_PENDING e ainda nao aparece na fila da distribuidora. Cobrancas nao pagas expiram (`PAYMENT_EXPIRED`).
 
 ---
 
@@ -263,7 +249,7 @@ Ou seja, o pedido deveria chegar para a distribuidora somente depois que a simul
 Fluxo esperado:
 
 1. consumidor cria pedido
-2. pagamento mock confirma
+2. pagamento confirmado via webhook do gateway
 3. pedido vira SENT_TO_DISTRIBUTOR
 4. pedido entra na fila do distribuidor
 5. distribuidor aceita ou recusa
@@ -433,19 +419,17 @@ A tela do motorista foi corrigida e consome corretamente a resposta do backend. 
 
 ---
 
-## 7.5. Motivo eventual ligado ao pagamento mock
+## 7.5. Motivo eventual ligado ao pagamento assincrono
 
-Existe ainda um terceiro ponto que precisa ser documentado: a simulacao de pagamento acontece de forma assincrona.
+A confirmacao de pagamento depende do webhook do gateway, que e assincrono.
 
-Se essa simulacao falhar, o pedido pode permanecer em CREATED.
+Enquanto o webhook nao chega (ou se o pagamento nao for concluido):
 
-Se isso acontecer:
+- o consumidor pode ter visto a tela de confirmacao de criacao do pedido
+- mas o pedido permanece em PAYMENT_PENDING e nao chegou a SENT_TO_DISTRIBUTOR
+- portanto ele nao aparece na fila da distribuidora, que filtra apenas pedidos enviados ao distribuidor
 
-- o consumidor recebeu confirmacao de criacao do pedido
-- mas o pedido ainda nao chegou a SENT_TO_DISTRIBUTOR
-- portanto ele nao aparece na fila da distribuidora que filtra apenas pedidos enviados ao distribuidor
-
-Esse nao parece ser o unico problema atual, mas e uma fragilidade real do fluxo como esta hoje.
+O processamento do webhook e idempotente e resiliente (fila BullMQ com retry), e cobrancas nao pagas expiram automaticamente.
 
 ---
 
@@ -475,7 +459,7 @@ Sim. O pedido e salvo no banco de dados real, junto com seus itens e eventos ass
 
 ### O pedido e mockado?
 
-Nao. O pedido nao e mockado. O que esta mockado hoje e o pagamento.
+Nao. O pedido nao e mockado, e o pagamento tambem nao: a cobranca e feita via Mercado Pago com as credenciais da distribuidora do pedido. O adapter `mock` existe apenas como opcao de desenvolvimento.
 
 ### O pedido cai aonde quando o cliente compra?
 
@@ -502,7 +486,8 @@ esolveDistributorId()
 2. ~~o realtime usa a associacao incorreta~~ → corrigido: sala usa distributor:{distributorId}
 3. o motorista so ve pedidos apos dispatch com driver_id → comportamento correto e esperado
 4. ~~a tela do motorista le a resposta no formato errado~~ → corrigido
-5. se a simulacao de pagamento mock falhar, o pedido pode nao chegar a SENT_TO_DISTRIBUTOR → ainda possivel em ambiente de dev com pagamento mock
+5. enquanto o webhook de pagamento nao confirma, o pedido fica em PAYMENT_PENDING e nao chega a SENT_TO_DISTRIBUTOR → comportamento esperado do fluxo assincrono
+6. ~~erro de tipo de produto no aceite do distribuidor~~ → corrigido em julho/2026 (commit 01754e9)
 
 ---
 
@@ -522,7 +507,7 @@ O fluxo ponta a ponta esta funcional.
 Em resumo:
 
 - o consumidor cria o pedido corretamente
-- o pedido e persistido corretamente (30 tabelas, incluindo 5 tabelas de inventario operacional)
+- o pedido e persistido corretamente (36 tabelas, incluindo inventario operacional, caucao de vasilhames v2 e configuracao de pagamento por distribuidora)
 - a Xuá e a distribuidora correta do pedido
 - a visibilidade do distribuidor funciona corretamente via 
 esolveDistributorId()
@@ -533,7 +518,7 @@ esolveDistributorId()
 O comportamento correto hoje e:
 
 - o cliente cria o pedido
-- o pagamento e processado (ou simulado em dev)
+- o pagamento e processado pelo Mercado Pago da distribuidora (ou simulado em dev via provider mock)
 - o pedido chega a SENT_TO_DISTRIBUTOR
 - o distribuidor ve o pedido na fila operacional e recebe notificacao em tempo real
 - apos despacho, o motorista ve a entrega na propria lista
@@ -547,15 +532,21 @@ O comportamento correto hoje e:
 - criacao de pedido
 - persistencia de itens
 - auditoria de criacao
-- associacao com zona e distribuidora
-- simulacao de pagamento mock
+- associacao com zona e distribuidora (com selecao manual pelo consumidor quando ha 2+ opcoes)
+- pagamento real via Mercado Pago com credenciais por distribuidora (provider mock disponivel para dev)
 - estados de aceite, checklist, despacho e entrega
+- assinaturas com geracao automatica de pedidos (fases 1 e 2, com retry e compensacao)
+- caucao de vasilhames v2 (programa por cliente, saldo e movimentos)
+- redefinicao de senha por e-mail (esqueci minha senha)
 
 ### O que esta incompleto ou em evolucao
 
 - experiencia de painel global unificado para administracao total (ops/support possuem permissao, mas sem fila master dedicada na UI)
-- modulo de inventario operacional (tabelas 29-33) em rollout progressivo
 
 ### Leitura correta do estado atual
 
-O sistema possui fluxo de pedido completo e funcional. A criacao, persistencia, roteamento para a distribuidora, visibilidade operacional e atribuicao ao motorista estao todos implementados e funcionando corretamente.
+O sistema possui fluxo de pedido completo e funcional. A criacao, persistencia, roteamento para a distribuidora, pagamento real, visibilidade operacional e atribuicao ao motorista estao todos implementados e funcionando corretamente.
+
+---
+
+**Última atualização: 06 de julho de 2026.**

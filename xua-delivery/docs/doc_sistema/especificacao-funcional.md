@@ -66,18 +66,19 @@ Além disso, existe o **módulo do entregador** ( “modo entregas”, no mesmo 
 
 **2-bis) Arquitetura técnica de runtime (visão de implementação)**
 
-> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/Redis_BullMQ_Queue/`.
+> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/doc_desenvolvimento/redis-bullmq/`.
 
 - **Monorepo** npm workspaces: `apps/web`, `apps/api`, `packages/shared` (Zod schemas, enums e types compartilhados front/back). Prisma na raiz (`prisma/schema.prisma`).
 - **API (`apps/api`)** — Express, monólito modular (`routes → controllers → services → repository`). 16 módulos sob `/api/*`: `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.
-- **Autenticação** — JWT em **cookie httpOnly `xua-token`**, validado na API (`authMiddleware`) e replicado no `proxy.ts` do Next (`jwtVerify` + RBAC por role + redirecionamento). **Logout** via *blacklist* de `jti` no Redis. RBAC por `requireRole(...)`.
+- **Autenticação** — JWT em **cookie httpOnly `xua-token`**, validado na API (`authMiddleware`) e replicado no `proxy.ts` do Next (`jwtVerify` + RBAC por role + redirecionamento). **Logout** via *blacklist* de `jti` no Redis. RBAC por `requireRole(...)`. **[NOVO — jul/2026] "Esqueci minha senha"**: `POST /api/auth/forgot-password` + `POST /api/auth/reset-password`, token HMAC-SHA256 em `38_sec_password_reset_tokens` (TTL 30 min, uso único), e-mail via **Resend**, invalidação dos JWTs antigos ao trocar a senha.
 - **Worker assíncrono (`apps/api/src/worker`)** — processo BullMQ separado, com 3 filas ativas:
   - `internal-jobs` — `otp-cleanup`, `subscription-generation`, `subscription-expiry`.
   - `payment-webhooks` — processamento idempotente de webhooks de pagamento.
   - `payments` — `expire-payment` (expiração de pagamentos pendentes).
   - Jobs disparados via `/api/internal/jobs`, protegidos por `INTERNAL_JOB_SECRET` (não por JWT).
 - **Realtime** — **Socket.IO** acoplado ao mesmo servidor HTTP da API (atualização de filas/pedidos).
-- **Pagamentos** — provider concreto **Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`); métodos: **Pix, cartão e dinheiro** (`cash_change_for_cents`). Idempotência via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events` + trilha em `21_trn_payment_transactions`.
+- **Pagamentos** — provider concreto **Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`); métodos: **Pix, cartão e dinheiro** (`cash_change_for_cents`). Idempotência via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events` + trilha em `21_trn_payment_transactions`. **[NOVO — jul/2026]** Cobrança com as **credenciais da própria distribuidora** (`34_cfg_distributor_payment_settings`, tokens criptografados AES-256-GCM); cada distribuidora define os métodos que aceita.
+- **Caução de vasilhames v2 [NOVO — jun/2026]** — programa habilitado por (distribuidora, consumidor) em `35_cfg_consumer_deposit_programs` (`max_bottles`), saldo em `36_trn_consumer_deposit_balances` e histórico append-only em `37_log_consumer_deposit_movements`. Substitui a caução financeira `15_trn_deposits` (legado). Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo `bottle_product_id`.
 - **Frontend (`apps/web`)** — Next.js 16 (App Router) + React 19; estado com **Zustand** (`auth`, `cart`, `checkout`, `subscription`) e **TanStack Query**; comunicação via `fetch` (`credentials: include`); PWA com push e fila offline (idb).
 
 **3) Passo a passo (ponta a ponta) — com usabilidade + requisitos de programação**
@@ -1103,7 +1104,7 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 - **POD** : **OTP** ✅ implementado (tabela própria `16_sec_order_otps`)
 - **Assinatura** : ~~mensal~~ → **modelo por planos pré-definidos (v2)** ✅ implementado (ver `[ESTADO ATUAL]` na Seção "Decisões do MVP" acima)
 - **Caução** : **recomendada no MVP** , por ser pilar de controle de ativo + prioridade
-    operacional — ✅ entidade `15_trn_deposits` + `deposit_cents` em produto/pedido implementados
+    operacional — ✅ implementada. **[ATUALIZADO — jul/2026]** O modelo vigente é a **caução de vasilhames v2** (`35_cfg_consumer_deposit_programs` + `36_trn_consumer_deposit_balances` + `37_log_consumer_deposit_movements`): programa habilitado pela distribuidora por cliente, com limite de vasilhames (`max_bottles`) e controle por quantidade emprestada. A caução financeira `15_trn_deposits` + `deposit_cents` permanece no schema como legado (v1).
 
 
 **1) Mapa de eventos auditáveis (com payload mínimo)**
@@ -1111,7 +1112,7 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 > **[ESTADO ATUAL — jun/2026]** As duas seções de "Mapa de eventos auditáveis" deste documento descrevem um **envelope rico idealizado** (`event_id`, `recorded_at`, `correlation{subscription_id,payment_id,deposit_id,route_id}`, `source.version`, `client_context`, `geo`) que **não corresponde** ao modelo implementado. O `18_aud_audit_events` real é **plano**:
 > `id, event_type (enum), actor_type (enum), actor_id, order_id, source_app (enum), payload (jsonb), occurred_at`. **Não existem** `recorded_at`, `geo`, `route_id` nem objeto `correlation` (correlações extras, quando necessárias, vão dentro de `payload`).
 >
-> O enum `AuditEventType` implementado é um **subconjunto curado de 25 tipos** (snake_case em maiúsculas): `ORDER_CREATED, ORDER_PRICING_FINALIZED, ORDER_CONFIRMED, ORDER_CANCELLED, ORDER_RECEIVED_BY_DISTRIBUTOR, ORDER_ACCEPTED_BY_DISTRIBUTOR, ORDER_REJECTED_BY_DISTRIBUTOR, DISPATCH_CHECKLIST_COMPLETED, ORDER_DISPATCHED, OTP_GENERATED, OTP_SENT, OTP_VALIDATION_ATTEMPTED, ORDER_DELIVERED, BOTTLE_EXCHANGE_RECORDED, EMPTY_NOT_COLLECTED, REDELIVERY_REQUIRED, REDELIVERY_SCHEDULED, PAYMENT_CREATED, PAYMENT_CAPTURED, PAYMENT_FAILED, PAYMENT_EXPIRED, DEPOSIT_HELD, DEPOSIT_REFUND_INITIATED, DEPOSIT_REFUNDED, DAILY_RECONCILIATION_CLOSED`.
+> O enum `AuditEventType` implementado tem **34 tipos** (snake_case em maiúsculas): `ORDER_CREATED, ORDER_PRICING_FINALIZED, ORDER_CONFIRMED, ORDER_CANCELLED, ORDER_RECEIVED_BY_DISTRIBUTOR, ORDER_ACCEPTED_BY_DISTRIBUTOR, ORDER_REJECTED_BY_DISTRIBUTOR, ORDER_DRIVER_ASSIGNED, DISPATCH_CHECKLIST_COMPLETED, ORDER_DISPATCHED, OTP_GENERATED, OTP_SENT, OTP_VALIDATION_ATTEMPTED, OTP_OVERRIDE, ORDER_DELIVERED, BOTTLE_EXCHANGE_RECORDED, EMPTY_NOT_COLLECTED, REDELIVERY_REQUIRED, REDELIVERY_SCHEDULED, PAYMENT_CREATED, PAYMENT_CAPTURED, PAYMENT_FAILED, PAYMENT_EXPIRED, PAYMENT_REFUNDED, PAYMENT_REFUND_FAILED, DEPOSIT_HELD, DEPOSIT_REFUND_INITIATED, DEPOSIT_REFUNDED, DAILY_RECONCILIATION_CLOSED, DEPOSIT_BOTTLES_LOANED, DEPOSIT_BOTTLES_RETURNED, DEPOSIT_BOTTLES_WRITTEN_OFF, DEPOSIT_PROGRAM_ENABLED, DEPOSIT_PROGRAM_DISABLED`.
 >
 > Eventos citados abaixo que **NÃO existem** no enum real: `payment_authorized`, `redelivery_completed`, `route_assigned`, `cart_created`, `cart_item_added`, `coverage_resolved`, `consumer_registered`, `consumer_address_saved`, `delivery_window_selected`, `exchange_intent_declared`, `order_submitted_for_payment`, `daily_reconciliation_started`, `daily_reconciliation_delta_justified`, `audit_snapshot_exported`. Existe `PAYMENT_EXPIRED` (não citado abaixo). **Os KPIs (SLA aceite, taxa de aceite, reentrega) são calculados via SQL diretamente sobre `18_aud_audit_events`** — ver `kpi.service.ts`.
 
@@ -1912,7 +1913,7 @@ serializado**
 
 **2) Contrato de domínio (PostgreSQL) — tabelas mínimas + índices + constraints**
 
-> **[ESTADO ATUAL — jun/2026] ⚠️ O DDL desta seção é o RASCUNHO LÓGICO original e diverge do schema implementado.** A fonte da verdade é **`prisma/schema.prisma`** (33 tabelas). Principais diferenças do que está escrito abaixo:
+> **[ESTADO ATUAL — jul/2026] ⚠️ O DDL desta seção é o RASCUNHO LÓGICO original e diverge do schema implementado.** A fonte da verdade é **`prisma/schema.prisma`** (36 tabelas, numeração `01`–`38`). Principais diferenças do que está escrito abaixo:
 > - **Nomenclatura:** as tabelas reais usam **prefixo numérico + classe** (`01_mst_consumers`, `02_mst_addresses`, `03_mst_distributors`, `04_mst_zones`, `05_mst_zone_coverage`, `06_mst_products`, `09_trn_orders`, `13_trn_payments`, `15_trn_deposits`, `16_sec_order_otps`, `18_aud_audit_events` …) — **não** `consumers`, `addresses` etc.
 > - **Chaves:** **todas** as PKs/FKs são `uuid` (inclusive `distributors`, `zones`, `products`). A DDL abaixo usa `text` em distributor/zone e `sku` como PK de product — **incorreto**.
 > - **`consumers` real:** `name`, `email`, `password_hash`, `role`, `is_b2b`, `distributor_id`, `auto_assign_distributor`, `preferred_distributor_id`. Não há `full_name`/`status`.
@@ -1922,7 +1923,7 @@ serializado**
 > - **`payments` real:** referencia `user_subscription_id` (não `subscriptions`/`deposit_id`); inclui `payment_method`, `cash_change_for_cents`, `provider`, `provider_payment_ref`, `external_id`, `idempotency_key`. Provider concreto = **Mercado Pago**.
 > - **`audit_events` real:** plano (sem `recorded_at`/`geo`/`route_id`/`correlation`) — ver banner da Seção de eventos.
 > - **OTP:** `16_sec_order_otps` (já refletido em 2.6, ok).
-> - Tabelas implementadas **ausentes** deste DDL: inventário (`29`–`33`), assinaturas-v2 (`25`–`28`, descritas em 2.4), `07_mst_categories`, `08_sec_consumer_push_tokens`, `14_cfg_payment_webhook_events`, `19_cfg_banners`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`.
+> - Tabelas implementadas **ausentes** deste DDL: inventário (`29`–`33`), assinaturas-v2 (`25`–`28`, descritas em 2.4), `07_mst_categories`, `08_sec_consumer_push_tokens`, `14_cfg_payment_webhook_events`, `19_cfg_banners`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`, `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35_cfg_consumer_deposit_programs` / `36_trn_consumer_deposit_balances` / `37_log_consumer_deposit_movements` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha).
 
 **2.1. Convenções**
 
@@ -4170,5 +4171,9 @@ schema._
     - atualiza tabela normalizada
     - emite evento em **audit_events**
     - (opcional) publica em fila interna
+
+---
+
+**Última atualização: 06 de julho de 2026.** Principais mudanças refletidas nesta revisão: fluxo "esqueci minha senha" (`38_sec_password_reset_tokens`), caução de vasilhames v2 (`35`–`37`), configuração de pagamento por distribuidora (`34_cfg_distributor_payment_settings`), assinaturas fases 1 e 2 (geração atômica + compensação com retry) e schema com 36 tabelas / 20 enums / 34 tipos de evento de auditoria.
 
 
