@@ -14,7 +14,7 @@ Garantir que dinheiro nunca se perca, duplique ou fique em estado inconsistente.
 - **Webhook** (`POST /api/payments/webhook`, público): validação de assinatura HMAC (`validateMercadoPagoSignature`, tolerância `MERCADOPAGO_WEBHOOK_TOLERANCE_SECONDS`, default 600s) → dedup por `UNIQUE(provider, provider_event_ref)` + `20_cfg_idempotency_keys` → processamento na fila BullMQ `payment-webhooks` com retry.
 - **Expiração:** fila `payments` / job `expire-payment` → `PAYMENT_EXPIRED`; assinaturas não pagas expiram e cancelam.
 - **Trilha:** toda interação com o gateway registrada em `21_trn_payment_transactions` (ação, status do provider, resposta JSON, idempotency_key).
-- **Vínculos:** `PaymentKind` = `ORDER` (pedido) | `SUBSCRIPTION` (liga-se à assinatura, NÃO ao pedido) | `DEPOSIT` (legado v1). `PaymentStatus`: `CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED, EXPIRED`.
+- **Vínculos:** `PaymentKind` = `ORDER` (pedido) | `SUBSCRIPTION` (liga-se à assinatura, NÃO ao pedido) | `DEPOSIT` (legado v1, removido jul/2026 — sem uso novo, mantido só no enum Postgres). `PaymentStatus`: `CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED, EXPIRED`.
 - **Refund:** provider não-mercadopago fecha localmente sem chamar gateway (comportamento testado em `payments.service.test.ts`).
 
 ## Invariantes que você jamais viola

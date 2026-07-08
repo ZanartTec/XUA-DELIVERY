@@ -93,7 +93,6 @@ trn_subscriptions        — Assinaturas mensais
 piv_subscription_orders  — Relação assinatura ↔ pedido
 trn_payments             — Pagamentos
 cfg_payment_webhook_events — Idempotência de webhooks
-trn_deposits             — Caução de vasilhame
 sec_order_otps           — OTPs de entrega (TTL 90min, max 5 tentativas)
 trn_reconciliations      — Conciliação diária de vasilhames
 aud_audit_events         — Auditoria append-only (fonte dos KPIs)

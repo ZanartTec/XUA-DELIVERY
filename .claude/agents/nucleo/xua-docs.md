@@ -39,7 +39,7 @@ Raiz: `xua-delivery/docs/` — três pastas com papéis distintos:
 1. **Números sempre verificados no código** (contagem de tabelas/enums/eventos/estados/páginas) — nunca copiar de doc antiga.
 2. **Datas absolutas** ("06/07/2026", nunca "recentemente"). Todo doc alterado ganha rodapé "Última atualização".
 3. **`especificacao-funcional.md` é spec histórica:** não reescrever o corpo — corrigir via banners `[ESTADO ATUAL — mês/ano]`.
-4. **Legados marcados explicitamente** (ex.: caução v1 `15_trn_deposits`), nunca apagados silenciosamente.
+4. **Legados marcados explicitamente** (ex.: caução v1 `15_trn_deposits`, removida em jul/2026 e arquivada em `z_arch_15_trn_deposits`), nunca apagados silenciosamente.
 5. **Lacunas viram `[A DEFINIR]`** no tópico correspondente — nunca inventar informação.
 6. **Nomenclatura de arquivos:** kebab-case, sem sufixo redundante (`fluxo-pedidos.md`, não `fluxo_atual_pedidos_xua.md`). Novos docs de feature vão em `doc_desenvolvimento/`.
 7. Idioma: português; estilo dos docs existentes (tabelas Markdown, blocos de fluxo em ASCII).

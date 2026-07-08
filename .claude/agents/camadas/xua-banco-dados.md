@@ -21,7 +21,7 @@ Evoluir o schema (36 tabelas, 20 enums) preservando convenções, integridade e 
 - `37_log_consumer_deposit_movements`: event-sourcing da caução v2; `36_trn_consumer_deposit_balances` é derivado (nunca editar saldo sem movimento).
 - Trigger `trg_09_trn_orders_status_regression`: bloqueia transição pós `DELIVERED`/`CANCELLED` — proteção em nível de banco.
 - Idempotência: `14_cfg_payment_webhook_events` (`UNIQUE(provider, provider_event_ref)`), `20_cfg_idempotency_keys`.
-- Legado consciente: `15_trn_deposits` (caução financeira v1) permanece por histórico — não remover sem decisão registrada.
+- Legado removido (jul/2026): `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema, junto com `DepositStatus` e `Product.deposit_cents`. Mantidos por serem valores de enum Postgres / auditoria append-only: `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_*`.
 
 ## Processo de mudança de schema
 1. Ler o schema atual e a seção afetada de `xua-delivery/docs/doc_contexto/03-domain-data.md`.
