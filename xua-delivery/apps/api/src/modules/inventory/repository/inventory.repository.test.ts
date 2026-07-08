@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     },
     inventoryItem: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -409,5 +410,116 @@ describe("inventoryRepository findActiveInventoryItemsByProductIds", () => {
 
     expect(result).toEqual([]);
     expect(mocks.prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("inventoryRepository provisionamento de itens por produto", () => {
+  const productId = "7e1d7b55-3f52-4d10-aac3-74387c236205";
+
+  function makeTx() {
+    return {
+      inventoryItem: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    };
+  }
+
+  it("findInventoryItemsByProductId busca tipos vendaveis incluindo inativos, do mais recente ao mais antigo", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.findMany.mockResolvedValue([inventoryItemInactive]);
+
+    const result = await inventoryRepository.findInventoryItemsByProductId(
+      productId,
+      tx as never
+    );
+
+    expect(result).toEqual([inventoryItemInactive]);
+    expect(tx.inventoryItem.findMany).toHaveBeenCalledWith({
+      where: {
+        product_id: productId,
+        type: {
+          in: [
+            InventoryItemType.SELLABLE_PRODUCT,
+            InventoryItemType.RETURNABLE_FULL,
+            InventoryItemType.RETURNABLE_EMPTY,
+          ],
+        },
+      },
+      select: expect.objectContaining({ is_active: true, created_at: true }),
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    });
+    expect(mocks.prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("findInventoryItemsByProductId usa o client padrao quando nao recebe tx", async () => {
+    mocks.prisma.inventoryItem.findMany.mockResolvedValue([]);
+
+    await inventoryRepository.findInventoryItemsByProductId(productId);
+
+    expect(mocks.prisma.inventoryItem.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("createInventoryItem cria item ativo com os campos informados via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.create.mockResolvedValue(inventoryItemA);
+
+    const data = {
+      code: "AGUA20L-3f9a2b1c",
+      name: "Agua 20L",
+      type: InventoryItemType.SELLABLE_PRODUCT,
+      product_id: productId,
+      unit_label: "un",
+      low_stock_threshold: 10,
+    };
+    const result = await inventoryRepository.createInventoryItem(data, tx as never);
+
+    expect(result).toEqual(inventoryItemA);
+    expect(tx.inventoryItem.create).toHaveBeenCalledWith({
+      data: { ...data, is_active: true },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+  });
+
+  it("reactivateInventoryItem reativa o item pelo id via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.update.mockResolvedValue({ ...inventoryItemInactive, is_active: true });
+
+    const result = await inventoryRepository.reactivateInventoryItem(
+      inventoryItemInactive.id,
+      tx as never
+    );
+
+    expect(result.is_active).toBe(true);
+    expect(tx.inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: inventoryItemInactive.id },
+      data: { is_active: true },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+  });
+
+  it("findInventoryItemByCode busca pelo code unico via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.findUnique.mockResolvedValue(inventoryItemA);
+
+    const result = await inventoryRepository.findInventoryItemByCode("WATER20L", tx as never);
+
+    expect(result).toEqual(inventoryItemA);
+    expect(tx.inventoryItem.findUnique).toHaveBeenCalledWith({
+      where: { code: "WATER20L" },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+    expect(mocks.prisma.inventoryItem.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("findInventoryItemByCode usa o client padrao quando nao recebe tx", async () => {
+    mocks.prisma.inventoryItem.findUnique.mockResolvedValue(null);
+
+    const result = await inventoryRepository.findInventoryItemByCode("INEXISTENTE");
+
+    expect(result).toBeNull();
+    expect(mocks.prisma.inventoryItem.findUnique).toHaveBeenCalledTimes(1);
   });
 });
