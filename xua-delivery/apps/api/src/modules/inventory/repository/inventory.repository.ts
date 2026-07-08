@@ -18,6 +18,7 @@ import {
   InventoryReferenceType as InventoryReferenceTypeValue,
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
+import { balanceItemWhere, matchesStockStatus } from "./balance-query.helpers.js";
 
 export type TxClient = Prisma.TransactionClient;
 
@@ -42,6 +43,7 @@ const INVENTORY_ITEM_READ_SELECT = {
   type: true,
   unit_label: true,
   low_stock_threshold: true,
+  is_active: true,
 } as const;
 
 const INVENTORY_ITEM_CATALOG_SELECT = {
@@ -81,7 +83,7 @@ type CreateMovementData = {
 
 type InventoryItemRead = Pick<
   InventoryItem,
-  "id" | "code" | "name" | "type" | "unit_label" | "low_stock_threshold"
+  "id" | "code" | "name" | "type" | "unit_label" | "low_stock_threshold" | "is_active"
 >;
 
 export type InventoryItemCatalogRow = Pick<
@@ -128,6 +130,7 @@ export type InventoryBalanceListParams = {
   inventoryItemId?: string;
   itemType?: InventoryItemTypeInput;
   stockStatus?: InventoryStockStatusFilterInput;
+  isActive?: boolean;
   limit: number;
   offset: number;
 };
@@ -149,6 +152,16 @@ export type InventoryItemListParams = {
   offset: number;
 };
 
+/**
+ * Tipos de item movimentáveis por venda — os mesmos aceitos por
+ * resolveOrderInventoryLines no aceite do pedido. SUPPLY fica de fora.
+ */
+const SELLABLE_INVENTORY_ITEM_TYPES = [
+  InventoryItemTypeValue.SELLABLE_PRODUCT,
+  InventoryItemTypeValue.RETURNABLE_FULL,
+  InventoryItemTypeValue.RETURNABLE_EMPTY,
+];
+
 function toJsonValue(value?: Prisma.InputJsonValue): Prisma.InputJsonValue {
   return value ?? ({} as Prisma.InputJsonValue);
 }
@@ -169,34 +182,6 @@ function inventoryItemWhere(params: InventoryItemListParams): Prisma.InventoryIt
     ...(params.productId ? { product_id: params.productId } : {}),
     ...(params.isActive === undefined ? {} : { is_active: params.isActive }),
   };
-}
-
-function balanceItemWhere(params: {
-  search?: string;
-  itemType?: InventoryItemTypeInput;
-}): Prisma.InventoryItemWhereInput | undefined {
-  const where: Prisma.InventoryItemWhereInput = {
-    ...(params.search
-      ? {
-          OR: [
-            { code: { contains: params.search, mode: "insensitive" } },
-            { name: { contains: params.search, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-    ...(params.itemType ? { type: params.itemType } : {}),
-  };
-
-  return Object.keys(where).length > 0 ? where : undefined;
-}
-
-function matchesStockStatus(
-  balance: InventoryBalanceWithItem,
-  stockStatus: InventoryStockStatusFilterInput
-): boolean {
-  const threshold = balance.inventory_item.low_stock_threshold;
-  const isLowStock = threshold !== null && balance.quantity_on_hand <= threshold;
-  return stockStatus === "LOW_STOCK" ? isLowStock : !isLowStock;
 }
 
 export const inventoryRepository = {
@@ -228,17 +213,69 @@ export const inventoryRepository = {
     return (tx ?? prisma).inventoryItem.findMany({
       where: {
         product_id: { in: productIds },
-        type: {
-          in: [
-            InventoryItemTypeValue.SELLABLE_PRODUCT,
-            InventoryItemTypeValue.RETURNABLE_FULL,
-            InventoryItemTypeValue.RETURNABLE_EMPTY,
-          ],
-        },
+        type: { in: SELLABLE_INVENTORY_ITEM_TYPES },
         is_active: true,
       },
       select: INVENTORY_ITEM_SELECT,
       orderBy: [{ product_id: "asc" }, { code: "asc" }],
+    });
+  },
+
+  /**
+   * Lookup por code (unique) — usado pela pré-checagem de colisão do
+   * provisionamento, que precisa escolher um code livre ANTES do create
+   * (um P2002 dentro da transação a abortaria por inteiro).
+   */
+  async findInventoryItemByCode(code: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryItem.findUnique({
+      where: { code },
+      select: INVENTORY_ITEM_SELECT,
+    });
+  },
+
+  /**
+   * Itens vendáveis vinculados a um produto, INCLUINDO inativos — usado pelo
+   * provisionamento idempotente para decidir entre no-op, reativar ou criar.
+   * Ordenado do mais recente para o mais antigo (created_at desc).
+   */
+  async findInventoryItemsByProductId(
+    productId: string,
+    tx?: TxClient
+  ): Promise<InventoryItemCatalogRow[]> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryItem.findMany({
+      where: {
+        product_id: productId,
+        type: { in: SELLABLE_INVENTORY_ITEM_TYPES },
+      },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    });
+  },
+
+  async createInventoryItem(
+    data: {
+      code: string;
+      name: string;
+      type: InventoryItemTypeInput;
+      product_id: string;
+      unit_label: string;
+      low_stock_threshold: number;
+    },
+    tx: TxClient
+  ): Promise<InventoryItemCatalogRow> {
+    return tx.inventoryItem.create({
+      data: { ...data, is_active: true },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
+    });
+  },
+
+  async reactivateInventoryItem(id: string, tx: TxClient): Promise<InventoryItemCatalogRow> {
+    return tx.inventoryItem.update({
+      where: { id },
+      data: { is_active: true },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
     });
   },
 
@@ -350,6 +387,7 @@ export const inventoryRepository = {
     const inventoryItemWhere = balanceItemWhere({
       search: params.search,
       itemType: params.itemType,
+      isActive: params.isActive,
     });
     const where: Prisma.DistributorInventoryBalanceWhereInput = {
       distributor_id: params.distributorId,

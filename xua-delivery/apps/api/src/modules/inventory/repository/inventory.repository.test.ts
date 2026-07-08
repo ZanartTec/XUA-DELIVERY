@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     },
     inventoryItem: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -33,6 +34,7 @@ const distributorA = "7e1d7b55-3f52-4d10-aac3-74387c236201";
 const distributorB = "7e1d7b55-3f52-4d10-aac3-74387c236202";
 const itemA = "7e1d7b55-3f52-4d10-aac3-74387c236203";
 const itemB = "7e1d7b55-3f52-4d10-aac3-74387c236204";
+const itemInactive = "7e1d7b55-3f52-4d10-aac3-74387c236206";
 const firstDate = new Date("2026-05-26T12:00:00.000Z");
 const secondDate = new Date("2026-05-27T12:00:00.000Z");
 
@@ -43,6 +45,7 @@ const inventoryItemA = {
   type: "SELLABLE_PRODUCT",
   unit_label: "un",
   low_stock_threshold: 5,
+  is_active: true,
 };
 
 const inventoryItemB = {
@@ -52,6 +55,17 @@ const inventoryItemB = {
   type: "RETURNABLE_EMPTY",
   unit_label: "un",
   low_stock_threshold: 2,
+  is_active: true,
+};
+
+const inventoryItemInactive = {
+  id: itemInactive,
+  code: "OLD10L",
+  name: "Garrafao descontinuado 10L",
+  type: "SELLABLE_PRODUCT",
+  unit_label: "un",
+  low_stock_threshold: 1,
+  is_active: false,
 };
 
 const balances = [
@@ -72,6 +86,15 @@ const balances = [
     last_movement_at: secondDate,
     updated_at: secondDate,
     inventory_item: inventoryItemB,
+  },
+  {
+    id: "balance-a-3",
+    distributor_id: distributorA,
+    inventory_item_id: itemInactive,
+    quantity_on_hand: 1,
+    last_movement_at: firstDate,
+    updated_at: firstDate,
+    inventory_item: inventoryItemInactive,
   },
   {
     id: "balance-b-1",
@@ -132,11 +155,17 @@ const movements = [
   },
 ];
 
-function filterBalances(where: { distributor_id?: string; inventory_item_id?: string }) {
+function filterBalances(where: {
+  distributor_id?: string;
+  inventory_item_id?: string;
+  inventory_item?: { is_active?: boolean };
+}) {
   return balances.filter(
     (balance) =>
       (!where.distributor_id || balance.distributor_id === where.distributor_id) &&
-      (!where.inventory_item_id || balance.inventory_item_id === where.inventory_item_id)
+      (!where.inventory_item_id || balance.inventory_item_id === where.inventory_item_id) &&
+      (where.inventory_item?.is_active === undefined ||
+        balance.inventory_item.is_active === where.inventory_item.is_active)
   );
 }
 
@@ -175,9 +204,31 @@ beforeEach(() => {
 });
 
 describe("inventoryRepository leitura distribuidor", () => {
-  it("lista apenas saldos da distribuidora solicitada com dois itens", async () => {
+  it("lista apenas saldos da distribuidora solicitada sem filtrar is_active por padrao", async () => {
     const result = await inventoryRepository.listBalances({
       distributorId: distributorA,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(3);
+    expect(result.balances.map((balance) => balance.id)).toEqual([
+      "balance-a-1",
+      "balance-a-2",
+      "balance-a-3",
+    ]);
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { distributor_id: distributorA },
+        select: expect.not.objectContaining({ distributor_id: true }),
+      })
+    );
+  });
+
+  it("filtra itens inativos no where do banco quando isActive=true", async () => {
+    const result = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      isActive: true,
       limit: 50,
       offset: 0,
     });
@@ -186,8 +237,51 @@ describe("inventoryRepository leitura distribuidor", () => {
     expect(result.balances.map((balance) => balance.id)).toEqual(["balance-a-1", "balance-a-2"]);
     expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { distributor_id: distributorA },
-        select: expect.not.objectContaining({ distributor_id: true }),
+        where: { distributor_id: distributorA, inventory_item: { is_active: true } },
+      })
+    );
+  });
+
+  it("permite consultar apenas itens inativos com isActive=false", async () => {
+    const result = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      isActive: false,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(1);
+    expect(result.balances.map((balance) => balance.id)).toEqual(["balance-a-3"]);
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { distributor_id: distributorA, inventory_item: { is_active: false } },
+      })
+    );
+  });
+
+  it("combina isActive com busca e tipo no mesmo where de item", async () => {
+    await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      search: "agua",
+      itemType: InventoryItemType.SELLABLE_PRODUCT,
+      isActive: true,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          distributor_id: distributorA,
+          inventory_item: {
+            OR: [
+              { code: { contains: "agua", mode: "insensitive" } },
+              { name: { contains: "agua", mode: "insensitive" } },
+            ],
+            type: InventoryItemType.SELLABLE_PRODUCT,
+            is_active: true,
+          },
+        },
       })
     );
   });
@@ -208,12 +302,14 @@ describe("inventoryRepository leitura distribuidor", () => {
     const lowStock = await inventoryRepository.listBalances({
       distributorId: distributorA,
       stockStatus: "LOW_STOCK",
+      isActive: true,
       limit: 50,
       offset: 0,
     });
     const okStock = await inventoryRepository.listBalances({
       distributorId: distributorA,
       stockStatus: "OK",
+      isActive: true,
       limit: 50,
       offset: 0,
     });
@@ -224,8 +320,34 @@ describe("inventoryRepository leitura distribuidor", () => {
     expect(okStock.balances.map((balance) => balance.id)).toEqual(["balance-a-2"]);
     expect(mocks.prisma.distributorInventoryBalance.count).not.toHaveBeenCalled();
     expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { distributor_id: distributorA } })
+      expect.objectContaining({
+        where: { distributor_id: distributorA, inventory_item: { is_active: true } },
+      })
     );
+  });
+
+  it("exclui item inativo do total e do caminho stock_status quando isActive=true", async () => {
+    const semFiltro = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "LOW_STOCK",
+      limit: 50,
+      offset: 0,
+    });
+    const somenteAtivos = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "LOW_STOCK",
+      isActive: true,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(semFiltro.total).toBe(2);
+    expect(semFiltro.balances.map((balance) => balance.id)).toEqual([
+      "balance-a-1",
+      "balance-a-3",
+    ]);
+    expect(somenteAtivos.total).toBe(1);
+    expect(somenteAtivos.balances.map((balance) => balance.id)).toEqual(["balance-a-1"]);
   });
 
   it("lista apenas movimentos da distribuidora solicitada e aplica filtros", async () => {
@@ -288,5 +410,116 @@ describe("inventoryRepository findActiveInventoryItemsByProductIds", () => {
 
     expect(result).toEqual([]);
     expect(mocks.prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("inventoryRepository provisionamento de itens por produto", () => {
+  const productId = "7e1d7b55-3f52-4d10-aac3-74387c236205";
+
+  function makeTx() {
+    return {
+      inventoryItem: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    };
+  }
+
+  it("findInventoryItemsByProductId busca tipos vendaveis incluindo inativos, do mais recente ao mais antigo", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.findMany.mockResolvedValue([inventoryItemInactive]);
+
+    const result = await inventoryRepository.findInventoryItemsByProductId(
+      productId,
+      tx as never
+    );
+
+    expect(result).toEqual([inventoryItemInactive]);
+    expect(tx.inventoryItem.findMany).toHaveBeenCalledWith({
+      where: {
+        product_id: productId,
+        type: {
+          in: [
+            InventoryItemType.SELLABLE_PRODUCT,
+            InventoryItemType.RETURNABLE_FULL,
+            InventoryItemType.RETURNABLE_EMPTY,
+          ],
+        },
+      },
+      select: expect.objectContaining({ is_active: true, created_at: true }),
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    });
+    expect(mocks.prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("findInventoryItemsByProductId usa o client padrao quando nao recebe tx", async () => {
+    mocks.prisma.inventoryItem.findMany.mockResolvedValue([]);
+
+    await inventoryRepository.findInventoryItemsByProductId(productId);
+
+    expect(mocks.prisma.inventoryItem.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("createInventoryItem cria item ativo com os campos informados via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.create.mockResolvedValue(inventoryItemA);
+
+    const data = {
+      code: "AGUA20L-3f9a2b1c",
+      name: "Agua 20L",
+      type: InventoryItemType.SELLABLE_PRODUCT,
+      product_id: productId,
+      unit_label: "un",
+      low_stock_threshold: 10,
+    };
+    const result = await inventoryRepository.createInventoryItem(data, tx as never);
+
+    expect(result).toEqual(inventoryItemA);
+    expect(tx.inventoryItem.create).toHaveBeenCalledWith({
+      data: { ...data, is_active: true },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+  });
+
+  it("reactivateInventoryItem reativa o item pelo id via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.update.mockResolvedValue({ ...inventoryItemInactive, is_active: true });
+
+    const result = await inventoryRepository.reactivateInventoryItem(
+      inventoryItemInactive.id,
+      tx as never
+    );
+
+    expect(result.is_active).toBe(true);
+    expect(tx.inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: inventoryItemInactive.id },
+      data: { is_active: true },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+  });
+
+  it("findInventoryItemByCode busca pelo code unico via tx", async () => {
+    const tx = makeTx();
+    tx.inventoryItem.findUnique.mockResolvedValue(inventoryItemA);
+
+    const result = await inventoryRepository.findInventoryItemByCode("WATER20L", tx as never);
+
+    expect(result).toEqual(inventoryItemA);
+    expect(tx.inventoryItem.findUnique).toHaveBeenCalledWith({
+      where: { code: "WATER20L" },
+      select: expect.objectContaining({ id: true, code: true, is_active: true }),
+    });
+    expect(mocks.prisma.inventoryItem.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("findInventoryItemByCode usa o client padrao quando nao recebe tx", async () => {
+    mocks.prisma.inventoryItem.findUnique.mockResolvedValue(null);
+
+    const result = await inventoryRepository.findInventoryItemByCode("INEXISTENTE");
+
+    expect(result).toBeNull();
+    expect(mocks.prisma.inventoryItem.findUnique).toHaveBeenCalledTimes(1);
   });
 });

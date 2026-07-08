@@ -267,8 +267,53 @@ describe("distributorRoutes inventory", () => {
     expect(response.status).toBe(200);
     expect(mocks.distributorService.listInventoryBalances).toHaveBeenCalledWith({
       actorUserId: "user-distributor_admin",
-      query: { inventory_item_id: itemId, limit: 20, offset: 0 },
+      query: { inventory_item_id: itemId, is_active: true, limit: 20, offset: 0 },
     });
+  });
+
+  it("oculta itens inativos por padrao nos saldos (is_active default true)", async () => {
+    const response = await request(
+      "/api/distributor/inventory/balances?limit=20&offset=0",
+      "distributor_admin"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.distributorService.listInventoryBalances).toHaveBeenCalledWith({
+      actorUserId: "user-distributor_admin",
+      query: expect.objectContaining({ is_active: true }),
+    });
+  });
+
+  it("permite consultar saldos de itens inativos com is_active=false", async () => {
+    const response = await request(
+      "/api/distributor/inventory/balances?is_active=false&limit=20&offset=0",
+      "distributor_admin"
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.distributorService.listInventoryBalances).toHaveBeenCalledWith({
+      actorUserId: "user-distributor_admin",
+      query: expect.objectContaining({ is_active: false }),
+    });
+  });
+
+  it("aceita is_active=true explicito e rejeita valor invalido", async () => {
+    const explicitResponse = await request(
+      "/api/distributor/inventory/balances?is_active=true&limit=20&offset=0",
+      "distributor_admin"
+    );
+    const invalidResponse = await request(
+      "/api/distributor/inventory/balances?is_active=maybe&limit=20&offset=0",
+      "distributor_admin"
+    );
+
+    expect(explicitResponse.status).toBe(200);
+    expect(mocks.distributorService.listInventoryBalances).toHaveBeenCalledWith({
+      actorUserId: "user-distributor_admin",
+      query: expect.objectContaining({ is_active: true }),
+    });
+    expect(invalidResponse.status).toBe(400);
+    expect(mocks.distributorService.listInventoryBalances).toHaveBeenCalledTimes(1);
   });
 
   it("rejeita tentativas de informar distributor_id em query ou payload", async () => {

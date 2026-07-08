@@ -3,6 +3,8 @@ import {
   getCacheJson,
   setCacheJson,
 } from "../../../infra/redis/cache.js";
+import { getPrisma } from "../../../infra/prisma/client.js";
+import { inventoryItemProvisioningService } from "../../inventory/services/inventory-item-provisioning.service.js";
 import { productsRepository } from "../repository/products.repository.js";
 import { createLogger } from "../../../infra/logger";
 
@@ -59,7 +61,13 @@ export const productsService = {
     kind?: "WATER" | "BOTTLE" | "OTHER";
     bottle_product_id?: string | null;
   }) {
-    const product = await productsRepository.create(data);
+    // Produto e item de estoque vendável nascem na mesma transação: sem o
+    // item, o aceite do pedido falha com INVENTORY_ITEM_NOT_FOUND.
+    const product = await getPrisma().$transaction(async (tx) => {
+      const created = await productsRepository.create(data, tx);
+      await inventoryItemProvisioningService.provisionForProduct(created, tx);
+      return created;
+    });
     void deleteCacheKey(CACHE_KEY);
     return product;
   },
@@ -77,7 +85,15 @@ export const productsService = {
       is_active?: boolean;
     }
   ) {
-    const product = await productsRepository.update(id, data);
+    const product = await getPrisma().$transaction(async (tx) => {
+      const updated = await productsRepository.update(id, data, tx);
+      // Invariante: produto ativo ⇒ item vendável ativo. Cobre produto legado
+      // (criado antes do provisionamento) e produto reativado com item inativo.
+      if (updated.is_active) {
+        await inventoryItemProvisioningService.provisionForProduct(updated, tx);
+      }
+      return updated;
+    });
     void deleteCacheKey(CACHE_KEY);
     return product;
   },

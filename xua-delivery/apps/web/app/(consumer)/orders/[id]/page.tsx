@@ -553,25 +553,30 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
+          {/* Bloco de vasilhames: só para pedidos legados do fluxo de caução (sempre 0 na venda simples) */}
+          {(order.bottles_loaned > 0 ||
+            order.bottles_sold > 0 ||
+            order.empty_bottles_provided > 0) && (
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-[#191c1d]">
+                  {order.bottles_loaned > 0
+                    ? `${order.bottles_loaned} em caução`
+                    : order.bottles_sold > 0
+                    ? `${order.bottles_sold} adquirido(s)`
+                    : "Sem vasilhames adicionais"}
+                </p>
+                <p className="text-xs text-[#737688]">
+                  {order.empty_bottles_provided > 0
+                    ? `${order.empty_bottles_provided} vasilhame(s) informado(s) para troca`
+                    : "Nenhum vasilhame informado para troca"}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-[#191c1d]">
-                {order.bottles_loaned > 0
-                  ? `${order.bottles_loaned} em caução`
-                  : order.bottles_sold > 0
-                  ? `${order.bottles_sold} adquirido(s)`
-                  : "Sem vasilhames adicionais"}
-              </p>
-              <p className="text-xs text-[#737688]">
-                {order.empty_bottles_provided > 0
-                  ? `${order.empty_bottles_provided} vasilhame(s) informado(s) para troca`
-                  : "Nenhum vasilhame informado para troca"}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

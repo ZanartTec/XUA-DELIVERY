@@ -371,6 +371,31 @@ Páginas web: `(auth)/forgot-password` e `(auth)/reset-password`.
 
 Variáveis de ambiente relacionadas à segurança: `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `INTERNAL_JOB_SECRET`.
 
+### 3.7 Fluxo Cadastro → Estoque → Venda (produtos × inventário)
+
+Desde 07/07/2026, produto criado ou reativado pela ops nasce vendável — antes, `POST /api/products` criava só o registro em `06_mst_products` e o aceite falhava com `INVENTORY_ITEM_NOT_FOUND`, exigindo INSERT manual do item de estoque.
+
+```
+POST/PATCH /api/products (ops)
+        │  $transaction: produto + provisionForProduct() atômicos
+        ▼
+item SELLABLE_PRODUCT ativo vinculado (29_mst_inventory_items)
+        │  saldo NÃO é inicializado aqui (lazy)
+        ▼
+carga inicial do distribuidor (INITIAL_LOAD) cria o saldo via upsertBalance
+        │
+        ▼
+aceite do pedido movimenta estoque (ORDER_ACCEPT_OUT)
+```
+
+Regras e responsabilidades:
+
+- **Invariante:** produto ativo ⇒ exatamente 1 item de estoque vendável ativo vinculado (exigida por `resolveOrderInventoryLines` no aceite). Regra aplicacional — sem constraint de banco.
+- **`products.service`** orquestra a transação (`create`/`update`; no update, provisiona quando o produto resultante está ativo — reativar produto legado provisiona sozinho). Cache `products:active` invalidado pós-commit.
+- **`inventory-item-provisioning.service`** é dono da regra: idempotente por `product_id` (1 ativo → no-op; >1 ativo → warn + no-op; só inativos → reativa o mais recente; nenhum → cria). Sempre `SELLABLE_PRODUCT`, para todos os `ProductKind` — nunca `RETURNABLE_*`, que são singletons globais do settlement de caução. Não propaga `name`/`is_active` do produto para o item (deliberado).
+- **Repositórios** sem lógica de negócio (`findInventoryItemsByProductId`, `findInventoryItemByCode`, `createInventoryItem`, `reactivateInventoryItem`; constante `SELLABLE_INVENTORY_ITEM_TYPES` compartilhada com o resolver de pedidos).
+- **Legados:** `scripts/backfill-product-inventory-items.ts` (`--dry-run` disponível) provisiona produtos ativos sem item vendável ativo, uma transação por produto.
+
 ---
 
 ## 4. Plano de Desenvolvimento — 2 Devs, 4 Semanas
@@ -610,5 +635,5 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 ---
 
 *Xuá Delivery — Guia Técnico v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 06 de julho de 2026*
+*Zanart · Última atualização: 07 de julho de 2026*
 *36 tabelas · 20 enums · 14 estados · 34 eventos · 5 perfis RBAC*
