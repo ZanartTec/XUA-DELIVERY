@@ -373,9 +373,11 @@ Essas tabelas foram adicionadas para controlar o estoque físico de garrafões e
 
 ### 29_mst_inventory_items
 
-Catálogo de itens de inventário disponíveis no sistema. Cada item tem um código único, tipo (`SELLABLE_PRODUCT`, `RETURNABLE_FULL`, `RETURNABLE_EMPTY`, `SUPPLY`), unidade de medida e limiar de estoque baixo.
+Catálogo de itens de inventário disponíveis no sistema. Cada item tem um código único, tipo (`SELLABLE_PRODUCT`, `RETURNABLE_FULL`, `RETURNABLE_EMPTY`, `SUPPLY`), unidade de medida, limiar de estoque baixo e flag `is_active` (default `true`).
 
 Pode estar vinculado a um produto do catálogo (`06_mst_products`) quando o item de inventário representa um produto vendável.
+
+Semântica de `is_active`: é o **soft delete do cadastro** do item. Item inativo é rejeitado em novas movimentações (`applyMovement`) e fica fora do snapshot de reconciliação; desde 07/07/2026, seus saldos também são ocultados por default nas listagens de saldo (distributor e ops, query param `is_active` default `true` — `?is_active=false` consulta inativos explicitamente). O histórico é sempre preservado: extrato de movimentações e detalhe de saldo por id não aplicam o filtro.
 
 Relacionamentos principais:
 - N:1 opcional com `06_mst_products`
@@ -430,4 +432,4 @@ O schema atual possui **36 tabelas** e **20 enums**. Em relação às versões a
 
 Este documento reflete o estado atual do banco no repositório.
 
-**Última atualização: 06 de julho de 2026.**
+**Última atualização: 07 de julho de 2026.**

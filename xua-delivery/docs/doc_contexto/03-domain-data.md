@@ -1,6 +1,6 @@
 # 03 — Domain & Data: Schema, Fluxos e Rotas
 
-> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas, 20 enums). Última consolidação: 06/07/2026.
+> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas, 20 enums). Última consolidação: 07/07/2026.
 
 ---
 
@@ -19,7 +19,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `05_mst_zone_coverage` | `zone_id` FK, `neighborhood`, `zip_code` | Resolve "esse endereço é atendido?" |
 | `06_mst_products` | `name`, `price_cents`, `deposit_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items |
 | `07_mst_categories` | `name`, `sort_order`, `is_active` | Categorias do catálogo (N:N implícito com products) |
-| `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold` | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos |
+| `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold`, `is_active` (default `true`) | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos. `is_active = false` = soft delete do cadastro: saldos ocultos por default nas listagens (fix 07/07/2026), movimentos rejeitados, histórico preservado |
 
 ### 1.2 Configuração operacional (`cfg`)
 
@@ -163,7 +163,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Orders | `/api/orders` | `GET /`, `POST /`, `GET /:id`, `PATCH /:id/accept`, `PATCH /:id/reject`, `PATCH /:id/assign-driver`, `PATCH /:id/dispatch`, `PATCH /:id/verify-otp`, `PATCH /:id/deliver`, `PATCH /:id/cancel`, `POST /:id/rating`, `POST /:id/bottle-exchange`, `POST /:id/empty-not-collected`, `PATCH /:id/reschedule` | JWT + RBAC |
 | Payments | `/api/payments` | `POST /charge`, `GET /status/:orderId`, `POST /webhook` (público, assinatura HMAC) | JWT / público |
 | Driver | `/api/driver` | `GET /deliveries`, `GET /deliveries/pending`, `GET /deliveries/history` | `driver` |
-| Distributor | `/api/distributor` | `GET /kpis`, `GET /drivers`, `GET /inventory/balances`, `PATCH /deposit-program/:consumerId`, `GET/PATCH /payment-settings/:distributorId`, `PUT /schedule/:distributorId/weekdays`, `POST/DELETE /schedule/:distributorId/block-date` | `distributor_admin`/`ops` |
+| Distributor | `/api/distributor` | `GET /kpis`, `GET /drivers`, `GET /inventory/balances` (`?is_active=true\|false`, default `true` — só itens ativos), `PATCH /deposit-program/:consumerId`, `GET/PATCH /payment-settings/:distributorId`, `PUT /schedule/:distributorId/weekdays`, `POST/DELETE /schedule/:distributorId/block-date` | `distributor_admin`/`ops` |
 | Distributors (público) | `/api/distributors` | `GET ?zone_id=&date=&window=` — lista para seleção no checkout, ordenada por `avg_nps DESC NULLS LAST` | Público |
 | Consumers | `/api/consumers` | `GET/PATCH /profile`, `GET/POST /addresses`, `DELETE /addresses/:id`, `PATCH /:id/assign-mode`, `GET /cep/:cep` | `consumer` |
 | Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo) | Público |
@@ -171,7 +171,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |
 | User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/cancel` (sem caller na UI), `PATCH /:id/delivery-dates/:deliveryDateId` | `consumer` |
-| Ops | `/api/ops` | `GET /kpis`, `GET /audit-events`, `GET /reconciliations` | `ops`/`support` |
+| Ops | `/api/ops` | `GET /kpis`, `GET /audit-events`, `GET /reconciliations`, `GET /inventory/balances` (`?is_active`, default `true`), `GET /inventory/balances/:id` | `ops`/`support` (inventário: `ops`) |
 | Reconciliations | `/api/reconciliations` | `POST /`, `GET /summary` | `distributor_admin` |
 | Jobs internos | `/api/internal/jobs` | `POST /subscription`, `POST /otp-cleanup`, `POST /subscription-expiry` | `INTERNAL_JOB_SECRET` |
 
@@ -199,3 +199,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | **Web Push API** | Notificações | Estados críticos do pedido, OTP, saldo baixo de assinatura |
 | **Socket.io** | Realtime | Salas `${role}:${userId}` e `distributor:${distributorId}`; eventos `new_order`, `order_status_changed`, `order_dispatched`, `sla_warning` |
 | **Google Maps** | Link externo | "Abrir no Google Maps" na lista de paradas (sem API integrada) |
+
+---
+
+**Última atualização: 07 de julho de 2026.**

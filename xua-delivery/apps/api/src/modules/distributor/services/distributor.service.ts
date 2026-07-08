@@ -312,6 +312,7 @@ export const distributorService = {
       ...(query.q ? { search: query.q } : {}),
       ...(query.item_type ? { itemType: query.item_type } : {}),
       ...(query.stock_status ? { stockStatus: query.stock_status } : {}),
+      isActive: query.is_active,
       limit: query.limit,
       offset: query.offset,
     });
@@ -329,6 +330,7 @@ export const distributorService = {
             name: balance.inventory_item.name,
             type: balance.inventory_item.type,
             unit_label: balance.inventory_item.unit_label,
+            is_active: balance.inventory_item.is_active,
           },
           quantity_on_hand: balance.quantity_on_hand,
           low_stock_threshold: lowStockThreshold,
@@ -371,6 +373,7 @@ export const distributorService = {
           name: movement.inventory_item.name,
           type: movement.inventory_item.type,
           unit_label: movement.inventory_item.unit_label,
+          is_active: movement.inventory_item.is_active,
         },
         quantity_delta: movement.quantity_delta,
         movement_type: movement.movement_type,

@@ -8,6 +8,10 @@ import type {
 } from "@xua/shared/enums";
 import type { InventoryStockStatusFilterInput } from "@xua/shared/schemas/inventory";
 import { getPrisma } from "../../../infra/prisma/client.js";
+import {
+  balanceItemWhere,
+  matchesStockStatus,
+} from "../../inventory/repository/balance-query.helpers.js";
 
 const DISTRIBUTOR_READ_SELECT = {
   id: true,
@@ -21,6 +25,7 @@ const INVENTORY_ITEM_READ_SELECT = {
   type: true,
   unit_label: true,
   low_stock_threshold: true,
+  is_active: true,
 } as const;
 
 export type OpsInventoryItemRead = {
@@ -30,6 +35,7 @@ export type OpsInventoryItemRead = {
   type: InventoryItemType;
   unit_label: string;
   low_stock_threshold: number | null;
+  is_active: boolean;
 };
 
 export type OpsDistributorRead = {
@@ -73,6 +79,7 @@ export type OpsInventoryBalanceListParams = {
   inventoryItemId?: string;
   itemType?: InventoryItemType;
   stockStatus?: InventoryStockStatusFilterInput;
+  isActive?: boolean;
   limit: number;
   offset: number;
 };
@@ -82,34 +89,6 @@ export type OpsInventoryMovementListParams = OpsInventoryBalanceListParams & {
   start?: Date;
   end?: Date;
 };
-
-function balanceItemWhere(params: {
-  search?: string;
-  itemType?: InventoryItemType;
-}): Prisma.InventoryItemWhereInput | undefined {
-  const where: Prisma.InventoryItemWhereInput = {
-    ...(params.search
-      ? {
-          OR: [
-            { code: { contains: params.search, mode: "insensitive" } },
-            { name: { contains: params.search, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-    ...(params.itemType ? { type: params.itemType } : {}),
-  };
-
-  return Object.keys(where).length > 0 ? where : undefined;
-}
-
-function matchesStockStatus(
-  balance: OpsInventoryBalanceRow,
-  stockStatus: InventoryStockStatusFilterInput
-): boolean {
-  const threshold = balance.inventory_item.low_stock_threshold;
-  const isLowStock = threshold !== null && balance.quantity_on_hand <= threshold;
-  return stockStatus === "LOW_STOCK" ? isLowStock : !isLowStock;
-}
 
 export const opsInventoryReadRepository = {
   async listDistributors(): Promise<OpsInventoryDistributorRow[]> {
@@ -128,6 +107,7 @@ export const opsInventoryReadRepository = {
     const inventoryItemWhere = balanceItemWhere({
       search: params.search,
       itemType: params.itemType,
+      isActive: params.isActive,
     });
     const where: Prisma.DistributorInventoryBalanceWhereInput = {
       ...(params.distributorId ? { distributor_id: params.distributorId } : {}),

@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **06/07/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **07/07/2026**.
 
 ---
 
@@ -33,6 +33,7 @@
 - [x] Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo água → vasilhame (`bottle_product_id`)
 - [x] Inventário operacional: itens, saldos por distribuidora, log de movimentações (11 tipos), sessões de reconciliação com ajuste automático
 - [x] Conciliação diária de vasilhames (delta > 0 exige justificativa)
+- [x] **Fix itens inativos nas listagens de saldo** (07/07/2026): `GET /api/distributor/inventory/balances` e `GET /api/ops/inventory/balances` ganharam filtro `is_active` (query param, default `true`) — antes, item desativado (`29_mst_inventory_items.is_active = false`) mantinha o saldo visível, gerando duplicidade com item substituto, KPIs inflados e alertas falsos de baixo estoque. Helper DRY `balance-query.helpers.ts` unifica o where entre os repositórios distributor/ops; `item.is_active` agora exposto nos payloads de saldos, movimentos e detalhe por id. Sem filtro (intencional): `findBalanceById` (auditoria) e extrato de movimentações (histórico imutável)
 
 ### Autenticação e segurança
 - [x] Login JWT em cookie httpOnly + RBAC 5 roles + logout com blacklist Redis
@@ -91,6 +92,7 @@
 | 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
 | 11 | **SMS fallback do OTP** | Docs citam "SMS fallback" e telefone obrigatório para OTP por SMS, mas só Web Push é descrito como canal implementado. [A DEFINIR: SMS está ativo?] |
 | 12 | **Valores de negócio abertos** | Valor da caução v1 (R$ X), desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
+| 13 | **Sem endpoint de escrita para itens de inventário** | `inventoryItemUpdateSchema` existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome — criação/desativação de `29_mst_inventory_items` hoje é UPDATE manual no banco, sem validação de saldo remanescente (item pode ser desativado com saldo > 0, que fica oculto nas listagens; causa raiz do fix de 07/07/2026). Proposta técnica do CRUD aprovada: `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md` |
 
 ---
 
@@ -99,4 +101,6 @@
 - Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
-- Últimos marcos: esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- Últimos marcos: fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+
+**Última atualização: 07 de julho de 2026.**
