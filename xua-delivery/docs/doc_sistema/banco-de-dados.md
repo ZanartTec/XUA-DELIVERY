@@ -27,7 +27,6 @@ Relacionamentos principais:
 - 1:N com `02_mst_addresses`
 - 1:N com `09_trn_orders`
 - 1:N com `08_sec_consumer_push_tokens`
-- 1:N com `15_trn_deposits`
 - 1:N com `27_trn_user_subscriptions`
 - N:1 com `03_mst_distributors` quando o usuário pertence a uma distribuidora
 
@@ -80,7 +79,7 @@ Relacionamentos principais:
 
 ### 06_mst_products
 
-Mantém o catálogo de produtos vendidos no sistema. Guarda nome, descrição, imagem, preço e valor de caução associado ao item.
+Mantém o catálogo de produtos vendidos no sistema. Guarda nome, descrição, imagem e preço. (O campo `deposit_cents`, valor de caução financeira v1 por produto, foi removido em jul/2026.)
 
 É a fonte de referência para montagem do catálogo e para o snapshot dos itens do pedido.
 
@@ -181,7 +180,6 @@ Relacionamentos principais:
 - N:1 com `24_cfg_time_slots`
 - 1:N com `10_trn_order_items`
 - 1:N com `13_trn_payments`
-- 1:N com `15_trn_deposits`
 - 1:N com `16_sec_order_otps`
 - 1:N com `18_aud_audit_events`
 - 0..1:1 com `28_trn_subscription_delivery_dates` quando gerado por assinatura v2
@@ -206,15 +204,11 @@ Relacionamentos principais:
 - N:1 com `09_trn_orders`
 - 1:N com `21_trn_payment_transactions`
 
-### 15_trn_deposits
+### z_arch_15_trn_deposits (arquivo — caução financeira v1)
 
-Registra a caução financeira (v1, legado) vinculada ao pedido e ao consumidor. Guarda valor, status da caução e quando houve devolução.
+A tabela `15_trn_deposits` registrava a caução **financeira** (v1): o dinheiro retido do consumidor até o retorno do vasilhame (valor, status `HELD/REFUNDED/...` e data de devolução). Foi **removida do schema em jul/2026** e seus dados arquivados em `z_arch_15_trn_deposits` (somente leitura, sem FKs, `status` como texto), via as migrations `20260708130000_archive_legacy_financial_deposits` e `20260708130001_drop_legacy_financial_deposits`. O número `15` fica aposentado.
 
-Essa tabela existia para controlar o dinheiro retido até o retorno do vasilhame. O modelo atual de caução é o **programa de vasilhames (v2)** — `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances` e `37_log_consumer_deposit_movements` — que controla vasilhames emprestados por quantidade, não por valor retido.
-
-Relacionamentos principais:
-- N:1 com `09_trn_orders`
-- N:1 com `01_mst_consumers`
+O modelo atual de caução é o **programa de vasilhames (v2)** — `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances` e `37_log_consumer_deposit_movements` — que controla vasilhames emprestados por quantidade, não por valor retido. Detalhes em `doc_desenvolvimento/caucao-vasilhames.md`.
 
 ### 36_trn_consumer_deposit_balances
 
@@ -305,7 +299,7 @@ Relacionamentos principais:
 - Assinaturas v2 (planos pré-definidos): `25_cfg_subscription_plans`, `26_piv_subscription_plan_distributors`, `27_trn_user_subscriptions`, `28_trn_subscription_delivery_dates`
 - Pagamentos: `13_trn_payments`, `14_cfg_payment_webhook_events`, `20_cfg_idempotency_keys`, `21_trn_payment_transactions`, `34_cfg_distributor_payment_settings`
 - Caução de vasilhames (v2): `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances`, `37_log_consumer_deposit_movements`
-- Caução financeira (v1, legado) e conciliação: `15_trn_deposits`, `17_trn_reconciliations`
+- Conciliação: `17_trn_reconciliations` — (a caução financeira v1 `15_trn_deposits` foi arquivada em `z_arch_15_trn_deposits` e removida do schema, jul/2026)
 - Inventário operacional: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`
 - Notificações: `08_sec_consumer_push_tokens`
 
@@ -428,15 +422,16 @@ Relacionamentos principais:
 
 ## Observação importante
 
-O schema atual possui **36 tabelas** e **20 enums**. Em relação às versões anteriores documentadas:
+O schema atual possui **35 tabelas** e **19 enums** (fora a tabela de arquivo `z_arch_15_trn_deposits`, que não faz parte do schema Prisma). Em relação às versões anteriores documentadas:
 
 - A tabela `07_cfg_delivery_capacity` (controle de overbooking por slot) foi **removida** na migration `20260601000000_remove_delivery_capacity`. O número `07` foi reutilizado por `07_mst_categories`. O controle de disponibilidade agora é gerenciado via agenda da distribuidora (`22_cfg_distributor_schedule`), datas bloqueadas (`23_cfg_distributor_blocked_dates`) e validação de lead-time no serviço de agendamento.
 - **5 tabelas de inventário operacional** foram adicionadas: `29_mst_inventory_items`, `30_trn_distributor_inventory_balances`, `31_trn_inventory_movements`, `32_trn_inventory_reconciliation_sessions`, `33_trn_inventory_reconciliation_items`.
 - **Configuração de pagamento por distribuidora** (`34_cfg_distributor_payment_settings`): credenciais Mercado Pago próprias de cada distribuidora, criptografadas com AES-256-GCM (migration de junho/2026).
-- **Caução de vasilhames v2** (migration `20260624030000_add_bottle_deposit_program`): `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances`, `37_log_consumer_deposit_movements`. Substitui o modelo de caução financeira de `15_trn_deposits` (mantida como legado).
+- **Caução de vasilhames v2** (migration `20260624030000_add_bottle_deposit_program`): `35_cfg_consumer_deposit_programs`, `36_trn_consumer_deposit_balances`, `37_log_consumer_deposit_movements`. Substituiu o modelo de caução financeira de `15_trn_deposits`.
+- **Remoção da caução financeira v1** (migrations `20260708130000_archive_legacy_financial_deposits` e `20260708130001_drop_legacy_financial_deposits`): `15_trn_deposits` arquivada em `z_arch_15_trn_deposits` e removida do schema, junto com o type `deposit_status` e a coluna `06_mst_products.deposit_cents`. Mantidos por compatibilidade: valor `deposit` do enum `payment_kind` e `DEPOSIT_*` do enum `audit_event_type` (Postgres não permite `DROP VALUE`; auditoria é append-only) e as colunas `deposit_cents`/`deposit_amount_cents` de `09_trn_orders` (histórico).
 - **Retry de assinaturas** (migration `20260628000000`): status `ORDER_CREATED`/`FAILED` e campo `generation_attempts` em `28_trn_subscription_delivery_dates`.
 - **Redefinição de senha** (migration `20260701140000_add_password_reset_tokens`): tabela `38_sec_password_reset_tokens`.
 
 Este documento reflete o estado atual do banco no repositório.
 
-**Última atualização: 07 de julho de 2026.**
+**Última atualização: 08 de julho de 2026.**

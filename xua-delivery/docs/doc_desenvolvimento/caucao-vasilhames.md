@@ -66,8 +66,9 @@ Na confirmação da entrega (`recordBottleExchange` → `settleDelivery`):
 - `37_log_consumer_deposit_movements` (histórico event-sourcing: `LOAN_OUT`/`RETURN_IN`/`MANUAL_ADJUSTMENT`/`WRITE_OFF`)
 - `Product`: `kind` (`ProductKind`: WATER/BOTTLE/OTHER) + `bottle_product_id` (auto-relação água→vasilhame).
 - `Order`: `bottles_full_ordered`, `empty_bottles_provided`, `bottles_sold`, `bottles_loaned` (agregados;
-  o detalhe por tipo vive nos itens de venda do vasilhame e no ledger de caução). Campos
-  `deposit_cents`/`deposit_amount_cents` deprecated = 0 até a remoção destrutiva final.
+  o detalhe por tipo vive nos itens de venda do vasilhame e no ledger de caução). Os campos
+  `deposit_cents`/`deposit_amount_cents` de `Order` (caução financeira v1) foram mantidos por
+  histórico (compõem `total_cents` de pedidos antigos) e valem 0 em pedidos novos; `Product.deposit_cents` foi removido.
 
 ## APIs
 
@@ -75,7 +76,11 @@ Na confirmação da entrega (`recordBottleExchange` → `settleDelivery`):
 - Distribuidora: `GET/POST/PATCH /api/distributor/deposit-program*`, `GET /api/distributor/deposit/balances`,
   `POST /api/distributor/deposit/:consumerId/adjust`.
 
-## Pendências (fase destrutiva — após observação + validação em base com dados)
+## Fase destrutiva — executada em jul/2026
 
-- Arquivar `15_trn_deposits` e remover `model Deposit`, `enum DepositStatus`, `PaymentKind.DEPOSIT`,
-  eventos `DEPOSIT_HELD/REFUND_INITIATED/REFUNDED` e os campos `deposit_*` de `Order`.
+Migrations `20260708130000_archive_legacy_financial_deposits` e `20260708130001_drop_legacy_financial_deposits`:
+
+- **Arquivada e removida:** `15_trn_deposits` copiada para `z_arch_15_trn_deposits` (somente leitura, `status` como texto, coluna `archived_at`) e dropada, junto com `model Deposit`, `enum DepositStatus` / type `deposit_status` e `Product.deposit_cents`.
+- **Também removido (código):** include `deposits[]` no `GET /orders/:id`, branches `PaymentKind.DEPOSIT` nos webhooks, tipos `Deposit`/`DepositStatus` no frontend e os registros de caução v1 no `seed.ts`.
+- **Mantidos de propósito:** `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_HELD/REFUND_INITIATED/REFUNDED` — Postgres não permite `DROP VALUE` em enum e a auditoria (`18_aud`) é append-only, com eventos históricos desses tipos. Também mantidas as colunas `Order.deposit_cents`/`deposit_amount_cents` (histórico compõe `total_cents`).
+- **Pré-condição operacional:** rodar as queries de verificação (contagem em `15_trn_deposits`, payments `kind='deposit'`, eventos `DEPOSIT_*`, orders com `deposit_cents ≠ 0`) e ter backup validado antes de aplicar em produção; deploy do código antes das migrations, nunca o inverso.

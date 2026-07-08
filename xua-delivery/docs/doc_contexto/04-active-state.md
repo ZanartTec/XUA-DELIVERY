@@ -81,7 +81,7 @@
 
 | # | Item | Detalhe |
 |---|---|---|
-| 1 | **Caução v1 legada no schema** | `15_trn_deposits` + `deposit_cents` + `DepositStatus` + eventos `DEPOSIT_HELD/REFUND_*` permanecem no schema/enum como legado da caução financeira, substituída pela v2. Decidir: remoção formal ou manutenção para histórico |
+| 1 | ~~**Caução v1 legada no schema**~~ **✅ RESOLVIDO (jul/2026)** | Caução financeira v1 removida. Tabela `15_trn_deposits` arquivada em `z_arch_15_trn_deposits` e removida do schema; removidos `model Deposit`, `enum DepositStatus`, `Product.deposit_cents` e o include `deposits[]` do `GET /orders/:id`. **Mantidos de propósito:** `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_HELD/REFUND_*` (Postgres não suporta `DROP VALUE` em enum; `18_aud` é append-only) e as colunas `Order.deposit_cents`/`deposit_amount_cents` (histórico compõe `total_cents`; novos pedidos gravam 0). Migrations: `20260708130000_archive_legacy_financial_deposits`, `20260708130001_drop_legacy_financial_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md` |
 | 2 | **Endpoint órfão de cancelamento de assinatura** | `PATCH /api/user-subscriptions/:id/cancel` existe no backend, mas o botão "Cancelar" foi removido da UI do consumer (pendência "P6" citada na doc). Decidir destino do endpoint |
 | 3 | **Sem anti-overbooking numérico** | A tabela `07_cfg_delivery_capacity` foi removida; não há bloqueio por contagem de pedidos por slot — só agenda/lead-time/bloqueios. Se overbooking virar problema real, reintroduzir controle de capacidade |
 | 4 | **DDL histórico divergente** | O `doc_sistema.md` contém rascunhos de DDL e envelope de eventos "ricos" (correlation, geo, recorded_at) que **não** correspondem ao schema real (plano). Fonte da verdade: `prisma/schema.prisma`. Não implementar a partir do rascunho |
@@ -92,7 +92,7 @@
 | 9 | **LGPD / retenção** | Política de retenção de dados e evidências [A DEFINIR] |
 | 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
 | 11 | **SMS fallback do OTP** | Docs citam "SMS fallback" e telefone obrigatório para OTP por SMS, mas só Web Push é descrito como canal implementado. [A DEFINIR: SMS está ativo?] |
-| 12 | **Valores de negócio abertos** | Valor da caução v1 (R$ X), desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
+| 12 | **Valores de negócio abertos** | Desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
 | 13 | **Sem endpoint de escrita para itens de inventário** | `inventoryItemUpdateSchema` existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome. Itens vendáveis passaram a ser criados automaticamente pelo provisionamento na criação/reativação de produto (07/07/2026), mas edição/desativação de `29_mst_inventory_items` continua sendo UPDATE manual no banco, sem validação de saldo remanescente (item pode ser desativado com saldo > 0, que fica oculto nas listagens; causa raiz do fix de 07/07/2026). Proposta técnica do CRUD aprovada: `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md` |
 | 14 | **Criação de produto e de item de inventário sem AuditEvent** | O provisionamento (07/07/2026) e o próprio `POST /api/products` não emitem eventos de auditoria — `AuditEventType` não tem valores para catálogo/inventário mestre. Decisão: criar os eventos junto com o CRUD de itens de inventário (ver proposta em `doc_desenvolvimento/inventario-itens-crud-proposta.md`) |
 | 15 | **Invariante "1 item vendável ativo por produto" só aplicacional** | Não há constraint de banco (índice único parcial exigiria migration raw SQL). O provisionamento detecta >1 item ativo, loga warn e faz no-op. Decisão futura do xua-banco-dados |
@@ -107,4 +107,4 @@
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
 - Últimos marcos: provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
 
-**Última atualização: 07 de julho de 2026.**
+**Última atualização: 08 de julho de 2026.**

@@ -104,7 +104,7 @@ pois a geração de assinatura não passa pelo `createOrder` e não checa `is_ac
 
 ## Fora de escopo (deliberado)
 
-- Remoção de código/tabelas de caução (reversibilidade; base do Comodato B2B).
+- Remoção de código/tabelas da caução de vasilhames **v2** (reversibilidade; base do Comodato B2B). — A caução financeira **v1** foi removida em jul/2026 (ver `doc_desenvolvimento/caucao-vasilhames.md`).
 - Filtro geográfico multi-distribuidora (próxima demanda, plano próprio).
 - Renomear caução→comodato na UI do distribuidor (junto com a feature Comodato B2B).
 - Cobrança dinâmica na entrega (bloqueada: regra comercial pendente com o cliente/Jean).

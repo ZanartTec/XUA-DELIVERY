@@ -12,12 +12,12 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 | Tabela | Campos principais | Descrição / Relacionamentos |
 |---|---|---|
-| `01_mst_consumers` | `name`, `email` (unique), `phone`, `document`, `password_hash`, `role` (ConsumerRole), `is_b2b`, `distributor_id` FK, `auto_assign_distributor`, `preferred_distributor_id` | Todos os usuários (5 roles). 1:N com addresses, orders, push_tokens, deposits, user_subscriptions, password_reset_tokens; N:1 com distributor quando usuário interno |
+| `01_mst_consumers` | `name`, `email` (unique), `phone`, `document`, `password_hash`, `role` (ConsumerRole), `is_b2b`, `distributor_id` FK, `auto_assign_distributor`, `preferred_distributor_id` | Todos os usuários (5 roles). 1:N com addresses, orders, push_tokens, user_subscriptions, password_reset_tokens; N:1 com distributor quando usuário interno |
 | `02_mst_addresses` | `street`, `number`, `complement`, `neighborhood`, `city`, `state`, `zip_code`, `zone_id` FK, `is_default` | Endereços do consumidor (sem lat/lng; lookup por CEP). N:1 consumers/zones; 1:N orders |
 | `03_mst_distributors` | `name`, `cnpj` (unique), `phone`, `email`, `acceptance_sla_seconds`, `is_active`, `allows_consumer_choice` | Distribuidoras parceiras. 1:N zones, orders, schedule, blocked_dates, time_slots, reconciliations; 1:1 payment_settings |
 | `04_mst_zones` | `distributor_id` FK, `name`, `is_active` | Zonas de atendimento. 1:N zone_coverage, addresses, orders |
 | `05_mst_zone_coverage` | `zone_id` FK, `neighborhood`, `zip_code` | Resolve "esse endereço é atendido?" |
-| `06_mst_products` | `name`, `price_cents`, `deposit_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items. Criação/reativação pela ops provisiona automaticamente item de estoque `SELLABLE_PRODUCT` na mesma transação (fix 07/07/2026) |
+| `06_mst_products` | `name`, `price_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items. Criação/reativação pela ops provisiona automaticamente item de estoque `SELLABLE_PRODUCT` na mesma transação (fix 07/07/2026) |
 | `07_mst_categories` | `name`, `sort_order`, `is_active` | Categorias do catálogo (N:N implícito com products) |
 | `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold`, `is_active` (default `true`) | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos. Origem: seeds + provisionamento automático na criação/reativação de produto (fix 07/07/2026, `code` = slug do nome + fragmento do UUID). `is_active = false` = soft delete do cadastro: saldos ocultos por default nas listagens (fix 07/07/2026), movimentos rejeitados, histórico preservado |
 
@@ -39,10 +39,10 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 | Tabela | Campos principais | Descrição |
 |---|---|---|
-| `09_trn_orders` | `consumer_id`, `address_id`, `distributor_id`, `zone_id`, `driver_id`, `status` (OrderStatus, 14 valores), `delivery_date`, `delivery_window`, `time_slot_id` (snapshot), `subtotal_cents`, `deposit_cents`, `total_cents`, `bottles_full_ordered`, `empty_bottles_provided`, `collected_empty_qty`, `rating`, `nps_score`, `accepted_at`, `dispatched_at`, `delivered_at` | **Entidade central.** Índices: fila do distribuidor, NPS por distribuidora, histórico do consumidor |
+| `09_trn_orders` | `consumer_id`, `address_id`, `distributor_id`, `zone_id`, `driver_id`, `status` (OrderStatus, 14 valores), `delivery_date`, `delivery_window`, `time_slot_id` (snapshot), `subtotal_cents`, `total_cents`, `bottles_full_ordered`, `empty_bottles_provided`, `collected_empty_qty`, `rating`, `nps_score`, `accepted_at`, `dispatched_at`, `delivered_at` | **Entidade central.** As colunas `deposit_cents`/`deposit_amount_cents` (caução financeira v1) permanecem na tabela por histórico (compõem `total_cents` de pedidos antigos), sempre `0` em pedidos novos e não expostas pela API. Índices: fila do distribuidor, NPS por distribuidora, histórico do consumidor |
 | `10_trn_order_items` | `order_id`, `product_id`, `product_name`, `unit_price_cents`, `quantity`, `subtotal_cents` | Snapshot imutável dos itens |
-| `13_trn_payments` | `order_id` FK?, `user_subscription_id` FK?, `kind` (ORDER/SUBSCRIPTION/DEPOSIT), `status` (PaymentStatus), `amount_cents`, `payment_method`, `cash_change_for_cents`, `provider`, `provider_payment_ref`, `external_id` (unique), `idempotency_key`, `paid_at` | Cobranças; pagamento de assinatura liga-se à assinatura, não ao pedido |
-| `15_trn_deposits` | `order_id`, `consumer_id`, `amount_cents`, `status` (DepositStatus), `refunded_at` | **Caução financeira v1 — LEGADO** (substituída pela v2) |
+| `13_trn_payments` | `order_id` FK?, `user_subscription_id` FK?, `kind` (ORDER/SUBSCRIPTION; `DEPOSIT` legado da v1, sem uso novo), `status` (PaymentStatus), `amount_cents`, `payment_method`, `cash_change_for_cents`, `provider`, `provider_payment_ref`, `external_id` (unique), `idempotency_key`, `paid_at` | Cobranças; pagamento de assinatura liga-se à assinatura, não ao pedido |
+| ~~`15_trn_deposits`~~ | — | **Caução financeira v1 — REMOVIDA (jul/2026).** Tabela arquivada em `z_arch_15_trn_deposits` (somente leitura) e removida do schema; número `15` aposentado |
 | `17_trn_reconciliations` | `distributor_id`, `reconciliation_date`, `full_out`, `empty_returned`, `delta`, `justification`, `closed_by` | Conciliação diária de vasilhames; justificativa obrigatória se delta > 0 |
 | `21_trn_payment_transactions` | `payment_id`, `action`, `provider_status`, `provider_response` JSON, `idempotency_key` | Trilha técnica de interações com o gateway |
 | `27_trn_user_subscriptions` | `consumer_id`, `plan_id`, `distributor_id`, `address_id`, `total_quantity`, `remaining_quantity`, `start_date`, `end_date`, `status` (UserSubscriptionStatus), `low_balance_notification_sent_at` | Assinatura contratada; notificação de saldo baixo quando `remaining_quantity ≤ 3` (idempotente) |
@@ -73,9 +73,8 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `OrderStatus` (14) | `DRAFT, CREATED, PAYMENT_PENDING, CONFIRMED, SENT_TO_DISTRIBUTOR, ACCEPTED_BY_DISTRIBUTOR, REJECTED_BY_DISTRIBUTOR, PICKING, READY_FOR_DISPATCH, OUT_FOR_DELIVERY, DELIVERED, DELIVERY_FAILED, REDELIVERY_SCHEDULED, CANCELLED` |
 | `DeliveryWindow` | `MORNING, AFTERNOON` |
 | `OtpStatus` | `ACTIVE, USED, EXPIRED, LOCKED` |
-| `PaymentKind` | `ORDER, SUBSCRIPTION, DEPOSIT` |
+| `PaymentKind` | `ORDER, SUBSCRIPTION` (`DEPOSIT` legado da caução v1, mantido no enum Postgres) |
 | `PaymentStatus` | `CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED, EXPIRED` |
-| `DepositStatus` | `HELD, REFUND_INITIATED, REFUNDED, FORFEITED, CANCELLED` |
 | `ActorType` | `CONSUMER, DISTRIBUTOR_USER, DRIVER, SUPPORT, OPS, SYSTEM` |
 | `ConsumerRole` | `CONSUMER, DISTRIBUTOR_ADMIN, DRIVER, SUPPORT, OPS` |
 | `SourceApp` | `CONSUMER_WEB, DISTRIBUTOR_WEB, DRIVER_WEB, OPS_CONSOLE, BACKEND` |
@@ -101,7 +100,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 |---|---|---|
 | `DRAFT → CREATED` | endereço válido e coberto + janela selecionada + `validateDeliveryDate()` (agenda ativa, sem bloqueio, lead-time ok — senão HTTP 422) | `ORDER_CREATED` (payload inclui `distributor_selection_mode: manual\|auto`) |
 | `CREATED → PAYMENT_PENDING` | preço final calculado | `ORDER_PRICING_FINALIZED`, `PAYMENT_CREATED` |
-| `PAYMENT_PENDING → CONFIRMED` | pagamento capturado via webhook | `PAYMENT_CAPTURED`, `ORDER_CONFIRMED` (+ `DEPOSIT_HELD` na 1ª compra, v1 legado) |
+| `PAYMENT_PENDING → CONFIRMED` | pagamento capturado via webhook | `PAYMENT_CAPTURED`, `ORDER_CONFIRMED` (o evento `DEPOSIT_HELD` da caução v1 não é mais emitido — removida jul/2026) |
 | `CONFIRMED → SENT_TO_DISTRIBUTOR` | distribuidora resolvida (`resolveDistributor()`) | `ORDER_RECEIVED_BY_DISTRIBUTOR` + Socket.io `new_order` na sala `distributor:{id}` |
 | `SENT → ACCEPTED_BY_DISTRIBUTOR` | dentro do SLA (`acceptance_sla_seconds`) | `ORDER_ACCEPTED_BY_DISTRIBUTOR` |
 | `ACCEPTED → PICKING → READY_FOR_DISPATCH` | checklist 3 itens 100% (itens, vasilhames, endereço/contato) — sem bypass | `DISPATCH_CHECKLIST_COMPLETED` |
@@ -138,7 +137,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 - Distribuidora habilita cliente no programa (`max_bottles`; `0` = bloqueado).
 - Empréstimo/devolução geram movimentos append-only (`LOAN_OUT`, `RETURN_IN`, `MANUAL_ADJUSTMENT`, `WRITE_OFF`); saldo materializado nunca negativo.
 - Eventos de auditoria: `DEPOSIT_BOTTLES_LOANED/RETURNED/WRITTEN_OFF`, `DEPOSIT_PROGRAM_ENABLED/DISABLED`.
-- **v1 (legado):** caução financeira `15_trn_deposits` — Regra A: `HELD → REFUND_INITIATED` somente quando `DELIVERED AND collected_empty_qty ≥ 1`, validada apenas no backend.
+- **v1 (removida jul/2026):** a caução financeira (`15_trn_deposits`, "Regra A") foi desativada e a tabela arquivada em `z_arch_15_trn_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md`.
 
 ### 2.6 KPIs (calculados só por eventos)
 
@@ -154,6 +153,8 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 ## 3. Eventos de auditoria (`AuditEventType` — 34 tipos)
 
 `ORDER_CREATED · ORDER_PRICING_FINALIZED · ORDER_CONFIRMED · ORDER_CANCELLED · ORDER_RECEIVED_BY_DISTRIBUTOR · ORDER_ACCEPTED_BY_DISTRIBUTOR · ORDER_REJECTED_BY_DISTRIBUTOR · ORDER_DRIVER_ASSIGNED · DISPATCH_CHECKLIST_COMPLETED · ORDER_DISPATCHED · OTP_GENERATED · OTP_SENT · OTP_VALIDATION_ATTEMPTED · OTP_OVERRIDE · ORDER_DELIVERED · BOTTLE_EXCHANGE_RECORDED · EMPTY_NOT_COLLECTED · REDELIVERY_REQUIRED · REDELIVERY_SCHEDULED · PAYMENT_CREATED · PAYMENT_CAPTURED · PAYMENT_FAILED · PAYMENT_EXPIRED · PAYMENT_REFUNDED · PAYMENT_REFUND_FAILED · DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED · DAILY_RECONCILIATION_CLOSED · DEPOSIT_BOTTLES_LOANED · DEPOSIT_BOTTLES_RETURNED · DEPOSIT_BOTTLES_WRITTEN_OFF · DEPOSIT_PROGRAM_ENABLED · DEPOSIT_PROGRAM_DISABLED`
+
+> `DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED` são da caução financeira v1 (removida jul/2026): **não são mais emitidos**, mas permanecem no enum porque a auditoria (`18_aud_audit_events`) é append-only e contém eventos históricos com esses tipos.
 
 ---
 
@@ -204,4 +205,4 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-**Última atualização: 07 de julho de 2026.**
+**Última atualização: 08 de julho de 2026.**
