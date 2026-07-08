@@ -33,6 +33,7 @@ const distributorA = "7e1d7b55-3f52-4d10-aac3-74387c236201";
 const distributorB = "7e1d7b55-3f52-4d10-aac3-74387c236202";
 const itemA = "7e1d7b55-3f52-4d10-aac3-74387c236203";
 const itemB = "7e1d7b55-3f52-4d10-aac3-74387c236204";
+const itemInactive = "7e1d7b55-3f52-4d10-aac3-74387c236206";
 const firstDate = new Date("2026-05-26T12:00:00.000Z");
 const secondDate = new Date("2026-05-27T12:00:00.000Z");
 
@@ -43,6 +44,7 @@ const inventoryItemA = {
   type: "SELLABLE_PRODUCT",
   unit_label: "un",
   low_stock_threshold: 5,
+  is_active: true,
 };
 
 const inventoryItemB = {
@@ -52,6 +54,17 @@ const inventoryItemB = {
   type: "RETURNABLE_EMPTY",
   unit_label: "un",
   low_stock_threshold: 2,
+  is_active: true,
+};
+
+const inventoryItemInactive = {
+  id: itemInactive,
+  code: "OLD10L",
+  name: "Garrafao descontinuado 10L",
+  type: "SELLABLE_PRODUCT",
+  unit_label: "un",
+  low_stock_threshold: 1,
+  is_active: false,
 };
 
 const balances = [
@@ -72,6 +85,15 @@ const balances = [
     last_movement_at: secondDate,
     updated_at: secondDate,
     inventory_item: inventoryItemB,
+  },
+  {
+    id: "balance-a-3",
+    distributor_id: distributorA,
+    inventory_item_id: itemInactive,
+    quantity_on_hand: 1,
+    last_movement_at: firstDate,
+    updated_at: firstDate,
+    inventory_item: inventoryItemInactive,
   },
   {
     id: "balance-b-1",
@@ -132,11 +154,17 @@ const movements = [
   },
 ];
 
-function filterBalances(where: { distributor_id?: string; inventory_item_id?: string }) {
+function filterBalances(where: {
+  distributor_id?: string;
+  inventory_item_id?: string;
+  inventory_item?: { is_active?: boolean };
+}) {
   return balances.filter(
     (balance) =>
       (!where.distributor_id || balance.distributor_id === where.distributor_id) &&
-      (!where.inventory_item_id || balance.inventory_item_id === where.inventory_item_id)
+      (!where.inventory_item_id || balance.inventory_item_id === where.inventory_item_id) &&
+      (where.inventory_item?.is_active === undefined ||
+        balance.inventory_item.is_active === where.inventory_item.is_active)
   );
 }
 
@@ -175,9 +203,31 @@ beforeEach(() => {
 });
 
 describe("inventoryRepository leitura distribuidor", () => {
-  it("lista apenas saldos da distribuidora solicitada com dois itens", async () => {
+  it("lista apenas saldos da distribuidora solicitada sem filtrar is_active por padrao", async () => {
     const result = await inventoryRepository.listBalances({
       distributorId: distributorA,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(3);
+    expect(result.balances.map((balance) => balance.id)).toEqual([
+      "balance-a-1",
+      "balance-a-2",
+      "balance-a-3",
+    ]);
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { distributor_id: distributorA },
+        select: expect.not.objectContaining({ distributor_id: true }),
+      })
+    );
+  });
+
+  it("filtra itens inativos no where do banco quando isActive=true", async () => {
+    const result = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      isActive: true,
       limit: 50,
       offset: 0,
     });
@@ -186,8 +236,51 @@ describe("inventoryRepository leitura distribuidor", () => {
     expect(result.balances.map((balance) => balance.id)).toEqual(["balance-a-1", "balance-a-2"]);
     expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { distributor_id: distributorA },
-        select: expect.not.objectContaining({ distributor_id: true }),
+        where: { distributor_id: distributorA, inventory_item: { is_active: true } },
+      })
+    );
+  });
+
+  it("permite consultar apenas itens inativos com isActive=false", async () => {
+    const result = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      isActive: false,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(1);
+    expect(result.balances.map((balance) => balance.id)).toEqual(["balance-a-3"]);
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { distributor_id: distributorA, inventory_item: { is_active: false } },
+      })
+    );
+  });
+
+  it("combina isActive com busca e tipo no mesmo where de item", async () => {
+    await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      search: "agua",
+      itemType: InventoryItemType.SELLABLE_PRODUCT,
+      isActive: true,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          distributor_id: distributorA,
+          inventory_item: {
+            OR: [
+              { code: { contains: "agua", mode: "insensitive" } },
+              { name: { contains: "agua", mode: "insensitive" } },
+            ],
+            type: InventoryItemType.SELLABLE_PRODUCT,
+            is_active: true,
+          },
+        },
       })
     );
   });
@@ -208,12 +301,14 @@ describe("inventoryRepository leitura distribuidor", () => {
     const lowStock = await inventoryRepository.listBalances({
       distributorId: distributorA,
       stockStatus: "LOW_STOCK",
+      isActive: true,
       limit: 50,
       offset: 0,
     });
     const okStock = await inventoryRepository.listBalances({
       distributorId: distributorA,
       stockStatus: "OK",
+      isActive: true,
       limit: 50,
       offset: 0,
     });
@@ -224,8 +319,34 @@ describe("inventoryRepository leitura distribuidor", () => {
     expect(okStock.balances.map((balance) => balance.id)).toEqual(["balance-a-2"]);
     expect(mocks.prisma.distributorInventoryBalance.count).not.toHaveBeenCalled();
     expect(mocks.prisma.distributorInventoryBalance.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { distributor_id: distributorA } })
+      expect.objectContaining({
+        where: { distributor_id: distributorA, inventory_item: { is_active: true } },
+      })
     );
+  });
+
+  it("exclui item inativo do total e do caminho stock_status quando isActive=true", async () => {
+    const semFiltro = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "LOW_STOCK",
+      limit: 50,
+      offset: 0,
+    });
+    const somenteAtivos = await inventoryRepository.listBalances({
+      distributorId: distributorA,
+      stockStatus: "LOW_STOCK",
+      isActive: true,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(semFiltro.total).toBe(2);
+    expect(semFiltro.balances.map((balance) => balance.id)).toEqual([
+      "balance-a-1",
+      "balance-a-3",
+    ]);
+    expect(somenteAtivos.total).toBe(1);
+    expect(somenteAtivos.balances.map((balance) => balance.id)).toEqual(["balance-a-1"]);
   });
 
   it("lista apenas movimentos da distribuidora solicitada e aplica filtros", async () => {

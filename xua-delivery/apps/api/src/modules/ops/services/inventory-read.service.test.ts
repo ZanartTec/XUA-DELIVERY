@@ -44,6 +44,7 @@ function inventoryItem() {
     type: "SELLABLE_PRODUCT",
     unit_label: "un",
     low_stock_threshold: 5,
+    is_active: true,
   };
 }
 
@@ -109,6 +110,7 @@ describe("opsInventoryReadService.listBalances", () => {
     expect(mocks.repository.listBalances).toHaveBeenCalledWith({
       distributorId,
       inventoryItemId,
+      isActive: true,
       limit: 20,
       offset: 5,
     });
@@ -125,6 +127,7 @@ describe("opsInventoryReadService.listBalances", () => {
             name: "Agua 20L",
             type: "SELLABLE_PRODUCT",
             unit_label: "un",
+            is_active: true,
           },
           quantity_on_hand: 4,
           low_stock_threshold: 5,
@@ -135,6 +138,20 @@ describe("opsInventoryReadService.listBalances", () => {
       ],
       pagination: { limit: 20, offset: 5, total: 1 },
     });
+  });
+
+  it("repassa isActive=false ao repositorio para consultar itens inativos", async () => {
+    const query = opsInventoryBalanceQuerySchema.parse({
+      is_active: "false",
+      limit: "20",
+      offset: "0",
+    });
+
+    await opsInventoryReadService.listBalances(query);
+
+    expect(mocks.repository.listBalances).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: false })
+    );
   });
 
   it("exige limit e offset nos schemas OPS", () => {

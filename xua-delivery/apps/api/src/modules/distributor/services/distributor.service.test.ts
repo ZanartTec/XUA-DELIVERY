@@ -107,6 +107,7 @@ function balanceRow(overrides: Record<string, unknown> = {}) {
       type: "SELLABLE_PRODUCT",
       unit_label: "un",
       low_stock_threshold: 5,
+      is_active: true,
     },
     ...overrides,
   };
@@ -133,6 +134,7 @@ function movementRow(overrides: Record<string, unknown> = {}) {
       type: "SELLABLE_PRODUCT",
       unit_label: "un",
       low_stock_threshold: 5,
+      is_active: true,
     },
     ...overrides,
   };
@@ -204,6 +206,7 @@ describe("distributorService.listInventoryBalances", () => {
     expect(mocks.inventoryRepository.listBalances).toHaveBeenCalledWith({
       distributorId,
       inventoryItemId,
+      isActive: true,
       limit: 20,
       offset: 5,
     });
@@ -218,6 +221,7 @@ describe("distributorService.listInventoryBalances", () => {
             name: "Agua 20L",
             type: "SELLABLE_PRODUCT",
             unit_label: "un",
+            is_active: true,
           },
           quantity_on_hand: 4,
           low_stock_threshold: 5,
@@ -228,6 +232,20 @@ describe("distributorService.listInventoryBalances", () => {
       ],
       pagination: { limit: 20, offset: 5, total: 1 },
     });
+  });
+
+  it("repassa isActive=false ao repositorio para consultar itens inativos", async () => {
+    const query = inventoryBalanceQuerySchema.parse({
+      is_active: "false",
+      limit: "20",
+      offset: "0",
+    });
+
+    await distributorService.listInventoryBalances({ actorUserId, query });
+
+    expect(mocks.inventoryRepository.listBalances).toHaveBeenCalledWith(
+      expect.objectContaining({ distributorId, isActive: false })
+    );
   });
 
   it("bloqueia leitura de saldos quando usuario nao esta vinculado a distribuidora", async () => {
@@ -275,6 +293,7 @@ describe("distributorService.listInventoryMovements", () => {
             name: "Agua 20L",
             type: "SELLABLE_PRODUCT",
             unit_label: "un",
+            is_active: true,
           },
           quantity_delta: 4,
           movement_type: InventoryMovementType.INITIAL_LOAD,

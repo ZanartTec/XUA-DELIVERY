@@ -382,9 +382,50 @@ describe("opsRoutes inventory", () => {
     expect(mocks.service.listBalances).toHaveBeenCalledWith({
       distributor_id: distributorA,
       inventory_item_id: itemA,
+      is_active: true,
       limit: 10,
       offset: 5,
     });
+  });
+
+  it("oculta itens inativos por padrao e permite is_active explicito nos saldos OPS", async () => {
+    const defaultResponse = await getJson<Record<string, unknown>>(
+      "/api/ops/inventory/balances?limit=20&offset=0",
+      "ops"
+    );
+
+    expect(defaultResponse.status).toBe(200);
+    expect(mocks.service.listBalances).toHaveBeenLastCalledWith(
+      expect.objectContaining({ is_active: true })
+    );
+
+    const inactiveResponse = await getJson<Record<string, unknown>>(
+      "/api/ops/inventory/balances?is_active=false&limit=20&offset=0",
+      "ops"
+    );
+
+    expect(inactiveResponse.status).toBe(200);
+    expect(mocks.service.listBalances).toHaveBeenLastCalledWith(
+      expect.objectContaining({ is_active: false })
+    );
+
+    const explicitResponse = await getJson<Record<string, unknown>>(
+      "/api/ops/inventory/balances?is_active=true&limit=20&offset=0",
+      "ops"
+    );
+
+    expect(explicitResponse.status).toBe(200);
+    expect(mocks.service.listBalances).toHaveBeenLastCalledWith(
+      expect.objectContaining({ is_active: true })
+    );
+
+    const invalidResponse = await getJson<{ error: string }>(
+      "/api/ops/inventory/balances?is_active=maybe&limit=20&offset=0",
+      "ops"
+    );
+
+    expect(invalidResponse.status).toBe(400);
+    expect(mocks.service.listBalances).toHaveBeenCalledTimes(3);
   });
 
   it("rejeita query invalida antes de chamar service OPS", async () => {
