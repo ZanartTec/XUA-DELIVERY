@@ -18,8 +18,6 @@ export function normalizeWebhookPaymentKind(kind: string | null | undefined): Pa
       return PaymentKind.ORDER;
     case PaymentKind.SUBSCRIPTION:
       return PaymentKind.SUBSCRIPTION;
-    case PaymentKind.DEPOSIT:
-      return PaymentKind.DEPOSIT;
     default:
       return null;
   }

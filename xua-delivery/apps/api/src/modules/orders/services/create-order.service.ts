@@ -218,7 +218,7 @@ async function buildOrderInTx(
       scheduled_time_end_hour: scheduledSnapshot.endHour,
       scheduled_time_end_minute: scheduledSnapshot.endMinute,
       subtotal_cents: subtotalCents,
-      // Caução financeira removida — sempre 0 (campos deprecated).
+      // Caução financeira v1 removida — zeros exigidos até o drop das colunas (Fase 3).
       deposit_cents: 0,
       total_cents: totalCents,
       // Settlement de vasilhames (agregados; detalhe por tipo nos itens/ledger)

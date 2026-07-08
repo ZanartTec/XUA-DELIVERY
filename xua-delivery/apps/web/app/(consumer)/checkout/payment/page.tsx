@@ -48,7 +48,6 @@ interface RetryOrder {
   status: string;
   payment_status: string | null;
   subtotal_cents: number;
-  deposit_cents: number;
   total_cents: number;
   address_line?: string | null;
   address_details?: {

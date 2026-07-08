@@ -16,7 +16,6 @@ interface ProductItem {
   description: string | null;
   image_url: string | null;
   price_cents: number;
-  deposit_cents: number;
   kind: ProductKind;
   bottle_product_id: string | null;
   is_active: boolean;
@@ -27,7 +26,6 @@ interface ProductDraft {
   description: string;
   image_url: string;
   price_cents: string;
-  deposit_cents: string;
   kind: ProductKind;
   bottle_product_id: string;
 }
@@ -37,7 +35,6 @@ const EMPTY_DRAFT: ProductDraft = {
   description: "",
   image_url: "",
   price_cents: "",
-  deposit_cents: "",
   kind: "OTHER",
   bottle_product_id: "",
 };
@@ -48,7 +45,6 @@ function draftFromProduct(p: ProductItem): ProductDraft {
     description: p.description ?? "",
     image_url: p.image_url ?? "",
     price_cents: (p.price_cents / 100).toFixed(2),
-    deposit_cents: (p.deposit_cents / 100).toFixed(2),
     kind: p.kind ?? "OTHER",
     bottle_product_id: p.bottle_product_id ?? "",
   };
@@ -60,7 +56,6 @@ function draftToPayload(d: ProductDraft) {
     description: d.description || null,
     image_url: d.image_url || null,
     price_cents: Math.round(parseFloat(d.price_cents || "0") * 100),
-    deposit_cents: Math.round(parseFloat(d.deposit_cents || "0") * 100),
     kind: d.kind,
     bottle_product_id: d.kind === "WATER" ? d.bottle_product_id || null : null,
   };
@@ -84,9 +79,9 @@ function ProductForm({
   draft: ProductDraft;
   onChange: (d: ProductDraft) => void;
 }) {
-  // Venda simples: campos de caução (Tipo, Vasilhame vinculado, Depósito legado)
-  // saíram da UI. kind fica OTHER p/ produto novo (EMPTY_DRAFT) e é preservado ao
-  // editar produto existente; o backend segue aceitando os campos (Comodato B2B).
+  // Venda simples: campos de caução (Tipo, Vasilhame vinculado) saíram da UI.
+  // kind fica OTHER p/ produto novo (EMPTY_DRAFT) e é preservado ao editar
+  // produto existente; o backend segue aceitando os campos (Comodato B2B).
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label="Nome *">
@@ -349,8 +344,6 @@ export default function OpsProductsPage() {
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatCurrency(product.price_cents)}
-                        {product.deposit_cents > 0 &&
-                          ` • vasilhame ${formatCurrency(product.deposit_cents)}`}
                       </p>
                     </div>
                   </div>

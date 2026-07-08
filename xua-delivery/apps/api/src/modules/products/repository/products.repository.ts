@@ -9,7 +9,6 @@ const PRODUCT_SELECT = {
   description: true,
   image_url: true,
   price_cents: true,
-  deposit_cents: true,
   kind: true,
   bottle_product_id: true,
   is_active: true,
@@ -116,7 +115,6 @@ export const productsRepository = {
       description?: string | null;
       image_url?: string | null;
       price_cents: number;
-      deposit_cents?: number;
       kind?: "WATER" | "BOTTLE" | "OTHER";
       bottle_product_id?: string | null;
     },
@@ -132,7 +130,6 @@ export const productsRepository = {
       description?: string | null;
       image_url?: string | null;
       price_cents?: number;
-      deposit_cents?: number;
       kind?: "WATER" | "BOTTLE" | "OTHER";
       bottle_product_id?: string | null;
       is_active?: boolean;

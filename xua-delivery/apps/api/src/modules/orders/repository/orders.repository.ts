@@ -8,7 +8,6 @@ import type {
   Zone,
   TimeSlot,
   Payment,
-  Deposit,
   OrderOtp,
 } from "@prisma/client";
 import type { DeliveryDateStatus, OrderStatus, UserSubscriptionStatus } from "@xua/shared/enums";
@@ -100,7 +99,6 @@ export type OrderWithDetails = Order & {
     product: { image_url: string | null };
   }[];
   payments: Pick<Payment, "id" | "kind" | "status" | "amount_cents" | "payment_method" | "cash_change_for_cents" | "provider" | "paid_at" | "created_at">[];
-  deposits: Pick<Deposit, "id" | "amount_cents" | "status" | "refunded_at" | "created_at">[];
   otps: Pick<OrderOtp, "id" | "status" | "attempts" | "expires_at" | "created_at">[];
   audit_events: {
     event_type: string;
@@ -536,16 +534,6 @@ export const orderRepository = {
             cash_change_for_cents: true,
             provider: true,
             paid_at: true,
-            created_at: true,
-          },
-        },
-        deposits: {
-          orderBy: { created_at: "desc" },
-          select: {
-            id: true,
-            amount_cents: true,
-            status: true,
-            refunded_at: true,
             created_at: true,
           },
         },

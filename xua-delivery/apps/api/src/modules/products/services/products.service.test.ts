@@ -48,7 +48,6 @@ function product(overrides: Record<string, unknown> = {}) {
     description: null,
     image_url: null,
     price_cents: 1500,
-    deposit_cents: 0,
     kind: "WATER",
     bottle_product_id: null,
     is_active: true,
