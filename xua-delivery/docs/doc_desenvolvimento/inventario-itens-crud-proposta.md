@@ -2,9 +2,11 @@
 
 > Proposta técnica aprovada pelo arquiteto. Status: **NÃO implementado** (futuro). Registrada em 07/07/2026.
 
+> **Atualização 07/07/2026:** o **provisionamento automático** de item vendável na criação/reativação de produto foi implementado (`apps/api/src/modules/inventory/services/inventory-item-provisioning.service.ts`, chamado por `productsService.create/update` em transação). O CRUD proposto aqui deve **conviver** com ele: itens auto-provisionados seguem a convenção de `code` slug do nome + fragmento do UUID do produto, e a invariante "produto ativo ⇒ 1 item vendável ativo" passa a valer — o `POST` manual de item `SELLABLE_PRODUCT` precisa respeitá-la (não criar segundo item ativo para o mesmo produto). Os AuditEvents de catálogo/inventário mestre (débito 14 do active-state) continuam previstos para nascer junto com este CRUD.
+
 ## Contexto
 
-- `29_mst_inventory_items` só é alterada **manualmente no banco** — não existe endpoint de escrita para itens de inventário.
+- Não existe endpoint administrativo de escrita para itens de inventário: edição/desativação de `29_mst_inventory_items` é **manual no banco**. (Criação de itens vendáveis deixou de ser manual em 07/07/2026 — provisionamento automático na criação/reativação de produto; ver nota acima.)
 - `inventoryItemUpdateSchema` já existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome.
 - Desativação manual sem validação foi a **causa raiz do bug de jul/2026**: item desativado com saldo > 0 mantinha a linha de saldo visível (até o fix de 07/07/2026) e, após o fix, o saldo remanescente fica oculto nas listagens — o que a invariante abaixo passa a impedir.
 

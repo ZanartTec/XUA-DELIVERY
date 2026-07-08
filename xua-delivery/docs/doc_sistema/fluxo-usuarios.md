@@ -471,7 +471,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
 | `/ops/banners` | (ops) | ops | CRUD de banners promocionais do catálogo. |
-| `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. |
+| `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. Criar/reativar produto provisiona automaticamente o item de estoque vendável vinculado (fix 07/07/2026). |
 | `/ops/subscription-plans` | (ops) | ops | CRUD de planos de assinatura + vínculo de distribuidoras. |
 | `/ops/inventory` | (ops) | ops | Visão global de inventário. |
 | `/ops/inventory/reconciliations` | (ops) | ops | Reconciliações de inventário de todas as distribuidoras. |
@@ -483,5 +483,5 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 ---
 
 *Xuá Delivery — Fluxo de Usuários v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 06 de julho de 2026*
+*Zanart · Última atualização: 07 de julho de 2026*
 *46 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*

@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
+type TxClient = Prisma.TransactionClient;
+
 const PRODUCT_SELECT = {
   id: true,
   name: true,
@@ -108,17 +110,19 @@ export const productsRepository = {
     });
   },
 
-  async create(data: {
-    name: string;
-    description?: string | null;
-    image_url?: string | null;
-    price_cents: number;
-    deposit_cents?: number;
-    kind?: "WATER" | "BOTTLE" | "OTHER";
-    bottle_product_id?: string | null;
-  }) {
-    const prisma = getPrisma();
-    return prisma.product.create({ data, select: PRODUCT_SELECT });
+  async create(
+    data: {
+      name: string;
+      description?: string | null;
+      image_url?: string | null;
+      price_cents: number;
+      deposit_cents?: number;
+      kind?: "WATER" | "BOTTLE" | "OTHER";
+      bottle_product_id?: string | null;
+    },
+    tx?: TxClient
+  ) {
+    return (tx ?? getPrisma()).product.create({ data, select: PRODUCT_SELECT });
   },
 
   async update(
@@ -132,9 +136,9 @@ export const productsRepository = {
       kind?: "WATER" | "BOTTLE" | "OTHER";
       bottle_product_id?: string | null;
       is_active?: boolean;
-    }
+    },
+    tx?: TxClient
   ) {
-    const prisma = getPrisma();
-    return prisma.product.update({ where: { id }, data, select: PRODUCT_SELECT });
+    return (tx ?? getPrisma()).product.update({ where: { id }, data, select: PRODUCT_SELECT });
   },
 };

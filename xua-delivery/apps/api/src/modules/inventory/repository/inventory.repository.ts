@@ -152,6 +152,16 @@ export type InventoryItemListParams = {
   offset: number;
 };
 
+/**
+ * Tipos de item movimentáveis por venda — os mesmos aceitos por
+ * resolveOrderInventoryLines no aceite do pedido. SUPPLY fica de fora.
+ */
+const SELLABLE_INVENTORY_ITEM_TYPES = [
+  InventoryItemTypeValue.SELLABLE_PRODUCT,
+  InventoryItemTypeValue.RETURNABLE_FULL,
+  InventoryItemTypeValue.RETURNABLE_EMPTY,
+];
+
 function toJsonValue(value?: Prisma.InputJsonValue): Prisma.InputJsonValue {
   return value ?? ({} as Prisma.InputJsonValue);
 }
@@ -203,17 +213,69 @@ export const inventoryRepository = {
     return (tx ?? prisma).inventoryItem.findMany({
       where: {
         product_id: { in: productIds },
-        type: {
-          in: [
-            InventoryItemTypeValue.SELLABLE_PRODUCT,
-            InventoryItemTypeValue.RETURNABLE_FULL,
-            InventoryItemTypeValue.RETURNABLE_EMPTY,
-          ],
-        },
+        type: { in: SELLABLE_INVENTORY_ITEM_TYPES },
         is_active: true,
       },
       select: INVENTORY_ITEM_SELECT,
       orderBy: [{ product_id: "asc" }, { code: "asc" }],
+    });
+  },
+
+  /**
+   * Lookup por code (unique) — usado pela pré-checagem de colisão do
+   * provisionamento, que precisa escolher um code livre ANTES do create
+   * (um P2002 dentro da transação a abortaria por inteiro).
+   */
+  async findInventoryItemByCode(code: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryItem.findUnique({
+      where: { code },
+      select: INVENTORY_ITEM_SELECT,
+    });
+  },
+
+  /**
+   * Itens vendáveis vinculados a um produto, INCLUINDO inativos — usado pelo
+   * provisionamento idempotente para decidir entre no-op, reativar ou criar.
+   * Ordenado do mais recente para o mais antigo (created_at desc).
+   */
+  async findInventoryItemsByProductId(
+    productId: string,
+    tx?: TxClient
+  ): Promise<InventoryItemCatalogRow[]> {
+    const prisma = getPrisma();
+    return (tx ?? prisma).inventoryItem.findMany({
+      where: {
+        product_id: productId,
+        type: { in: SELLABLE_INVENTORY_ITEM_TYPES },
+      },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    });
+  },
+
+  async createInventoryItem(
+    data: {
+      code: string;
+      name: string;
+      type: InventoryItemTypeInput;
+      product_id: string;
+      unit_label: string;
+      low_stock_threshold: number;
+    },
+    tx: TxClient
+  ): Promise<InventoryItemCatalogRow> {
+    return tx.inventoryItem.create({
+      data: { ...data, is_active: true },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
+    });
+  },
+
+  async reactivateInventoryItem(id: string, tx: TxClient): Promise<InventoryItemCatalogRow> {
+    return tx.inventoryItem.update({
+      where: { id },
+      data: { is_active: true },
+      select: INVENTORY_ITEM_CATALOG_SELECT,
     });
   },
 

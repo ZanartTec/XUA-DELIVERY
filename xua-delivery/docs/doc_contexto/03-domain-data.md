@@ -17,9 +17,9 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `03_mst_distributors` | `name`, `cnpj` (unique), `phone`, `email`, `acceptance_sla_seconds`, `is_active`, `allows_consumer_choice` | Distribuidoras parceiras. 1:N zones, orders, schedule, blocked_dates, time_slots, reconciliations; 1:1 payment_settings |
 | `04_mst_zones` | `distributor_id` FK, `name`, `is_active` | Zonas de atendimento. 1:N zone_coverage, addresses, orders |
 | `05_mst_zone_coverage` | `zone_id` FK, `neighborhood`, `zip_code` | Resolve "esse endereço é atendido?" |
-| `06_mst_products` | `name`, `price_cents`, `deposit_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items |
+| `06_mst_products` | `name`, `price_cents`, `deposit_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items. Criação/reativação pela ops provisiona automaticamente item de estoque `SELLABLE_PRODUCT` na mesma transação (fix 07/07/2026) |
 | `07_mst_categories` | `name`, `sort_order`, `is_active` | Categorias do catálogo (N:N implícito com products) |
-| `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold`, `is_active` (default `true`) | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos. `is_active = false` = soft delete do cadastro: saldos ocultos por default nas listagens (fix 07/07/2026), movimentos rejeitados, histórico preservado |
+| `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold`, `is_active` (default `true`) | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos. Origem: seeds + provisionamento automático na criação/reativação de produto (fix 07/07/2026, `code` = slug do nome + fragmento do UUID). `is_active = false` = soft delete do cadastro: saldos ocultos por default nas listagens (fix 07/07/2026), movimentos rejeitados, histórico preservado |
 
 ### 1.2 Configuração operacional (`cfg`)
 
@@ -108,6 +108,8 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `READY → OUT_FOR_DELIVERY` | motorista atribuído; OTP gerado e enviado | `ORDER_DRIVER_ASSIGNED`, `ORDER_DISPATCHED`, `OTP_GENERATED`, `OTP_SENT` |
 | `OUT_FOR_DELIVERY → DELIVERED` | OTP válido **ou** override autorizado; exigir `BOTTLE_EXCHANGE_RECORDED` **ou** `EMPTY_NOT_COLLECTED` com motivo | `OTP_VALIDATION_ATTEMPTED`, `ORDER_DELIVERED` |
 
+> **Invariante estoque × catálogo:** produto ativo ⇒ item de estoque vendável ativo vinculado. O aceite (`resolveOrderInventoryLines`) exige exatamente 1 item ativo vendável por produto (senão falha com `INVENTORY_ITEM_NOT_FOUND`); a invariante é garantida por provisionamento transacional no `POST`/`PATCH` de produtos (fix 07/07/2026) — regra aplicacional, sem constraint de banco.
+
 ### 2.2 Caminhos alternativos
 
 - `SENT → REJECTED_BY_DISTRIBUTOR`: motivo obrigatório (lista padronizada); ação: cancelar + reembolsar ou redistribuir.
@@ -166,7 +168,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Distributor | `/api/distributor` | `GET /kpis`, `GET /drivers`, `GET /inventory/balances` (`?is_active=true\|false`, default `true` — só itens ativos), `PATCH /deposit-program/:consumerId`, `GET/PATCH /payment-settings/:distributorId`, `PUT /schedule/:distributorId/weekdays`, `POST/DELETE /schedule/:distributorId/block-date` | `distributor_admin`/`ops` |
 | Distributors (público) | `/api/distributors` | `GET ?zone_id=&date=&window=` — lista para seleção no checkout, ordenada por `avg_nps DESC NULLS LAST` | Público |
 | Consumers | `/api/consumers` | `GET/PATCH /profile`, `GET/POST /addresses`, `DELETE /addresses/:id`, `PATCH /:id/assign-mode`, `GET /cep/:cep` | `consumer` |
-| Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo) | Público |
+| Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo — `consumer`/`ops`/`distributor_admin`), `GET /all`, `POST /`, `PATCH /:id` (ops; em products, create/update provisiona item de estoque vendável na mesma transação) | JWT + RBAC |
 | Zones | `/api/zones` | `GET /:id/available-dates?days=14` (agenda + bloqueios + lead-time) | Público |
 | Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |

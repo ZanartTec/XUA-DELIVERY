@@ -377,6 +377,13 @@ Catálogo de itens de inventário disponíveis no sistema. Cada item tem um cód
 
 Pode estar vinculado a um produto do catálogo (`06_mst_products`) quando o item de inventário representa um produto vendável.
 
+Origem dos registros:
+- **Seeds** — itens iniciais, incluindo os singletons globais `RETURNABLE_FULL`/`RETURNABLE_EMPTY` do settlement de caução (sem `product_id`; nunca criados por produto).
+- **Provisionamento automático** (desde 07/07/2026) — a criação ou reativação de um produto pela ops (`POST`/`PATCH /api/products`) provisiona, na mesma transação, um item `SELLABLE_PRODUCT` vinculado (`inventory-item-provisioning.service.ts`, idempotente por `product_id`: reativa o item inativo mais recente se existir, senão cria). Invariante aplicacional: produto ativo ⇒ exatamente 1 item vendável ativo — sem constraint de banco. Legados são saneados via `scripts/backfill-product-inventory-items.ts`.
+- **Futuro CRUD administrativo** (proposta aprovada, não implementado): `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md`.
+
+Convenção do `code` gerado pelo provisionamento: slug do nome do produto (maiúsculas, sem acento, só `[A-Z0-9]`, máx. 16 chars) + `-` + fragmento de 8 chars do UUID do produto (ex.: `AGUA20LPREMIUM-3f9a2b1c`); em colisão, fragmento estendido para 12 chars, com pré-checagem de unicidade dentro da transação. Defaults: `unit_label "un"`, `low_stock_threshold 10`. Saldos não são inicializados na criação (lazy, na primeira movimentação).
+
 Semântica de `is_active`: é o **soft delete do cadastro** do item. Item inativo é rejeitado em novas movimentações (`applyMovement`) e fica fora do snapshot de reconciliação; desde 07/07/2026, seus saldos também são ocultados por default nas listagens de saldo (distributor e ops, query param `is_active` default `true` — `?is_active=false` consulta inativos explicitamente). O histórico é sempre preservado: extrato de movimentações e detalhe de saldo por id não aplicam o filtro.
 
 Relacionamentos principais:
