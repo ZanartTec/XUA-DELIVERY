@@ -1,6 +1,6 @@
 # 02 — Tech Stack: Tecnologias, Arquitetura e Regras
 
-> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/doc_sistema/`. Última consolidação: 06/07/2026.
+> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/doc_sistema/`. Última consolidação: 13/07/2026.
 
 ---
 
@@ -14,7 +14,7 @@
 | Backend | Express 5 (porta 4000) | Monólito modular, REST |
 | Frontend | Next.js 16.2 App Router + React 19 (porta 3001) | Cliente puro da API — sem Server Actions/Route Handlers de negócio |
 | ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 20 enums; schema em `prisma/schema.prisma` (raiz) |
-| Cache / Filas | Redis 7 (ioredis 5) + BullMQ 5.x | JWT blacklist, filas assíncronas |
+| Cache / Filas | 2× Redis 7 (ioredis 5) + BullMQ 5.x | Instâncias separadas (13/07/2026): cache best-effort (`CACHE_REDIS_URL`, volatile-lru) e fila BullMQ (`QUEUE_REDIS_URL`, noeviction); fallback `REDIS_URL` até a Release B |
 | Real-time | Socket.io 4.x | Acoplado ao servidor HTTP da API (porta 4000) |
 | Autenticação | JWT (`jose`) + bcryptjs | Cookie httpOnly `xua-token`, TTL 24h |
 | Validação | Zod 4 + React Hook Form | Schemas compartilhados em `packages/shared` |
@@ -44,20 +44,27 @@ Navegador (4 personas via route-groups do mesmo PWA)
 └────────────────────────┘     └────────────┬─────────────┘
                                             │ Prisma 7 (adapter-pg)
         ┌─────────────────┬─────────────────┼──────────────────┐
-        │ PostgreSQL 16   │ Redis 7         │ Mercado Pago     │
-        │ 36 tabelas      │ JWT blacklist   │ webhooks         │
-        │ 20 enums        │ BullMQ queues   │ idempotentes,    │
-        │ triggers        │                 │ conta/distribuid.│
+        │ PostgreSQL 16   │ Redis 7 ×2      │ Mercado Pago     │
+        │ 36 tabelas      │ cache: JWT bl., │ webhooks         │
+        │ 20 enums        │  rate limit     │ idempotentes,    │
+        │ triggers        │ queue: BullMQ   │ conta/distribuid.│
         └─────────────────┴─────────────────┴──────────────────┘
-+ Worker separado (apps/api/src/worker) — filas BullMQ
++ Worker separado (apps/api/src/worker) — filas BullMQ (só Redis de fila)
 ```
 
 - **Regra de ouro:** nenhuma lógica de negócio no frontend. Toda lógica, validação (Zod) e autorização vivem no `apps/api`.
-- **Worker assíncrono** (`apps/api/src/worker/index.ts`) com 3 filas BullMQ:
+- **Duas instâncias Redis com responsabilidades isoladas (decisão de 13/07/2026):**
+  - **Cache Redis** (`CACHE_REDIS_URL` → `xua-redis`, volatile-lru): cache de aplicação (products/banners/categories), rate limiting, blacklist JWT, marca de troca de senha, OTP para exibição. Singleton best-effort (`infra/redis/client.ts`); falha degrada sem derrubar a API — `/readiness` responde 200 `"degraded"` (503 só com banco fora).
+  - **Queue Redis** (`QUEUE_REDIS_URL` → `xua-queue-redis`, noeviction + persistência): exclusivo do BullMQ (`infra/queue/connection.ts`). O worker não conhece o Redis de cache.
+  - Fallback `REDIS_URL` mantido no código e no `render.yaml` até a Release B (remoção após `fallback:false` nos logs) — procedimento em `doc_desenvolvimento/redis-bullmq/runbook-migracao-redis-separado.md`.
+- **Worker assíncrono** (`apps/api/src/worker/index.ts`) com 5 filas BullMQ ativas:
   - `internal-jobs` — `otp-cleanup`, `subscription-generation`, `subscription-expiry`
   - `payment-webhooks` — processamento idempotente de webhooks
   - `payments` — `expire-payment` (expiração de cobranças pendentes)
-- **Jobs recorrentes:** sem node-cron no processo. Um scheduler externo faz HTTP POST em `/api/internal/jobs/*`, protegido por `INTERNAL_JOB_SECRET` (não JWT). Cada endpoint enfileira no BullMQ ou executa síncrono como fallback.
+  - `payment-refunds` — `refund-payment` (reembolsos)
+  - `subscription-expiration` — `expire-subscription` (expiração de assinaturas não pagas)
+  - (`notifications` e `payment-reconciliation` declaradas em `contracts.ts`, reservadas — sem producer/worker)
+- **Jobs recorrentes:** sem cron externo — 3 BullMQ Job Schedulers registrados no boot do worker (`worker/register-repeatable-jobs.ts`): `subscriptionGeneration`, `subscriptionExpiry` e `otpCleanup`. Os antigos endpoints `/api/internal/jobs/*` foram removidos junto com o cron legado.
 
 ### 2.2 Camadas do backend
 
@@ -118,7 +125,7 @@ xua-delivery/
 - **OTP de entrega:** HMAC-SHA256 (`OTP_SECRET`), 6 dígitos, TTL 90 min, máx 5 tentativas → status `locked` (só override ops/support com motivo).
 - **Rate limits:** 100/min global (orders), 10/min pagamentos, 5/min password reset por IP.
 - **Headers de segurança:** X-Frame-Options, CSP, HSTS.
-- **Variáveis de ambiente sensíveis:** `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `INTERNAL_JOB_SECRET`.
+- **Variáveis de ambiente sensíveis:** `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `MERCADOPAGO_WEBHOOK_SECRET`, `INTERNAL_SECRET`, `ENCRYPTION_MASTER_KEY` (ver `render.yaml` e `apps/api/.env.example`).
 
 ---
 
@@ -135,9 +142,9 @@ xua-delivery/
 
 ## 5. Deploy e infraestrutura
 
-- **Deploy:** Railway (API + Web separados) ou Docker Compose local. Dockerfile multi-stage com graceful shutdown em `SIGTERM`.
-- **Scheduler externo:** Railway Cron ou Render Cron Job dispara os jobs internos via HTTP. [A DEFINIR: provedor definitivo do cron em produção — a documentação cita ambos]
-- **Banco/Redis:** PostgreSQL 16 e Redis 7 gerenciados (Docker Compose no local).
+- **Deploy:** Render via blueprint `render.yaml` — 5 serviços: `xua-api` (web, `healthCheckPath: /health`), `xua-worker` (worker BullMQ), `xua-web` (frontend), `xua-redis` (cache, volatile-lru, plan free) e `xua-queue-redis` (fila, noeviction, plan starter). Docker Compose para desenvolvimento local. Graceful shutdown em `SIGTERM` com timer de forced-shutdown (API 10s, worker 30s).
+- **Jobs recorrentes:** BullMQ Job Schedulers registrados no boot do worker (sem cron externo).
+- **Banco/Redis:** PostgreSQL 16 gerenciado e duas instâncias Redis 7 (cache × fila). No local, `docker-compose.yml` sobe `redis-cache` (porta 6379, volatile-lru) e `redis-queue` (porta 6380, noeviction, AOF); envs de exemplo em `apps/api/.env.example`.
 - **Segredos:** cofre centralizado (Doppler ou env vars); nunca `.env` no git.
 - **Escala:** Socket.io no mesmo processo da API é suficiente para o MVP; pós-MVP, extrair para serviço dedicado se necessário.
 - [A DEFINIR: pipeline de CI/CD, ambientes (staging/prod), estratégia de migrations em produção — não documentados]
@@ -150,4 +157,9 @@ xua-delivery/
 - Métricas-alvo: latência p95 em endpoints críticos, taxa de falha de pagamento, falha de geração de OTP, conversão carrinho → pagamento aprovado.
 - Alertas: pedidos pendentes de aceite perto do timeout de SLA; backlog de entregas na janela crítica.
 - KPIs calculados exclusivamente via SQL sobre `18_aud_audit_events` (`KpiService` — nunca consulta `09_trn_orders` para métricas).
+- Logs de conexão Redis identificados por finalidade — `[Redis:cache]` / `[Redis:queue]` — com env var resolvida, flag `fallback` e `host:port` (nunca credenciais).
 - [A DEFINIR: ferramenta de APM/monitoramento e destino dos logs em produção]
+
+---
+
+**Última atualização: 13 de julho de 2026** (separação Redis Cache × Queue, deploy Render, Job Schedulers).

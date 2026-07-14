@@ -1,6 +1,6 @@
 # Documentação — Xuá Delivery
 
-Organizada em três camadas, da visão consolidada ao registro detalhado. Última reorganização: 07/07/2026.
+Organizada em três camadas, da visão consolidada ao registro detalhado. Última reorganização: 07/07/2026 · índice atualizado em 13/07/2026.
 
 > **Novo no projeto?** Comece pelo [guia-de-uso.md](guia-de-uso.md) — manual prático de como usar os agentes e esta documentação.
 
@@ -23,10 +23,12 @@ docs/
     ├── caucao-vasilhames.md         # arquitetura da caução v2 (settlement)
     ├── assinaturas-fases-1-2.md     # correção crítica + fases das assinaturas
     ├── assinatura-edicao-datas.md   # edição de datas de entrega da assinatura
+    ├── inventario-itens-crud-proposta.md  # proposta aprovada do CRUD de itens
     ├── fluxo-telas.html             # protótipo navegável
-    └── redis-bullmq/                # filas: fundação, plano de escala, avanços
-        ├── fundacao-bullmq.md
-        ├── plano-escalabilidade.md
+    └── redis-bullmq/                # filas: fundação, plano de escala, migração
+        ├── fundacao-bullmq.md                  # histórico (superado — ver banner)
+        ├── plano-escalabilidade.md             # plano de evolução + estado atual
+        ├── runbook-migracao-redis-separado.md  # migração cache × queue em produção
         └── 2026-05-19/avanco-fluxos-reais.md
 ```
 

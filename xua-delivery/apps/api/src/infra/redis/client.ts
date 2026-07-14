@@ -9,7 +9,7 @@ const redis = new Redis(REDIS_URL, {
 });
 
 redis.on("error", (err: Error) => {
-  logger.error({ err }, "[Redis] Erro de conexão");
+  logger.error({ err }, "[Redis:cache] Erro de conexão");
 });
 
 export async function ensureConnected(): Promise<void> {
@@ -19,15 +19,15 @@ export async function ensureConnected(): Promise<void> {
     return;
   }
   await redis.connect();
-  logger.info("[Redis] Conectado com sucesso");
+  logger.info("[Redis:cache] Conectado com sucesso");
 }
 
 export async function disconnectRedis(): Promise<void> {
   try {
     await redis.quit();
-    logger.info("Redis disconnected");
+    logger.info("[Redis:cache] Desconectado");
   } catch (err) {
-    logger.error({ err }, "Error disconnecting Redis");
+    logger.error({ err }, "[Redis:cache] Erro ao desconectar");
   }
 }
 

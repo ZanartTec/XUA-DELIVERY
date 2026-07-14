@@ -1,5 +1,7 @@
 # Fundacao BullMQ no XUA Delivery
 
+> **⚠️ DOCUMENTO HISTÓRICO — descreve o estado de uma época, já superado.** Na data em que foi escrito, só existia a fila `internal-jobs` e o worker não subia automaticamente no deploy. Estado atual (13/07/2026): worker dedicado `xua-worker` no `render.yaml`, **5 filas ativas** (internal-jobs, payment-webhooks, payments, payment-refunds, subscription-expiration), jobs recorrentes via BullMQ Job Schedulers e **Redis de fila dedicado** (`QUEUE_REDIS_URL` → `xua-queue-redis`), separado do Redis de cache. Ver `plano-escalabilidade.md` (leitura do estado atual) e `runbook-migracao-redis-separado.md`. Não usar este documento como referência do estado presente.
+
 ## Resumo
 
 Nesta etapa, a fila foi preparada, mas os fluxos reais do sistema ainda nao foram migrados para ela.

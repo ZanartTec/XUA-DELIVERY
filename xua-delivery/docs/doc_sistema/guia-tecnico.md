@@ -9,8 +9,8 @@
 | **Banco** | PostgreSQL 16 — 36 tabelas, 20 enums |
 | **UI** | shadcn/ui + Tailwind CSS 4 + Radix UI (mobile-first responsivo) |
 | **Real-time** | Socket.io 4.x no servidor Express (porta 4000) |
-| **Deploy** | Railway (API + Web separados) ou Docker Compose local |
-| **Queue** | BullMQ 5.x + Redis (ioredis 5.x) — worker separado |
+| **Deploy** | Render via blueprint `render.yaml` (5 serviços) ou Docker Compose local |
+| **Queue** | BullMQ 5.x sobre Redis dedicado (`QUEUE_REDIS_URL`, noeviction) — worker separado; cache em Redis próprio (`CACHE_REDIS_URL`, volatile-lru) desde 13/07/2026 |
 | **Versão** | 4.1 — Julho 2026 (monorepo Express + Next.js) |
 
 **36** tabelas · **14** estados/pedido · **34** tipos/evento · **5** perfis/RBAC
@@ -25,7 +25,7 @@ O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão reto
 - `apps/web` — frontend Next.js 16 (porta 3001): UI puramente client-side consumindo a API Express
 - `packages/shared` — schemas Zod, tipos e enums compartilhados entre api e web
 
-Além dos dois servidores principais, há um **processo worker** separado (`apps/api/src/worker/index.ts`) que processa filas BullMQ para webhooks de pagamento e jobs de assinatura. Jobs recorrentes (assinaturas, expiração de OTP) são disparados por um scheduler externo via HTTP POST em `/api/internal/jobs/*`.
+Além dos dois servidores principais, há um **processo worker** separado (`apps/api/src/worker/index.ts`) que processa 5 filas BullMQ ativas (`internal-jobs`, `payment-webhooks`, `payments`, `payment-refunds`, `subscription-expiration`) sobre um **Redis dedicado de fila** (`QUEUE_REDIS_URL`), separado do Redis de cache (`CACHE_REDIS_URL`) desde 13/07/2026. Jobs recorrentes (assinaturas, limpeza de OTP) rodam como **BullMQ Job Schedulers** registrados no boot do worker — não há cron externo (os endpoints `/api/internal/jobs/*` foram removidos junto com o cron legado).
 
 O banco de dados PostgreSQL tem **36 tabelas** e **20 enums**. O schema é gerenciado pelo Prisma 7.x com adaptador `@prisma/adapter-pg`. E-mails transacionais (redefinição de senha, notificações) são enviados via **Resend**.
 
@@ -53,16 +53,16 @@ Navegador (Consumidor / Distribuidor / Motorista / Ops)
   └────────────────────────┘     └────────────┬────────────┘
                                               │ Prisma 7.x
   ┌─────────────────┬──────────────────┬──────────────────────┐
-  │  PostgreSQL 16  │    Redis 7       │  MercadoPago         │
-  │  36 tabelas     │  JWT blacklist   │  Webhooks            │
-  │  20 enums       │  BullMQ queues   │  idempotentes        │
-  │  triggers       │  OTP TTL cache   │  Conta por distrib.  │
+  │  PostgreSQL 16  │  Redis 7 ×2      │  MercadoPago         │
+  │  36 tabelas     │  cache: JWT bl., │  Webhooks            │
+  │  20 enums       │   RL, OTP, cat.  │  idempotentes        │
+  │  triggers       │  queue: BullMQ   │  Conta por distrib.  │
   └─────────────────┴──────────────────┴──────────────────────┘
 ```
 
 > O frontend Next.js é um cliente puro da API Express. Não existem Route Handlers de negócio nem Server Actions — toda a lógica está no `apps/api`.
 
-**Jobs recorrentes:** Não há node-cron. Um scheduler externo (Railway Cron ou similar) faz HTTP POST nos endpoints `/api/internal/jobs/subscription`, `/api/internal/jobs/otp-cleanup` e `/api/internal/jobs/subscription-expiry`, protegidos por `INTERNAL_JOB_SECRET`. Cada endpoint pode enfileirar a tarefa no BullMQ ou executá-la de forma síncrona como fallback.
+**Jobs recorrentes:** Não há node-cron nem scheduler externo. O worker registra no boot (`apps/api/src/worker/register-repeatable-jobs.ts`) 3 BullMQ Job Schedulers: `subscriptionGeneration` (`0 3,8,19 * * *`), `subscriptionExpiry` (`30 9 * * *`) e `otpCleanup` (`*/15 * * * *`), em horário BRT. Os antigos endpoints `/api/internal/jobs/*` foram removidos.
 
 ### KPIs Operacionais Monitorados
 
@@ -211,10 +211,10 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | **Services** | TypeScript puro | TODA lógica de negócio: máquina de estados, settlement de caução de vasilhames (v2), OTP HMAC, KPIs, assinaturas, `emitEvent()` atômico. |
 | **Repositories** | Prisma 7.x | Queries via Prisma Client com `@prisma/adapter-pg`. Transações interativas. |
 | **Socket.IO** | socket.io 4.x | Integrado ao servidor HTTP Express. Auth JWT no handshake. Salas `${role}:${userId}` e `distributor:${distributorId}`. |
-| **Queue/Worker** | BullMQ 5.x + ioredis | Worker separado em `src/worker/index.ts`. Processa webhooks de pagamento e jobs de assinatura. |
-| **Jobs HTTP** | Express Routes | `POST /api/internal/jobs/subscription`, `otp-cleanup`, `subscription-expiry`. Protegidos por `INTERNAL_JOB_SECRET`. |
+| **Queue/Worker** | BullMQ 5.x + ioredis | Worker separado em `src/worker/index.ts` sobre Redis dedicado de fila (`QUEUE_REDIS_URL`). 5 filas ativas: `internal-jobs`, `payment-webhooks`, `payments`, `payment-refunds`, `subscription-expiration`. |
+| **Jobs recorrentes** | BullMQ Job Schedulers | Registrados no boot do worker (`register-repeatable-jobs.ts`): geração/expiração de assinaturas e limpeza de OTP. Os endpoints `/api/internal/jobs/*` foram removidos. |
 | **Banco** | PostgreSQL 16 | 36 tabelas, 20 enums, triggers, índices compostos. |
-| **Cache** | Redis 7 + ioredis | JWT blacklist, filas BullMQ, cache de sessão. |
+| **Cache** | Redis 7 + ioredis | Instância dedicada (`CACHE_REDIS_URL`, best-effort): JWT blacklist, rate limiting, cache de catálogo (products/banners/categories), OTP para exibição. Falha ⇒ API degrada (`/readiness` 200 `"degraded"`), não cai. |
 
 #### Frontend — `apps/web` (Next.js 16, porta 3001)
 
@@ -367,7 +367,7 @@ Login via `POST /api/auth/login` gera JWT (biblioteca `jose`, payload `sub` + `r
 
 Páginas web: `(auth)/forgot-password` e `(auth)/reset-password`.
 
-Variáveis de ambiente relacionadas à segurança: `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `INTERNAL_JOB_SECRET`.
+Variáveis de ambiente relacionadas à segurança: `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `MERCADOPAGO_WEBHOOK_SECRET`, `INTERNAL_SECRET`, `ENCRYPTION_MASTER_KEY`.
 
 ### 3.7 Fluxo Cadastro → Estoque → Venda (produtos × inventário)
 
@@ -537,8 +537,7 @@ Ops cria SubscriptionPlan  →  Consumer escolhe plano  →  Seleciona distribui
 
 ### 5.6 Job de Saldo Baixo (`subscription-expiry-job`)
 
-- Rota HTTP: `POST /api/internal/jobs/subscription-expiry` (protegida por `INTERNAL_JOB_SECRET`)
-- Gatilho: Render Cron Job (ou equivalente)
+- Execução: BullMQ Job Scheduler `subscriptionExpiry` (`30 9 * * *`, BRT), registrado no boot do worker — o endpoint HTTP interno e o cron do Render foram removidos (26/06/2026)
 - Critério: `status = ACTIVE AND remaining_quantity ≤ 3 AND low_balance_notification_sent_at IS NULL`
 - Ação: envia push notification → atualiza `low_balance_notification_sent_at = now()` (idempotente)
 
@@ -583,9 +582,9 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 | Forms | React Hook Form + Zod | Performance + validação tipada + schemas compartilhados client/server |
 | DB Access | Prisma 7.x | ORM type-safe com migrations, transações interativas, schema declarativo |
 | Banco | PostgreSQL 16 | 36 tabelas, 20 enums, trigger de proteção de status |
-| Cache | Redis 7 + ioredis | JWT blacklist, cache catálogo 5min, OTP TTL 90min |
+| Cache | 2× Redis 7 + ioredis | Instâncias separadas (13/07/2026): cache (JWT blacklist, rate limit, catálogo, OTP) × fila BullMQ |
 | Real-time | Socket.io 4.x | No servidor Express (porta 4000). Salas por usuário. Reconnect automático. |
-| Jobs | BullMQ + scheduler HTTP externo | Worker separado; endpoints `/api/internal/jobs/*` protegidos por `INTERNAL_JOB_SECRET` |
+| Jobs | BullMQ (Job Schedulers) | Worker separado; jobs recorrentes registrados no boot do worker — sem scheduler HTTP externo |
 | E-mail | Resend | Redefinição de senha e notificações transacionais |
 | Validação | Zod 3.x | Schema === Type. Mesmo Zod valida form no browser e request no server. |
 | Push Web | Web Push API + SW | Notificações nativas do navegador. Substitui FCM Android. |
@@ -594,7 +593,7 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 | Ícones | Lucide React | Consistente com shadcn, tree-shakeable, 1000+ ícones |
 | Logs | Pino 9.x | 30x mais rápido que winston, JSON nativo, correlation-id |
 | Testes | Vitest + Supertest | Vite-powered, ESM nativo, mock built-in |
-| Deploy | Railway (Docker) | Um deploy: frontend + API + Socket.io + cron. PostgreSQL gerenciado. |
+| Deploy | Render (blueprint `render.yaml`) | 5 serviços: `xua-api`, `xua-worker`, `xua-web`, `xua-redis` e `xua-queue-redis`. PostgreSQL gerenciado. |
 | Segredos | Doppler ou env | Cofre centralizado. Nunca `.env` no git. |
 
 ---
@@ -634,5 +633,5 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 ---
 
 *Xuá Delivery — Guia Técnico v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 08 de julho de 2026*
+*Zanart · Última atualização: 13 de julho de 2026 (separação Redis Cache × Queue, deploy Render, Job Schedulers)*
 *36 tabelas · 20 enums · 14 estados · 34 eventos · 5 perfis RBAC*

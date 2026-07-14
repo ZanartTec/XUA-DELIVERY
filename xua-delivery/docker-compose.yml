@@ -17,15 +17,34 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
+  # Redis de CACHE — cache best-effort, rate limit, blacklist JWT, OTP.
+  # Todas as chaves têm TTL ⇒ volatile-lru evicta com segurança.
+  # Env local: CACHE_REDIS_URL=redis://localhost:6379
+  redis-cache:
     image: redis:7-alpine
-    container_name: xua-redis
+    container_name: xua-redis-cache
     restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 128mb --maxmemory-policy volatile-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis de FILA (BullMQ) — noeviction obrigatório: eviction corrompe jobs.
+  # AOF (appendonly) para não perder jobs delayed/waiting em restart.
+  # Env local: QUEUE_REDIS_URL=redis://localhost:6380
+  redis-queue:
+    image: redis:7-alpine
+    container_name: xua-redis-queue
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction --appendonly yes
     volumes:
-      - redisdata:/data
+      - redisqueuedata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -34,4 +53,4 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
+  redisqueuedata:

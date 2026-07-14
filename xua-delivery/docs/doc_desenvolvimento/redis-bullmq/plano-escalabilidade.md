@@ -8,16 +8,17 @@ O alvo e manter o sistema atual como um monolito bem organizado, com capacidade 
 
 ## Leitura do estado atual
 
-Hoje o sistema ja possui os pontos de entrada para essa evolucao:
+> **Revisado em 13/07/2026** — a leitura original (rate limiter desconectado, jobs internos no mesmo processo, cache só em products/banners, Fase 3 futura) ficou obsoleta e foi substituída pelo estado abaixo.
 
-- cliente Redis central em apps/api/src/infra/redis/client.ts
-- cache em apps/api/src/modules/products/services/products.service.ts
-- cache em apps/api/src/modules/banners/services/banners.service.ts
+Estado verificado no código em 13/07/2026:
+
+- **duas instâncias Redis com responsabilidades isoladas** (implementado em 13/07/2026): cache best-effort (`CACHE_REDIS_URL`, singleton em apps/api/src/infra/redis/client.ts) e fila BullMQ (`QUEUE_REDIS_URL`, factory em apps/api/src/infra/queue/connection.ts); resolução de URL com fallback `REDIS_URL` em apps/api/src/infra/redis/config.ts
+- cache em products, banners **e categories** (apps/api/src/modules/{products,banners,categories}/services)
 - blacklist JWT em apps/api/src/infra/auth/blacklist.ts
-- rate limiter pronto, mas nao conectado, em apps/api/src/infra/rate-limit/limiter.ts
-- jobs internos simples em apps/api/src/jobs
-- gateway Socket.IO sem adapter Redis em apps/api/src/infra/socket/gateway.ts
-- cron e API rodando no mesmo processo em apps/api/src/server/index.ts e render.yaml
+- rate limiter **conectado e em uso** (apps/api/src/infra/rate-limit/limiter.ts, fail-open em falha de Redis) — middleware aplicado nas rotas de auth, orders, payments, products, categories e banners
+- **worker separado** (`xua-worker` no render.yaml) com 5 filas ativas: internal-jobs, payment-webhooks, payments, payment-refunds, subscription-expiration; jobs recorrentes via BullMQ Job Schedulers em apps/api/src/worker/register-repeatable-jobs.ts (crons do Render substituídos)
+- **Fase 3 deste plano (pagamentos e webhooks fora do caminho síncrono) já implementada**: webhook grava, deduplica e enfileira; worker processa pagamento, expiração e reembolso com retry e idempotência
+- gateway Socket.IO ainda sem adapter Redis em apps/api/src/infra/socket/gateway.ts (Fase 4, pendente)
 
 Esse estado permite evoluir sem trocar a base inteira.
 
@@ -562,7 +563,7 @@ O que deve provar:
 
 ## Decisoes operacionais recomendadas
 
-1. Definir CACHE_REDIS_URL e QUEUE_REDIS_URL separadamente, mesmo que inicialmente apontem para o mesmo provedor.
+1. Definir CACHE_REDIS_URL e QUEUE_REDIS_URL separadamente, mesmo que inicialmente apontem para o mesmo provedor. **✅ IMPLEMENTADA em 13/07/2026** — instâncias separadas no render.yaml (`xua-redis` volatile-lru para cache, `xua-queue-redis` noeviction para fila) e no docker-compose local (portas 6379/6380). Procedimento de migração em produção: `runbook-migracao-redis-separado.md` (mesma pasta).
 2. Usar prefixo por ambiente em chaves Redis e em nomes de fila.
 3. Manter BullMQ atras de um modulo proprio de fila, e nao direto nos services de dominio.
 4. Tratar cache como opcional e fila como infraestrutura operacional.
@@ -579,3 +580,7 @@ O plano sera bem sucedido se, ao final, o sistema tiver estas propriedades:
 - pagamento e webhook protegidos por retry, dedupe e observabilidade
 - possibilidade real de subir mais de uma instancia web sem quebrar realtime
 - uso de Redis guiado por responsabilidade clara, e nao por improviso
+
+---
+
+**Última atualização: 13 de julho de 2026** (revisão da "Leitura do estado atual" e registro da decisão operacional 1 como implementada).

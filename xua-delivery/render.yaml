@@ -1,9 +1,27 @@
 services:
-  # ─── Redis (Key Value Service) ───────────────────────────────────────────
+  # ─── Redis CACHE (Key Value Service) ──────────────────────────────────────
+  # Finalidade: cache best-effort (produtos, banners), rate limiting,
+  # blacklist de JWT, tokens de reset de senha, exibição de OTP.
+  # Todas as chaves têm TTL ⇒ volatile-lru evicta com segurança sob pressão.
+  # Perda de dados é tolerável: a API degrada (readiness "degraded"), não cai.
   - type: redis
     name: xua-redis
     plan: free
     ipAllowList: []
+    maxmemoryPolicy: volatile-lru
+
+  # ─── Redis QUEUE (Key Value Service — BullMQ) ─────────────────────────────
+  # Finalidade EXCLUSIVA: filas BullMQ (internal-jobs, payment-webhooks,
+  # payments, payment-refunds, subscription-expiration).
+  # NUNCA plan free: fila exige persistência e noeviction — eviction de
+  # chaves BullMQ corrompe estado de jobs (delayed/waiting) silenciosamente.
+  # Se a versão do blueprint não aceitar maxmemoryPolicy, configure
+  # "noeviction" manualmente no dashboard do Render antes do primeiro deploy.
+  - type: redis
+    name: xua-queue-redis
+    plan: starter
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
 
   # ─── API (HTTP Server) ────────────────────────────────────────────────────
   - type: web
@@ -27,11 +45,25 @@ services:
       - key: DATABASE_URL
         sync: false
 
-      # ─── Redis (BullMQ + Cache) ───────────────────────────────────────────
+      # ─── Redis (separação cache × fila) ───────────────────────────────────
+      # REDIS_URL permanece como FALLBACK de migração: o código resolve
+      # CACHE_REDIS_URL/QUEUE_REDIS_URL e cai para REDIS_URL se ausentes.
+      # Remover REDIS_URL somente em release futura, após validar em produção
+      # que os logs de boot mostram fallback=false para cache e queue.
       - key: REDIS_URL
         fromService:
           type: redis
           name: xua-redis
+          property: connectionString
+      - key: CACHE_REDIS_URL
+        fromService:
+          type: redis
+          name: xua-redis
+          property: connectionString
+      - key: QUEUE_REDIS_URL
+        fromService:
+          type: redis
+          name: xua-queue-redis
           property: connectionString
 
       # ─── Segurança ────────────────────────────────────────────────────────
@@ -133,11 +165,19 @@ services:
       - key: DATABASE_URL
         sync: false
 
-      # ─── Redis ───────────────────────────────────────────────────────────
+      # ─── Redis (fila BullMQ) ──────────────────────────────────────────────
+      # O worker só consome filas (Fase 2 removeu uso de cache no worker) —
+      # não precisa de CACHE_REDIS_URL. REDIS_URL segue como fallback de
+      # migração; remover em release futura junto com o da xua-api.
       - key: REDIS_URL
         fromService:
           type: redis
           name: xua-redis
+          property: connectionString
+      - key: QUEUE_REDIS_URL
+        fromService:
+          type: redis
+          name: xua-queue-redis
           property: connectionString
 
       # ─── Segurança ────────────────────────────────────────────────────────

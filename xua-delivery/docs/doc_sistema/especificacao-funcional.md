@@ -66,16 +66,19 @@ Além disso, existe o **módulo do entregador** ( “modo entregas”, no mesmo 
 
 **2-bis) Arquitetura técnica de runtime (visão de implementação)**
 
-> **[ESTADO ATUAL — jun/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/doc_desenvolvimento/redis-bullmq/`.
+> **[ESTADO ATUAL — jul/2026]** Resumo da arquitetura efetivamente implementada. Detalhes de filas em `docs/doc_desenvolvimento/redis-bullmq/`.
 
 - **Monorepo** npm workspaces: `apps/web`, `apps/api`, `packages/shared` (Zod schemas, enums e types compartilhados front/back). Prisma na raiz (`prisma/schema.prisma`).
 - **API (`apps/api`)** — Express, monólito modular (`routes → controllers → services → repository`). 16 módulos sob `/api/*`: `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.
 - **Autenticação** — JWT em **cookie httpOnly `xua-token`**, validado na API (`authMiddleware`) e replicado no `proxy.ts` do Next (`jwtVerify` + RBAC por role + redirecionamento). **Logout** via *blacklist* de `jti` no Redis. RBAC por `requireRole(...)`. **[NOVO — jul/2026] "Esqueci minha senha"**: `POST /api/auth/forgot-password` + `POST /api/auth/reset-password`, token HMAC-SHA256 em `38_sec_password_reset_tokens` (TTL 30 min, uso único), e-mail via **Resend**, invalidação dos JWTs antigos ao trocar a senha.
-- **Worker assíncrono (`apps/api/src/worker`)** — processo BullMQ separado, com 3 filas ativas:
+- **Worker assíncrono (`apps/api/src/worker`)** — processo BullMQ separado, com 5 filas ativas:
   - `internal-jobs` — `otp-cleanup`, `subscription-generation`, `subscription-expiry`.
   - `payment-webhooks` — processamento idempotente de webhooks de pagamento.
   - `payments` — `expire-payment` (expiração de pagamentos pendentes).
-  - Jobs disparados via `/api/internal/jobs`, protegidos por `INTERNAL_JOB_SECRET` (não por JWT).
+  - `payment-refunds` — `refund-payment` (reembolsos).
+  - `subscription-expiration` — `expire-subscription` (expiração de assinaturas não pagas).
+  - Jobs recorrentes via **BullMQ Job Schedulers** registrados no boot do worker (os endpoints `/api/internal/jobs/*` foram removidos junto com o cron legado).
+- **Redis — duas instâncias separadas [NOVO — 13/07/2026]** — cache best-effort (`CACHE_REDIS_URL` → `xua-redis`, volatile-lru: cache de catálogo, rate limiting, blacklist JWT, OTP; falha degrada a API sem derrubá-la) e fila BullMQ (`QUEUE_REDIS_URL` → `xua-queue-redis`, noeviction + persistência). Fallback `REDIS_URL` mantido até a Release B — ver `docs/doc_desenvolvimento/redis-bullmq/runbook-migracao-redis-separado.md`.
 - **Realtime** — **Socket.IO** acoplado ao mesmo servidor HTTP da API (atualização de filas/pedidos).
 - **Pagamentos** — provider concreto **Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`); métodos: **Pix, cartão e dinheiro** (`cash_change_for_cents`). Idempotência via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events` + trilha em `21_trn_payment_transactions`. **[NOVO — jul/2026]** Cobrança com as **credenciais da própria distribuidora** (`34_cfg_distributor_payment_settings`, tokens criptografados AES-256-GCM); cada distribuidora define os métodos que aceita.
 - **Caução de vasilhames v2 [NOVO — jun/2026]** — programa habilitado por (distribuidora, consumidor) em `35_cfg_consumer_deposit_programs` (`max_bottles`), saldo em `36_trn_consumer_deposit_balances` e histórico append-only em `37_log_consumer_deposit_movements`. Substituiu a caução financeira `15_trn_deposits` (v1, removida em jul/2026 e arquivada em `z_arch_15_trn_deposits`). Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo `bottle_product_id`.

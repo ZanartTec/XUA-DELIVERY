@@ -1,7 +1,6 @@
 import { QueueEvents, Worker } from "bullmq";
 import { createLogger } from "../infra/logger";
 import { disconnectPrisma } from "../infra/prisma/client";
-import { disconnectRedis } from "../infra/redis/client";
 import { QUEUE_PREFIX } from "../infra/queue/config";
 import { createQueueRedisConnection } from "../infra/queue/connection";
 import {
@@ -280,6 +279,13 @@ async function shutdown(signal: string): Promise<void> {
 
   log.info({ signal }, "Worker shutdown signal received");
 
+  // Armado ANTES de qualquer await: se o fechamento de workers/filas travar
+  // (ex.: Redis de fila fora do ar), o processo ainda encerra em 30s.
+  setTimeout(() => {
+    log.error("Worker forced shutdown after timeout");
+    process.exit(1);
+  }, 30_000).unref();
+
   await internalJobsWorker.close();
   await paymentWebhooksWorker.close();
   await paymentsWorker.close();
@@ -292,7 +298,6 @@ async function shutdown(signal: string): Promise<void> {
   await subscriptionExpirationEvents.close();
   await closeQueueInfra();
   await disconnectPrisma();
-  await disconnectRedis();
 
   log.info("Worker shutdown completed");
   process.exit(0);

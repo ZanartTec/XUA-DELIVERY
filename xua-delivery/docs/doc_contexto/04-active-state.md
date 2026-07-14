@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **07/07/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **13/07/2026**.
 
 ---
 
@@ -48,6 +48,7 @@
 - [x] Console de suporte (busca + timeline), override de OTP, exportação CSV de auditoria
 - [x] Banners promocionais, categorias de produto, Web Push
 - [x] Bugs históricos de visibilidade corrigidos (jun/2026): fila do distribuidor (`resolveDistributorId`), sala de socket, formato de resposta da tela do motorista
+- [x] **Separação Redis Cache × Queue** (13/07/2026): duas instâncias com responsabilidades isoladas — cache best-effort (`CACHE_REDIS_URL` → `xua-redis`, volatile-lru: cache de aplicação, rate limit, blacklist JWT, OTP) e fila BullMQ (`QUEUE_REDIS_URL` → `xua-queue-redis` NOVO no `render.yaml`, noeviction + persistência, 5 filas ativas). Worker não conhece mais o Redis de cache; `/readiness` com check `cache_redis` não-crítico (cache fora ⇒ 200 `"degraded"`); rate limiter fail-open; logs `[Redis:cache]`/`[Redis:queue]` com flag `fallback`; shutdown com timers forçados (API 10s, worker 30s); `docker-compose` local com `redis-cache` (6379) e `redis-queue` (6380); `apps/api/.env.example` novo; +36 testes (config/limiter/cache/readiness). Fallback `REDIS_URL` mantido até a Release B — runbook em `doc_desenvolvimento/redis-bullmq/runbook-migracao-redis-separado.md`
 
 ---
 
@@ -82,21 +83,27 @@
 | # | Item | Detalhe |
 |---|---|---|
 | 1 | ~~**Caução v1 legada no schema**~~ **✅ RESOLVIDO (jul/2026)** | Caução financeira v1 removida. Tabela `15_trn_deposits` arquivada em `z_arch_15_trn_deposits` e removida do schema; removidos `model Deposit`, `enum DepositStatus`, `Product.deposit_cents` e o include `deposits[]` do `GET /orders/:id`. **Mantidos de propósito:** `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_HELD/REFUND_*` (Postgres não suporta `DROP VALUE` em enum; `18_aud` é append-only) e as colunas `Order.deposit_cents`/`deposit_amount_cents` (histórico compõe `total_cents`; novos pedidos gravam 0). Migrations: `20260708130000_archive_legacy_financial_deposits`, `20260708130001_drop_legacy_financial_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md` |
-| 2 | **Endpoint órfão de cancelamento de assinatura** | `PATCH /api/user-subscriptions/:id/cancel` existe no backend, mas o botão "Cancelar" foi removido da UI do consumer (pendência "P6" citada na doc). Decidir destino do endpoint |
+| 2 | ~~**Endpoint órfão de cancelamento de assinatura**~~ **✅ RESOLVIDO (removido em 28/06/2026)** | `PATCH /api/user-subscriptions/:id/cancel` foi removido do backend no commit `a1f01e9` ("cancelamento de assinatura removido — CANCELLED só via expiração"); não há mais rota, controller nem service correspondentes. Coerente com a UI do consumer, que também não tem botão "Cancelar" (só `pause`/`resume`). **Gap real remanescente:** hoje não existe nenhum caminho (manual ou automático) para cancelar uma assinatura `ACTIVE`/`PAUSED` — `CANCELLED` só é atingido via expiração automática de `PENDING_PAYMENT` (`expire-subscription.processor.ts`). Decidir se cancelamento manual deve ser reintroduzido como funcionalidade de produto |
 | 3 | **Sem anti-overbooking numérico** | A tabela `07_cfg_delivery_capacity` foi removida; não há bloqueio por contagem de pedidos por slot — só agenda/lead-time/bloqueios. Se overbooking virar problema real, reintroduzir controle de capacidade |
 | 4 | **DDL histórico divergente** | O `doc_sistema.md` contém rascunhos de DDL e envelope de eventos "ricos" (correlation, geo, recorded_at) que **não** correspondem ao schema real (plano). Fonte da verdade: `prisma/schema.prisma`. Não implementar a partir do rascunho |
 | 5 | **Eventos idealizados não implementados** | `payment_authorized`, `redelivery_completed`, `route_assigned`, `cart_created`, `consumer_registered`, `coverage_resolved` etc. constam apenas no rascunho — não existem no enum real |
 | 6 | **Sem geocoding** | Endereços não têm lat/lng; cobertura resolvida por CEP/bairro (ViaCEP + `05_mst_zone_coverage`). Roteirização real exigirá geocoding |
-| 7 | **Scheduler externo indefinido** | Jobs dependem de cron externo (Railway Cron ou Render citados). [A DEFINIR: provedor e frequências oficiais em produção] |
+| 7 | ~~**Scheduler externo indefinido**~~ **✅ RESOLVIDO (BullMQ Job Schedulers)** | Não depende mais de cron externo desde o commit `277be05` (26/06/2026, "Removendo CRON JOB legado e adicionando BULLMQ"). Hoje `apps/api/src/worker/register-repeatable-jobs.ts` registra 3 BullMQ Job Schedulers no worker dedicado (`xua-worker` em `render.yaml`): `subscriptionGeneration` (`0 3,8,19 * * *`), `subscriptionExpiry` (`30 9 * * *`) e `otpCleanup` (`*/15 * * * *`), todos em horário BRT |
 | 8 | **Socket.io monolítico** | Roda no mesmo processo da API — ok para MVP; extrair para serviço dedicado se precisar de escala horizontal |
 | 9 | **LGPD / retenção** | Política de retenção de dados e evidências [A DEFINIR] |
-| 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
+| 10 | **CI/CD e ambientes** | Deploy e migrations de produção **já documentados**: `render.yaml` define os 3 serviços (`xua-api`, `xua-worker`, `xua-web`) e o `buildCommand` da API roda `npx prisma migrate deploy`. Seguem indefinidos apenas: pipeline de CI (não há `.github/workflows` nem equivalente) e ambiente de staging separado (só produção está configurado) [A DEFINIR: CI e staging] |
 | 11 | **SMS fallback do OTP** | Docs citam "SMS fallback" e telefone obrigatório para OTP por SMS, mas só Web Push é descrito como canal implementado. [A DEFINIR: SMS está ativo?] |
 | 12 | **Valores de negócio abertos** | Desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
 | 13 | **Sem endpoint de escrita para itens de inventário** | `inventoryItemUpdateSchema` existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome. Itens vendáveis passaram a ser criados automaticamente pelo provisionamento na criação/reativação de produto (07/07/2026), mas edição/desativação de `29_mst_inventory_items` continua sendo UPDATE manual no banco, sem validação de saldo remanescente (item pode ser desativado com saldo > 0, que fica oculto nas listagens; causa raiz do fix de 07/07/2026). Proposta técnica do CRUD aprovada: `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md` |
 | 14 | **Criação de produto e de item de inventário sem AuditEvent** | O provisionamento (07/07/2026) e o próprio `POST /api/products` não emitem eventos de auditoria — `AuditEventType` não tem valores para catálogo/inventário mestre. Decisão: criar os eventos junto com o CRUD de itens de inventário (ver proposta em `doc_desenvolvimento/inventario-itens-crud-proposta.md`) |
 | 15 | **Invariante "1 item vendável ativo por produto" só aplicacional** | Não há constraint de banco (índice único parcial exigiria migration raw SQL). O provisionamento detecta >1 item ativo, loga warn e faz no-op. Decisão futura do xua-banco-dados |
 | 16 | **`createMovementOnce` captura P2002 dentro de transação interativa** | Padrão pré-existente em `inventory.repository.ts` (~linha 545): captura `P2002` e retorna `null`, mas em Postgres o erro aborta a transação — se um caller emitir statements na mesma tx após receber `null`, sofrerá `25P02` ("current transaction is aborted"). Candidato a revisão (por isso o provisionamento pré-checa unicidade do `code` antes do create, em vez de reagir à colisão) |
+| 17 | **Release B da migração Redis pendente** | Remover `REDIS_URL` (fallback) do `render.yaml` (xua-api e xua-worker) e do código somente após confirmar `fallback:false` nos logs de boot de produção para cache e queue. Procedimento e limpeza de chaves órfãs: `doc_desenvolvimento/redis-bullmq/runbook-migracao-redis-separado.md` |
+| 18 | **Chaves Redis sem prefixo de ambiente** | `rl:`, `jwt:bl:`, `pwd:changed:` e `otp:` não usam `buildRedisKey` (`infra/redis/config.ts`) — débito aceito em 13/07/2026 para não invalidar chaves vivas na migração; migrar para o prefixo `xua:<env>:` futuramente |
+| 19 | **Filas reservadas sem producer/worker** | `notifications` e `payment-reconciliation` declaradas em `infra/queue/contracts.ts`, mas nenhum código enfileira nem consome — reservadas para uso futuro; não considerar ativas |
+| 20 | **Ordem do shutdown da API subótima** | Em `server/index.ts`, a infra (filas, Redis, Prisma) fecha antes de `server.close()` — requests in-flight podem falhar durante deploy. Pré-existente (registrado pela revisão de qualidade em 13/07/2026); reordenar em melhoria futura |
+| 21 | **Adapter Redis do Socket.io (decisão registrada)** | Se o adapter for adotado (escala horizontal da API, Fase 4 do plano de escalabilidade), deverá usar o **Cache Redis** — nunca a instância de fila (noeviction + BullMQ) |
+| 22 | **`maxmemoryPolicy` do blueprint exige conferência manual** | No primeiro sync do `render.yaml`, conferir no dashboard do Render que `xua-queue-redis` ficou com `noeviction` e `xua-redis` com `volatile-lru` — se o campo do blueprint não for aplicado, configurar manualmente antes do deploy (ver runbook, seção 2) |
 
 ---
 
@@ -105,6 +112,6 @@
 - Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
-- Últimos marcos: provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- Últimos marcos: separação Redis Cache × Queue (13/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
 
-**Última atualização: 08 de julho de 2026.**
+**Última atualização: 13 de julho de 2026.**

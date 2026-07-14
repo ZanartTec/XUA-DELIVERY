@@ -1,6 +1,6 @@
 # 03 — Domain & Data: Schema, Fluxos e Rotas
 
-> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas, 20 enums). Última consolidação: 07/07/2026.
+> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas, 20 enums). Última consolidação: 13/07/2026.
 
 ---
 
@@ -173,10 +173,10 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Zones | `/api/zones` | `GET /:id/available-dates?days=14` (agenda + bloqueios + lead-time) | Público |
 | Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |
-| User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/cancel` (sem caller na UI), `PATCH /:id/delivery-dates/:deliveryDateId` | `consumer` |
+| User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/delivery-dates/:deliveryDateId` (o endpoint `/:id/cancel` foi removido em 28/06/2026 — `CANCELLED` só via expiração) | `consumer` |
 | Ops | `/api/ops` | `GET /kpis`, `GET /audit-events`, `GET /reconciliations`, `GET /inventory/balances` (`?is_active`, default `true`), `GET /inventory/balances/:id` | `ops`/`support` (inventário: `ops`) |
 | Reconciliations | `/api/reconciliations` | `POST /`, `GET /summary` | `distributor_admin` |
-| Jobs internos | `/api/internal/jobs` | `POST /subscription`, `POST /otp-cleanup`, `POST /subscription-expiry` | `INTERNAL_JOB_SECRET` |
+| Jobs internos | — | Endpoints `/api/internal/jobs/*` **removidos** (26/06/2026, junto com o cron legado) — jobs recorrentes rodam como BullMQ Job Schedulers registrados no boot do worker (`worker/register-repeatable-jobs.ts`) | — |
 
 **Rate limits:** orders 100/min, pagamentos 10/min, password reset 5/min por IP.
 
@@ -205,4 +205,4 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-**Última atualização: 08 de julho de 2026.**
+**Última atualização: 13 de julho de 2026** (rotas: remoção dos endpoints `/api/internal/jobs/*` e do `PATCH /user-subscriptions/:id/cancel` refletida).

@@ -8,9 +8,18 @@ type CheckStatus = "ok" | "error";
 interface ReadinessChecks {
   server: CheckStatus;
   database: CheckStatus;
-  redis: CheckStatus;
+  cache_redis: CheckStatus;
 }
 
+/**
+ * Readiness probe.
+ *
+ * Semântica dos checks:
+ * - `database` é CRÍTICO: falha ⇒ 503 (`not_ready`) — a API não atende sem banco.
+ * - `cache_redis` é NÃO-crítico: falha ⇒ 200 (`degraded`) — cache é opcional,
+ *   a API continua atendendo leituras direto do banco.
+ * - Redis de fila não é checado aqui: a API atende leitura sem fila.
+ */
 export async function readinessHandler(
   _req: Request,
   res: Response
@@ -18,10 +27,10 @@ export async function readinessHandler(
   const checks: ReadinessChecks = {
     server: "ok",
     database: "error",
-    redis: "error",
+    cache_redis: "error",
   };
 
-  // Database check
+  // Database check (crítico)
   try {
     await prisma.$queryRaw`SELECT 1`;
     checks.database = "ok";
@@ -29,18 +38,23 @@ export async function readinessHandler(
     logger.warn({ err }, "Readiness: database check failed");
   }
 
-  // Redis check
+  // Cache Redis check (não-crítico)
   try {
     await redis.ping();
-    checks.redis = "ok";
+    checks.cache_redis = "ok";
   } catch (err) {
-    logger.warn({ err }, "Readiness: redis check failed");
+    logger.warn({ err }, "Readiness: cache redis check failed (non-critical)");
   }
 
-  const allOk = Object.values(checks).every((v) => v === "ok");
+  const databaseOk = checks.database === "ok";
+  const status = !databaseOk
+    ? "not_ready"
+    : checks.cache_redis === "ok"
+      ? "ready"
+      : "degraded";
 
-  res.status(allOk ? 200 : 503).json({
-    status: allOk ? "ready" : "not_ready",
+  res.status(databaseOk ? 200 : 503).json({
+    status,
     checks,
     timestamp: new Date().toISOString(),
   });
