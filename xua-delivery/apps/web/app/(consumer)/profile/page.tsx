@@ -384,7 +384,7 @@ export default function ProfilePage() {
       {/* -- Footer -- */}
       <div className="text-center pb-6 px-6">
         <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#c3c5d9]">
-          XUA Delivery v1.0.0
+          XUÁ Delivery v1.0.0
         </p>
         <p className="text-[10px] text-[#737688] mt-1 italic">
           Água pura, entrega certa.
