@@ -50,6 +50,7 @@ interface CreateOrderData {
   timeSlotId?: string | null;
   preferredTimeStart?: number | null;
   preferredTimeEnd?: number | null;
+  deliveryInstructions?: string | null;
   paymentMethod?: CheckoutPaymentMethod;
   cashChangeForCents?: number | null;
   bypassLeadTime?: boolean;
@@ -212,6 +213,7 @@ async function buildOrderInTx(
       time_slot_id: scheduledSnapshot.timeSlotId,
       preferred_time_start: data.preferredTimeStart ?? null,
       preferred_time_end: data.preferredTimeEnd ?? null,
+      delivery_instructions: data.deliveryInstructions ?? null,
       scheduled_time_label: scheduledSnapshot.label,
       scheduled_time_start_hour: scheduledSnapshot.startHour,
       scheduled_time_start_minute: scheduledSnapshot.startMinute,

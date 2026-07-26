@@ -21,7 +21,6 @@ import {
   Eye,
   Loader2,
   MapPin,
-  Package2,
   RefreshCw,
   Repeat2,
   Route,
@@ -61,10 +60,26 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
 import { FilterChips } from "@/src/components/shared/filter-chips";
 import { Pagination } from "@/src/components/shared/pagination";
-import { StatusPill } from "@/src/components/shared/status-pill";
+import {
+  OrderCustomerSection,
+  OrderDeliveryStepsSection,
+  OrderInstructionsSection,
+  OrderItemsSection,
+  OrderPaymentSection,
+  OrderStatusHeader,
+  OrderSubscriptionSection,
+  OrderTimelineSection,
+} from "@/src/components/distributor/order-detail-sections";
+import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useSocket } from "@/src/hooks/use-socket";
 import { ApiError, api } from "@/src/lib/api-client";
 import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
+import {
+  formatScheduledTime,
+  formatShortOrderId,
+  isFromSubscription,
+  matchesStatuses,
+} from "@/src/lib/order-detail-format";
 import type { Order } from "@/src/types";
 import { OrderStatus } from "@/src/types/enums";
 
@@ -181,24 +196,6 @@ const SUMMARY_FALLBACK: QueueSummary = {
   route: 0,
 };
 
-function pad2(n: number) {
-  return n.toString().padStart(2, "0");
-}
-
-function formatScheduledTime(order: QueueOrder) {
-  if (order.scheduled_time_label) return order.scheduled_time_label;
-  if (order.scheduled_time_start_hour != null && order.scheduled_time_end_hour != null) {
-    const startMinute = order.scheduled_time_start_minute ?? 0;
-    const endMinute = order.scheduled_time_end_minute ?? 0;
-    return `${pad2(order.scheduled_time_start_hour)}:${pad2(startMinute)}-${pad2(order.scheduled_time_end_hour)}:${pad2(endMinute)}`;
-  }
-  return order.delivery_window === "MORNING" ? "Manha (08:00-12:00)" : "Tarde (13:00-18:00)";
-}
-
-function isFromSubscription(order: QueueOrder) {
-  return order.order_origin === "subscription";
-}
-
 function isQueueTab(value: string | null): value is QueueTabValue {
   return value === "all" || value === "incoming" || value === "preparation" || value === "route";
 }
@@ -214,14 +211,6 @@ function isQueueSort(value: string | null): value is QueueSort {
 function parsePage(value: string | null) {
   const page = Number(value ?? "1");
   return Number.isInteger(page) && page > 0 ? page : 1;
-}
-
-function matchesStatuses(status: string, statuses: readonly string[]) {
-  return statuses.includes(status);
-}
-
-function formatShortOrderId(id: string) {
-  return id.slice(0, 8).toUpperCase();
 }
 
 function shortAddress(address: string) {
@@ -543,9 +532,11 @@ function OrderDetailSheet({
   onDispatch: () => void;
   onRejectClick: () => void;
 }) {
+  const detailQuery = useOrderDetail(order?.id ?? null);
+  const detail = detailQuery.order;
+
   if (!order) return null;
 
-  const fromSubscription = isFromSubscription(order);
   const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
   const canAssign = canAssignDriver(order.status);
   const canChecklist = order.status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR;
@@ -553,7 +544,7 @@ function OrderDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[520px] max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto bg-[#f8fafc] p-0 sm:max-w-[520px]">
+      <SheetContent className="w-[560px] max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto bg-[#f8fafc] p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b bg-white p-4">
           <SheetTitle className="font-heading text-xl font-extrabold text-[#0d1b2f]">
             Pedido #{formatShortOrderId(order.id)}
@@ -567,43 +558,6 @@ function OrderDetailSheet({
           {actionError ? (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionError}</div>
           ) : null}
-
-          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Status</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <StatusPill status={order.status} />
-                  <span className="rounded bg-[#eef2f7] px-2 py-1 text-xs font-semibold text-[#475569]">
-                    {fromSubscription ? "Assinatura" : "Carrinho"}
-                  </span>
-                </div>
-              </div>
-              <p className="text-right font-heading text-xl font-extrabold text-[#0d1b2f]">{formatCurrency(order.total_cents)}</p>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Informacoes essenciais</p>
-            <div className="mt-3 grid gap-2 text-sm">
-              <div className="flex items-start gap-2">
-                <Package2 className="mt-0.5 h-4 w-4 text-[#64748b]" />
-                <span>{order.item_summary}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 text-[#64748b]" />
-                <span>{order.address_summary}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-[#64748b]" />
-                <span>Entrega {formatScheduledTime(order)} em {formatDate(order.delivery_date)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-[#64748b]" />
-                <span>{order.driver_name ? `Motorista: ${order.driver_name}` : "Sem motorista atribuido"}</span>
-              </div>
-            </div>
-          </section>
 
           {canAssign ? (
             <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
@@ -661,6 +615,29 @@ function OrderDetailSheet({
               </Button>
             </div>
           </section>
+
+          {detailQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-24 animate-pulse rounded-lg bg-[#eef0f3]" />
+              ))}
+            </div>
+          ) : detailQuery.isError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              Não foi possível carregar os detalhes completos do pedido.
+            </div>
+          ) : detail ? (
+            <>
+              <OrderStatusHeader order={detail} />
+              <OrderInstructionsSection order={detail} />
+              <OrderCustomerSection order={detail} />
+              <OrderItemsSection order={detail} />
+              <OrderSubscriptionSection order={detail} />
+              <OrderPaymentSection order={detail} />
+              <OrderDeliveryStepsSection order={detail} />
+              <OrderTimelineSection order={detail} />
+            </>
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>
@@ -825,8 +802,9 @@ function DistributorQueueContent() {
   const actionMutation = useMutation({
     mutationFn: ({ orderId, action, payload }: { orderId: string; action: QuickAction; payload?: Record<string, unknown> }) =>
       api.patch<{ order: QueueOrder }>(`/api/orders/${orderId}/${QUICK_ACTION_ROUTE[action]}`, payload ?? {}),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["distributor-order-detail", variables.orderId] });
       setRejectOrder(null);
       setRejectReason("");
       setRejectDetails("");
@@ -836,6 +814,7 @@ function DistributorQueueContent() {
   useEffect(() => {
     const handler = () => {
       void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["distributor-order-detail"] });
     };
 
     on("new_order", handler);

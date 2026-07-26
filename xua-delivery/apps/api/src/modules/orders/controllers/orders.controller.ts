@@ -244,6 +244,7 @@ export const ordersController = {
         deliveryWindow: parsed.data.delivery_window.toUpperCase() as DeliveryWindow,
         distributorSelectionMode: resolved.mode,
         timeSlotId: parsed.data.time_slot_id ?? null,
+        deliveryInstructions: parsed.data.delivery_instructions ?? null,
         paymentMethod: parsed.data.payment_method,
         cashChangeForCents: parsed.data.cash_change_for_cents ?? null,
         emptyBottles: parsed.data.empty_bottles,

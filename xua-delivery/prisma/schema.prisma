@@ -553,6 +553,8 @@ model Order {
   time_slot_id               String?        @db.Uuid
   preferred_time_start       Int?
   preferred_time_end         Int?
+  // Preenchido pelo consumidor no checkout (ex.: "deixar na portaria, código 1234").
+  delivery_instructions      String?
   // Snapshot imutável do horário no momento da criação do pedido.
   // Garante que alterações futuras em TimeSlot não afetem o histórico.
   scheduled_time_label         String?
