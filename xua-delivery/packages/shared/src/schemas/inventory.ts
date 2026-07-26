@@ -18,6 +18,10 @@ const NAME = z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max
 const UNIT_LABEL = z.string().trim().min(1, "Unidade é obrigatória").max(30);
 const LOW_STOCK_THRESHOLD = z.number().int().min(0, "Limite mínimo não pode ser negativo");
 const BOOLEAN_QUERY = z.enum(["true", "false"]).transform((value) => value === "true");
+const BOOLEAN_QUERY_DEFAULT_TRUE = z
+  .enum(["true", "false"])
+  .default("true")
+  .transform((value) => value === "true");
 const ITEM_SEARCH = z.string().trim().min(1, "Busca inválida").max(120);
 const INVENTORY_STOCK_STATUS_VALUES = ["LOW_STOCK", "OK"] as const;
 const LIMIT_QUERY = z.coerce
@@ -122,6 +126,7 @@ export const inventoryBalanceQuerySchema = z
     inventory_item_id: UUID.optional(),
     item_type: inventoryItemTypeSchema.optional(),
     stock_status: inventoryStockStatusFilterSchema.optional(),
+    is_active: BOOLEAN_QUERY_DEFAULT_TRUE,
     limit: LIMIT_QUERY,
     offset: OFFSET_QUERY,
   })
@@ -154,6 +159,7 @@ export const opsInventoryBalanceQuerySchema = z
     inventory_item_id: UUID.optional(),
     item_type: inventoryItemTypeSchema.optional(),
     stock_status: inventoryStockStatusFilterSchema.optional(),
+    is_active: BOOLEAN_QUERY_DEFAULT_TRUE,
     limit: REQUIRED_LIMIT_QUERY,
     offset: REQUIRED_OFFSET_QUERY,
   })

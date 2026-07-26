@@ -9,7 +9,6 @@ export interface ProductItem {
   description: string | null;
   image_url: string | null;
   price_cents: number;
-  deposit_cents: number;
   kind: "WATER" | "BOTTLE" | "OTHER";
   bottle_product_id: string | null;
   is_active: boolean;

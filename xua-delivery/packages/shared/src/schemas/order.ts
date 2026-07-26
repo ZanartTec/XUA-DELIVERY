@@ -145,6 +145,10 @@ export const createOrderSchema = z.object({
   delivery_window: z.enum(DELIVERY_WINDOW_INPUT_VALUES),
   distributor_id: z.string().uuid("Distribuidora inválida"),
   time_slot_id: z.string().uuid("Horário inválido").optional(),
+  delivery_instructions: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().max(280, "Instruções devem ter no máximo 280 caracteres").optional()
+  ),
   items: z
     .array(
       z.object({

@@ -82,7 +82,7 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only), `log` (histórico event-sourcing).
 
-> O schema atual tem **36 tabelas** (numeração `01`–`38`, sem `11` e `12`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`.
+> O schema atual tem **35 tabelas** (numeração `01`–`38`, sem `11`, `12` e `15`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. A `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema (jul/2026); o número `15` fica aposentado. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`.
 
 ### 2.1 Mapa de Tabelas
 
@@ -100,7 +100,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `10_trn_order_items` | trn | Itens de cada pedido (snapshot: `product_name`, `unit_price_cents`, `quantity`) |
 | `13_trn_payments` | trn | Cobranças. `kind`: ORDER ou SUBSCRIPTION. `provider`: mercadopago ou mock |
 | `14_cfg_payment_webhook_events` | cfg | Idempotência de webhooks: `UNIQUE(provider, provider_event_ref)` |
-| `15_trn_deposits` | trn | Caução financeira (v1, legado). Status: `HELD → REFUND_INITIATED → REFUNDED`. Substituída pela caução de vasilhames v2 (`35`–`37`) |
+| ~~`15_trn_deposits`~~ | — | Caução financeira v1 **removida (jul/2026)**: arquivada em `z_arch_15_trn_deposits` e substituída pela caução de vasilhames v2 (`35`–`37`) |
 | `16_sec_order_otps` | sec | OTPs: `otp_hash` HMAC-SHA256, TTL em `expires_at`, max 5 tentativas, status `LOCKED` |
 | `17_trn_reconciliations` | trn | Conciliação diária: `full_out`, `empty_returned`, `delta`, justificativa obrigatória se delta > 0 |
 | `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 34 tipos de evento. Nunca UPDATE/DELETE. |
@@ -138,7 +138,6 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `37_log_consumer_deposit_movements` | N : 1 | `36_trn_consumer_deposit_balances` | Saldo é a soma dos movimentos (derivado, por chave lógica) |
 | `01_mst_consumers` | 1 : N | `38_sec_password_reset_tokens` | Tokens de redefinição de senha |
 | `09_trn_orders` | 1 : 1 | `13_trn_payments` | Cada pedido gera exatamente uma cobrança |
-| `09_trn_orders` | 1 : 0..1 | `15_trn_deposits` | Caução apenas na primeira compra |
 | `09_trn_orders` | 1 : N | `16_sec_order_otps` | Novo OTP a cada tentativa de entrega |
 | `09_trn_orders` | 1 : N | `18_aud_audit_events` | Todo evento gravado com timestamp |
 | `03_mst_distributors` | 1 : N | `22_cfg_distributor_schedule` | Agenda semanal (7 registros possíveis por distribuidora) |
@@ -156,9 +155,8 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `DeliveryWindow` | `MORNING` \| `AFTERNOON` |
 | `OrderStatus` | `DRAFT` \| `CREATED` \| `PAYMENT_PENDING` \| `CONFIRMED` \| `SENT_TO_DISTRIBUTOR` \| `ACCEPTED_BY_DISTRIBUTOR` \| `REJECTED_BY_DISTRIBUTOR` \| `PICKING` \| `READY_FOR_DISPATCH` \| `OUT_FOR_DELIVERY` \| `DELIVERED` \| `DELIVERY_FAILED` \| `REDELIVERY_SCHEDULED` \| `CANCELLED` |
 | `OtpStatus` | `ACTIVE` \| `USED` \| `EXPIRED` \| `LOCKED` |
-| `PaymentKind` | `ORDER` \| `SUBSCRIPTION` \| `DEPOSIT` |
+| `PaymentKind` | `ORDER` \| `SUBSCRIPTION` (`DEPOSIT` legado da caução v1, mantido no enum Postgres) |
 | `PaymentStatus` | `CREATED` \| `AUTHORIZED` \| `CAPTURED` \| `FAILED` \| `REFUNDED` \| `EXPIRED` |
-| `DepositStatus` | `HELD` \| `REFUND_INITIATED` \| `REFUNDED` \| `FORFEITED` \| `CANCELLED` |
 | `ActorType` | `CONSUMER` \| `DISTRIBUTOR_USER` \| `DRIVER` \| `SUPPORT` \| `OPS` \| `SYSTEM` |
 | `ConsumerRole` | `CONSUMER` \| `DISTRIBUTOR_ADMIN` \| `DRIVER` \| `SUPPORT` \| `OPS` |
 | `SourceApp` | `CONSUMER_WEB` \| `DISTRIBUTOR_WEB` \| `DRIVER_WEB` \| `OPS_CONSOLE` \| `BACKEND` |
@@ -174,7 +172,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `InventoryReferenceType` | `ORDER` \| `RECONCILIATION_SESSION` \| `INITIAL_LOAD` \| `MANUAL_ADJUSTMENT` \| `PURCHASE` \| `SYSTEM` |
 | `InventoryReconciliationStatus` | `OPEN` \| `CLOSED` |
 
-> 20 enums no total. `ProductKind` e `DepositMovementType` foram adicionados com a caução de vasilhames v2.
+> 19 enums no total. `ProductKind` e `DepositMovementType` foram adicionados com a caução de vasilhames v2; `DepositStatus` (caução financeira v1) foi removido em jul/2026.
 
 ### 2.4 Regras Críticas do Banco
 
@@ -184,7 +182,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 
 **Caução de vasilhames (v2):** o programa é habilitado por consumidor e distribuidora em `35_cfg_consumer_deposit_programs` (`max_bottles`; `0` = bloqueado). Cada empréstimo/devolução gera um movimento em `37_log_consumer_deposit_movements` (append-only) e o saldo materializado fica em `36_trn_consumer_deposit_balances` (`bottles_on_loan` nunca negativo). Vasilhames são produtos `kind = BOTTLE` vinculados à água via `bottle_product_id`.
 
-**Caução financeira — Regra A (v1, legado):** `15_trn_deposits`: `held → refund_initiated` somente quando `status = DELIVERED AND collected_empty_qty ≥ 1`. Validação no `DepositService` — **nunca no frontend**.
+**Caução financeira — Regra A (v1, removida jul/2026):** o modelo antigo retinha dinheiro em `15_trn_deposits` e o devolvia quando `DELIVERED AND collected_empty_qty ≥ 1` (validação no `DepositService`, nunca no frontend). Foi desativado: tabela arquivada em `z_arch_15_trn_deposits`, `DepositService` e o evento `DEPOSIT_HELD/REFUND_*` não existem mais no fluxo. A caução atual é por vasilhames (v2, abaixo).
 
 **Pagamento por distribuidora:** `34_cfg_distributor_payment_settings` define os métodos aceitos e as credenciais Mercado Pago da própria distribuidora. Tokens sensíveis (`mp_access_token_enc`, `mp_webhook_secret_enc`) são criptografados com AES-256-GCM antes de persistir.
 
@@ -210,7 +208,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 |---|---|---|
 | **Routes** | Express Router | Recebe HTTP, verifica JWT/RBAC, valida Zod, delega ao Service |
 | **Middleware** | `jose` + `bcryptjs` | Auth JWT: `jwtVerify` + blacklist Redis. RBAC por role do JWT. |
-| **Services** | TypeScript puro | TODA lógica de negócio: máquina de estados, caução (Regra A), OTP HMAC, KPIs, assinaturas, `emitEvent()` atômico. |
+| **Services** | TypeScript puro | TODA lógica de negócio: máquina de estados, settlement de caução de vasilhames (v2), OTP HMAC, KPIs, assinaturas, `emitEvent()` atômico. |
 | **Repositories** | Prisma 7.x | Queries via Prisma Client com `@prisma/adapter-pg`. Transações interativas. |
 | **Socket.IO** | socket.io 4.x | Integrado ao servidor HTTP Express. Auth JWT no handshake. Salas `${role}:${userId}` e `distributor:${distributorId}`. |
 | **Queue/Worker** | BullMQ 5.x + ioredis | Worker separado em `src/worker/index.ts`. Processa webhooks de pagamento e jobs de assinatura. |
@@ -309,20 +307,20 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 |---|---|---|---|
 | 1 | `CREATED` | consumer | Pedido criado com itens, endereço e data. Evento: `ORDER_CREATED` |
 | 2 | `PAYMENT_PENDING` | system | `CapacityService.reserve()` com `FOR UPDATE` — slot bloqueado. Evento: `ORDER_PRICING_FINALIZED` |
-| 3 | `CONFIRMED` | system | Gateway aprova → `PAYMENT_CAPTURED`. Se 1ª compra: `DEPOSIT_HELD` (caução retida). |
+| 3 | `CONFIRMED` | system | Gateway aprova → `PAYMENT_CAPTURED`. (A caução financeira v1 / `DEPOSIT_HELD` foi removida em jul/2026 — não há mais retenção na 1ª compra.) |
 | 4 | `SENT_TO_DISTRIBUTOR` | system | Socket.io emite `"new_order"` para sala do distribuidor. Evento: `ORDER_RECEIVED_BY_DISTRIBUTOR` |
 | 5 | `ACCEPTED_BY_DISTRIBUTOR` | dist_admin | Aceite dentro do SLA. Timer para de contar. Evento: `ORDER_ACCEPTED_BY_DISTRIBUTOR` |
 | 6 | `READY_FOR_DISPATCH` | dist_admin | Checklist 100% (itens + vasilhames + endereço). Evento: `DISPATCH_CHECKLIST_COMPLETED` |
 | 7 | `OUT_FOR_DELIVERY` | system | OTP HMAC-SHA256 (6 dígitos, 90min, max 5). Web Push ao consumidor. Eventos: `OTP_GENERATED` + `OTP_SENT` + `ORDER_DISPATCHED` |
 | 8 | `DELIVERED` | operator | OTP validado. Troca registrada (qty + condição). Eventos: `OTP_VALIDATION_ATTEMPTED` + `ORDER_DELIVERED` + `BOTTLE_EXCHANGE` |
-| 9 | (pós) | system | Se `collected_empty_qty ≥ 1` e 1ª compra: caução devolvida. Eventos: `DEPOSIT_REFUND_INITIATED` → `DEPOSIT_REFUNDED` |
+| 9 | (pós) | system | Troca de vasilhames registrada (settlement v2). A devolução de caução financeira v1 (`DEPOSIT_REFUND_*`) não ocorre mais — removida em jul/2026. |
 
 ### 3.5 Mapa de Eventos de Auditoria (34 tipos)
 
 | Evento | Ator | Quando é emitido |
 |---|---|---|
 | `ORDER_CREATED` | consumer | Pedido criado com itens e data de entrega. **Payload inclui `distributor_selection_mode: 'manual' | 'auto'`** |
-| `ORDER_PRICING_FINALIZED` | system | Valores calculados (items + frete + caução se aplicável) |
+| `ORDER_PRICING_FINALIZED` | system | Valores calculados (items + frete) |
 | `ORDER_CONFIRMED` | system | Pagamento capturado e janela reservada com sucesso |
 | `ORDER_CANCELLED` | consumer/ops | Pedido cancelado com motivo obrigatório |
 | `ORDER_RECEIVED_BY_DISTRIBUTOR` | system | Pedido enviado para fila do distribuidor via Socket.io |
@@ -346,9 +344,9 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | `PAYMENT_EXPIRED` | system | Cobrança expirada sem pagamento |
 | `PAYMENT_REFUNDED` | system | Reembolso de pagamento confirmado |
 | `PAYMENT_REFUND_FAILED` | system | Falha ao processar reembolso |
-| `DEPOSIT_HELD` | system | Caução financeira retida na 1ª compra (v1, legado) |
-| `DEPOSIT_REFUND_INITIATED` | system | Regra A satisfeita — início do reembolso (v1, legado) |
-| `DEPOSIT_REFUNDED` | system | Reembolso confirmado pelo gateway (v1, legado) |
+| `DEPOSIT_HELD` | system | Caução financeira v1 — **não mais emitido** (removido jul/2026); valor mantido no enum por auditoria histórica |
+| `DEPOSIT_REFUND_INITIATED` | system | Caução financeira v1 — **não mais emitido** (removido jul/2026) |
+| `DEPOSIT_REFUNDED` | system | Caução financeira v1 — **não mais emitido** (removido jul/2026) |
 | `DAILY_RECONCILIATION_CLOSED` | dist_user | Conciliação diária fechada (delta + justificativa) |
 | `DEPOSIT_BOTTLES_LOANED` | system/dist_user | Caução v2: vasilhames emprestados ao consumidor |
 | `DEPOSIT_BOTTLES_RETURNED` | system/driver | Caução v2: vasilhames devolvidos |
@@ -370,6 +368,31 @@ Login via `POST /api/auth/login` gera JWT (biblioteca `jose`, payload `sub` + `r
 Páginas web: `(auth)/forgot-password` e `(auth)/reset-password`.
 
 Variáveis de ambiente relacionadas à segurança: `JWT_SECRET`, `PASSWORD_RESET_SECRET`, `OTP_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `INTERNAL_JOB_SECRET`.
+
+### 3.7 Fluxo Cadastro → Estoque → Venda (produtos × inventário)
+
+Desde 07/07/2026, produto criado ou reativado pela ops nasce vendável — antes, `POST /api/products` criava só o registro em `06_mst_products` e o aceite falhava com `INVENTORY_ITEM_NOT_FOUND`, exigindo INSERT manual do item de estoque.
+
+```
+POST/PATCH /api/products (ops)
+        │  $transaction: produto + provisionForProduct() atômicos
+        ▼
+item SELLABLE_PRODUCT ativo vinculado (29_mst_inventory_items)
+        │  saldo NÃO é inicializado aqui (lazy)
+        ▼
+carga inicial do distribuidor (INITIAL_LOAD) cria o saldo via upsertBalance
+        │
+        ▼
+aceite do pedido movimenta estoque (ORDER_ACCEPT_OUT)
+```
+
+Regras e responsabilidades:
+
+- **Invariante:** produto ativo ⇒ exatamente 1 item de estoque vendável ativo vinculado (exigida por `resolveOrderInventoryLines` no aceite). Regra aplicacional — sem constraint de banco.
+- **`products.service`** orquestra a transação (`create`/`update`; no update, provisiona quando o produto resultante está ativo — reativar produto legado provisiona sozinho). Cache `products:active` invalidado pós-commit.
+- **`inventory-item-provisioning.service`** é dono da regra: idempotente por `product_id` (1 ativo → no-op; >1 ativo → warn + no-op; só inativos → reativa o mais recente; nenhum → cria). Sempre `SELLABLE_PRODUCT`, para todos os `ProductKind` — nunca `RETURNABLE_*`, que são singletons globais do settlement de caução. Não propaga `name`/`is_active` do produto para o item (deliberado).
+- **Repositórios** sem lógica de negócio (`findInventoryItemsByProductId`, `findInventoryItemByCode`, `createInventoryItem`, `reactivateInventoryItem`; constante `SELLABLE_INVENTORY_ITEM_TYPES` compartilhada com o resolver de pedidos).
+- **Legados:** `scripts/backfill-product-inventory-items.ts` (`--dry-run` disponível) provisiona produtos ativos sem item vendável ativo, uma transação por produto.
 
 ---
 
@@ -397,6 +420,8 @@ Como tudo é um repo só, a integração é instantânea — Dev B chama o Servi
 > **Milestone:** API testável + login funcionando + middleware RBAC redirecionando por perfil no navegador
 
 ### Semana 2 — Pedidos, Pagamento e Área do Consumidor
+
+> Nota histórica: este cronograma reflete o plano original. Os itens de caução financeira v1 (`DepositBanner`, `DepositService`, "resumo produto+frete+caução", badge caução no perfil) foram **removidos em jul/2026** — a caução atual é por vasilhames (v2).
 
 | Dev A — Backend / Services | Dev B — Frontend / UI |
 |---|---|
@@ -582,7 +607,6 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 | Race condition — overbooking | Alto | `SELECT FOR UPDATE` obrigatório. Teste 10 req simultâneas S1. 409 pro segundo. |
 | Webhook duplicado cobra 2x | Alto | `INSERT ON CONFLICT DO NOTHING`. `UNIQUE(provider, event_ref)`. |
 | OTP texto claro no banco | Alto | HMAC-SHA256 + `OTP_SECRET` em env. Teste unitário obrigatório S1. |
-| Caução liberada sem vasilhame | Médio | Regra A só no `DepositService` backend. Frontend **NUNCA** aciona liberação. |
 | Web Push não chega | Médio | SMS fallback no `NotificationService`. Teste dispositivo real S3. |
 | Offline sync duplica eventos | Médio | UUID v4 gerado no browser. Servidor valida unicidade. Idempotente. |
 | Migrations atrasam | Médio | Prioridade absoluta dia 1 S1. Dev A não começa services sem migrations. |
@@ -610,5 +634,5 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 ---
 
 *Xuá Delivery — Guia Técnico v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 06 de julho de 2026*
+*Zanart · Última atualização: 08 de julho de 2026*
 *36 tabelas · 20 enums · 14 estados · 34 eventos · 5 perfis RBAC*

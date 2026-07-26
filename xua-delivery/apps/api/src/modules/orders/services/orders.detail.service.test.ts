@@ -116,8 +116,7 @@ function detailFixture(overrides: Record<string, unknown> = {}) {
     delivery_date: new Date("2026-06-02T00:00:00.000Z"),
     delivery_window: DeliveryWindow.MORNING,
     subtotal_cents: 2500,
-    deposit_cents: 1000,
-    total_cents: 3500,
+    total_cents: 2500,
     nps_score: null,
     nps_comment: null,
     subscription_delivery_date: null,
@@ -145,7 +144,6 @@ function detailFixture(overrides: Record<string, unknown> = {}) {
       },
     ],
     payments: [],
-    deposits: [],
     otps: [],
     audit_events: [],
     ...overrides,
@@ -157,6 +155,12 @@ describe("orderService.getOrderDetail — exposição do código OTP", () => {
     vi.clearAllMocks();
     mocks.orderRepository.findByIdWithDetails.mockResolvedValue(detailFixture());
     mocks.redisGet.mockResolvedValue("123456");
+  });
+
+  it("não expõe mais o array deposits da caução financeira v1 no payload", async () => {
+    const detail = await orderService.getOrderDetail(orderId, "consumer");
+
+    expect(detail).not.toHaveProperty("deposits");
   });
 
   it("inclui otp_code para o consumidor dono do pedido", async () => {

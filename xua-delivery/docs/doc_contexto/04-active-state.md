@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **06/07/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **07/07/2026**.
 
 ---
 
@@ -33,6 +33,8 @@
 - [x] Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo água → vasilhame (`bottle_product_id`)
 - [x] Inventário operacional: itens, saldos por distribuidora, log de movimentações (11 tipos), sessões de reconciliação com ajuste automático
 - [x] Conciliação diária de vasilhames (delta > 0 exige justificativa)
+- [x] **Fix itens inativos nas listagens de saldo** (07/07/2026): `GET /api/distributor/inventory/balances` e `GET /api/ops/inventory/balances` ganharam filtro `is_active` (query param, default `true`) — antes, item desativado (`29_mst_inventory_items.is_active = false`) mantinha o saldo visível, gerando duplicidade com item substituto, KPIs inflados e alertas falsos de baixo estoque. Helper DRY `balance-query.helpers.ts` unifica o where entre os repositórios distributor/ops; `item.is_active` agora exposto nos payloads de saldos, movimentos e detalhe por id. Sem filtro (intencional): `findBalanceById` (auditoria) e extrato de movimentações (histórico imutável)
+- [x] **Fix produto criado pela ops nascia invendável** (07/07/2026): `POST /api/products` criava só o registro em `06_mst_products` — sem `InventoryItem` vinculado, o aceite falhava com `INVENTORY_ITEM_NOT_FOUND` (exigia INSERT manual). Agora `productsService.create`/`update` rodam em `$transaction` com o novo `inventory-item-provisioning.service.ts` (`provisionForProduct`, idempotente por `product_id`): 1 item ativo → no-op; >1 ativo → warn + no-op (conflito pré-existente); só inativos → reativa o mais recente; nenhum → cria item `SELLABLE_PRODUCT` (todos os kinds; nunca `RETURNABLE_*`, singletons do settlement de caução) com `code` determinístico slug+UUID, `unit_label "un"`, `low_stock_threshold 10`. Invariante: **produto ativo ⇒ item vendável ativo** (update provisiona quando o produto resultante está ativo — reativar produto legado provisiona sozinho). Sem propagação de `name`/`is_active` produto→item (deliberado); saldos continuam lazy (`upsertBalance` na 1ª movimentação); sem migration, sem mudança de contrato. **Saneamento de legados:** rodar `npx tsx scripts/backfill-product-inventory-items.ts --dry-run` e depois sem a flag em produção (uma transação por produto; falha em um não aborta os demais; exit code 1 se houver falhas). Produtos inativos legados só ganham item quando reativados (por design)
 
 ### Autenticação e segurança
 - [x] Login JWT em cookie httpOnly + RBAC 5 roles + logout com blacklist Redis
@@ -79,7 +81,7 @@
 
 | # | Item | Detalhe |
 |---|---|---|
-| 1 | **Caução v1 legada no schema** | `15_trn_deposits` + `deposit_cents` + `DepositStatus` + eventos `DEPOSIT_HELD/REFUND_*` permanecem no schema/enum como legado da caução financeira, substituída pela v2. Decidir: remoção formal ou manutenção para histórico |
+| 1 | ~~**Caução v1 legada no schema**~~ **✅ RESOLVIDO (jul/2026)** | Caução financeira v1 removida. Tabela `15_trn_deposits` arquivada em `z_arch_15_trn_deposits` e removida do schema; removidos `model Deposit`, `enum DepositStatus`, `Product.deposit_cents` e o include `deposits[]` do `GET /orders/:id`. **Mantidos de propósito:** `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_HELD/REFUND_*` (Postgres não suporta `DROP VALUE` em enum; `18_aud` é append-only) e as colunas `Order.deposit_cents`/`deposit_amount_cents` (histórico compõe `total_cents`; novos pedidos gravam 0). Migrations: `20260708130000_archive_legacy_financial_deposits`, `20260708130001_drop_legacy_financial_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md` |
 | 2 | **Endpoint órfão de cancelamento de assinatura** | `PATCH /api/user-subscriptions/:id/cancel` existe no backend, mas o botão "Cancelar" foi removido da UI do consumer (pendência "P6" citada na doc). Decidir destino do endpoint |
 | 3 | **Sem anti-overbooking numérico** | A tabela `07_cfg_delivery_capacity` foi removida; não há bloqueio por contagem de pedidos por slot — só agenda/lead-time/bloqueios. Se overbooking virar problema real, reintroduzir controle de capacidade |
 | 4 | **DDL histórico divergente** | O `doc_sistema.md` contém rascunhos de DDL e envelope de eventos "ricos" (correlation, geo, recorded_at) que **não** correspondem ao schema real (plano). Fonte da verdade: `prisma/schema.prisma`. Não implementar a partir do rascunho |
@@ -90,7 +92,11 @@
 | 9 | **LGPD / retenção** | Política de retenção de dados e evidências [A DEFINIR] |
 | 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
 | 11 | **SMS fallback do OTP** | Docs citam "SMS fallback" e telefone obrigatório para OTP por SMS, mas só Web Push é descrito como canal implementado. [A DEFINIR: SMS está ativo?] |
-| 12 | **Valores de negócio abertos** | Valor da caução v1 (R$ X), desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
+| 12 | **Valores de negócio abertos** | Desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
+| 13 | **Sem endpoint de escrita para itens de inventário** | `inventoryItemUpdateSchema` existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome. Itens vendáveis passaram a ser criados automaticamente pelo provisionamento na criação/reativação de produto (07/07/2026), mas edição/desativação de `29_mst_inventory_items` continua sendo UPDATE manual no banco, sem validação de saldo remanescente (item pode ser desativado com saldo > 0, que fica oculto nas listagens; causa raiz do fix de 07/07/2026). Proposta técnica do CRUD aprovada: `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md` |
+| 14 | **Criação de produto e de item de inventário sem AuditEvent** | O provisionamento (07/07/2026) e o próprio `POST /api/products` não emitem eventos de auditoria — `AuditEventType` não tem valores para catálogo/inventário mestre. Decisão: criar os eventos junto com o CRUD de itens de inventário (ver proposta em `doc_desenvolvimento/inventario-itens-crud-proposta.md`) |
+| 15 | **Invariante "1 item vendável ativo por produto" só aplicacional** | Não há constraint de banco (índice único parcial exigiria migration raw SQL). O provisionamento detecta >1 item ativo, loga warn e faz no-op. Decisão futura do xua-banco-dados |
+| 16 | **`createMovementOnce` captura P2002 dentro de transação interativa** | Padrão pré-existente em `inventory.repository.ts` (~linha 545): captura `P2002` e retorna `null`, mas em Postgres o erro aborta a transação — se um caller emitir statements na mesma tx após receber `null`, sofrerá `25P02` ("current transaction is aborted"). Candidato a revisão (por isso o provisionamento pré-checa unicidade do `code` antes do create, em vez de reagir à colisão) |
 
 ---
 
@@ -99,4 +105,6 @@
 - Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
-- Últimos marcos: esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- Últimos marcos: provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+
+**Última atualização: 08 de julho de 2026.**

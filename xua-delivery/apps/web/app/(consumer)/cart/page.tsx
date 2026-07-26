@@ -156,9 +156,9 @@ export default function CartPage() {
                 </h3>
                 <p className="text-xs text-[#444] mt-1 leading-relaxed">
                   Na compra da água sem galão incluso, é necessário entregar 1 vasilhame
-                  vazio de 20L, em bom estado e dentro da validade, para cada garrafão pedido.
+                  vazio de 20L, em bom estado e dentro da validade(3 anos), para cada garrafão pedido.
                 </p>
-              </div>
+              </div>  
             </div>
             <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
               <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />

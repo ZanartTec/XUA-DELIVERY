@@ -59,7 +59,6 @@ async function ensureProduct(def: (typeof PRODUCTS)[number]) {
         price_cents: def.price_cents,
         kind: ProductKind.OTHER,
         bottle_product_id: null,
-        deposit_cents: 0,
         is_active: true,
       },
     });
@@ -72,7 +71,6 @@ async function ensureProduct(def: (typeof PRODUCTS)[number]) {
         price_cents: def.price_cents,
         kind: ProductKind.OTHER,
         bottle_product_id: null,
-        deposit_cents: 0,
         is_active: true,
       },
     });

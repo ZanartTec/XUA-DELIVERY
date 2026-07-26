@@ -35,6 +35,9 @@ aceitando os campos (base do Comodato B2B).
 
 1. **Não remover** código/tabelas de caução — desligamento por DADOS (produtos sem
    `bottle_product_id`). Infra vira base do Comodato B2B futuro.
+   > Escopo: esta regra vale para a caução de vasilhames **v2** (base do Comodato B2B). A caução
+   > financeira **v1** (`15_trn_deposits`, `model Deposit`, `DepositStatus`, `Product.deposit_cents`)
+   > teve remoção aprovada e executada em jul/2026 — sem conflito com esta decisão.
 2. 2 produtos manuais, ambos `kind=OTHER`, vendáveis normais, sem vínculo água↔galão.
    R$ 12 (água, troca implícita) e R$ 37 (água + galão definitivo).
 3. `kind=OTHER` **passa no aceite** do distribuidor — verificado: aceite não olha kind,

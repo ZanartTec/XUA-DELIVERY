@@ -5,6 +5,7 @@ import { createOrderSchema, distributorQueueQuerySchema } from "./order";
 
 const baseOrderInput = {
   address_id: "7e1d7b55-3f52-4d10-aac3-74387c236904",
+  distributor_id: "7e1d7b55-3f52-4d10-aac3-74387c236905",
   items: [{ product_id: "7e1d7b55-3f52-4d10-aac3-74387c236906", quantity: 1 }],
   delivery_date: "2026-06-12",
   delivery_window: "morning",
@@ -41,6 +42,51 @@ describe("createOrderSchema", () => {
       expect(result.error.issues).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ path: ["cash_change_for_cents"] }),
+        ])
+      );
+    }
+  });
+
+  it("aceita delivery_instructions e remove espaços nas bordas", () => {
+    const result = createOrderSchema.safeParse({
+      ...baseOrderInput,
+      delivery_instructions: "  Deixar na portaria, código 1234  ",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.delivery_instructions).toBe("Deixar na portaria, código 1234");
+    }
+  });
+
+  it("trata delivery_instructions vazio ou ausente como undefined", () => {
+    const withoutField = createOrderSchema.safeParse(baseOrderInput);
+    expect(withoutField.success).toBe(true);
+    if (withoutField.success) {
+      expect(withoutField.data.delivery_instructions).toBeUndefined();
+    }
+
+    const withEmptyString = createOrderSchema.safeParse({
+      ...baseOrderInput,
+      delivery_instructions: "   ",
+    });
+    expect(withEmptyString.success).toBe(true);
+    if (withEmptyString.success) {
+      expect(withEmptyString.data.delivery_instructions).toBeUndefined();
+    }
+  });
+
+  it("rejeita delivery_instructions acima de 280 caracteres", () => {
+    const result = createOrderSchema.safeParse({
+      ...baseOrderInput,
+      delivery_instructions: "a".repeat(281),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ["delivery_instructions"] }),
         ])
       );
     }

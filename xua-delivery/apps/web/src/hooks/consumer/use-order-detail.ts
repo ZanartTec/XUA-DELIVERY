@@ -17,14 +17,6 @@ export interface PaymentSummary {
   created_at: string;
 }
 
-export interface DepositSummary {
-  id: string;
-  amount_cents: number;
-  status: string;
-  refunded_at?: string | null;
-  created_at: string;
-}
-
 export interface OtpSummary {
   id: string;
   status: string;
@@ -43,7 +35,6 @@ export interface OrderDetail extends Order {
   }[];
   events: TimelineEvent[];
   payments: PaymentSummary[];
-  deposits: DepositSummary[];
   otps: OtpSummary[];
   otp_code?: string;
   consumer_name: string;

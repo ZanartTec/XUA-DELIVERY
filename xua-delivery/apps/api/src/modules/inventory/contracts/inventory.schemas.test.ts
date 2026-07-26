@@ -28,11 +28,23 @@ describe("inventory shared schemas", () => {
       q: "agua",
       item_type: InventoryItemType.SELLABLE_PRODUCT,
       stock_status: "LOW_STOCK",
+      is_active: true,
       limit: 20,
       offset: 0,
     });
     expect(
       inventoryBalanceQuerySchema.safeParse({ stock_status: "CRITICAL", limit: "20", offset: "0" })
+        .success
+    ).toBe(false);
+  });
+
+  it("assume is_active=true por padrao e aceita is_active=false nos filtros de saldo", () => {
+    expect(inventoryBalanceQuerySchema.parse({}).is_active).toBe(true);
+    expect(
+      inventoryBalanceQuerySchema.parse({ is_active: "false", limit: "20", offset: "0" }).is_active
+    ).toBe(false);
+    expect(
+      inventoryBalanceQuerySchema.safeParse({ is_active: "maybe", limit: "20", offset: "0" })
         .success
     ).toBe(false);
   });

@@ -446,6 +446,7 @@ export default function CheckoutSchedulePage() {
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="Ex: Deixar na portaria, código 1234..."
           rows={3}
+          maxLength={280}
           className="w-full rounded-2xl border border-[#e1e3e4] bg-[#f8f9fa] px-4 py-3 text-sm text-[#191c1d] placeholder:text-[#737688]/50 resize-none focus:outline-none focus:border-primary/40 transition-colors"
         />
       </div>

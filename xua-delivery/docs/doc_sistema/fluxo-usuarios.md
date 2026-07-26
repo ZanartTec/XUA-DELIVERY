@@ -70,10 +70,8 @@ Catálogo (/catalog)
 Carrinho (/cart)
 ├── Seletor de quantidade (+ / -)
 ├── [Campo obrigatório] 'Quantos garrafões vazios você tem?' (0–5+)
-├── [1ª compra do consumidor] -> DepositBanner:
-│   'Na primeira compra, cobramos uma caução de R$ XX,XX
-│    pelo vasilhame. Ela é devolvida quando você devolver
-│    o garrafão vazio na próxima entrega.'
+│   (A caução financeira v1 / DepositBanner na 1ª compra foi removida em jul/2026.
+│    A caução atual é por vasilhames — v2, gerida por distribuidora.)
 └── Botão 'Agendar entrega' -> /checkout/schedule
 
 Agendar entrega (/checkout/schedule)
@@ -103,9 +101,9 @@ Resumo e pagamento (/checkout/payment)
 ├── Breakdown do valor:
 │     Garrafão 20L x 2 ............ R$ 50,00
 │     Frete ........................ R$  5,00
-│     [1ª compra] Caução ........... R$ 15,00
 │     ----------------------------------------
-│     Total ........................ R$ 70,00
+│     Total ........................ R$ 55,00
+│     (Caução financeira v1 removida em jul/2026 — não há mais linha de caução.)
 ├── [distributor_id presente] -> enviado no POST /api/orders como campo opcional
 ├── SDK do gateway (iframe ou redirect)
 ├── [Pagamento aprovado] -> /checkout/confirmation
@@ -140,8 +138,8 @@ Status do pedido (/orders/[id]) — atualiza via Socket.io em tempo real
 │   ├── [Nota 3+] -> 'Obrigado pela avaliação!'
 │   └── POST /api/orders/[id]/rating
 │
-└── [1ª compra + vasilhame coletado] -> Banner de caução:
-    'Sua caução de R$ XX,XX foi devolvida com sucesso!'
+└── (O banner "Sua caução de R$ XX foi devolvida" da caução financeira v1
+     foi removido em jul/2026 — não há mais devolução de caução em dinheiro.)
 
 Histórico de pedidos (/orders)
 ├── Lista paginada: data, status (badge colorido), total, itens
@@ -170,7 +168,7 @@ Gerenciar assinatura (/subscription/manage)
 Perfil (/profile)
 ├── Dados pessoais: nome, email, telefone
 ├── Lista de endereços com estrela no padrão
-├── Status da caução: badge 'Retida R$ XX' ou 'Devolvida'
+│   (O badge de status da caução financeira v1 — 'Retida'/'Devolvida' — foi removido em jul/2026.)
 ├── Toggle 'Distribuidora automática':
 │   ├── LIGADO (padrão) -> sistema escolhe a distribuidora da zona automaticamente
 │   └── DESLIGADO -> consumidor escolhe manualmente no checkout
@@ -307,9 +305,8 @@ Registro de troca (/driver/deliveries/[id]/exchange)
 │   └── Botões numéricos grandes (fácil de tocar com luva)
 ├── [qty > 0] -> Passo 2: Condição de cada garrafão
 │   ├── Radio buttons: OK / Danificado / Sujo
-│   └── [1ª compra do consumidor + qty >= 1]
-│       ├── Caução devolvida automaticamente no backend (Regra A)
-│       └── Consumer recebe Web Push: 'Caução devolvida!'
+│   └── Settlement de vasilhames (v2) registra a devolução no ledger.
+│       (A devolução de caução financeira v1 / Regra A foi removida em jul/2026.)
 ├── [qty = 0] -> Redirect /driver/deliveries/[id]/non-collection
 └── [Confirmar] -> POST /api/orders/[id]/bottle-exchange
     ├── Se offline: evento salvo no IndexedDB com UUID v4
@@ -411,7 +408,6 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | Pedido despachado + OTP | Distribuidor | Consumidor | Socket.io + Web Push (com OTP) |
 | OTP enviado | Sistema | Consumidor | Web Push (código no corpo) |
 | Pedido entregue | Motorista | Consumidor | Socket.io + Web Push |
-| Caução devolvida | Sistema | Consumidor | Socket.io + Web Push |
 | SLA em risco (< 60s) | Sistema | Distribuidor | Socket.io (sala `distributor:{id}`) |
 
 ---
@@ -420,7 +416,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 
 - **Sem endereço confirmado** → catálogo não carrega (sem zona detectada = sem produto)
 - **Sem slot disponível** → checkout bloqueado (anti-overbooking com `SELECT FOR UPDATE`, retorna 409)
-- **Caução de vasilhames (v2)** → programa habilitado pela distribuidora por cliente (`max_bottles`; 0 = bloqueado). Empréstimos e devoluções geram movimentos append-only; saldo por cliente nunca negativo. A caução financeira da 1ª compra (Regra A) é o modelo v1, legado.
+- **Caução de vasilhames (v2)** → programa habilitado pela distribuidora por cliente (`max_bottles`; 0 = bloqueado). Empréstimos e devoluções geram movimentos append-only; saldo por cliente nunca negativo. A caução financeira da 1ª compra (Regra A, v1) foi **removida em jul/2026**.
 - **Redefinição de senha** → link por e-mail com token de uso único e validade de 30 min; resposta nunca revela se o e-mail existe
 - **OTP** → gerado ao despachar com HMAC-SHA256, TTL 90min, max 5 tentativas. Após 5 erros → status `locked` → só override de ops/support
 - **Despachar** → botão bloqueado até checklist 100% marcado (3/3 itens). Não tem bypass.
@@ -439,16 +435,16 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/forgot-password` | (auth) | todos | **[NOVO]** Solicitar redefinição de senha por e-mail (Resend). |
 | `/reset-password` | (auth) | todos | **[NOVO]** Definir nova senha via token do link (30 min, uso único). |
 | `/catalog` | (consumer) | consumer | Catálogo: garrafão 20L com preço + disponibilidade. Requer endereço. |
-| `/cart` | (consumer) | consumer | Carrinho: qty + garrafões vazios (obrigatório) + banner caução 1ª compra. |
+| `/cart` | (consumer) | consumer | Carrinho: qty + garrafões vazios (obrigatório). Banner de caução financeira v1 removido (jul/2026). |
 | `/checkout/schedule` | (consumer) | consumer | Agendamento: Calendar 14 dias + pills manhã/tarde + filtra agenda/bloqueios/lead_time. |
 | `/checkout/distributor` | (consumer) | consumer | Seleção de distribuidora quando há 2+ opções (auto-skip se ≤1). |
-| `/checkout/payment` | (consumer) | consumer | Resumo (produto+frete+caução) + SDK gateway + retry. |
+| `/checkout/payment` | (consumer) | consumer | Resumo (produto+frete) + SDK gateway + retry. |
 | `/checkout/confirmation` | (consumer) | consumer | Confirmação: animação sucesso + botão acompanhar pedido. |
 | `/orders` | (consumer) | consumer | Histórico paginado + filtro status + "Repetir pedido" 1 clique. |
-| `/orders/[id]` | (consumer) | consumer | Detalhe: OrderTimeline + OTP display + NPS modal + caução badge. |
+| `/orders/[id]` | (consumer) | consumer | Detalhe: OrderTimeline + OTP display + NPS modal. |
 | `/subscription/create` | (consumer) | consumer | Criar assinatura: qty + janela + Calendar + preview valor. |
 | `/subscription/manage` | (consumer) | consumer | Gerenciar: pausar / retomar; editar data+horário de entregas futuras (Sheet). Cancelar removido da UI (endpoint mantido no backend). |
-| `/profile` | (consumer) | consumer | Dados + endereços + caução + logout. |
+| `/profile` | (consumer) | consumer | Dados + endereços + logout. |
 | `/profile/addresses` | (consumer) | consumer | CRUD endereços: CEP + ViaCEP + definir padrão. |
 | `/profile/edit` | (consumer) | consumer | Editar nome, email, telefone. |
 | `/distributor/queue` | (distributor) | dist_admin | Fila: cards com SlaCountdown + Socket.io `new_order`. |
@@ -471,7 +467,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
 | `/ops/banners` | (ops) | ops | CRUD de banners promocionais do catálogo. |
-| `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. |
+| `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. Criar/reativar produto provisiona automaticamente o item de estoque vendável vinculado (fix 07/07/2026). |
 | `/ops/subscription-plans` | (ops) | ops | CRUD de planos de assinatura + vínculo de distribuidoras. |
 | `/ops/inventory` | (ops) | ops | Visão global de inventário. |
 | `/ops/inventory/reconciliations` | (ops) | ops | Reconciliações de inventário de todas as distribuidoras. |
@@ -483,5 +479,5 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 ---
 
 *Xuá Delivery — Fluxo de Usuários v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 06 de julho de 2026*
+*Zanart · Última atualização: 08 de julho de 2026*
 *46 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*

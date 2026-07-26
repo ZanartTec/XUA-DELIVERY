@@ -78,7 +78,7 @@ Além disso, existe o **módulo do entregador** ( “modo entregas”, no mesmo 
   - Jobs disparados via `/api/internal/jobs`, protegidos por `INTERNAL_JOB_SECRET` (não por JWT).
 - **Realtime** — **Socket.IO** acoplado ao mesmo servidor HTTP da API (atualização de filas/pedidos).
 - **Pagamentos** — provider concreto **Mercado Pago** (`PAYMENT_PROVIDER`, default `mercadopago`); métodos: **Pix, cartão e dinheiro** (`cash_change_for_cents`). Idempotência via `20_cfg_idempotency_keys` + `14_cfg_payment_webhook_events` + trilha em `21_trn_payment_transactions`. **[NOVO — jul/2026]** Cobrança com as **credenciais da própria distribuidora** (`34_cfg_distributor_payment_settings`, tokens criptografados AES-256-GCM); cada distribuidora define os métodos que aceita.
-- **Caução de vasilhames v2 [NOVO — jun/2026]** — programa habilitado por (distribuidora, consumidor) em `35_cfg_consumer_deposit_programs` (`max_bottles`), saldo em `36_trn_consumer_deposit_balances` e histórico append-only em `37_log_consumer_deposit_movements`. Substitui a caução financeira `15_trn_deposits` (legado). Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo `bottle_product_id`.
+- **Caução de vasilhames v2 [NOVO — jun/2026]** — programa habilitado por (distribuidora, consumidor) em `35_cfg_consumer_deposit_programs` (`max_bottles`), saldo em `36_trn_consumer_deposit_balances` e histórico append-only em `37_log_consumer_deposit_movements`. Substituiu a caução financeira `15_trn_deposits` (v1, removida em jul/2026 e arquivada em `z_arch_15_trn_deposits`). Produtos com `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo `bottle_product_id`.
 - **Frontend (`apps/web`)** — Next.js 16 (App Router) + React 19; estado com **Zustand** (`auth`, `cart`, `checkout`, `subscription`) e **TanStack Query**; comunicação via `fetch` (`credentials: include`); PWA com push e fila offline (idb).
 
 **3) Passo a passo (ponta a ponta) — com usabilidade + requisitos de programação**
@@ -1104,7 +1104,7 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 - **POD** : **OTP** ✅ implementado (tabela própria `16_sec_order_otps`)
 - **Assinatura** : ~~mensal~~ → **modelo por planos pré-definidos (v2)** ✅ implementado (ver `[ESTADO ATUAL]` na Seção "Decisões do MVP" acima)
 - **Caução** : **recomendada no MVP** , por ser pilar de controle de ativo + prioridade
-    operacional — ✅ implementada. **[ATUALIZADO — jul/2026]** O modelo vigente é a **caução de vasilhames v2** (`35_cfg_consumer_deposit_programs` + `36_trn_consumer_deposit_balances` + `37_log_consumer_deposit_movements`): programa habilitado pela distribuidora por cliente, com limite de vasilhames (`max_bottles`) e controle por quantidade emprestada. A caução financeira `15_trn_deposits` + `deposit_cents` permanece no schema como legado (v1).
+    operacional — ✅ implementada. **[ATUALIZADO — jul/2026]** O modelo vigente é a **caução de vasilhames v2** (`35_cfg_consumer_deposit_programs` + `36_trn_consumer_deposit_balances` + `37_log_consumer_deposit_movements`): programa habilitado pela distribuidora por cliente, com limite de vasilhames (`max_bottles`) e controle por quantidade emprestada. A caução financeira v1 (`15_trn_deposits` + `deposit_cents`) foi **removida do schema em jul/2026**: a tabela foi arquivada em `z_arch_15_trn_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md`.
 
 
 **1) Mapa de eventos auditáveis (com payload mínimo)**
@@ -4174,6 +4174,6 @@ schema._
 
 ---
 
-**Última atualização: 06 de julho de 2026.** Principais mudanças refletidas nesta revisão: fluxo "esqueci minha senha" (`38_sec_password_reset_tokens`), caução de vasilhames v2 (`35`–`37`), configuração de pagamento por distribuidora (`34_cfg_distributor_payment_settings`), assinaturas fases 1 e 2 (geração atômica + compensação com retry) e schema com 36 tabelas / 20 enums / 34 tipos de evento de auditoria.
+**Última atualização: 08 de julho de 2026.** Principais mudanças refletidas nesta revisão: remoção da caução financeira v1 (`15_trn_deposits` arquivada em `z_arch_15_trn_deposits`; `DepositStatus` e `Product.deposit_cents` removidos), fluxo "esqueci minha senha" (`38_sec_password_reset_tokens`), caução de vasilhames v2 (`35`–`37`), configuração de pagamento por distribuidora (`34_cfg_distributor_payment_settings`), assinaturas fases 1 e 2 (geração atômica + compensação com retry) e schema com 35 tabelas / 19 enums / 34 tipos de evento de auditoria.
 
 

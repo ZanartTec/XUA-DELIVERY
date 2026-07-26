@@ -30,7 +30,7 @@ se elegível:
 - `36_trn_consumer_deposit_balances`: saldo **derivado** (`bottles_on_loan` nunca negativo, UNIQUE por distribuidora+consumidor+item). Jamais editar saldo sem movimento correspondente.
 - Inventário: `29_mst_inventory_items` (tipos `SELLABLE_PRODUCT/RETURNABLE_FULL/RETURNABLE_EMPTY/SUPPLY`, `low_stock_threshold`), `30` saldos, `31` movimentos (11 tipos, incl. `DEPOSIT_LOAN_OUT`/`DEPOSIT_RETURN_IN`), `32`/`33` sessões de reconciliação (snapshot → contagem → delta → ajuste automático no fechamento, justificativa para divergências).
 - Conciliação diária de vasilhames: `17_trn_reconciliations` — delta > 0 exige justificativa.
-- **Legado:** `15_trn_deposits` (caução financeira v1, R$ fixo na 1ª compra) — não estender; substituída pela v2.
+- **Legado removido (jul/2026):** `15_trn_deposits` (caução financeira v1, R$ fixo na 1ª compra) foi arquivada em `z_arch_15_trn_deposits` e removida do schema; substituída pela v2. `PaymentKind.DEPOSIT` e `AuditEventType.DEPOSIT_*` foram mantidos no enum (Postgres não dropa valores; auditoria append-only).
 
 ## Eventos de auditoria do domínio
 `DEPOSIT_BOTTLES_LOANED / RETURNED / WRITTEN_OFF`, `DEPOSIT_PROGRAM_ENABLED / DISABLED`, `BOTTLE_EXCHANGE_RECORDED`, `EMPTY_NOT_COLLECTED`, `DAILY_RECONCILIATION_CLOSED`.

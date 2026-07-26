@@ -9,7 +9,6 @@ import {
   PaymentStatus,
   PaymentKind,
   OtpStatus,
-  DepositStatus,
   InventoryItemType,
   ProductKind,
   ActorType,
@@ -118,11 +117,6 @@ const ID = {
   paymentOutDelivery:"00000000-0000-4000-a000-000000000504",
   paymentSentToDist: "00000000-0000-4000-a000-000000000505",
 
-  // Depósitos
-  depositConfirmed:  "00000000-0000-4000-a000-000000000600",
-  depositDelivered:  "00000000-0000-4000-a000-000000000601",
-  depositOutDelivery:"00000000-0000-4000-a000-000000000602",
-
   // OTPs
   otpDelivered:      "00000000-0000-4000-a000-000000000700",
   otpOutDelivery:    "00000000-0000-4000-a000-000000000701",
@@ -141,12 +135,10 @@ const ID = {
   audit02: "00000000-0000-4000-a000-000000001002",
   audit03: "00000000-0000-4000-a000-000000001003",
   audit04: "00000000-0000-4000-a000-000000001004",
-  audit05: "00000000-0000-4000-a000-000000001005",
   audit06: "00000000-0000-4000-a000-000000001006",
   audit07: "00000000-0000-4000-a000-000000001007",
   audit08: "00000000-0000-4000-a000-000000001008",
   audit09: "00000000-0000-4000-a000-000000001009",
-  audit10: "00000000-0000-4000-a000-000000001010",
 
   // Banners
   bannerCarousel1: "00000000-0000-4000-a000-000000001101",
@@ -338,7 +330,6 @@ async function main() {
       description: "Garrafão retornável de 20L (vasilhame).",
       image_url: null,
       price_cents: 2000,
-      deposit_cents: 0,
       kind: ProductKind.BOTTLE,
       bottle_product_id: null,
       is_active: true,
@@ -349,7 +340,6 @@ async function main() {
       description: "Água mineral natural purificada, 20 litros. Retornável.",
       image_url: null,
       price_cents: 2500,
-      deposit_cents: 1000,
       kind: ProductKind.WATER,
       bottle_product_id: ID.productBottle20l,
       is_active: true,
@@ -360,7 +350,6 @@ async function main() {
       description: "Água mineral de 10 litros. Retornável.",
       image_url: null,
       price_cents: 1500,
-      deposit_cents: 500,
       kind: ProductKind.WATER,
       bottle_product_id: null,
       is_active: true,
@@ -563,9 +552,7 @@ async function main() {
       delivery_window: DeliveryWindow.MORNING,
       time_slot_id: ID.slotManha1,
       subtotal_cents: 2500,
-      deposit_cents: 1000,
-      deposit_amount_cents: 1000,
-      total_cents: 3500,
+      total_cents: 2500,
       accepted_at: new Date(),
     },
   });
@@ -577,12 +564,7 @@ async function main() {
   await prisma.payment.upsert({
     where: { id: ID.paymentConfirmed },
     update: {},
-    create: { id: ID.paymentConfirmed, order_id: ID.orderConfirmed, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 3500, provider: "pix", external_id: "ext_seed_confirmed_001", paid_at: pastDate(0) },
-  });
-  await prisma.deposit.upsert({
-    where: { id: ID.depositConfirmed },
-    update: {},
-    create: { id: ID.depositConfirmed, order_id: ID.orderConfirmed, consumer_id: ID.consumer, amount_cents: 1000, status: DepositStatus.HELD },
+    create: { id: ID.paymentConfirmed, order_id: ID.orderConfirmed, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 2500, provider: "pix", external_id: "ext_seed_confirmed_001", paid_at: pastDate(0) },
   });
 
   // ── 2: DELIVERED (ontem)
@@ -601,9 +583,7 @@ async function main() {
       delivery_window: DeliveryWindow.AFTERNOON,
       time_slot_id: ID.slotTarde1,
       subtotal_cents: 5000,
-      deposit_cents: 2000,
-      deposit_amount_cents: 2000,
-      total_cents: 7000,
+      total_cents: 5000,
       qty_20l_sent: 2,
       qty_20l_returned: 2,
       rating: 5,
@@ -626,12 +606,7 @@ async function main() {
   await prisma.payment.upsert({
     where: { id: ID.paymentDelivered },
     update: {},
-    create: { id: ID.paymentDelivered, order_id: ID.orderDelivered, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 7000, provider: "pix", external_id: "ext_seed_delivered_002", paid_at: pastDate(2) },
-  });
-  await prisma.deposit.upsert({
-    where: { id: ID.depositDelivered },
-    update: {},
-    create: { id: ID.depositDelivered, order_id: ID.orderDelivered, consumer_id: ID.consumer, amount_cents: 2000, status: DepositStatus.REFUNDED, refunded_at: pastDate(1) },
+    create: { id: ID.paymentDelivered, order_id: ID.orderDelivered, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 5000, provider: "pix", external_id: "ext_seed_delivered_002", paid_at: pastDate(2) },
   });
 
   // ── 3: CANCELLED
@@ -648,9 +623,7 @@ async function main() {
       delivery_date: futureDate(2),
       delivery_window: DeliveryWindow.MORNING,
       subtotal_cents: 1500,
-      deposit_cents: 500,
-      deposit_amount_cents: 500,
-      total_cents: 2000,
+      total_cents: 1500,
       cancellation_reason: "consumer_request",
       payment_status: "refunded",
     },
@@ -663,7 +636,7 @@ async function main() {
   await prisma.payment.upsert({
     where: { id: ID.paymentCancelled },
     update: {},
-    create: { id: ID.paymentCancelled, order_id: ID.orderCancelled, kind: PaymentKind.ORDER, status: PaymentStatus.REFUNDED, amount_cents: 2000, provider: "pix", external_id: "ext_seed_cancelled_003", paid_at: pastDate(5) },
+    create: { id: ID.paymentCancelled, order_id: ID.orderCancelled, kind: PaymentKind.ORDER, status: PaymentStatus.REFUNDED, amount_cents: 1500, provider: "pix", external_id: "ext_seed_cancelled_003", paid_at: pastDate(5) },
   });
 
   // ── 4: OUT_FOR_DELIVERY (hoje, em rota)
@@ -682,9 +655,7 @@ async function main() {
       delivery_window: DeliveryWindow.MORNING,
       time_slot_id: ID.slotManha1,
       subtotal_cents: 4000,
-      deposit_cents: 1500,
-      deposit_amount_cents: 1500,
-      total_cents: 5500,
+      total_cents: 4000,
       payment_status: "paid",
       accepted_at: pastDate(0),
       dispatched_at: new Date(),
@@ -703,12 +674,7 @@ async function main() {
   await prisma.payment.upsert({
     where: { id: ID.paymentOutDelivery },
     update: {},
-    create: { id: ID.paymentOutDelivery, order_id: ID.orderOutDelivery, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 5500, provider: "pix", external_id: "ext_seed_out_004", paid_at: pastDate(0) },
-  });
-  await prisma.deposit.upsert({
-    where: { id: ID.depositOutDelivery },
-    update: {},
-    create: { id: ID.depositOutDelivery, order_id: ID.orderOutDelivery, consumer_id: ID.consumer2, amount_cents: 1500, status: DepositStatus.HELD },
+    create: { id: ID.paymentOutDelivery, order_id: ID.orderOutDelivery, kind: PaymentKind.ORDER, status: PaymentStatus.CAPTURED, amount_cents: 4000, provider: "pix", external_id: "ext_seed_out_004", paid_at: pastDate(0) },
   });
 
   // ── 5: CREATED (pagamento pendente)
@@ -725,15 +691,13 @@ async function main() {
       delivery_date: futureDate(3),
       delivery_window: DeliveryWindow.AFTERNOON,
       subtotal_cents: 2500,
-      deposit_cents: 1000,
-      deposit_amount_cents: 1000,
-      total_cents: 3500,
+      total_cents: 2500,
     },
   });
   await prisma.payment.upsert({
     where: { id: ID.paymentFailed },
     update: {},
-    create: { id: ID.paymentFailed, order_id: ID.orderCreated, kind: PaymentKind.ORDER, status: PaymentStatus.FAILED, amount_cents: 3500, provider: "pix", external_id: "ext_seed_failed_005" },
+    create: { id: ID.paymentFailed, order_id: ID.orderCreated, kind: PaymentKind.ORDER, status: PaymentStatus.FAILED, amount_cents: 2500, provider: "pix", external_id: "ext_seed_failed_005" },
   });
 
   // ── 6: SENT_TO_DISTRIBUTOR
@@ -804,7 +768,7 @@ async function main() {
       provider: "pix",
       provider_event_ref: "pix_webhook_seed_001",
       event_type: "payment.captured",
-      payload: { amount: 3500, order_id: ID.orderConfirmed, external_id: "ext_seed_confirmed_001", status: "captured", timestamp: new Date().toISOString() },
+      payload: { amount: 2500, order_id: ID.orderConfirmed, external_id: "ext_seed_confirmed_001", status: "captured", timestamp: new Date().toISOString() },
     },
   });
 
@@ -813,20 +777,18 @@ async function main() {
   // ════════════════════════════════════════════════════════════════
   const auditEvents = [
     { id: ID.audit01, event_type: AuditEventType.ORDER_CREATED,                  actor_type: ActorType.CONSUMER,          actor_id: ID.consumer,   order_id: ID.orderDelivered, source_app: SourceApp.CONSUMER_WEB,    payload: { status: "CREATED" },                                              occurred_at: pastDate(3) },
-    { id: ID.audit02, event_type: AuditEventType.PAYMENT_CREATED,                actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { payment_id: ID.paymentDelivered, amount_cents: 7000 },            occurred_at: pastDate(3) },
+    { id: ID.audit02, event_type: AuditEventType.PAYMENT_CREATED,                actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { payment_id: ID.paymentDelivered, amount_cents: 5000 },            occurred_at: pastDate(3) },
     { id: ID.audit03, event_type: AuditEventType.PAYMENT_CAPTURED,               actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { external_id: "ext_seed_delivered_002", provider: "pix" },         occurred_at: pastDate(2) },
     { id: ID.audit04, event_type: AuditEventType.ORDER_CONFIRMED,                actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { status: "CONFIRMED" },                                            occurred_at: pastDate(2) },
-    { id: ID.audit05, event_type: AuditEventType.DEPOSIT_HELD,                   actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { deposit_id: ID.depositDelivered, amount_cents: 2000 },            occurred_at: pastDate(2) },
     { id: ID.audit06, event_type: AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR,  actor_type: ActorType.DISTRIBUTOR_USER,  actor_id: ID.adminUser,  order_id: ID.orderDelivered, source_app: SourceApp.DISTRIBUTOR_WEB, payload: { distributor_id: ID.distributor },                                  occurred_at: pastDate(2) },
     { id: ID.audit07, event_type: AuditEventType.ORDER_DISPATCHED,               actor_type: ActorType.DRIVER,            actor_id: ID.driver,     order_id: ID.orderDelivered, source_app: SourceApp.DRIVER_WEB,      payload: { driver_id: ID.driver },                                           occurred_at: pastDate(1) },
     { id: ID.audit08, event_type: AuditEventType.OTP_GENERATED,                  actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { otp_id: ID.otpDelivered },                                        occurred_at: pastDate(1) },
     { id: ID.audit09, event_type: AuditEventType.ORDER_DELIVERED,                actor_type: ActorType.DRIVER,            actor_id: ID.driver,     order_id: ID.orderDelivered, source_app: SourceApp.DRIVER_WEB,      payload: { qty_sent: 2, qty_returned: 2, bottle_condition: "good" },          occurred_at: pastDate(1) },
-    { id: ID.audit10, event_type: AuditEventType.DEPOSIT_REFUNDED,               actor_type: ActorType.SYSTEM,            actor_id: "system",      order_id: ID.orderDelivered, source_app: SourceApp.BACKEND,         payload: { deposit_id: ID.depositDelivered, amount_cents: 2000 },            occurred_at: pastDate(1) },
   ];
   for (const ev of auditEvents) {
     await prisma.auditEvent.upsert({ where: { id: ev.id }, update: {}, create: ev });
   }
-  console.log("✅ Auditoria: 10 eventos — ciclo completo do pedido DELIVERED");
+  console.log("✅ Auditoria: 8 eventos — ciclo completo do pedido DELIVERED");
 
   // ════════════════════════════════════════════════════════════════
   // BANNERS

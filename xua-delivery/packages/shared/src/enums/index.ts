@@ -110,6 +110,8 @@ export const DeliveryDateStatus = {
 } as const;
 export type DeliveryDateStatus = EnumValue<typeof DeliveryDateStatus>;
 
+// "DEPOSIT" é legado da caução financeira v1 (removida jul/2026); espelha o enum
+// Postgres payment_kind, que não permite DROP VALUE. Nenhum pagamento novo usa DEPOSIT.
 export const PAYMENT_KIND_VALUES = ["ORDER", "SUBSCRIPTION", "DEPOSIT"] as const;
 
 export const PaymentKind = {
@@ -137,23 +139,6 @@ export const PAYMENT_STATUS_VALUES = [
   EXPIRED: "EXPIRED",
 } as const;
 export type PaymentStatus = EnumValue<typeof PaymentStatus>;
-
-export const DEPOSIT_STATUS_VALUES = [
-  "HELD",
-  "REFUND_INITIATED",
-  "REFUNDED",
-  "FORFEITED",
-  "CANCELLED",
-] as const;
-
-export const DepositStatus = {
-  HELD: "HELD",
-  REFUND_INITIATED: "REFUND_INITIATED",
-  REFUNDED: "REFUNDED",
-  FORFEITED: "FORFEITED",
-  CANCELLED: "CANCELLED",
-} as const;
-export type DepositStatus = EnumValue<typeof DepositStatus>;
 
 export const PRODUCT_KIND_VALUES = ["WATER", "BOTTLE", "OTHER"] as const;
 

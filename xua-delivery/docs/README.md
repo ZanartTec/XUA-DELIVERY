@@ -2,9 +2,12 @@
 
 Organizada em três camadas, da visão consolidada ao registro detalhado. Última reorganização: 07/07/2026.
 
+> **Novo no projeto?** Comece pelo [guia-de-uso.md](guia-de-uso.md) — manual prático de como usar os agentes e esta documentação.
+
 ```
 docs/
 ├── README.md                  # este índice
+├── guia-de-uso.md             # COMO USAR agentes + documentação (manual prático)
 ├── doc_contexto/              # ÁRVORE DE CONTEXTO — porta de entrada (leia primeiro)
 │   ├── 01-blueprint.md        #   escopo, público, papéis e entidades (raiz)
 │   ├── 02-tech-stack.md       #   stack, arquitetura, convenções, deploy (tronco)

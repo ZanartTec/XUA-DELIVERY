@@ -50,6 +50,7 @@ interface CreateOrderData {
   timeSlotId?: string | null;
   preferredTimeStart?: number | null;
   preferredTimeEnd?: number | null;
+  deliveryInstructions?: string | null;
   paymentMethod?: CheckoutPaymentMethod;
   cashChangeForCents?: number | null;
   bypassLeadTime?: boolean;
@@ -212,13 +213,14 @@ async function buildOrderInTx(
       time_slot_id: scheduledSnapshot.timeSlotId,
       preferred_time_start: data.preferredTimeStart ?? null,
       preferred_time_end: data.preferredTimeEnd ?? null,
+      delivery_instructions: data.deliveryInstructions ?? null,
       scheduled_time_label: scheduledSnapshot.label,
       scheduled_time_start_hour: scheduledSnapshot.startHour,
       scheduled_time_start_minute: scheduledSnapshot.startMinute,
       scheduled_time_end_hour: scheduledSnapshot.endHour,
       scheduled_time_end_minute: scheduledSnapshot.endMinute,
       subtotal_cents: subtotalCents,
-      // Caução financeira removida — sempre 0 (campos deprecated).
+      // Caução financeira v1 removida — zeros exigidos até o drop das colunas (Fase 3).
       deposit_cents: 0,
       total_cents: totalCents,
       // Settlement de vasilhames (agregados; detalhe por tipo nos itens/ledger)

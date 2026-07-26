@@ -246,7 +246,6 @@ export const orderQueryService = {
       time_slot,
       driver,
       payments,
-      deposits,
       otps,
       subscription_delivery_date: _subscriptionDeliveryDate,
       ...order
@@ -323,13 +322,6 @@ export const orderQueryService = {
         provider: payment.provider,
         paid_at: payment.paid_at,
         created_at: payment.created_at,
-      })),
-      deposits: deposits.map((deposit) => ({
-        id: deposit.id,
-        amount_cents: deposit.amount_cents,
-        status: deposit.status,
-        refunded_at: deposit.refunded_at,
-        created_at: deposit.created_at,
       })),
       otps: otps.map((otp) => ({
         id: otp.id,

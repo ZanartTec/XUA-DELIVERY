@@ -93,9 +93,9 @@ MOTORISTA (driver web)
 - Campo `emptyBottlesByBottle` no cart store (parar de alimentar; não deletar)
 
 ### O que NÃO existe (confirmado por inspeção)
-- Worker/processor BullMQ de caução: não há. Única menção é `PaymentKind.DEPOSIT` no
-  resolver de webhook — legado da caução financeira morta (`deposit_amount_cents` sempre 0).
-  Nada a desligar na fila.
+- Worker/processor BullMQ de caução: não há. O `PaymentKind.DEPOSIT` que aparecia no
+  resolver de webhook (legado da caução financeira v1) foi **removido em jul/2026**; o valor
+  permanece apenas no enum Postgres (não roteável). Nada a desligar na fila.
 
 ## 4. O furo das assinaturas (registrado — SEM ação agora)
 
@@ -118,7 +118,7 @@ comodato B2C estiver desligado.
 4. Aceite do distribuidor funciona para os 2 produtos novos (InventoryItem 1:1 ativo).
 5. Troca física na entrega continua movimentando estoque (`EMPTY_RETURN_IN`).
 6. Catálogo público exibe exatamente os 2 produtos.
-7. Nenhuma tabela/rota/model de caução removida (reversibilidade garantida).
+7. Nenhuma tabela/rota/model da caução de vasilhames **v2** removida (reversibilidade garantida). **Exceção:** a caução financeira **v1** (`15_trn_deposits`, `model Deposit`, `DepositStatus`, `Product.deposit_cents`) teve remoção aprovada e executada em jul/2026 — arquivada em `z_arch_15_trn_deposits`.
 
 ## 6. Riscos residuais e observação
 

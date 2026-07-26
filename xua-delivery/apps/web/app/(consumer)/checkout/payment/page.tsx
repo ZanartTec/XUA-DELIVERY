@@ -48,7 +48,6 @@ interface RetryOrder {
   status: string;
   payment_status: string | null;
   subtotal_cents: number;
-  deposit_cents: number;
   total_cents: number;
   address_line?: string | null;
   address_details?: {
@@ -107,6 +106,7 @@ function PaymentContent() {
   const date = useCheckoutStore((s) => s.selectedDate);
   const deliveryWindow = useCheckoutStore((s) => s.selectedWindow) ?? "morning";
   const selectedSlotId = useCheckoutStore((s) => s.selectedSlotId);
+  const instructions = useCheckoutStore((s) => s.instructions);
   const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
   const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const paymentMethod = useCheckoutStore((s) => s.paymentMethod);
@@ -393,6 +393,7 @@ function PaymentContent() {
           delivery_date: date,
           delivery_window: deliveryWindow,
           ...(selectedSlotId ? { time_slot_id: selectedSlotId } : {}),
+          ...(instructions.trim() ? { delivery_instructions: instructions.trim() } : {}),
           distributor_id: selectedDistributorId,
           payment_method: paymentMethod,
           ...(isCashPayment && cashChangeForCents != null

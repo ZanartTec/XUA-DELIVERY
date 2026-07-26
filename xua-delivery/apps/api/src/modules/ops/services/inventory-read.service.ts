@@ -40,6 +40,7 @@ function toItem(row: OpsInventoryBalanceRow | OpsInventoryMovementRow) {
     name: row.inventory_item.name,
     type: row.inventory_item.type,
     unit_label: row.inventory_item.unit_label,
+    is_active: row.inventory_item.is_active,
   };
 }
 
@@ -163,6 +164,7 @@ export const opsInventoryReadService = {
       ...(query.q ? { search: query.q } : {}),
       ...(query.item_type ? { itemType: query.item_type } : {}),
       ...(query.stock_status ? { stockStatus: query.stock_status } : {}),
+      isActive: query.is_active,
       limit: query.limit,
       offset: query.offset,
     });

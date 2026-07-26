@@ -44,7 +44,6 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
 const PAYMENT_KIND_LABELS: Record<string, string> = {
   ORDER: "Pedido",
   SUBSCRIPTION: "Assinatura",
-  DEPOSIT: "Caução",
 };
 
 const OTP_STATUS_LABELS: Record<string, string> = {

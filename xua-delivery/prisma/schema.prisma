@@ -43,6 +43,8 @@ enum OtpStatus {
   @@map("otp_status")
 }
 
+// DEPOSIT é DEPRECATED: caução financeira v1, removida (jul/2026). Valor mantido
+// porque Postgres não suporta DROP VALUE em enum; nenhum pagamento novo usa DEPOSIT.
 enum PaymentKind {
   ORDER         @map("order")
   SUBSCRIPTION  @map("subscription")
@@ -60,16 +62,6 @@ enum PaymentStatus {
   EXPIRED     @map("expired")
 
   @@map("payment_status")
-}
-
-enum DepositStatus {
-  HELD              @map("held")
-  REFUND_INITIATED  @map("refund_initiated")
-  REFUNDED          @map("refunded")
-  FORFEITED         @map("forfeited")
-  CANCELLED         @map("cancelled")
-
-  @@map("deposit_status")
 }
 
 enum ActorType {
@@ -103,6 +95,9 @@ enum SourceApp {
   @@map("source_app")
 }
 
+// DEPOSIT_HELD / DEPOSIT_REFUND_INITIATED / DEPOSIT_REFUNDED são DEPRECATED:
+// eventos da caução financeira v1, não mais emitidos (jul/2026). Mantidos porque a
+// auditoria (18_aud) é append-only e contém eventos históricos com esses valores.
 enum AuditEventType {
   ORDER_CREATED
   ORDER_PRICING_FINALIZED
@@ -259,7 +254,6 @@ model Consumer {
   orders                 Order[]            @relation("ConsumerOrders")
   push_tokens            ConsumerPushToken[]
   password_reset_tokens  PasswordResetToken[]
-  deposits               Deposit[]
   user_subscriptions     UserSubscription[]
   deposit_programs       ConsumerDepositProgram[]
   deposit_balances       ConsumerDepositBalance[]
@@ -386,9 +380,6 @@ model Product {
   description   String?
   image_url     String?
   price_cents   Int
-  // DEPRECATED: era a "caução financeira" por produto. Não usado na caução de vasilhames
-  // (o vasilhame é um Product próprio kind=BOTTLE com seu price_cents). Removido na limpeza final.
-  deposit_cents Int         @default(0)
   // Tipo do produto: WATER (refil), BOTTLE (vasilhame), OTHER.
   kind          ProductKind @default(OTHER)
   // Vasilhame vinculado a uma água (kind=WATER → BOTTLE). Usado p/ adicionar o
@@ -562,6 +553,8 @@ model Order {
   time_slot_id               String?        @db.Uuid
   preferred_time_start       Int?
   preferred_time_end         Int?
+  // Preenchido pelo consumidor no checkout (ex.: "deixar na portaria, código 1234").
+  delivery_instructions      String?
   // Snapshot imutável do horário no momento da criação do pedido.
   // Garante que alterações futuras em TimeSlot não afetem o histórico.
   scheduled_time_label         String?
@@ -570,8 +563,8 @@ model Order {
   scheduled_time_end_hour      Int?
   scheduled_time_end_minute    Int?
   subtotal_cents             Int            @default(0)
-  // DEPRECATED (caução financeira) — mantidos temporariamente p/ compat; sempre 0 na
-  // nova lógica de caução de vasilhames. Removidos na migração destrutiva final.
+  // DEPRECATED (caução financeira v1) — colunas mantidas: pedidos históricos têm
+  // valores ≠ 0 que compõem total_cents. Novos pedidos gravam 0. Não expostas na API.
   deposit_cents              Int            @default(0)
   deposit_amount_cents       Int            @default(0)
   total_cents                Int            @default(0)
@@ -607,7 +600,6 @@ model Order {
   time_slot   TimeSlot?     @relation(fields: [time_slot_id], references: [id])
   items       OrderItem[]
   payments    Payment[]
-  deposits    Deposit[]
   deposit_movements ConsumerDepositMovement[]
   otps        OrderOtp[]
   audit_events AuditEvent[]
@@ -684,23 +676,8 @@ model PaymentWebhookEvent {
   @@map("14_cfg_payment_webhook_events")
 }
 
-model Deposit {
-  id          String       @id @default(uuid()) @db.Uuid
-  order_id    String       @db.Uuid
-  consumer_id String       @db.Uuid
-  amount_cents Int
-  status      DepositStatus @default(HELD)
-  refunded_at DateTime?
-  created_at  DateTime     @default(now())
-  updated_at  DateTime     @updatedAt
-
-  order    Order    @relation(fields: [order_id], references: [id])
-  consumer Consumer @relation(fields: [consumer_id], references: [id])
-
-  @@index([order_id], map: "15_trn_deposits_order_idx")
-  @@index([consumer_id, status], map: "15_trn_deposits_consumer_status_idx")
-  @@map("15_trn_deposits")
-}
+// Nota: a tabela "15_trn_deposits" (caução financeira v1) foi arquivada em
+// "z_arch_15_trn_deposits" e removida do schema em jul/2026. O número 15 fica aposentado.
 
 /// Programa de caução de vasilhames — habilitação por par Distribuidora×Consumidor.
 /// Fonte da verdade da exceção operacional. Vínculo via consumer_id (FK estável);
