@@ -18,24 +18,6 @@ export interface BannerSlide {
   cta_url: string | null;
 }
 
-const FALLBACK_SLIDES: BannerSlide[] = [
-  {
-    id: "fallback-1",
-    tag: "OFERTA DE BOAS-VINDAS",
-    title: "Primeira compra?\nR$ 10 OFF!",
-    subtitle: "Use o cupom:",
-    highlight: "XUAFRESH",
-    bg_color: null,
-    bg_gradient_from: "#1B4A9A",
-    bg_gradient_to: "#5697E9",
-    bg_image_url: "/images/banner-welcome.webp",
-    text_color: null,
-    image_url: null,
-    cta_text: null,
-    cta_url: null,
-  },
-];
-
 const AUTO_PLAY_MS = 5000;
 
 interface PromoBannerCarouselProps {
@@ -43,12 +25,13 @@ interface PromoBannerCarouselProps {
 }
 
 export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
-  const slides = banners && banners.length > 0 ? banners : FALLBACK_SLIDES;
+  const slides = banners ?? [];
   const [current, setCurrent] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (slides.length === 0) return;
     timerRef.current = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
     }, AUTO_PLAY_MS);
@@ -67,6 +50,8 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
   }
 
   const slide = slides[current];
+
+  if (!slide) return null;
 
   // Build gradient/bg style
   const gradientFrom = slide.bg_gradient_from ?? "#1B4A9A";
