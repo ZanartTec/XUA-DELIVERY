@@ -140,9 +140,17 @@ describe("distributorQueueQuerySchema", () => {
     }
   });
 
-  it("rejeita stage e status fora da fila ativa", () => {
+  it("rejeita stage inexistente e status fora da fila ativa/histórico", () => {
     expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", stage: "done" }).success).toBe(false);
-    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.DELIVERED }).success).toBe(false);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.PICKING }).success).toBe(false);
+  });
+
+  it("aceita stage history e status terminal (pedidos finalizados)", () => {
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", stage: "history" }).success).toBe(true);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.DELIVERED }).success).toBe(true);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.CANCELLED }).success).toBe(true);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.REJECTED_BY_DISTRIBUTOR }).success).toBe(true);
+    expect(distributorQueueQuerySchema.safeParse({ scope: "distributor", status: OrderStatus.DELIVERY_FAILED }).success).toBe(true);
   });
 
   it("rejeita limite acima do máximo e busca curta", () => {

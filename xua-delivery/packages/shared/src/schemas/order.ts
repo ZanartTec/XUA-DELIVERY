@@ -59,7 +59,7 @@ export const consumerOrdersQuerySchema = z.object({
 });
 export type ConsumerOrdersQueryInput = z.infer<typeof consumerOrdersQuerySchema>;
 
-export const DISTRIBUTOR_QUEUE_STAGE_VALUES = ["all", "incoming", "preparation", "route"] as const;
+export const DISTRIBUTOR_QUEUE_STAGE_VALUES = ["all", "incoming", "preparation", "route", "history"] as const;
 export const DISTRIBUTOR_QUEUE_ORIGIN_VALUES = ["all", "cart", "subscription"] as const;
 export const DISTRIBUTOR_QUEUE_SORT_VALUES = ["created_desc", "delivery_asc", "sla_asc"] as const;
 export const DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES = [
@@ -67,6 +67,14 @@ export const DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES = [
   OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
   OrderStatus.READY_FOR_DISPATCH,
   OrderStatus.OUT_FOR_DELIVERY,
+] as const;
+// Status finais consultáveis na aba "Histórico" da fila do distribuidor.
+// REDELIVERY_SCHEDULED fica fora de propósito: é operacional (exige ação), não histórico.
+export const DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES = [
+  OrderStatus.DELIVERED,
+  OrderStatus.CANCELLED,
+  OrderStatus.REJECTED_BY_DISTRIBUTOR,
+  OrderStatus.DELIVERY_FAILED,
 ] as const;
 
 export const distributorQueueQuerySchema = z
@@ -78,7 +86,9 @@ export const distributorQueueQuerySchema = z
     ),
     status: z.preprocess(
       emptyStringToUndefined,
-      z.enum(DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES).optional()
+      z
+        .enum([...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES, ...DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES])
+        .optional()
     ),
     q: z.preprocess(
       emptyStringToUndefined,

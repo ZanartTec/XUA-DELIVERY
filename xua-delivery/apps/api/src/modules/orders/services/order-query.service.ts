@@ -1,6 +1,8 @@
 import { OrderStatus } from "@xua/shared/enums";
 import {
   DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES,
+
+  DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES,
   type DistributorQueueQueryInput,
   type DistributorQueueStageInput,
 } from "@xua/shared/schemas/order";
@@ -17,7 +19,35 @@ const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, Order
   incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
   preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
   route: [OrderStatus.OUT_FOR_DELIVERY],
+  history: [...DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES] as OrderStatus[],
 };
+
+const TERMINAL_STATUS_SET = new Set<OrderStatus>(DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES as readonly OrderStatus[]);
+const HISTORY_DEFAULT_WINDOW_DAYS = 30;
+
+/**
+ * A aba "Histórico" consulta status finais, que se acumulam indefinidamente.
+ * Sem filtro de data explícito do usuário, aplica uma janela padrão para não
+ * varrer o histórico inteiro do distribuidor a cada consulta.
+ */
+function resolveHistoryDateWindow(
+  statuses: OrderStatus[],
+  dates: { deliveryDate?: string; start?: string; end?: string }
+): { deliveryDate?: string; start?: string; end?: string } {
+  const isHistoryQuery = statuses.some((status) => TERMINAL_STATUS_SET.has(status));
+  if (!isHistoryQuery || dates.deliveryDate || dates.start || dates.end) {
+    return dates;
+  }
+
+  const today = new Date();
+  const from = new Date(today);
+  from.setUTCDate(from.getUTCDate() - HISTORY_DEFAULT_WINDOW_DAYS);
+
+  return {
+    start: from.toISOString().slice(0, 10),
+    end: today.toISOString().slice(0, 10),
+  };
+}
 
 function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>) {
   const incoming = statusCounts[OrderStatus.SENT_TO_DISTRIBUTOR] ?? 0;
@@ -78,6 +108,11 @@ export const orderQueryService = {
       ? [query.status as OrderStatus]
       : DISTRIBUTOR_QUEUE_STAGE_STATUSES[query.stage];
     const activeStatuses = [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[];
+    const { deliveryDate, start, end } = resolveHistoryDateWindow(statuses, {
+      deliveryDate: query.deliveryDate,
+      start: query.start,
+      end: query.end,
+    });
 
     const { orders, total, statusCounts } = await orderRepository.findByDistributorPaged(distributorId, {
       statuses,
@@ -86,9 +121,9 @@ export const orderQueryService = {
       limit: query.limit,
       q: query.q,
       origin: query.origin,
-      deliveryDate: query.deliveryDate,
-      start: query.start,
-      end: query.end,
+      deliveryDate,
+      start,
+      end,
       driverId: query.driverId,
       sort: query.sort,
     });
@@ -120,9 +155,9 @@ export const orderQueryService = {
         status: query.status ?? null,
         q: query.q ?? null,
         origin: query.origin,
-        deliveryDate: query.deliveryDate ?? null,
-        start: query.start ?? null,
-        end: query.end ?? null,
+        deliveryDate: deliveryDate ?? null,
+        start: start ?? null,
+        end: end ?? null,
         driverId: query.driverId ?? null,
         sort: query.sort,
       },

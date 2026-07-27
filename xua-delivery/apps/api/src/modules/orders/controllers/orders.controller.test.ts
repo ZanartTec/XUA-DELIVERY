@@ -262,6 +262,50 @@ describe("ordersController list distributor queue", () => {
     );
     expect(response.json).toHaveBeenCalledWith(result);
   });
+
+  it("aceita stage history e repassa status terminal para o service", async () => {
+    const response = res();
+    const result = {
+      orders: [{ id: orderId, status: OrderStatus.DELIVERED }],
+      total: 1,
+      page: 1,
+      totalPages: 1,
+      limit: 20,
+      summary: { active: 0, incoming: 0, preparation: 0, route: 0 },
+      filters: {
+        stage: "history",
+        status: OrderStatus.DELIVERED,
+        q: null,
+        origin: "all",
+        deliveryDate: null,
+        start: "2026-05-13",
+        end: "2026-06-12",
+        driverId: null,
+        sort: "created_desc",
+      },
+    };
+    mocks.orderService.listDistributorQueue.mockResolvedValueOnce(result);
+
+    await ordersController.list(
+      req("distributor_admin", {}, {
+        scope: "distributor",
+        stage: "history",
+        status: OrderStatus.DELIVERED,
+      }),
+      response
+    );
+
+    expect(mocks.orderService.listDistributorQueue).toHaveBeenCalledWith(
+      userId,
+      "distributor_admin",
+      expect.objectContaining({
+        scope: "distributor",
+        stage: "history",
+        status: OrderStatus.DELIVERED,
+      })
+    );
+    expect(response.json).toHaveBeenCalledWith(result);
+  });
 });
 
 describe("ordersController create", () => {

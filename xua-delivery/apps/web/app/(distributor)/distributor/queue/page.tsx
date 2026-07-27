@@ -87,7 +87,7 @@ const PAGE_SIZE = 30;
 const VIRTUAL_ROW_HEIGHT = 104;
 const VIRTUAL_OVERSCAN = 4;
 
-type QueueTabValue = "all" | "incoming" | "preparation" | "route";
+type QueueTabValue = "all" | "incoming" | "preparation" | "route" | "history";
 type QueueOrigin = "all" | "cart" | "subscription";
 type QueueSort = "created_desc" | "delivery_asc" | "sla_asc";
 type QuickAction = "accept" | "reject" | "assign_driver" | "dispatch";
@@ -181,6 +181,7 @@ const TAB_CONFIG: Array<{ value: QueueTabValue; label: string }> = [
   { value: "incoming", label: "Aceite" },
   { value: "preparation", label: "Preparo" },
   { value: "route", label: "Em rota" },
+  { value: "history", label: "Histórico" },
 ];
 
 const ORIGIN_OPTIONS: Array<{ label: string; value: QueueOrigin }> = [
@@ -197,7 +198,13 @@ const SUMMARY_FALLBACK: QueueSummary = {
 };
 
 function isQueueTab(value: string | null): value is QueueTabValue {
-  return value === "all" || value === "incoming" || value === "preparation" || value === "route";
+  return (
+    value === "all" ||
+    value === "incoming" ||
+    value === "preparation" ||
+    value === "route" ||
+    value === "history"
+  );
 }
 
 function isQueueOrigin(value: string | null): value is QueueOrigin {
@@ -973,7 +980,7 @@ function DistributorQueueContent() {
             <SelectContent>
               <SelectItem value="created_desc">Mais recentes</SelectItem>
               <SelectItem value="delivery_asc">Entrega proxima</SelectItem>
-              <SelectItem value="sla_asc">SLA primeiro</SelectItem>
+              {activeTab !== "history" ? <SelectItem value="sla_asc">SLA primeiro</SelectItem> : null}
             </SelectContent>
           </Select>
 
@@ -990,11 +997,20 @@ function DistributorQueueContent() {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b]">
           <Tabs value={activeTab} onValueChange={(value) => updateQuery({ stage: value }, true)}>
             <TabsList className="h-8 rounded-md bg-[#eef2f7] p-0.5">
-              {TAB_CONFIG.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value} className="h-7 rounded px-3 text-xs data-[state=active]:bg-white">
-                  {tab.label} ({getTabCount(tab.value, summary)})
-                </TabsTrigger>
-              ))}
+              {TAB_CONFIG.map((tab) => {
+                const count =
+                  tab.value === "history"
+                    ? activeTab === "history"
+                      ? total
+                      : null
+                    : getTabCount(tab.value, summary);
+                return (
+                  <TabsTrigger key={tab.value} value={tab.value} className="h-7 rounded px-3 text-xs data-[state=active]:bg-white">
+                    {tab.label}
+                    {count != null ? ` (${count})` : ""}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-3">
@@ -1016,9 +1032,15 @@ function DistributorQueueContent() {
         </div>
       ) : null}
 
+      {activeTab === "history" && !deliveryDate ? (
+        <div className="rounded-md border border-[#dfe5ef] bg-[#f7f9fc] px-3 py-2 text-xs text-[#64748b]">
+          Mostrando os últimos 30 dias. Use o filtro de data para outros períodos.
+        </div>
+      ) : null}
+
       {queueQuery.isLoading ? (
         <QueueSkeleton />
-      ) : summary.active === 0 && !hasActiveFilters ? (
+      ) : activeTab !== "history" && summary.active === 0 && !hasActiveFilters ? (
         <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-[#64748b]">
           Nenhum pedido ativo agora.
         </div>
@@ -1043,6 +1065,21 @@ function DistributorQueueContent() {
               onAction={handleMiniAction}
             />
           ))}
+        </div>
+      ) : activeTab === "history" ? (
+        <div className={cn("grid min-h-0", queueQuery.isFetching && "opacity-75")}>
+          <KanbanColumn
+            label="Histórico"
+            description="Pedidos finalizados — consulta apenas"
+            count={total}
+            tone="border-slate-200 bg-slate-50/70 text-slate-900"
+            dot="bg-slate-500"
+            orders={orders}
+            selectedOrderId={selectedOrderId ?? undefined}
+            actionLoadingId={actionLoadingId}
+            onSelect={selectOrder}
+            onAction={handleMiniAction}
+          />
         </div>
       ) : (
         <div className={cn("grid min-h-0", queueQuery.isFetching && "opacity-75")}>
