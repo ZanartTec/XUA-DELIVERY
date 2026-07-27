@@ -58,6 +58,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown";
+import { DeliveryUrgencyBadge } from "@/src/components/shared/distributor/delivery-urgency-badge";
 import { FilterChips } from "@/src/components/shared/filter-chips";
 import { Pagination } from "@/src/components/shared/pagination";
 import {
@@ -70,10 +71,18 @@ import {
   OrderSubscriptionSection,
   OrderTimelineSection,
 } from "@/src/components/distributor/order-detail-sections";
+import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency";
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useSocket } from "@/src/hooks/use-socket";
 import { ApiError, api } from "@/src/lib/api-client";
-import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  formatDateShort,
+  formatRelativeShort,
+  formatTime,
+} from "@/src/lib/utils";
 import {
   formatScheduledTime,
   formatShortOrderId,
@@ -84,7 +93,7 @@ import type { Order } from "@/src/types";
 import { OrderStatus } from "@/src/types/enums";
 
 const PAGE_SIZE = 30;
-const VIRTUAL_ROW_HEIGHT = 104;
+const VIRTUAL_ROW_HEIGHT = 116;
 const VIRTUAL_OVERSCAN = 4;
 
 type QueueTabValue = "all" | "incoming" | "preparation" | "route" | "history";
@@ -127,6 +136,7 @@ interface QueueSummary {
   incoming: number;
   preparation: number;
   route: number;
+  overdue: number;
 }
 
 interface QueueResponse {
@@ -195,6 +205,7 @@ const SUMMARY_FALLBACK: QueueSummary = {
   incoming: 0,
   preparation: 0,
   route: 0,
+  overdue: 0,
 };
 
 function isQueueTab(value: string | null): value is QueueTabValue {
@@ -330,7 +341,7 @@ function QueueSkeleton() {
           <div className="h-9 animate-pulse rounded-md bg-[#eef0f3]" />
           <div className="mt-2 space-y-2">
             {Array.from({ length: 5 }).map((__, row) => (
-              <div key={row} className="h-[96px] animate-pulse rounded-md bg-[#f4f6f8]" />
+              <div key={row} className="h-[104px] animate-pulse rounded-md bg-[#f4f6f8]" />
             ))}
           </div>
         </div>
@@ -347,6 +358,17 @@ function QueueHeaderCard({ label, value, tone }: { label: string; value: number;
     </div>
   );
 }
+
+const URGENCY_STRIPE: Record<string, string> = {
+  overdue: "bg-red-500",
+  urgent: "bg-amber-500",
+  soon: "bg-yellow-400",
+};
+
+const URGENCY_CARD_TINT: Record<string, string> = {
+  overdue: "bg-red-50/60",
+  urgent: "bg-amber-50/40",
+};
 
 function OrderMiniCard({
   order,
@@ -365,20 +387,31 @@ function OrderMiniCard({
   const OriginIcon = fromSubscription ? Repeat2 : ShoppingCart;
   const canAccept = order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
   const canAssign = canAssignDriver(order.status);
+  const urgency = useDeliveryUrgency(order);
 
   return (
     <article
       className={cn(
-        "h-[96px] rounded-md border bg-white px-2.5 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition-colors hover:border-[#b8c7dd] hover:bg-[#fbfcfe]",
-        selected ? "border-[#5697E9] ring-2 ring-[#5697E9]/20" : "border-[#dfe5ef]"
+        "relative h-[104px] rounded-md border bg-white px-2.5 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition-colors hover:border-[#b8c7dd] hover:bg-[#fbfcfe]",
+        selected ? "border-[#5697E9] ring-2 ring-[#5697E9]/20" : "border-[#dfe5ef]",
+        URGENCY_CARD_TINT[urgency.level]
       )}
     >
+      {URGENCY_STRIPE[urgency.level] ? (
+        <span
+          aria-hidden
+          className={cn("absolute inset-y-0 left-0 w-1 rounded-l-md", URGENCY_STRIPE[urgency.level])}
+        />
+      ) : null}
+
       <div className="grid h-full grid-cols-[minmax(0,1fr)_76px] gap-2">
         <button type="button" className="min-w-0 text-left" onClick={() => onSelect(order)}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="font-mono text-xs font-bold text-[#0d1b2f]">#{formatShortOrderId(order.id)}</span>
+            <span className="shrink-0 text-[10px] text-[#94a3b8]">· {formatRelativeShort(order.created_at)}</span>
             <span className="truncate text-sm font-semibold text-[#0d1b2f]">{order.consumer_name}</span>
-            <span className="ml-auto hidden items-center gap-1 rounded bg-[#f3f6fb] px-1.5 py-0.5 text-[10px] font-semibold text-[#5d6473] 2xl:inline-flex">
+            <DeliveryUrgencyBadge urgency={urgency} className="ml-auto" />
+            <span className="hidden items-center gap-1 rounded bg-[#f3f6fb] px-1.5 py-0.5 text-[10px] font-semibold text-[#5d6473] 2xl:inline-flex">
               <OriginIcon className="h-3 w-3" />
               {fromSubscription ? "Ass." : "Cart."}
             </span>
@@ -394,7 +427,9 @@ function OrderMiniCard({
               <MapPin className="h-3 w-3 shrink-0" />
               {shortAddress(order.address_summary)}
             </span>
-            <span className="font-medium text-[#475569]">{formatScheduledTime(order)}</span>
+            <span className="font-medium text-[#475569]">
+              {formatDateShort(order.delivery_date)} · {formatScheduledTime(order)}
+            </span>
           </div>
 
           <div className="mt-1 flex items-center gap-2">
@@ -921,10 +956,11 @@ function DistributorQueueContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <QueueHeaderCard label="Aceite" value={summary.incoming} tone="border-amber-200 bg-amber-50 text-amber-900" />
             <QueueHeaderCard label="Preparo" value={summary.preparation} tone="border-sky-200 bg-sky-50 text-sky-950" />
             <QueueHeaderCard label="Em rota" value={summary.route} tone="border-emerald-200 bg-emerald-50 text-emerald-950" />
+            <QueueHeaderCard label="Atrasados" value={summary.overdue} tone="border-red-200 bg-red-50 text-red-900" />
           </div>
 
           <div className="flex items-center justify-end gap-2">
@@ -979,7 +1015,12 @@ function DistributorQueueContent() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="created_desc">Mais recentes</SelectItem>
-              <SelectItem value="delivery_asc">Entrega proxima</SelectItem>
+              <SelectItem value="delivery_asc">
+                Entrega proxima{" "}
+                <span className="ml-1 rounded bg-emerald-100 px-1 text-[9px] font-bold text-emerald-800">
+                  Recomendado
+                </span>
+              </SelectItem>
               {activeTab !== "history" ? <SelectItem value="sla_asc">SLA primeiro</SelectItem> : null}
             </SelectContent>
           </Select>

@@ -75,6 +75,8 @@ export type DistributorQueuePagedResult = {
   orders: OrderForQueue[];
   total: number;
   statusCounts: Partial<Record<OrderStatus, number>>;
+  /** Ativos (summaryStatuses) com delivery_date já no passado (dia de calendário — ver order-query.service.ts). */
+  overdueActive: number;
 };
 
 export type OrderWithItems = Order & {
@@ -362,8 +364,14 @@ export const orderRepository = {
     };
     const whereFilter = buildDistributorQueueWhere(distributorId, options.statuses, filterOptions);
     const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
+    // Aproximação por dia de calendário (não considera se a janela de hoje já venceu) —
+    // indicador de cabeçalho, não a ferramenta de triagem exata (essa é o próprio card).
+    const overdueWhere: Prisma.OrderWhereInput = {
+      ...summaryWhere,
+      delivery_date: { lt: parseDateBoundary(new Date().toISOString().slice(0, 10)) },
+    };
 
-    const [orders, total, statusGroups] = await Promise.all([
+    const [orders, total, statusGroups, overdueActive] = await Promise.all([
       prisma.order.findMany({
         where: whereFilter,
         orderBy: distributorQueueOrderBy(options.sort),
@@ -382,6 +390,7 @@ export const orderRepository = {
         where: summaryWhere,
         _count: { id: true },
       }),
+      prisma.order.count({ where: overdueWhere }),
     ]);
 
     const statusCounts: Partial<Record<OrderStatus, number>> = {};
@@ -389,7 +398,7 @@ export const orderRepository = {
       statusCounts[row.status as OrderStatus] = row._count.id;
     }
 
-    return { orders, total, statusCounts };
+    return { orders, total, statusCounts, overdueActive };
   },
 
   async findAll(

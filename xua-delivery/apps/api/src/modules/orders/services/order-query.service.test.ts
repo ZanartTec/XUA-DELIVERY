@@ -40,8 +40,8 @@ const { orderQueryService } = await import("./order-query.service.js");
 const userId = "7e1d7b55-3f52-4d10-aac3-74387c236901";
 const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236902";
 
-function emptyPagedResult() {
-  return { orders: [], total: 0, statusCounts: {} };
+function emptyPagedResult(overdueActive = 0) {
+  return { orders: [], total: 0, statusCounts: {}, overdueActive };
 }
 
 describe("orderQueryService.listDistributorQueue — aba Histórico", () => {
@@ -168,5 +168,20 @@ describe("orderQueryService.listDistributorQueue — aba Histórico", () => {
         ],
       })
     );
+  });
+
+  it("repassa overdueActive do repositório como summary.overdue", async () => {
+    mocks.orderRepository.findByDistributorPaged.mockResolvedValue(emptyPagedResult(4));
+
+    const result = await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "all",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(result.summary.overdue).toBe(4);
   });
 });
