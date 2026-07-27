@@ -49,7 +49,7 @@ function resolveHistoryDateWindow(
   };
 }
 
-function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>) {
+function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>, overdueActive: number) {
   const incoming = statusCounts[OrderStatus.SENT_TO_DISTRIBUTOR] ?? 0;
   const preparation =
     (statusCounts[OrderStatus.ACCEPTED_BY_DISTRIBUTOR] ?? 0) +
@@ -61,6 +61,7 @@ function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, 
     incoming,
     preparation,
     route,
+    overdue: overdueActive,
   };
 }
 
@@ -114,7 +115,7 @@ export const orderQueryService = {
       end: query.end,
     });
 
-    const { orders, total, statusCounts } = await orderRepository.findByDistributorPaged(distributorId, {
+    const { orders, total, statusCounts, overdueActive } = await orderRepository.findByDistributorPaged(distributorId, {
       statuses,
       summaryStatuses: activeStatuses,
       page: query.page,
@@ -149,7 +150,7 @@ export const orderQueryService = {
       page: query.page,
       totalPages: Math.ceil(total / query.limit),
       limit: query.limit,
-      summary: buildDistributorQueueSummary(statusCounts),
+      summary: buildDistributorQueueSummary(statusCounts, overdueActive),
       filters: {
         stage: query.stage,
         status: query.status ?? null,

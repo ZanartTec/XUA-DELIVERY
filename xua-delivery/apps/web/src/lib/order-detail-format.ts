@@ -130,6 +130,71 @@ export function getStatusStepIndex(status: string) {
   }
 }
 
+const DEFAULT_WINDOW_END_HOUR: Record<string, number> = { MORNING: 12, AFTERNOON: 18 };
+
+/** Meia-noite local — mesmo cuidado de fuso de `resolveSafeDate` em `lib/utils.ts`. */
+function toLocalMidnight(date: Date | string): Date {
+  if (typeof date === "string") {
+    if (/^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?Z)?$/.test(date)) {
+      const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+    const d = new Date(date);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getDeliveryWindowEnd(order: ScheduledTimeFields, deliveryDay: Date): Date {
+  const endHour = order.scheduled_time_end_hour ?? DEFAULT_WINDOW_END_HOUR[order.delivery_window] ?? 18;
+  const endMinute = order.scheduled_time_end_minute ?? 0;
+  const end = new Date(deliveryDay);
+  end.setHours(endHour, endMinute, 0, 0);
+  return end;
+}
+
+export type DeliveryUrgencyLevel = "overdue" | "urgent" | "soon" | "normal" | "none";
+
+export interface DeliveryUrgency {
+  level: DeliveryUrgencyLevel;
+  /** Negativo = dias em atraso; 0 = hoje; 1 = amanhã; etc. */
+  daysRemaining: number;
+  label: string;
+}
+
+export interface DeliveryUrgencyInput extends ScheduledTimeFields {
+  delivery_date: string | Date;
+  status: string;
+}
+
+/**
+ * Urgência de entrega a partir de delivery_date + fim da janela agendada.
+ * "none" para status finais (entregue/cancelado/etc.) — não há ação a tomar
+ * num pedido já resolvido, então o card não marca urgência/atraso pra ele.
+ */
+export function getDeliveryUrgency(order: DeliveryUrgencyInput, now: Date = new Date()): DeliveryUrgency {
+  if (matchesStatuses(order.status, [...TERMINAL_ISSUE_STATUSES, OrderStatus.DELIVERED])) {
+    return { level: "none", daysRemaining: 0, label: "" };
+  }
+
+  const today = toLocalMidnight(now);
+  const deliveryDay = toLocalMidnight(order.delivery_date);
+  const daysRemaining = Math.round((deliveryDay.getTime() - today.getTime()) / 86_400_000);
+  const windowEnd = getDeliveryWindowEnd(order, deliveryDay);
+  const isOverdue = daysRemaining < 0 || (daysRemaining === 0 && now.getTime() > windowEnd.getTime());
+
+  if (isOverdue) {
+    return {
+      level: "overdue",
+      daysRemaining,
+      label: daysRemaining < 0 ? `Atrasado ${Math.abs(daysRemaining)}d` : "Atrasado",
+    };
+  }
+  if (daysRemaining === 0) return { level: "urgent", daysRemaining, label: "Hoje" };
+  if (daysRemaining === 1) return { level: "soon", daysRemaining, label: "Amanhã" };
+  return { level: "normal", daysRemaining, label: `Em ${daysRemaining}d` };
+}
+
 export function getOperationalMessage(status: string) {
   switch (status) {
     case OrderStatus.REJECTED_BY_DISTRIBUTOR:
