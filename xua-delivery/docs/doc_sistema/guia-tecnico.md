@@ -311,7 +311,7 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | 4 | `SENT_TO_DISTRIBUTOR` | system | Socket.io emite `"new_order"` para sala do distribuidor. Evento: `ORDER_RECEIVED_BY_DISTRIBUTOR` |
 | 5 | `ACCEPTED_BY_DISTRIBUTOR` | dist_admin | Aceite dentro do SLA. Timer para de contar. Evento: `ORDER_ACCEPTED_BY_DISTRIBUTOR` |
 | 6 | `READY_FOR_DISPATCH` | dist_admin | Checklist 100% (itens + vasilhames + endereço). Evento: `DISPATCH_CHECKLIST_COMPLETED` |
-| 7 | `OUT_FOR_DELIVERY` | system | OTP HMAC-SHA256 (6 dígitos, 90min, max 5). Web Push ao consumidor. Eventos: `OTP_GENERATED` + `OTP_SENT` + `ORDER_DISPATCHED` |
+| 7 | `OUT_FOR_DELIVERY` | system | OTP HMAC-SHA256 (6 dígitos, 90min, max 5). Web Push genérico ("saiu para entrega", sem o código) ao consumidor. Eventos: `OTP_GENERATED` + `ORDER_DISPATCHED` |
 | 8 | `DELIVERED` | operator | OTP validado. Troca registrada (qty + condição). Eventos: `OTP_VALIDATION_ATTEMPTED` + `ORDER_DELIVERED` + `BOTTLE_EXCHANGE` |
 | 9 | (pós) | system | Troca de vasilhames registrada (settlement v2). A devolução de caução financeira v1 (`DEPOSIT_REFUND_*`) não ocorre mais — removida em jul/2026. |
 
@@ -330,7 +330,7 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | `DISPATCH_CHECKLIST_COMPLETED` | dist_user | Todos os 3 itens do checklist marcados |
 | `ORDER_DISPATCHED` | dist_user | Carga saiu com `route_id` vinculado |
 | `OTP_GENERATED` | system | OTP criado ao despachar (apenas hash HMAC armazenado) |
-| `OTP_SENT` | system | Web Push ou SMS enviado ao consumidor |
+| ~~`OTP_SENT`~~ | — | **Nunca emitido** — não existe envio real (SMS ou push com o código) para auditar. O código chega ao consumidor via Socket.io (`otp_generated`, tempo real) ou fallback lendo `GET /api/orders/:id` (role `consumer`, código armazenado no Redis). O push que existe (`"Pedido saiu para entrega!"`) é só um aviso de status, sem o código — débito técnico registrado em `04-active-state.md` |
 | `OTP_VALIDATION_ATTEMPTED` | driver | Tentativa de validação — sucesso ou falha registrada |
 | `OTP_OVERRIDE` | ops/support | Entrega confirmada por override com motivo obrigatório |
 | `ORDER_DELIVERED` | driver/support | OTP válido ou override autorizado |

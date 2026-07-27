@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **07/07/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **26/07/2026**.
 
 ---
 
@@ -16,6 +16,7 @@
 - [x] Entrega com OTP (HMAC-SHA256, 6 dígitos, TTL 90 min, máx 5 tentativas, lock + override ops/support)
 - [x] Troca de vasilhames, não-coleta com motivo, falha de entrega e reagendamento
 - [x] Avaliação NPS pós-entrega + histórico com "repetir pedido"
+- [x] **Aba "Histórico" na fila do distribuidor** (26/07/2026): pedidos com status final (`DELIVERED`, `CANCELLED`, `REJECTED_BY_DISTRIBUTOR`, `DELIVERY_FAILED`) saíam de qualquer aba/filtro/busca da fila assim que deixavam de ser ativos — o timeline completo do pedido (já correto e atômico na gravação) ficava inacessível na prática, sem link algum na UI. Nova aba `stage=history` em `GET /api/orders?scope=distributor` (`DISTRIBUTOR_QUEUE_STAGE_VALUES`/`DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES` em `packages/shared/src/schemas/order.ts`), com janela padrão de 30 dias quando nenhum filtro de data é informado (evita full-scan do histórico). Reaproveita os componentes existentes (`OrderDetailSheet`, `OrderTimelineSection`) sem duplicar UI
 
 ### Pagamentos
 - [x] Gateway real **Mercado Pago** como padrão (mock apenas para dev)
@@ -91,12 +92,13 @@
 | 8 | **Socket.io monolítico** | Roda no mesmo processo da API — ok para MVP; extrair para serviço dedicado se precisar de escala horizontal |
 | 9 | **LGPD / retenção** | Política de retenção de dados e evidências [A DEFINIR] |
 | 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
-| 11 | **SMS fallback do OTP** | Docs citam "SMS fallback" e telefone obrigatório para OTP por SMS, mas só Web Push é descrito como canal implementado. [A DEFINIR: SMS está ativo?] |
+| 11 | **`OTP_SENT` nunca implementado (nem auditoria, nem envio real)** | Confirmado em 26/07/2026: não existe SMS em nenhum lugar do backend, e o Web Push real (`"Pedido saiu para entrega!"`) não carrega o código — é só aviso de status. O código chega ao consumidor via Socket.io (`otp_generated`) ou fallback `GET /api/orders/:id` (role `consumer`, lido do Redis). O evento de auditoria `OTP_SENT` nunca é emitido porque não há o que auditar. Doc técnica corrigida (`guia-tecnico.md`) para não descrever um envio inexistente. [A DEFINIR: implementar SMS/push com código de fato, ou remover o evento do enum] |
 | 12 | **Valores de negócio abertos** | Desconto de primeira compra (R$ X), frete — placeholders na doc original [A DEFINIR] |
 | 13 | **Sem endpoint de escrita para itens de inventário** | `inventoryItemUpdateSchema` existe em `packages/shared/src/schemas/inventory.ts` (com teste), mas nenhuma rota o consome. Itens vendáveis passaram a ser criados automaticamente pelo provisionamento na criação/reativação de produto (07/07/2026), mas edição/desativação de `29_mst_inventory_items` continua sendo UPDATE manual no banco, sem validação de saldo remanescente (item pode ser desativado com saldo > 0, que fica oculto nas listagens; causa raiz do fix de 07/07/2026). Proposta técnica do CRUD aprovada: `docs/doc_desenvolvimento/inventario-itens-crud-proposta.md` |
 | 14 | **Criação de produto e de item de inventário sem AuditEvent** | O provisionamento (07/07/2026) e o próprio `POST /api/products` não emitem eventos de auditoria — `AuditEventType` não tem valores para catálogo/inventário mestre. Decisão: criar os eventos junto com o CRUD de itens de inventário (ver proposta em `doc_desenvolvimento/inventario-itens-crud-proposta.md`) |
 | 15 | **Invariante "1 item vendável ativo por produto" só aplicacional** | Não há constraint de banco (índice único parcial exigiria migration raw SQL). O provisionamento detecta >1 item ativo, loga warn e faz no-op. Decisão futura do xua-banco-dados |
 | 16 | **`createMovementOnce` captura P2002 dentro de transação interativa** | Padrão pré-existente em `inventory.repository.ts` (~linha 545): captura `P2002` e retorna `null`, mas em Postgres o erro aborta a transação — se um caller emitir statements na mesma tx após receber `null`, sofrerá `25P02` ("current transaction is aborted"). Candidato a revisão (por isso o provisionamento pré-checa unicidade do `code` antes do create, em vez de reagir à colisão) |
+| 17 | **`REDELIVERY_SCHEDULED` invisível na fila do distribuidor** | Status intermediário (não ativo, não terminal) que também some de toda a UI da fila — não entra em `DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES` nem no novo grupo `DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES` (aba "Histórico", 26/07/2026). Diferente do caso resolvido (pedido finalizado, consulta), este é operacional — o pedido ainda precisa de ação (voltar para `OUT_FOR_DELIVERY`). Fora de escopo da entrega de 26/07 por decisão do usuário; decidir se vira aba própria ou entra em algum stage ativo existente |
 
 ---
 
@@ -105,6 +107,6 @@
 - Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
-- Últimos marcos: provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- Últimos marcos: aba "Histórico" na fila do distribuidor (26/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
 
-**Última atualização: 08 de julho de 2026.**
+**Última atualização: 26 de julho de 2026.**
