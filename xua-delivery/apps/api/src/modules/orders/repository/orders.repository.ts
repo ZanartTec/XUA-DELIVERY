@@ -260,6 +260,7 @@ export const orderRepository = {
   },
 
   async findByIdWithItemsForUpdate(id: string, tx: TxClient): Promise<OrderWithItems | null> {
+    // Prisma Client nao expoe FOR UPDATE; este lock preserva transicoes concorrentes do pedido.
     const rows = await tx.$queryRaw<Array<{ id: string }>>`
       SELECT id
       FROM "09_trn_orders"

@@ -220,6 +220,7 @@ export const reconciliationSessionRepository = {
     distributorId: string,
     tx: TxClient
   ): Promise<SessionLockRow | null> {
+    // Prisma Client nao expoe FOR UPDATE; este lock evita fechamento concorrente da sessao.
     const rows = await tx.$queryRaw<SessionLockRow[]>`
       SELECT id, distributor_id, status
       FROM "32_trn_inventory_reconciliation_sessions"
