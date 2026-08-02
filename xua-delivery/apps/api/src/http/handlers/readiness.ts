@@ -23,7 +23,7 @@ export async function readinessHandler(
 
   // Database check
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await prisma.distributor.findFirst({ select: { id: true } });
     checks.database = "ok";
   } catch (err) {
     logger.warn({ err }, "Readiness: database check failed");
