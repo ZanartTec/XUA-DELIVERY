@@ -1,8 +1,6 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { AuditEventType } from "@xua/shared/enums";
-import { createLogger } from "../../../infra/logger";
-
-const log = createLogger("kpi");
+import { DEFAULT_ACCEPTANCE_SLA_SECONDS } from "@xua/shared/constants/kpi";
 
 /**
  * KpiService — Cálculos EXCLUSIVAMENTE via audit_events (seção 1 — KPIs Operacionais).
@@ -17,7 +15,7 @@ export const kpiService = {
     distributorId: string,
     startDate: Date,
     endDate: Date,
-    slaSeconds: number = 180
+    slaSeconds: number = DEFAULT_ACCEPTANCE_SLA_SECONDS
   ): Promise<{ rate: number; total: number; withinSla: number }> {
     const prisma = getPrisma();
     const result = await prisma.$queryRaw<
@@ -141,7 +139,7 @@ export const kpiService = {
     distributorId: string,
     startDate: Date,
     endDate: Date,
-    slaSeconds: number = 180
+    slaSeconds: number = DEFAULT_ACCEPTANCE_SLA_SECONDS
   ): Promise<Array<{ date: string; sla_pct: number; acceptance_pct: number; redelivery_pct: number }>> {
     const prisma = getPrisma();
 

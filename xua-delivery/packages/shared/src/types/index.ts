@@ -1,3 +1,5 @@
+export * from "./ops-kpi";
+
 // ─── JWT Payload (contrato manual — não depende de Prisma) ─────────
 export interface JwtPayload {
   sub: string;

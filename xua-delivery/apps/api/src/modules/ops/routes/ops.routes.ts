@@ -2,12 +2,16 @@ import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
 import { kpiController } from "../controllers/kpi.controller.js";
+import { kpiOverviewController } from "../controllers/kpi-overview.controller.js";
 import { auditController } from "../controllers/audit.controller.js";
 import { opsInventoryReadController } from "../controllers/inventory-read.controller.js";
 
 const router = Router();
 
 router.use(authMiddleware);
+
+// Visão consolidada do painel da OPS (resumo, ranking, séries, funil) — ops somente.
+router.get("/kpis/overview", requireRole("ops"), kpiOverviewController.get);
 
 // KPIs — distributor_admin vê os próprios, ops vê todos, support visualiza
 router.get(
