@@ -12,6 +12,7 @@
     "./schemas/consumer": "./src/schemas/consumer.ts",
     "./schemas/zone": "./src/schemas/zone.ts",
     "./schemas/audit": "./src/schemas/audit.ts",
+    "./schemas/ops-kpi": "./src/schemas/ops-kpi.ts",
     "./schemas/distributor": "./src/schemas/distributor.ts",
     "./schemas/distributor-payment-settings": "./src/schemas/distributor-payment-settings.ts",
     "./schemas/schedule": "./src/schemas/schedule.ts",
@@ -23,6 +24,7 @@
     "./schemas/user-subscription": "./src/schemas/user-subscription.ts",
     "./mappers/payment": "./src/mappers/payment.ts",
     "./constants/roles": "./src/constants/roles.ts",
+    "./constants/kpi": "./src/constants/kpi.ts",
     "./contracts/api": "./src/contracts/api.ts"
   },
   "dependencies": {

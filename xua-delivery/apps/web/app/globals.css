@@ -31,6 +31,12 @@
   --chart-3: #005865;
   --chart-4: #4a5e87;
   --chart-5: #001735;
+  /* Semântica de status — KPIs, semáforos e séries de gráfico */
+  --success: #16a34a;
+  --success-surface: #dcfce7;
+  --warning: #d97706;
+  --warning-surface: #fef3c7;
+  --danger-surface: #fee2e2;
   --radius: 1rem;
 
   /* Surface tokens (Stitch layers) */
@@ -72,6 +78,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-danger-surface: var(--danger-surface);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -137,6 +148,11 @@ body {
   --chart-3: #a5eeff;
   --chart-4: #4a5e87;
   --chart-5: #DAEEFF;
+  --success: #4ade80;
+  --success-surface: rgba(74,222,128,0.16);
+  --warning: #fbbf24;
+  --warning-surface: rgba(251,191,36,0.16);
+  --danger-surface: rgba(255,180,171,0.16);
   --sidebar: #1a1c22;
   --sidebar-foreground: #e1e3e4;
   --sidebar-primary: #ADC6FF;

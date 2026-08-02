@@ -818,6 +818,8 @@ model AuditEvent {
   order Order? @relation(fields: [order_id], references: [id])
 
   @@index([order_id, occurred_at], map: "18_aud_audit_events_order_occurred_idx")
+  // Cobre as agregações de KPI, que filtram por tipo de evento + janela temporal.
+  @@index([event_type, occurred_at], map: "18_aud_audit_events_type_occurred_idx")
   @@map("18_aud_audit_events")
 }
 

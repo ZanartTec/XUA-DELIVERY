@@ -1,5 +1,6 @@
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { AuditEventType } from "@xua/shared/enums";
+import { DEFAULT_ACCEPTANCE_SLA_SECONDS } from "@xua/shared/constants/kpi";
 
 type KpiEvent = {
   event_type: string;
@@ -56,7 +57,7 @@ export const kpiService = {
     distributorId: string,
     startDate: Date,
     endDate: Date,
-    slaSeconds: number = 180
+    slaSeconds: number = DEFAULT_ACCEPTANCE_SLA_SECONDS
   ): Promise<{ rate: number; total: number; withinSla: number }> {
     const events = await findDistributorAuditEvents(distributorId, startDate, endDate, [
       AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR,
@@ -158,7 +159,7 @@ export const kpiService = {
     distributorId: string,
     startDate: Date,
     endDate: Date,
-    slaSeconds: number = 180
+    slaSeconds: number = DEFAULT_ACCEPTANCE_SLA_SECONDS
   ): Promise<Array<{ date: string; sla_pct: number; acceptance_pct: number; redelivery_pct: number }>> {
     const events = await findDistributorAuditEvents(distributorId, startDate, endDate, [
       AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR,
