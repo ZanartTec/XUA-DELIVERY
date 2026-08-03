@@ -15,6 +15,7 @@
     "./schemas/ops-kpi": "./src/schemas/ops-kpi.ts",
     "./schemas/distributor": "./src/schemas/distributor.ts",
     "./schemas/distributor-payment-settings": "./src/schemas/distributor-payment-settings.ts",
+    "./schemas/driver": "./src/schemas/driver.ts",
     "./schemas/schedule": "./src/schemas/schedule.ts",
     "./schemas/product": "./src/schemas/product.ts",
     "./schemas/deposit": "./src/schemas/deposit.ts",

@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Boxes,
+  Building2,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -24,6 +25,7 @@ import {
   ShoppingCart,
   Truck,
   User,
+  UserCog,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
@@ -90,6 +92,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/payment-config", label: "Pagamento", icon: Wallet },
+      { href: "/distributor/drivers", label: "Motoristas", icon: UserCog },
       // Venda simples (sem caução): entrada oculta até a feature Comodato B2B.
       // Tela continua acessível por rota direta (/distributor/deposit-program).
       // { href: "/distributor/deposit-program", label: "Caução", icon: Recycle },
@@ -107,7 +110,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     badgeLabel: "Operacoes",
     navItems: [
       { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
-      //{ href: "/ops/zones", label: "Zonas", icon: MapPin },
+      { href: "/ops/zones", label: "Zonas", icon: MapPin },
       {
         href: "/ops/inventory",
         label: "Estoque",
@@ -117,6 +120,8 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       { href: "/ops/products", label: "Produtos", icon: Package },
       { href: "/ops/banners", label: "Banners", icon: Image },
       { href: "/ops/subscription-plans", label: "Planos", icon: Repeat },
+      { href: "/ops/distributors", label: "Distribuidoras", icon: Building2 },
+      { href: "/ops/drivers", label: "Motoristas", icon: UserCog },
       { href: "/support", label: "Suporte", icon: Headphones },
       { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
       { href: "/ops/audit-export", label: "Auditoria", icon: FileText },

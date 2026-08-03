@@ -20,6 +20,14 @@ const mocks = vi.hoisted(() => ({
   repository: {
     resolveDistributorId: vi.fn(),
     validateDistributorForZone: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    createAdmin: vi.fn(),
+    createDriver: vi.fn(),
+    updateDriver: vi.fn(),
+    findUnlinkedDrivers: vi.fn(),
+    linkDriverToDistributor: vi.fn(),
+    findDriverById: vi.fn(),
   },
   inventoryRepository: {
     findInitialLoadMovementsByBatch: vi.fn(),
@@ -33,6 +41,11 @@ const mocks = vi.hoisted(() => ({
   },
   inventoryService: {
     applyMovement: vi.fn(),
+  },
+  hashPassword: vi.fn(),
+  markAccountDeactivated: vi.fn(),
+  auditRepository: {
+    emit: vi.fn(),
   },
 }));
 
@@ -58,6 +71,18 @@ vi.mock("../../inventory/repository/inventory.repository.js", () => ({
 
 vi.mock("../../inventory/services/reconciliation-session.service.js", () => ({
   inventoryReconciliationSessionService: mocks.reconciliationSessionService,
+}));
+
+vi.mock("../../../infra/auth/password.js", () => ({
+  hashPassword: mocks.hashPassword,
+}));
+
+vi.mock("../../../infra/auth/password-change.js", () => ({
+  markAccountDeactivated: mocks.markAccountDeactivated,
+}));
+
+vi.mock("../../audit/audit.repository.js", () => ({
+  auditRepository: mocks.auditRepository,
 }));
 
 const { distributorService, DistributorServiceError } = await import("./distributor.service.js");
@@ -190,6 +215,8 @@ beforeEach(() => {
       idempotentReplay: false,
     })
   );
+  mocks.hashPassword.mockResolvedValue("hashed-password");
+  mocks.auditRepository.emit.mockResolvedValue(undefined);
 });
 
 describe("distributorService.listInventoryBalances", () => {
@@ -584,5 +611,276 @@ describe("inventoryInitialLoadSchema", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+});
+
+const opsUserId = "7e1d7b55-3f52-4d10-aac3-74387c236201";
+const distributorAdminUserId = "7e1d7b55-3f52-4d10-aac3-74387c236202";
+const driverId = "7e1d7b55-3f52-4d10-aac3-74387c236203";
+
+describe("distributorService.createDistributor", () => {
+  it("cria distribuidora e primeiro admin numa unica transacao, emitindo DISTRIBUTOR_CREATED", async () => {
+    mocks.repository.create.mockResolvedValue({ id: distributorId, name: "São Luiz" });
+    mocks.repository.createAdmin.mockResolvedValue({ id: "admin-1", email: "admin@saoluiz.test" });
+
+    const result = await distributorService.createDistributor(
+      {
+        name: "São Luiz",
+        cnpj: "11222333000181",
+        phone: "11988887777",
+        email: "contato@saoluiz.test",
+        admin_name: "Admin São Luiz",
+        admin_email: "admin@saoluiz.test",
+        admin_phone: "11988886666",
+        admin_password: "senha1234",
+      } as any,
+      opsUserId
+    );
+
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.hashPassword).toHaveBeenCalledWith("senha1234");
+    expect(mocks.repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "São Luiz", cnpj: "11222333000181" }),
+      tx
+    );
+    expect(mocks.repository.createAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Admin São Luiz",
+        email: "admin@saoluiz.test",
+        password_hash: "hashed-password",
+        distributor_id: distributorId,
+      }),
+      tx
+    );
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "DISTRIBUTOR_CREATED",
+        actor: { type: ActorType.OPS, id: opsUserId },
+      }),
+      tx
+    );
+    expect(result).toEqual({
+      distributor: { id: distributorId, name: "São Luiz" },
+      admin: { id: "admin-1", email: "admin@saoluiz.test" },
+    });
+  });
+
+  it("rejeita CNPJ ou e-mail duplicado (P2002) como erro de negocio 409", async () => {
+    mocks.transaction.mockImplementationOnce(async () => {
+      throw { code: "P2002" };
+    });
+
+    await expect(
+      distributorService.createDistributor(
+        {
+          name: "São Luiz",
+          cnpj: "11222333000181",
+          phone: "11988887777",
+          email: "contato@saoluiz.test",
+          admin_name: "Admin",
+          admin_email: "admin@saoluiz.test",
+          admin_phone: "11988886666",
+          admin_password: "senha1234",
+        } as any,
+        opsUserId
+      )
+    ).rejects.toMatchObject({ name: "DistributorServiceError", code: "DUPLICATE_DISTRIBUTOR" });
+  });
+});
+
+describe("distributorService.updateDistributor", () => {
+  it("atualiza distribuidora e emite DISTRIBUTOR_UPDATED", async () => {
+    mocks.repository.update.mockResolvedValue({ id: distributorId, is_active: false });
+
+    const result = await distributorService.updateDistributor(
+      distributorId,
+      { is_active: false } as any,
+      opsUserId
+    );
+
+    expect(mocks.repository.update).toHaveBeenCalledWith(distributorId, { is_active: false }, tx);
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "DISTRIBUTOR_UPDATED" }),
+      tx
+    );
+    expect(result).toEqual({ id: distributorId, is_active: false });
+  });
+});
+
+describe("distributorService.createDriver", () => {
+  it("distributor_admin: resolve distributor_id via resolveDistributorId e ignora o do body", async () => {
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.repository.createDriver.mockResolvedValue({ id: driverId, distributor_id: distributorId });
+
+    const outraDistribuidora = "7e1d7b55-3f52-4d10-aac3-74387c236299";
+    const result = await distributorService.createDriver(
+      { sub: distributorAdminUserId, role: "distributor_admin" },
+      {
+        name: "Motorista 1",
+        email: "motorista1@xua.test",
+        password: "senha1234",
+        distributor_id: outraDistribuidora,
+      } as any
+    );
+
+    expect(mocks.repository.resolveDistributorId).toHaveBeenCalledWith(distributorAdminUserId);
+    expect(mocks.repository.createDriver).toHaveBeenCalledWith(
+      expect.objectContaining({ distributor_id: distributorId }),
+      tx
+    );
+    expect(mocks.repository.createDriver).not.toHaveBeenCalledWith(
+      expect.objectContaining({ distributor_id: outraDistribuidora }),
+      tx
+    );
+    expect(result).toEqual({ id: driverId, distributor_id: distributorId });
+  });
+
+  it("ops: exige distributor_id no body", async () => {
+    await expect(
+      distributorService.createDriver(
+        { sub: opsUserId, role: "ops" },
+        { name: "Motorista 1", email: "motorista1@xua.test", password: "senha1234" } as any
+      )
+    ).rejects.toMatchObject({ name: "DistributorServiceError", code: "DISTRIBUTOR_ID_REQUIRED" });
+
+    expect(mocks.repository.createDriver).not.toHaveBeenCalled();
+  });
+
+  it("rejeita e-mail duplicado (P2002) como erro de negocio 409", async () => {
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.transaction.mockImplementationOnce(async () => {
+      throw { code: "P2002" };
+    });
+
+    await expect(
+      distributorService.createDriver(
+        { sub: distributorAdminUserId, role: "distributor_admin" },
+        { name: "Motorista 1", email: "motorista1@xua.test", password: "senha1234" } as any
+      )
+    ).rejects.toMatchObject({ name: "DistributorServiceError", code: "DUPLICATE_DRIVER_EMAIL" });
+  });
+});
+
+describe("distributorService.updateDriver", () => {
+  it("distributor_admin: bloqueia edicao de motorista de outra distribuidora", async () => {
+    mocks.repository.findDriverById.mockResolvedValue({
+      id: driverId,
+      distributor_id: "7e1d7b55-3f52-4d10-aac3-74387c236299",
+    });
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+
+    await expect(
+      distributorService.updateDriver(
+        { sub: distributorAdminUserId, role: "distributor_admin" },
+        driverId,
+        { is_active: false } as any
+      )
+    ).rejects.toMatchObject({
+      name: "DistributorServiceError",
+      code: "DRIVER_NOT_OWNED_BY_DISTRIBUTOR",
+    });
+
+    expect(mocks.repository.updateDriver).not.toHaveBeenCalled();
+  });
+
+  it("distributor_admin: permite editar motorista da propria distribuidora", async () => {
+    mocks.repository.findDriverById.mockResolvedValue({ id: driverId, distributor_id: distributorId });
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.repository.updateDriver.mockResolvedValue({ id: driverId, is_active: false });
+
+    const result = await distributorService.updateDriver(
+      { sub: distributorAdminUserId, role: "distributor_admin" },
+      driverId,
+      { is_active: false } as any
+    );
+
+    expect(mocks.repository.updateDriver).toHaveBeenCalledWith(driverId, { is_active: false }, tx);
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "DRIVER_UPDATED" }),
+      tx
+    );
+    expect(result).toEqual({ id: driverId, is_active: false });
+  });
+
+  it("rejeita motorista inexistente", async () => {
+    mocks.repository.findDriverById.mockResolvedValue(null);
+
+    await expect(
+      distributorService.updateDriver({ sub: opsUserId, role: "ops" }, driverId, { is_active: false } as any)
+    ).rejects.toMatchObject({ name: "DistributorServiceError", code: "DRIVER_NOT_FOUND" });
+  });
+
+  it("SEC: desativar motorista (is_active=false) invalida sessoes JWT ja emitidas", async () => {
+    mocks.repository.findDriverById.mockResolvedValue({ id: driverId, distributor_id: distributorId });
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.repository.updateDriver.mockResolvedValue({ id: driverId, is_active: false });
+    mocks.markAccountDeactivated.mockClear();
+
+    await distributorService.updateDriver(
+      { sub: distributorAdminUserId, role: "distributor_admin" },
+      driverId,
+      { is_active: false } as any
+    );
+
+    expect(mocks.markAccountDeactivated).toHaveBeenCalledWith(driverId);
+  });
+
+  it("SEC: nao invalida sessoes quando a atualizacao nao desativa a conta", async () => {
+    mocks.repository.findDriverById.mockResolvedValue({ id: driverId, distributor_id: distributorId });
+    mocks.repository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.repository.updateDriver.mockResolvedValue({ id: driverId, name: "Novo Nome" });
+    mocks.markAccountDeactivated.mockClear();
+
+    await distributorService.updateDriver(
+      { sub: distributorAdminUserId, role: "distributor_admin" },
+      driverId,
+      { name: "Novo Nome" } as any
+    );
+
+    expect(mocks.markAccountDeactivated).not.toHaveBeenCalled();
+  });
+});
+
+describe("distributorService.listUnlinkedDrivers", () => {
+  it("delega ao repositorio sem logica de auto-vinculacao", async () => {
+    mocks.repository.findUnlinkedDrivers.mockResolvedValue([{ id: driverId, distributor_id: null }]);
+
+    const result = await distributorService.listUnlinkedDrivers();
+
+    expect(mocks.repository.findUnlinkedDrivers).toHaveBeenCalledWith();
+    expect(result).toEqual([{ id: driverId, distributor_id: null }]);
+  });
+});
+
+describe("distributorService.linkDriver", () => {
+  it("vincula motorista orfao e emite DRIVER_LINKED_TO_DISTRIBUTOR", async () => {
+    mocks.repository.findDriverById.mockResolvedValue({ id: driverId, distributor_id: null });
+    mocks.repository.linkDriverToDistributor.mockResolvedValue({
+      id: driverId,
+      distributor_id: distributorId,
+    });
+
+    const result = await distributorService.linkDriver(driverId, distributorId, opsUserId);
+
+    expect(mocks.repository.linkDriverToDistributor).toHaveBeenCalledWith(driverId, distributorId, tx);
+    expect(mocks.auditRepository.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "DRIVER_LINKED_TO_DISTRIBUTOR",
+        actor: { type: ActorType.OPS, id: opsUserId },
+      }),
+      tx
+    );
+    expect(result).toEqual({ id: driverId, distributor_id: distributorId });
+  });
+
+  it("rejeita vinculacao de motorista inexistente", async () => {
+    mocks.repository.findDriverById.mockResolvedValue(null);
+
+    await expect(distributorService.linkDriver(driverId, distributorId, opsUserId)).rejects.toMatchObject({
+      name: "DistributorServiceError",
+      code: "DRIVER_NOT_FOUND",
+    });
+
+    expect(mocks.repository.linkDriverToDistributor).not.toHaveBeenCalled();
   });
 });

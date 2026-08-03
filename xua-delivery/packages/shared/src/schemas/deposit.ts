@@ -21,7 +21,7 @@ function isValidCpf(cpf: string): boolean {
 }
 
 /** Valida dígitos verificadores de CNPJ (14 dígitos). */
-function isValidCnpj(cnpj: string): boolean {
+export function isValidCnpj(cnpj: string): boolean {
   if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
   const calcCheck = (length: number): number => {
     const weights = length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];

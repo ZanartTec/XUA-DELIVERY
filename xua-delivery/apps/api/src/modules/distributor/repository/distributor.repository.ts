@@ -1,6 +1,9 @@
+import type { Prisma } from "@prisma/client";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import type { Address, Consumer, Order, OrderItem, Zone } from "@prisma/client";
 import { ConsumerRole, OrderStatus } from "@xua/shared/enums";
+
+type TxClient = Prisma.TransactionClient;
 
 export type DistributorRouteStop = Order & {
   consumer: Pick<Consumer, "name" | "phone">;
@@ -9,7 +12,27 @@ export type DistributorRouteStop = Order & {
   items: Pick<OrderItem, "quantity">[];
 };
 
+// SEC-07: Colunas seguras para retorno de usuário gerenciado (motorista/admin) —
+// NUNCA incluir password_hash.
+const MANAGED_CONSUMER_SAFE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  role: true,
+  is_active: true,
+  distributor_id: true,
+  created_at: true,
+  updated_at: true,
+} as const;
+
 export const distributorRepository = {
+  /**
+   * Distribuidoras ATIVAS apenas — usado onde a semântica de negócio exige
+   * excluir distribuidoras desativadas (agregação de KPIs, seleção pelo
+   * consumidor/checkout). NÃO usar para telas de gestão (ops) que precisam
+   * enxergar e reativar distribuidoras inativas — ver `findAllForOps()`.
+   */
   async findAllActive() {
     const prisma = getPrisma();
     const rows = await prisma.distributor.findMany({
@@ -30,11 +53,45 @@ export const distributorRepository = {
     }));
   },
 
-  async findDriversByDistributor(distributorId: string): Promise<Array<{ id: string; name: string }>> {
+  /**
+   * Todas as distribuidoras (ativas e inativas) com os campos editáveis do
+   * CRUD — exclusivo para a tela de gestão `ops`. Distinto de `findAllActive`
+   * para não afetar consumidores que dependem do filtro `is_active: true`
+   * (ex.: agregação de KPIs em `kpi.controller.ts`).
+   */
+  async findAllForOps() {
+    const prisma = getPrisma();
+    const rows = await prisma.distributor.findMany({
+      select: {
+        id: true,
+        name: true,
+        cnpj: true,
+        phone: true,
+        email: true,
+        acceptance_sla_seconds: true,
+        allows_consumer_choice: true,
+        is_active: true,
+        payment_settings: {
+          select: { mp_access_token_enc: true, mp_webhook_secret_enc: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+    return rows.map(({ payment_settings, ...distributor }) => ({
+      ...distributor,
+      mp_connected: Boolean(
+        payment_settings?.mp_access_token_enc && payment_settings?.mp_webhook_secret_enc,
+      ),
+    }));
+  },
+
+  async findDriversByDistributor(
+    distributorId: string,
+  ): Promise<Array<Prisma.ConsumerGetPayload<{ select: typeof MANAGED_CONSUMER_SAFE_SELECT }>>> {
     const prisma = getPrisma();
     const linkedDrivers = await prisma.consumer.findMany({
       where: { role: ConsumerRole.DRIVER, distributor_id: distributorId },
-      select: { id: true, name: true },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
       orderBy: { name: "asc" },
     });
 
@@ -53,7 +110,7 @@ export const distributorRepository = {
 
     const orphanDrivers = await prisma.consumer.findMany({
       where: { role: ConsumerRole.DRIVER, distributor_id: null },
-      select: { id: true, name: true },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
       orderBy: { name: "asc" },
     });
 
@@ -299,5 +356,89 @@ export const distributorRepository = {
       valid: rows.length > 0,
       resolvedZoneId: rows[0]?.zone_id ?? null,
     };
+  },
+
+  // ─── CRUD de distribuidora (ops) ────────────────────────────
+
+  async create(data: Record<string, unknown>, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).distributor.create({ data: data as any });
+  },
+
+  async update(id: string, data: Record<string, unknown>, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).distributor.update({ where: { id }, data: data as any });
+  },
+
+  /** Cria o primeiro usuário admin (role DISTRIBUTOR_ADMIN) de uma distribuidora nova. */
+  async createAdmin(
+    data: {
+      name: string;
+      email: string;
+      phone: string;
+      password_hash: string;
+      distributor_id: string;
+    },
+    tx?: TxClient
+  ) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.create({
+      data: { ...data, role: ConsumerRole.DISTRIBUTOR_ADMIN },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+    });
+  },
+
+  // ─── CRUD de motorista (distributor_admin, ops) ─────────────
+
+  async createDriver(
+    data: {
+      name: string;
+      email: string;
+      phone?: string;
+      password_hash: string;
+      distributor_id: string;
+    },
+    tx?: TxClient
+  ) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.create({
+      data: { ...data, role: ConsumerRole.DRIVER },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+    });
+  },
+
+  async updateDriver(id: string, data: Record<string, unknown>, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.update({
+      where: { id },
+      data: data as any,
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+    });
+  },
+
+  async findUnlinkedDrivers(tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.findMany({
+      where: { role: ConsumerRole.DRIVER, distributor_id: null },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+      orderBy: { name: "asc" },
+    });
+  },
+
+  async linkDriverToDistributor(driverId: string, distributorId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.update({
+      where: { id: driverId },
+      data: { distributor_id: distributorId },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+    });
+  },
+
+  async findDriverById(id: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).consumer.findUnique({
+      where: { id, role: ConsumerRole.DRIVER },
+      select: MANAGED_CONSUMER_SAFE_SELECT,
+    });
   },
 };
