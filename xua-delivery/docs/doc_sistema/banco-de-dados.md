@@ -23,6 +23,8 @@ Guarda os usuários da plataforma. Apesar do nome "consumers", ela também conce
 
 Serve como base de autenticação e identidade do sistema. Também guarda preferências operacionais, como distribuidora vinculada, distribuidora preferida e se a escolha de distribuidora deve ser automática.
 
+Campo `is_active` (Boolean, default `true`, migration `20260802130000`, 02/08/2026): permite desativar um motorista ou admin de distribuidora sem apagar o registro. Checado em `POST /api/auth/login` (rejeita com 403 "Conta desativada" se `false`); ao desativar, `markAccountDeactivated()` invalida imediatamente qualquer JWT já emitido para o usuário. Escrito pelo novo CRUD do módulo `distributor` — ver `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`. **Migration gerada, ainda não aplicada em nenhum banco** (aguardando credenciais de DEV).
+
 Relacionamentos principais:
 - 1:N com `02_mst_addresses`
 - 1:N com `09_trn_orders`
@@ -431,7 +433,8 @@ O schema atual possui **35 tabelas** e **19 enums** (fora a tabela de arquivo `z
 - **Remoção da caução financeira v1** (migrations `20260708130000_archive_legacy_financial_deposits` e `20260708130001_drop_legacy_financial_deposits`): `15_trn_deposits` arquivada em `z_arch_15_trn_deposits` e removida do schema, junto com o type `deposit_status` e a coluna `06_mst_products.deposit_cents`. Mantidos por compatibilidade: valor `deposit` do enum `payment_kind` e `DEPOSIT_*` do enum `audit_event_type` (Postgres não permite `DROP VALUE`; auditoria é append-only) e as colunas `deposit_cents`/`deposit_amount_cents` de `09_trn_orders` (histórico).
 - **Retry de assinaturas** (migration `20260628000000`): status `ORDER_CREATED`/`FAILED` e campo `generation_attempts` em `28_trn_subscription_delivery_dates`.
 - **Redefinição de senha** (migration `20260701140000_add_password_reset_tokens`): tabela `38_sec_password_reset_tokens`.
+- **CRUD de Distribuidor/Motorista** (migration `20260802130000_add_consumer_is_active_and_management_audit_events`, 02/08/2026 — **gerada, ainda não aplicada em nenhum banco**): coluna `01_mst_consumers.is_active` (default `true`) e 5 novos valores em `audit_event_type` (`DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR` — `18_aud_audit_events` passa a ter 39 tipos possíveis, era 34). Fim do cadastro de distribuidora/motorista via SQL manual (`prisma/production/seed_distributor_sao_luiz_jf_users.sql`, que passa a ser só fallback de emergência). Detalhe: `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`.
 
 Este documento reflete o estado atual do banco no repositório.
 
-**Última atualização: 08 de julho de 2026.**
+**Última atualização: 02 de agosto de 2026.**

@@ -49,6 +49,11 @@ export const authService = {
       throw new AuthServiceError("Credenciais inválidas", 401);
     }
 
+    if (!consumer.is_active) {
+      log.warn({ userId: consumer.id }, "Login attempt — account deactivated");
+      throw new AuthServiceError("Conta desativada", 403);
+    }
+
     const role = (consumer.role ?? "consumer").toLowerCase() as UserRole;
     
     if (!isUserRole(role)) {

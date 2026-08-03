@@ -6,14 +6,14 @@
 | | |
 |---|---|
 | **Stack** | Monorepo npm workspaces: Express 5 API (`apps/api`) + Next.js 16 Web (`apps/web`) |
-| **Banco** | PostgreSQL 16 — 36 tabelas, 20 enums |
+| **Banco** | PostgreSQL 16 — 36 tabelas, 19 enums |
 | **UI** | shadcn/ui + Tailwind CSS 4 + Radix UI (mobile-first responsivo) |
 | **Real-time** | Socket.io 4.x no servidor Express (porta 4000) |
 | **Deploy** | Railway (API + Web separados) ou Docker Compose local |
 | **Queue** | BullMQ 5.x + Redis (ioredis 5.x) — worker separado |
 | **Versão** | 4.1 — Julho 2026 (monorepo Express + Next.js) |
 
-**36** tabelas · **14** estados/pedido · **34** tipos/evento · **5** perfis/RBAC
+**36** tabelas · **14** estados/pedido · **39** tipos/evento · **5** perfis/RBAC
 
 ---
 
@@ -27,7 +27,7 @@ O Xuá Delivery é uma plataforma de delivery de água mineral em garrafão reto
 
 Além dos dois servidores principais, há um **processo worker** separado (`apps/api/src/worker/index.ts`) que processa filas BullMQ para webhooks de pagamento e jobs de assinatura. Jobs recorrentes (assinaturas, expiração de OTP) são disparados por um scheduler externo via HTTP POST em `/api/internal/jobs/*`.
 
-O banco de dados PostgreSQL tem **36 tabelas** e **20 enums**. O schema é gerenciado pelo Prisma 7.x com adaptador `@prisma/adapter-pg`. E-mails transacionais (redefinição de senha, notificações) são enviados via **Resend**.
+O banco de dados PostgreSQL tem **36 tabelas** e **19 enums**. O schema é gerenciado pelo Prisma 7.x com adaptador `@prisma/adapter-pg`. E-mails transacionais (redefinição de senha, notificações) são enviados via **Resend**.
 
 ### Superfícies e Responsabilidades
 
@@ -55,7 +55,7 @@ Navegador (Consumidor / Distribuidor / Motorista / Ops)
   ┌─────────────────┬──────────────────┬──────────────────────┐
   │  PostgreSQL 16  │    Redis 7       │  MercadoPago         │
   │  36 tabelas     │  JWT blacklist   │  Webhooks            │
-  │  20 enums       │  BullMQ queues   │  idempotentes        │
+  │  19 enums       │  BullMQ queues   │  idempotentes        │
   │  triggers       │  OTP TTL cache   │  Conta por distrib.  │
   └─────────────────┴──────────────────┴──────────────────────┘
 ```
@@ -82,13 +82,13 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only), `log` (histórico event-sourcing).
 
-> O schema atual tem **35 tabelas** (numeração `01`–`38`, sem `11`, `12` e `15`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. A `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema (jul/2026); o número `15` fica aposentado. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`.
+> O schema atual tem **35 tabelas** (numeração `01`–`38`, sem `11`, `12` e `15`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. A `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema (jul/2026); o número `15` fica aposentado. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`. Em 02/08/2026, `01_mst_consumers` ganhou a coluna `is_active` e `audit_event_type` ganhou 5 valores (`DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR`) para o CRUD de Distribuidor/Motorista — migration `20260802130000_add_consumer_is_active_and_management_audit_events` gerada, **ainda não aplicada em nenhum banco** (ver `doc_desenvolvimento/distribuidor-motorista-crud.md`).
 
 ### 2.1 Mapa de Tabelas
 
 | Tabela | Tipo | Responsabilidade |
 |---|---|---|
-| `01_mst_consumers` | mst | Usuários da plataforma. Roles: `consumer`, `distributor_admin`, `driver`, `ops`, `support`. Campos `auto_assign_distributor` e `preferred_distributor_id` |
+| `01_mst_consumers` | mst | Usuários da plataforma. Roles: `consumer`, `distributor_admin`, `driver`, `ops`, `support`. Campos `auto_assign_distributor`, `preferred_distributor_id` e `is_active` (default `true`, migration `20260802130000` — desativa motorista/admin de distribuidora; checado no login, gerada mas não aplicada ainda) |
 | `02_mst_addresses` | mst | Endereços de entrega por consumidor (múltiplos, com `zone_id` para identificar zona) |
 | `03_mst_distributors` | mst | Parceiros distribuidores. Campo `allows_consumer_choice` habilita seleção manual no checkout |
 | `04_mst_zones` | mst | Regiões de cobertura por distribuidor |
@@ -103,7 +103,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | ~~`15_trn_deposits`~~ | — | Caução financeira v1 **removida (jul/2026)**: arquivada em `z_arch_15_trn_deposits` e substituída pela caução de vasilhames v2 (`35`–`37`) |
 | `16_sec_order_otps` | sec | OTPs: `otp_hash` HMAC-SHA256, TTL em `expires_at`, max 5 tentativas, status `LOCKED` |
 | `17_trn_reconciliations` | trn | Conciliação diária: `full_out`, `empty_returned`, `delta`, justificativa obrigatória se delta > 0 |
-| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 34 tipos de evento. Nunca UPDATE/DELETE. |
+| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 39 tipos de evento. Nunca UPDATE/DELETE. |
 | `19_cfg_banners` | cfg | Banners promocionais configuráveis pela ops. Tipo: `CAROUSEL` ou `FEATURED` |
 | `20_cfg_idempotency_keys` | cfg | Chaves de idempotência para deduplicar operações críticas em fluxos assíncronos |
 | `21_trn_payment_transactions` | trn | Log técnico de interações com o provedor de pagamento |
@@ -160,7 +160,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `ActorType` | `CONSUMER` \| `DISTRIBUTOR_USER` \| `DRIVER` \| `SUPPORT` \| `OPS` \| `SYSTEM` |
 | `ConsumerRole` | `CONSUMER` \| `DISTRIBUTOR_ADMIN` \| `DRIVER` \| `SUPPORT` \| `OPS` |
 | `SourceApp` | `CONSUMER_WEB` \| `DISTRIBUTOR_WEB` \| `DRIVER_WEB` \| `OPS_CONSOLE` \| `BACKEND` |
-| `AuditEventType` | 34 tipos — ver seção 3.5 |
+| `AuditEventType` | 39 tipos — ver seção 3.5 |
 | `IdempotencyStatus` | `PENDING` \| `PROCESSED` \| `FAILED` |
 | `UserSubscriptionStatus` | `PENDING_PAYMENT` \| `ACTIVE` \| `PAUSED` \| `CANCELLED` \| `COMPLETED` |
 | `DeliveryDateStatus` | `PENDING` \| `ORDER_CREATED` \| `DELIVERED` \| `FAILED` \| `CANCELLED` |
@@ -213,7 +213,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | **Socket.IO** | socket.io 4.x | Integrado ao servidor HTTP Express. Auth JWT no handshake. Salas `${role}:${userId}` e `distributor:${distributorId}`. |
 | **Queue/Worker** | BullMQ 5.x + ioredis | Worker separado em `src/worker/index.ts`. Processa webhooks de pagamento e jobs de assinatura. |
 | **Jobs HTTP** | Express Routes | `POST /api/internal/jobs/subscription`, `otp-cleanup`, `subscription-expiry`. Protegidos por `INTERNAL_JOB_SECRET`. |
-| **Banco** | PostgreSQL 16 | 36 tabelas, 20 enums, triggers, índices compostos. |
+| **Banco** | PostgreSQL 16 | 36 tabelas, 19 enums, triggers, índices compostos. |
 | **Cache** | Redis 7 + ioredis | JWT blacklist, filas BullMQ, cache de sessão. |
 
 #### Frontend — `apps/web` (Next.js 16, porta 3001)
@@ -263,7 +263,7 @@ export function initSocketGateway(io: Server) {
 | Perfil JWT | Rotas web permitidas | Permissões |
 |---|---|---|
 | `consumer` | `/catalog`, `/cart`, `/checkout/*`, `/orders/*`, `/subscription/*`, `/profile/*` | Criar/visualizar seus pedidos, endereços, assinaturas. Selecionar distribuidora no checkout quando há 2+ opções. Configurar preferência de seleção automática via perfil. |
-| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory/*` | Aceitar/rejeitar pedidos, checklist, despacho, conciliação, KPIs, agenda semanal, inventário operacional. |
+| `distributor_admin` | `/distributor/queue`, `/distributor/orders/*`, `/distributor/routes/*`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory/*`, `/distributor/drivers` **[NOVO 02/08/2026]** | Aceitar/rejeitar pedidos, checklist, despacho, conciliação, KPIs, agenda semanal, inventário operacional, cadastrar/editar/desativar os próprios motoristas. |
 | `driver` | `/driver/deliveries`, `/driver/deliveries/:id/*`, `/driver/history` | Executar rota, confirmar OTP, registrar troca de vasilhame, motivo de não-coleta. Opera offline. |
 | `support` | `/support/*`, `/ops/otp-override` | Consultar pedidos, ver timeline de auditoria, reagendar entregas, override de OTP com motivo obrigatório. |
 | `ops` | `/ops/*`, `/support/*` | Tudo do support + zonas, KPIs global, banners, produtos, planos de assinatura, exportar auditoria CSV. |
@@ -315,7 +315,7 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | 8 | `DELIVERED` | operator | OTP validado. Troca registrada (qty + condição). Eventos: `OTP_VALIDATION_ATTEMPTED` + `ORDER_DELIVERED` + `BOTTLE_EXCHANGE` |
 | 9 | (pós) | system | Troca de vasilhames registrada (settlement v2). A devolução de caução financeira v1 (`DEPOSIT_REFUND_*`) não ocorre mais — removida em jul/2026. |
 
-### 3.5 Mapa de Eventos de Auditoria (34 tipos)
+### 3.5 Mapa de Eventos de Auditoria (39 tipos)
 
 | Evento | Ator | Quando é emitido |
 |---|---|---|
@@ -353,10 +353,17 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | `DEPOSIT_BOTTLES_WRITTEN_OFF` | dist_user | Caução v2: baixa de vasilhames (perda/dano) |
 | `DEPOSIT_PROGRAM_ENABLED` | dist_user | Caução v2: programa habilitado para o consumidor |
 | `DEPOSIT_PROGRAM_DISABLED` | dist_user | Caução v2: programa desabilitado |
+| `DISTRIBUTOR_CREATED` | ops | CRUD de Distribuidor/Motorista (02/08/2026): distribuidora criada com o primeiro admin, em transação única |
+| `DISTRIBUTOR_UPDATED` | ops | Distribuidora editada (inclui ativar/desativar) |
+| `DRIVER_CREATED` | dist_user/ops | Motorista cadastrado (`distributor_admin` só para a própria distribuidora) |
+| `DRIVER_UPDATED` | dist_user/ops | Motorista editado, inclui ativar/desativar (`is_active`) |
+| `DRIVER_LINKED_TO_DISTRIBUTOR` | ops | Motorista órfão (sem `distributor_id`) vinculado a uma distribuidora |
+
+> Os 5 eventos acima (02/08/2026) vêm da migration `20260802130000_add_consumer_is_active_and_management_audit_events` — **gerada, ainda não aplicada em nenhum banco**. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.
 
 ### 3.6 Autenticação e Redefinição de Senha
 
-Login via `POST /api/auth/login` gera JWT (biblioteca `jose`, payload `sub` + `role`, TTL 24h) entregue em cookie httpOnly `xua-token`. Logout adiciona o `jti` à blacklist no Redis. Registro via `POST /api/auth/register` com validação Zod compartilhada em `packages/shared`.
+Login via `POST /api/auth/login` gera JWT (biblioteca `jose`, payload `sub` + `role`, TTL 24h) entregue em cookie httpOnly `xua-token`. Logout adiciona o `jti` à blacklist no Redis. Registro via `POST /api/auth/register` com validação Zod compartilhada em `packages/shared`. Desde 02/08/2026, `login` rejeita com 403 "Conta desativada" quando `Consumer.is_active === false`; `markAccountDeactivated()` (mesmo mecanismo Redis de `markPasswordChanged`) invalida na hora qualquer JWT já emitido para a conta desativada.
 
 **Fluxo "esqueci minha senha"** (`apps/api/src/modules/auth`):
 
@@ -582,7 +589,7 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 | State Client | Zustand v5 | 1KB, sem boilerplate, persist middleware, zero context hell |
 | Forms | React Hook Form + Zod | Performance + validação tipada + schemas compartilhados client/server |
 | DB Access | Prisma 7.x | ORM type-safe com migrations, transações interativas, schema declarativo |
-| Banco | PostgreSQL 16 | 36 tabelas, 20 enums, trigger de proteção de status |
+| Banco | PostgreSQL 16 | 36 tabelas, 19 enums, trigger de proteção de status |
 | Cache | Redis 7 + ioredis | JWT blacklist, cache catálogo 5min, OTP TTL 90min |
 | Real-time | Socket.io 4.x | No servidor Express (porta 4000). Salas por usuário. Reconnect automático. |
 | Jobs | BullMQ + scheduler HTTP externo | Worker separado; endpoints `/api/internal/jobs/*` protegidos por `INTERNAL_JOB_SECRET` |
@@ -633,6 +640,7 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 
 ---
 
-*Xuá Delivery — Guia Técnico v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 08 de julho de 2026*
-*36 tabelas · 20 enums · 14 estados · 34 eventos · 5 perfis RBAC*
+*Xuá Delivery — Guia Técnico v4.2 (Monorepo Express + Next.js)*
+*Zanart · Última atualização: 02 de agosto de 2026*
+*36 tabelas · 19 enums · 14 estados · 39 eventos · 5 perfis RBAC*
+*02/08/2026: CRUD de Distribuidor/Motorista — schema+backend+frontend completos, migration `20260802130000` gerada e NÃO aplicada (aguardando credenciais de DEV). Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.*

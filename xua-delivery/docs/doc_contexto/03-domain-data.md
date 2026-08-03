@@ -1,6 +1,6 @@
 # 03 — Domain & Data: Schema, Fluxos e Rotas
 
-> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas, 20 enums). Última consolidação: 07/07/2026.
+> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas — 35 `model` Prisma + `z_arch_15_trn_deposits` arquivada fora do schema —, 19 enums). Última consolidação: 02/08/2026.
 
 ---
 
@@ -12,7 +12,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 | Tabela | Campos principais | Descrição / Relacionamentos |
 |---|---|---|
-| `01_mst_consumers` | `name`, `email` (unique), `phone`, `document`, `password_hash`, `role` (ConsumerRole), `is_b2b`, `distributor_id` FK, `auto_assign_distributor`, `preferred_distributor_id` | Todos os usuários (5 roles). 1:N com addresses, orders, push_tokens, user_subscriptions, password_reset_tokens; N:1 com distributor quando usuário interno |
+| `01_mst_consumers` | `name`, `email` (unique), `phone`, `document`, `password_hash`, `role` (ConsumerRole), `is_active` (default `true`), `is_b2b`, `distributor_id` FK, `auto_assign_distributor`, `preferred_distributor_id` | Todos os usuários (5 roles). 1:N com addresses, orders, push_tokens, user_subscriptions, password_reset_tokens; N:1 com distributor quando usuário interno. `is_active` (02/08/2026, migration `20260802130000`) permite desativar motorista/admin de distribuidora sem apagar o registro — checado no login (`auth.service.ts`, 403 "Conta desativada") e, ao desativar, invalida JWTs já emitidos (`markAccountDeactivated`). Ver `doc_desenvolvimento/distribuidor-motorista-crud.md` |
 | `02_mst_addresses` | `street`, `number`, `complement`, `neighborhood`, `city`, `state`, `zip_code`, `zone_id` FK, `is_default` | Endereços do consumidor (sem lat/lng; lookup por CEP). N:1 consumers/zones; 1:N orders |
 | `03_mst_distributors` | `name`, `cnpj` (unique), `phone`, `email`, `acceptance_sla_seconds`, `is_active`, `allows_consumer_choice` | Distribuidoras parceiras. 1:N zones, orders, schedule, blocked_dates, time_slots, reconciliations; 1:1 payment_settings |
 | `04_mst_zones` | `distributor_id` FK, `name`, `is_active` | Zonas de atendimento. 1:N zone_coverage, addresses, orders |
@@ -60,13 +60,13 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `08_sec_consumer_push_tokens` | `consumer_id`, token Web Push | Notificações no navegador/PWA |
 | `16_sec_order_otps` | `order_id`, `otp_hash` (HMAC-SHA256), `status` (OtpStatus), `attempts`, `expires_at` | POD; texto claro nunca persistido; novo OTP por tentativa de entrega |
 | `38_sec_password_reset_tokens` | `consumer_id`, `token_hash` (unique, HMAC-SHA256), `expires_at` (30 min), `used_at` | Reset de senha, uso único |
-| `18_aud_audit_events` | `event_type` (AuditEventType, 34 valores), `actor_type` (ActorType), `actor_id`, `order_id?`, `source_app` (SourceApp), `payload` jsonb, `occurred_at` | **APPEND-ONLY** — nunca UPDATE/DELETE. Fonte de verdade para KPIs. Modelo plano (sem `recorded_at`/`geo`/`correlation`) |
+| `18_aud_audit_events` | `event_type` (AuditEventType, 39 valores), `actor_type` (ActorType), `actor_id`, `order_id?`, `source_app` (SourceApp), `payload` jsonb, `occurred_at` | **APPEND-ONLY** — nunca UPDATE/DELETE. Fonte de verdade para KPIs. Modelo plano (sem `recorded_at`/`geo`/`correlation`) |
 | `37_log_consumer_deposit_movements` | `distributor_id`, `consumer_id`, `inventory_item_id`, `bottles_delta`, `movement_type` (DepositMovementType), `actor_type/id`, `source_app`, `order_id?`, `occurred_at` | Event-sourcing da caução v2; saldo é derivado |
 | `26_piv_subscription_plan_distributors` | PK composta `(plan_id, distributor_id)` | N:N planos ↔ distribuidoras |
 
 > **Tabela removida:** `07_cfg_delivery_capacity` (migration `20260601000000`). O número `07` foi reutilizado por `07_mst_categories`. Não há reserva numérica de capacidade/anti-overbooking por contagem — disponibilidade = agenda semanal + datas bloqueadas + lead-time.
 
-### 1.5 Enums (20)
+### 1.5 Enums (19)
 
 | Enum | Valores |
 |---|---|
@@ -78,7 +78,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `ActorType` | `CONSUMER, DISTRIBUTOR_USER, DRIVER, SUPPORT, OPS, SYSTEM` |
 | `ConsumerRole` | `CONSUMER, DISTRIBUTOR_ADMIN, DRIVER, SUPPORT, OPS` |
 | `SourceApp` | `CONSUMER_WEB, DISTRIBUTOR_WEB, DRIVER_WEB, OPS_CONSOLE, BACKEND` |
-| `AuditEventType` (34) | ver §3 |
+| `AuditEventType` (39) | ver §3 |
 | `IdempotencyStatus` | `PENDING, PROCESSED, FAILED` |
 | `UserSubscriptionStatus` | `PENDING_PAYMENT, ACTIVE, PAUSED, CANCELLED, COMPLETED` |
 | `DeliveryDateStatus` | `PENDING, ORDER_CREATED, DELIVERED, FAILED, CANCELLED` |
@@ -150,11 +150,13 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-## 3. Eventos de auditoria (`AuditEventType` — 34 tipos)
+## 3. Eventos de auditoria (`AuditEventType` — 39 tipos)
 
-`ORDER_CREATED · ORDER_PRICING_FINALIZED · ORDER_CONFIRMED · ORDER_CANCELLED · ORDER_RECEIVED_BY_DISTRIBUTOR · ORDER_ACCEPTED_BY_DISTRIBUTOR · ORDER_REJECTED_BY_DISTRIBUTOR · ORDER_DRIVER_ASSIGNED · DISPATCH_CHECKLIST_COMPLETED · ORDER_DISPATCHED · OTP_GENERATED · OTP_SENT · OTP_VALIDATION_ATTEMPTED · OTP_OVERRIDE · ORDER_DELIVERED · BOTTLE_EXCHANGE_RECORDED · EMPTY_NOT_COLLECTED · REDELIVERY_REQUIRED · REDELIVERY_SCHEDULED · PAYMENT_CREATED · PAYMENT_CAPTURED · PAYMENT_FAILED · PAYMENT_EXPIRED · PAYMENT_REFUNDED · PAYMENT_REFUND_FAILED · DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED · DAILY_RECONCILIATION_CLOSED · DEPOSIT_BOTTLES_LOANED · DEPOSIT_BOTTLES_RETURNED · DEPOSIT_BOTTLES_WRITTEN_OFF · DEPOSIT_PROGRAM_ENABLED · DEPOSIT_PROGRAM_DISABLED`
+`ORDER_CREATED · ORDER_PRICING_FINALIZED · ORDER_CONFIRMED · ORDER_CANCELLED · ORDER_RECEIVED_BY_DISTRIBUTOR · ORDER_ACCEPTED_BY_DISTRIBUTOR · ORDER_REJECTED_BY_DISTRIBUTOR · ORDER_DRIVER_ASSIGNED · DISPATCH_CHECKLIST_COMPLETED · ORDER_DISPATCHED · OTP_GENERATED · OTP_SENT · OTP_VALIDATION_ATTEMPTED · OTP_OVERRIDE · ORDER_DELIVERED · BOTTLE_EXCHANGE_RECORDED · EMPTY_NOT_COLLECTED · REDELIVERY_REQUIRED · REDELIVERY_SCHEDULED · PAYMENT_CREATED · PAYMENT_CAPTURED · PAYMENT_FAILED · PAYMENT_EXPIRED · PAYMENT_REFUNDED · PAYMENT_REFUND_FAILED · DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED · DAILY_RECONCILIATION_CLOSED · DEPOSIT_BOTTLES_LOANED · DEPOSIT_BOTTLES_RETURNED · DEPOSIT_BOTTLES_WRITTEN_OFF · DEPOSIT_PROGRAM_ENABLED · DEPOSIT_PROGRAM_DISABLED · DISTRIBUTOR_CREATED · DISTRIBUTOR_UPDATED · DRIVER_CREATED · DRIVER_UPDATED · DRIVER_LINKED_TO_DISTRIBUTOR`
 
 > `DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED` são da caução financeira v1 (removida jul/2026): **não são mais emitidos**, mas permanecem no enum porque a auditoria (`18_aud_audit_events`) é append-only e contém eventos históricos com esses tipos.
+
+> `DISTRIBUTOR_CREATED · DISTRIBUTOR_UPDATED · DRIVER_CREATED · DRIVER_UPDATED · DRIVER_LINKED_TO_DISTRIBUTOR` (02/08/2026, migration `20260802130000`) são do CRUD de Distribuidor/Motorista — ver `doc_desenvolvimento/distribuidor-motorista-crud.md`. Migration gerada, mas **ainda não aplicada em nenhum banco** — aguardando credenciais de DEV do usuário.
 
 ---
 
@@ -166,11 +168,11 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Orders | `/api/orders` | `GET /`, `POST /`, `GET /:id`, `PATCH /:id/accept`, `PATCH /:id/reject`, `PATCH /:id/assign-driver`, `PATCH /:id/dispatch`, `PATCH /:id/verify-otp`, `PATCH /:id/deliver`, `PATCH /:id/cancel`, `POST /:id/rating`, `POST /:id/bottle-exchange`, `POST /:id/empty-not-collected`, `PATCH /:id/reschedule` | JWT + RBAC |
 | Payments | `/api/payments` | `POST /charge`, `GET /status/:orderId`, `POST /webhook` (público, assinatura HMAC) | JWT / público |
 | Driver | `/api/driver` | `GET /deliveries`, `GET /deliveries/pending`, `GET /deliveries/history` | `driver` |
-| Distributor | `/api/distributor` | `GET /kpis`, `GET /drivers`, `GET /inventory/balances` (`?is_active=true\|false`, default `true` — só itens ativos), `PATCH /deposit-program/:consumerId`, `GET/PATCH /payment-settings/:distributorId`, `PUT /schedule/:distributorId/weekdays`, `POST/DELETE /schedule/:distributorId/block-date` | `distributor_admin`/`ops` |
+| Distributor | `/api/distributor` | `GET /kpis`, `GET /drivers`, `GET /inventory/balances` (`?is_active=true\|false`, default `true` — só itens ativos), `PATCH /deposit-program/:consumerId`, `GET/PATCH /payment-settings/:distributorId`, `PUT /schedule/:distributorId/weekdays`, `POST/DELETE /schedule/:distributorId/block-date`, `GET /all` (ops; **todas** as distribuidoras via `findAllForOps()`), `POST /` (ops; cria distribuidora+admin), `PATCH /:id` (ops; inclui `is_active`), `POST /drivers` (distributor_admin/ops; cria motorista), `PATCH /drivers/:id` (distributor_admin/ops; inclui `is_active`), `GET /drivers/unlinked` (ops), `PATCH /drivers/:id/link` (ops) — CRUD de distribuidora/motorista (02/08/2026), ver `doc_desenvolvimento/distribuidor-motorista-crud.md` | `distributor_admin`/`ops` |
 | Distributors (público) | `/api/distributors` | `GET ?zone_id=&date=&window=` — lista para seleção no checkout, ordenada por `avg_nps DESC NULLS LAST` | Público |
 | Consumers | `/api/consumers` | `GET/PATCH /profile`, `GET/POST /addresses`, `DELETE /addresses/:id`, `PATCH /:id/assign-mode`, `GET /cep/:cep` | `consumer` |
 | Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo — `consumer`/`ops`/`distributor_admin`), `GET /all`, `POST /`, `PATCH /:id` (ops; em products, create/update provisiona item de estoque vendável na mesma transação) | JWT + RBAC |
-| Zones | `/api/zones` | `GET /:id/available-dates?days=14` (agenda + bloqueios + lead-time) | Público |
+| Zones | `/api/zones` | `GET /:id/available-dates?days=14` (agenda + bloqueios + lead-time), `GET /:id/time-slots` público; `POST /`, `PATCH /:id`, `DELETE /:id`, `POST/DELETE /:id/coverage` (bairro/CEP) — escrita `distributor_admin`/`ops`. Tela `/ops/zones` ganhou UI de criação/cobertura em 02/08/2026 (backend já existia, só faltava a tela) | Público (leitura) / `distributor_admin`+`ops` (escrita) |
 | Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |
 | User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/cancel` (sem caller na UI), `PATCH /:id/delivery-dates/:deliveryDateId` | `consumer` |
@@ -182,13 +184,15 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-## 5. Rotas web (Next.js App Router — 46 páginas)
+## 5. Rotas web (Next.js App Router — 49 páginas)
 
 - **(auth):** `/login`, `/register`, `/forgot-password`, `/reset-password`
 - **(consumer):** `/catalog`, `/cart`, `/checkout/schedule`, `/checkout/distributor`, `/checkout/payment`, `/checkout/confirmation`, `/orders`, `/orders/[id]`, `/subscription/create`, `/subscription/manage`, `/profile`, `/profile/addresses`, `/profile/edit`
-- **(distributor):** `/distributor/queue`, `/distributor/orders/[id]`, `/distributor/orders/[id]/checklist`, `/distributor/routes/[id]`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory`, `/distributor/inventory/reconciliation`, `/distributor/payment-config`, `/distributor/deposit-program`
+- **(distributor):** `/distributor/queue`, `/distributor/orders/[id]`, `/distributor/orders/[id]/checklist`, `/distributor/routes/[id]`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory`, `/distributor/inventory/reconciliation`, `/distributor/payment-config`, `/distributor/deposit-program`, `/distributor/drivers` **[NOVO 02/08/2026]** — `distributor_admin` cadastra/edita/desativa os próprios motoristas
 - **(driver):** `/driver/deliveries`, `/driver/deliveries/[id]/otp`, `/driver/deliveries/[id]/exchange`, `/driver/deliveries/[id]/non-collection`, `/driver/deliveries/[id]/failure`, `/driver/history`
-- **(ops):** `/ops/kpis`, `/ops/zones`, `/ops/banners`, `/ops/products`, `/ops/subscription-plans`, `/ops/inventory`, `/ops/inventory/reconciliations`, `/ops/otp-override`, `/ops/audit-export`, `/support`, `/support/[id]`
+- **(ops):** `/ops/kpis`, `/ops/zones` (editada 02/08/2026 — ganhou criação de zona + gestão de cobertura, antes só leitura), `/ops/banners`, `/ops/products`, `/ops/subscription-plans`, `/ops/inventory`, `/ops/inventory/reconciliations`, `/ops/otp-override`, `/ops/audit-export`, `/ops/distributors` **[NOVO 02/08/2026]** — CRUD de distribuidoras, `/ops/drivers` **[NOVO 02/08/2026]** — motoristas órfãos + vínculo, `/support`, `/support/[id]`
+
+> CRUD de distribuidora/motorista (02/08/2026): código completo, migration pendente de aplicação em DEV. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md` e `doc_contexto/04-active-state.md`.
 
 ---
 
@@ -205,4 +209,4 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-**Última atualização: 08 de julho de 2026.**
+**Última atualização: 02 de agosto de 2026.**

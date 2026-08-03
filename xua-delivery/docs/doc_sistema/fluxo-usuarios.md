@@ -343,12 +343,12 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── ops     -> /ops/kpis
 └── support -> /support
 
-[ops] Configurar zonas (/ops/zones)
-├── Lista de zonas existentes com distribuidor vinculado
-├── Botão 'Nova zona' -> /ops/zones/create
-│   ├── Form: nome da zona, selecionar distribuidor, bairros/CEPs cobertos
+[ops] Configurar zonas (/ops/zones) — [ATUALIZADO 02/08/2026: ganhou escrita, antes só leitura]
+├── Lista de zonas existentes em cards, com distribuidor vinculado e cobertura (bairro/CEP)
+├── Formulário inline 'Nova zona' (sem rota separada) -> POST /api/zones
 │   └── Configuração reflete imediatamente no checkout do consumidor
-└── Clique em zona existente -> /ops/zones/[id] (editar)
+└── Card da zona: adicionar/remover cobertura por bairro ou CEP inline
+    -> POST /api/zones/:id/coverage · DELETE /api/zones/:id/coverage?coverageId=
 
 [ops] Dashboard KPIs (/ops/kpis)
 ├── Visão de TODOS os distribuidores (diferente do /distributor/kpis que é individual)
@@ -387,7 +387,7 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Filtros:
 │   ├── Período: data início + data fim (Calendar shadcn)
 │   ├── Distribuidor: select (todos ou específico)
-│   └── Tipo de evento: multi-select dos 34 tipos
+│   └── Tipo de evento: multi-select dos 39 tipos
 ├── Preview: tabela com primeiros 50 resultados
 ├── Botão 'Exportar CSV' -> Route Handler gera e retorna download
 └── CSV com colunas: event_id, event_type, occurred_at, actor_type,
@@ -458,13 +458,16 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/distributor/inventory/reconciliation` | (distributor) | dist_admin | Sessões de reconciliação de inventário (abrir, contar, fechar). |
 | `/distributor/payment-config` | (distributor) | dist_admin | **[NOVO]** Métodos de pagamento aceitos + credenciais Mercado Pago da distribuidora. |
 | `/distributor/deposit-program` | (distributor) | dist_admin | **[NOVO]** Programa de caução de vasilhames v2: habilitar clientes + max_bottles + saldos. |
+| `/distributor/drivers` | (distributor) | dist_admin | **[NOVO 02/08/2026]** Cadastrar/editar/desativar os motoristas da própria distribuidora. |
 | `/driver/deliveries` | (driver) | driver | Lista entregas do dia (funciona offline via Service Worker). |
 | `/driver/deliveries/[id]/otp` | (driver) | driver | OTP: 6 inputs auto-avanço + shake erro + contador tentativas. |
 | `/driver/deliveries/[id]/exchange` | (driver) | driver | Troca: stepper qty→condição. |
 | `/driver/deliveries/[id]/non-collection` | (driver) | driver | Não-coleta: select motivo obrigatório + texto opcional. |
 | `/driver/deliveries/[id]/failure` | (driver) | driver | Reportar falha de entrega com motivo. |
 | `/driver/history` | (driver) | driver | Histórico de entregas realizadas. |
-| `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura. |
+| `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura (ganhou escrita em 02/08/2026, antes só leitura). |
+| `/ops/distributors` | (ops) | ops | **[NOVO 02/08/2026]** CRUD de distribuidoras (cria com o primeiro admin, edita, ativa/desativa). |
+| `/ops/drivers` | (ops) | ops | **[NOVO 02/08/2026]** Visão global de motoristas; localiza órfãos (sem distribuidora) e vincula. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
 | `/ops/banners` | (ops) | ops | CRUD de banners promocionais do catálogo. |
 | `/ops/products` | (ops) | ops | CRUD de produtos do catálogo. Criar/reativar produto provisiona automaticamente o item de estoque vendável vinculado (fix 07/07/2026). |
@@ -478,6 +481,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 
 ---
 
-*Xuá Delivery — Fluxo de Usuários v4.1 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 08 de julho de 2026*
-*46 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*
+*Xuá Delivery — Fluxo de Usuários v4.2 (Monorepo Express + Next.js)*
+*Zanart · Última atualização: 02 de agosto de 2026*
+*49 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*
+*02/08/2026: CRUD de Distribuidor/Motorista (`/ops/distributors`, `/ops/drivers`, `/distributor/drivers`, `/ops/zones` com escrita) — código completo, migration pendente de aplicação em DEV. Ver `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`.*

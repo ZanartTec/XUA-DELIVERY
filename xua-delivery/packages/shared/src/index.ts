@@ -11,6 +11,7 @@ export * from "./schemas/audit";
 export * from "./schemas/ops-kpi";
 export * from "./schemas/distributor";
 export * from "./schemas/distributor-payment-settings";
+export * from "./schemas/driver";
 export * from "./schemas/schedule";
 export * from "./schemas/product";
 export * from "./schemas/deposit";

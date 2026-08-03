@@ -10,7 +10,12 @@ import { createLogger } from "../../../infra/logger/index.js";
 import { routeService } from "../services/route.service.js";
 import { distributorService, DistributorServiceError } from "../services/distributor.service.js";
 import { InventoryServiceError } from "../../inventory/services/inventory.service.js";
-import { distributorQuerySchema } from "@xua/shared/schemas/distributor";
+import {
+  distributorQuerySchema,
+  distributorCreateSchema,
+  distributorUpdateSchema,
+} from "@xua/shared/schemas/distributor";
+import { driverCreateSchema, driverUpdateSchema } from "@xua/shared/schemas/driver";
 import {
   inventoryBalanceQuerySchema,
   inventoryItemFilterSchema,
@@ -56,11 +61,14 @@ export const distributorController = {
 
   /**
    * GET /api/distributor/all
-   * Lista todas as distribuidoras ativas — exclusivo para ops.
+   * Lista TODAS as distribuidoras (ativas e inativas) com os campos
+   * editáveis do CRUD — exclusivo para ops (rota protegida por `ops`-only
+   * RBAC, então não há problema de segurança em expor distribuidoras
+   * inativas aqui).
    */
   async listAll(_req: Request, res: Response): Promise<void> {
     try {
-      const distributors = await distributorRepository.findAllActive();
+      const distributors = await distributorRepository.findAllForOps();
       res.json({ distributors });
     } catch (err) {
       log.error({ err }, "Erro ao listar distribuidoras");
@@ -716,6 +724,167 @@ export const distributorController = {
       res.status(204).end();
     } catch (err) {
       log.error({ err, slotId }, "Erro ao deletar time slot");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  // ─── CRUD de distribuidora (ops) ──────────────────────────
+
+  /** POST /api/distributor — cria distribuidora + primeiro admin. Exclusivo para ops. */
+  async create(req: Request, res: Response): Promise<void> {
+    const parsed = distributorCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const result = await distributorService.createDistributor(parsed.data, req.user!.sub);
+      res.status(201).json(result);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DUPLICATE_DISTRIBUTOR") {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao criar distribuidora");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** PATCH /api/distributor/:id — edita distribuidora, incluindo is_active. Exclusivo para ops. */
+  async update(req: Request, res: Response): Promise<void> {
+    const id = req.params.id as string;
+
+    const parsed = distributorUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const distributor = await distributorService.updateDistributor(id, parsed.data, req.user!.sub);
+      res.json(distributor);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DUPLICATE_DISTRIBUTOR") {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, distributorId: id }, "Erro ao atualizar distribuidora");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  // ─── CRUD de motorista (distributor_admin, ops) ───────────
+
+  /**
+   * POST /api/distributor/drivers
+   * `distributor_admin` cadastra para a própria distribuidora; `ops` deve
+   * informar `distributor_id` no body.
+   */
+  async createDriver(req: Request, res: Response): Promise<void> {
+    const parsed = driverCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const driver = await distributorService.createDriver(
+        { sub: req.user!.sub, role: req.user!.role },
+        parsed.data
+      );
+      res.status(201).json(driver);
+    } catch (err) {
+      if (err instanceof DistributorServiceError) {
+        if (err.code === "DUPLICATE_DRIVER_EMAIL") {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+        if (err.code === "DISTRIBUTOR_NOT_LINKED") {
+          res.status(403).json({ error: err.message });
+          return;
+        }
+        if (err.code === "DISTRIBUTOR_ID_REQUIRED") {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+      }
+
+      log.error({ err, userId: req.user?.sub }, "Erro ao criar motorista");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /**
+   * PATCH /api/distributor/drivers/:id
+   * `distributor_admin` só edita motoristas da própria distribuidora.
+   */
+  async updateDriver(req: Request, res: Response): Promise<void> {
+    const driverId = req.params.id as string;
+
+    const parsed = driverUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+
+    try {
+      const driver = await distributorService.updateDriver(
+        { sub: req.user!.sub, role: req.user!.role },
+        driverId,
+        parsed.data
+      );
+      res.json(driver);
+    } catch (err) {
+      if (err instanceof DistributorServiceError) {
+        if (err.code === "DRIVER_NOT_FOUND") {
+          res.status(404).json({ error: err.message });
+          return;
+        }
+        if (err.code === "DRIVER_NOT_OWNED_BY_DISTRIBUTOR") {
+          res.status(403).json({ error: err.message });
+          return;
+        }
+      }
+
+      log.error({ err, driverId }, "Erro ao atualizar motorista");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** GET /api/distributor/drivers/unlinked — motoristas sem distribuidora. Exclusivo para ops. */
+  async listUnlinkedDrivers(_req: Request, res: Response): Promise<void> {
+    try {
+      const drivers = await distributorService.listUnlinkedDrivers();
+      res.json({ drivers });
+    } catch (err) {
+      log.error({ err }, "Erro ao listar motoristas não vinculados");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
+  /** PATCH /api/distributor/drivers/:id/link — vincula motorista órfão. Exclusivo para ops. */
+  async linkDriver(req: Request, res: Response): Promise<void> {
+    const driverId = req.params.id as string;
+    const distributorId = req.body?.distributor_id;
+
+    if (!distributorId || typeof distributorId !== "string") {
+      res.status(400).json({ error: "distributor_id obrigatório" });
+      return;
+    }
+
+    try {
+      const driver = await distributorService.linkDriver(driverId, distributorId, req.user!.sub);
+      res.json(driver);
+    } catch (err) {
+      if (err instanceof DistributorServiceError && err.code === "DRIVER_NOT_FOUND") {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+
+      log.error({ err, driverId }, "Erro ao vincular motorista");
       res.status(500).json({ error: "Erro interno" });
     }
   },

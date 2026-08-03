@@ -164,4 +164,16 @@ router.delete(
 // Lista todas as distribuidoras ativas — exclusivo para ops
 router.get("/all", requireRole("ops"), distributorController.listAll);
 
+// ─── CRUD de distribuidora (ops) ───────────────────────────
+router.post("/", requireRole("ops"), distributorController.create);
+router.patch("/:id", requireRole("ops"), distributorController.update);
+
+// ─── CRUD de motorista (distributor_admin, ops) ────────────
+// Rotas com 2 segmentos (/drivers, /drivers/:id, /drivers/unlinked,
+// /drivers/:id/link) não colidem com o /:id de 1 segmento acima.
+router.post("/drivers", requireRole("distributor_admin", "ops"), distributorController.createDriver);
+router.patch("/drivers/:id", requireRole("distributor_admin", "ops"), distributorController.updateDriver);
+router.get("/drivers/unlinked", requireRole("ops"), distributorController.listUnlinkedDrivers);
+router.patch("/drivers/:id/link", requireRole("ops"), distributorController.linkDriver);
+
 export { router as distributorRoutes };

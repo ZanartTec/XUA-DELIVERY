@@ -1,6 +1,6 @@
 # 02 — Tech Stack: Tecnologias, Arquitetura e Regras
 
-> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/doc_sistema/`. Última consolidação: 06/07/2026.
+> **Árvore de Contexto — Tronco.** Consolidado da documentação em `docs/doc_sistema/`. Última consolidação: 02/08/2026.
 
 ---
 
@@ -13,7 +13,7 @@
 | Monorepo | npm workspaces | `apps/api` + `apps/web` + `packages/shared` |
 | Backend | Express 5 (porta 4000) | Monólito modular, REST |
 | Frontend | Next.js 16.2 App Router + React 19 (porta 3001) | Cliente puro da API — sem Server Actions/Route Handlers de negócio |
-| ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 20 enums; schema em `prisma/schema.prisma` (raiz) |
+| ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 19 enums; schema em `prisma/schema.prisma` (raiz) |
 | Cache / Filas | Redis 7 (ioredis 5) + BullMQ 5.x | JWT blacklist, filas assíncronas |
 | Real-time | Socket.io 4.x | Acoplado ao servidor HTTP da API (porta 4000) |
 | Autenticação | JWT (`jose`) + bcryptjs | Cookie httpOnly `xua-token`, TTL 24h |
@@ -46,7 +46,7 @@ Navegador (4 personas via route-groups do mesmo PWA)
         ┌─────────────────┬─────────────────┼──────────────────┐
         │ PostgreSQL 16   │ Redis 7         │ Mercado Pago     │
         │ 36 tabelas      │ JWT blacklist   │ webhooks         │
-        │ 20 enums        │ BullMQ queues   │ idempotentes,    │
+        │ 19 enums        │ BullMQ queues   │ idempotentes,    │
         │ triggers        │                 │ conta/distribuid.│
         └─────────────────┴─────────────────┴──────────────────┘
 + Worker separado (apps/api/src/worker) — filas BullMQ
@@ -112,8 +112,9 @@ xua-delivery/
 
 ## 3. Autenticação e segurança
 
-- **Login:** `POST /api/auth/login` → JWT (payload `sub` + `role`, TTL 24h) em cookie httpOnly `xua-token`. Redirect por role no `proxy.ts` do Next.
+- **Login:** `POST /api/auth/login` → JWT (payload `sub` + `role`, TTL 24h) em cookie httpOnly `xua-token`. Redirect por role no `proxy.ts` do Next. Desde 02/08/2026, rejeita com 403 "Conta desativada" quando `Consumer.is_active === false` (campo usado para desativar motorista/admin de distribuidora pelo CRUD do módulo `distributor` — ver `doc_desenvolvimento/distribuidor-motorista-crud.md`).
 - **Logout:** blacklist do `jti` no Redis (TTL 24h).
+- **Desativação de conta:** `markAccountDeactivated()` (`infra/auth/password-change.ts`) invalida imediatamente qualquer JWT já emitido para o usuário, reaproveitando o mesmo mecanismo Redis de `markPasswordChanged()` (fluxo "esqueci minha senha").
 - **Esqueci minha senha:** `POST /api/auth/forgot-password` (rate limit 5/min por IP; resposta neutra contra enumeração) → token 32 bytes, hash HMAC-SHA256 persistido, TTL 30 min, uso único → e-mail assíncrono via Resend → `POST /api/auth/reset-password` valida em transação atômica e invalida JWTs antigos (`markPasswordChanged`).
 - **OTP de entrega:** HMAC-SHA256 (`OTP_SECRET`), 6 dígitos, TTL 90 min, máx 5 tentativas → status `locked` (só override ops/support com motivo).
 - **Rate limits:** 100/min global (orders), 10/min pagamentos, 5/min password reset por IP.
@@ -151,3 +152,7 @@ xua-delivery/
 - Alertas: pedidos pendentes de aceite perto do timeout de SLA; backlog de entregas na janela crítica.
 - KPIs calculados exclusivamente via SQL sobre `18_aud_audit_events` (`KpiService` — nunca consulta `09_trn_orders` para métricas).
 - [A DEFINIR: ferramenta de APM/monitoramento e destino dos logs em produção]
+
+---
+
+**Última atualização: 02 de agosto de 2026.**

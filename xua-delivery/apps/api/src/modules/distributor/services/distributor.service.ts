@@ -10,8 +10,12 @@ import type {
   InventoryReconciliationSessionCloseInput,
   InventoryMovementQueryInput,
 } from "@xua/shared/schemas/inventory";
+import type { DistributorCreateInput, DistributorUpdateInput } from "@xua/shared/schemas/distributor";
+import type { DriverCreateInput, DriverUpdateInput } from "@xua/shared/schemas/driver";
+import type { UserRole } from "@xua/shared/constants/roles";
 import {
   ActorType,
+  AuditEventType,
   InventoryMovementType,
   InventoryReferenceType,
   SourceApp,
@@ -19,6 +23,9 @@ import {
 import { inventoryService } from "../../inventory/services/inventory.service.js";
 import { inventoryRepository } from "../../inventory/repository/inventory.repository.js";
 import { inventoryReconciliationSessionService } from "../../inventory/services/reconciliation-session.service.js";
+import { hashPassword } from "../../../infra/auth/password.js";
+import { markAccountDeactivated } from "../../../infra/auth/password-change.js";
+import { auditRepository } from "../../audit/audit.repository.js";
 
 const log = createLogger("distributor-service");
 
@@ -485,6 +492,247 @@ export const distributorService = {
       actorUserId,
       payload,
     });
+  },
+
+  // ─── CRUD de distribuidora (ops) ────────────────────────────
+
+  /**
+   * Cria a distribuidora e o primeiro admin (role DISTRIBUTOR_ADMIN) numa
+   * transação única. Só `ops` pode chamar (RBAC na rota).
+   */
+  async createDistributor(data: DistributorCreateInput, opsUserId: string) {
+    const { admin_name, admin_email, admin_phone, admin_password, ...distributorData } = data;
+    const admin_password_hash = await hashPassword(admin_password);
+    const prisma = getPrisma();
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const distributor = await distributorRepository.create(distributorData, tx);
+
+        const admin = await distributorRepository.createAdmin(
+          {
+            name: admin_name,
+            email: admin_email,
+            phone: admin_phone,
+            password_hash: admin_password_hash,
+            distributor_id: distributor.id,
+          },
+          tx
+        );
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.DISTRIBUTOR_CREATED,
+            actor: { type: ActorType.OPS, id: opsUserId },
+            orderId: null,
+            sourceApp: SourceApp.OPS_CONSOLE,
+            payload: { distributor_id: distributor.id, admin_id: admin.id },
+          },
+          tx
+        );
+
+        return { distributor, admin };
+      });
+
+      log.info(
+        { distributorId: result.distributor.id, adminId: result.admin.id, opsUserId },
+        "Distributor created"
+      );
+
+      return result;
+    } catch (error: any) {
+      if (error.code === "P2002") {
+        throw new DistributorServiceError("DUPLICATE_DISTRIBUTOR", "CNPJ ou e-mail já cadastrado");
+      }
+      throw error;
+    }
+  },
+
+  /** Atualiza dados editáveis da distribuidora, incluindo is_active (ativar/desativar). */
+  async updateDistributor(id: string, data: DistributorUpdateInput, opsUserId: string) {
+    const prisma = getPrisma();
+
+    try {
+      const distributor = await prisma.$transaction(async (tx) => {
+        const updated = await distributorRepository.update(id, data, tx);
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.DISTRIBUTOR_UPDATED,
+            actor: { type: ActorType.OPS, id: opsUserId },
+            orderId: null,
+            sourceApp: SourceApp.OPS_CONSOLE,
+            payload: { distributor_id: id, changes: data },
+          },
+          tx
+        );
+
+        return updated;
+      });
+
+      log.info({ distributorId: id, opsUserId }, "Distributor updated");
+      return distributor;
+    } catch (error: any) {
+      if (error.code === "P2002") {
+        throw new DistributorServiceError("DUPLICATE_DISTRIBUTOR", "CNPJ ou e-mail já cadastrado");
+      }
+      throw error;
+    }
+  },
+
+  // ─── CRUD de motorista (distributor_admin, ops) ─────────────
+
+  /**
+   * Cria motorista. `distributor_admin` só cadastra para a própria
+   * distribuidora — `distributor_id` do body é sempre ignorado nesse caso
+   * (isolamento entre distribuidoras). `ops` deve informar `distributor_id`.
+   */
+  async createDriver(actor: { sub: string; role: UserRole }, data: DriverCreateInput) {
+    let distributorId: string;
+
+    if (actor.role === "distributor_admin") {
+      const resolved = await distributorRepository.resolveDistributorId(actor.sub);
+      if (!resolved) {
+        throw new DistributorServiceError(
+          "DISTRIBUTOR_NOT_LINKED",
+          "Usuário não vinculado a nenhuma distribuidora"
+        );
+      }
+      distributorId = resolved;
+    } else {
+      if (!data.distributor_id) {
+        throw new DistributorServiceError("DISTRIBUTOR_ID_REQUIRED", "distributor_id é obrigatório");
+      }
+      distributorId = data.distributor_id;
+    }
+
+    const password_hash = await hashPassword(data.password);
+    const prisma = getPrisma();
+    const actorType = actor.role === "ops" ? ActorType.OPS : ActorType.DISTRIBUTOR_USER;
+    const sourceApp = actor.role === "ops" ? SourceApp.OPS_CONSOLE : SourceApp.DISTRIBUTOR_WEB;
+
+    try {
+      const driver = await prisma.$transaction(async (tx) => {
+        const created = await distributorRepository.createDriver(
+          {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            password_hash,
+            distributor_id: distributorId,
+          },
+          tx
+        );
+
+        await auditRepository.emit(
+          {
+            eventType: AuditEventType.DRIVER_CREATED,
+            actor: { type: actorType, id: actor.sub },
+            orderId: null,
+            sourceApp,
+            payload: { driver_id: created.id, distributor_id: distributorId },
+          },
+          tx
+        );
+
+        return created;
+      });
+
+      log.info({ driverId: driver.id, distributorId, actorId: actor.sub }, "Driver created");
+      return driver;
+    } catch (error: any) {
+      if (error.code === "P2002") {
+        throw new DistributorServiceError("DUPLICATE_DRIVER_EMAIL", "E-mail já cadastrado");
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Atualiza motorista (nome, telefone, is_active). `distributor_admin` só
+   * pode editar motoristas da própria distribuidora.
+   */
+  async updateDriver(actor: { sub: string; role: UserRole }, driverId: string, data: DriverUpdateInput) {
+    const driver = await distributorRepository.findDriverById(driverId);
+    if (!driver) {
+      throw new DistributorServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado");
+    }
+
+    if (actor.role === "distributor_admin") {
+      const distributorId = await distributorRepository.resolveDistributorId(actor.sub);
+      if (!distributorId || driver.distributor_id !== distributorId) {
+        throw new DistributorServiceError(
+          "DRIVER_NOT_OWNED_BY_DISTRIBUTOR",
+          "Motorista não pertence à sua distribuidora"
+        );
+      }
+    }
+
+    const prisma = getPrisma();
+    const actorType = actor.role === "ops" ? ActorType.OPS : ActorType.DISTRIBUTOR_USER;
+    const sourceApp = actor.role === "ops" ? SourceApp.OPS_CONSOLE : SourceApp.DISTRIBUTOR_WEB;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await distributorRepository.updateDriver(driverId, data, tx);
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DRIVER_UPDATED,
+          actor: { type: actorType, id: actor.sub },
+          orderId: null,
+          sourceApp,
+          payload: { driver_id: driverId, changes: data },
+        },
+        tx
+      );
+
+      return result;
+    });
+
+    // SEC: se a atualização desativou a conta, derruba qualquer sessão JWT
+    // já emitida para esse motorista — mesmo mecanismo usado na troca de
+    // senha (markPasswordChanged/isTokenStale). Sem isso, um motorista
+    // desativado continuaria autenticado até o token expirar (até 24h).
+    if (data.is_active === false) {
+      await markAccountDeactivated(driverId);
+    }
+
+    log.info({ driverId, actorId: actor.sub }, "Driver updated");
+    return updated;
+  },
+
+  /** Lista motoristas sem distribuidora vinculada — exclusivo para ops. */
+  async listUnlinkedDrivers() {
+    return distributorRepository.findUnlinkedDrivers();
+  },
+
+  /** Vincula um motorista órfão a uma distribuidora — exclusivo para ops. */
+  async linkDriver(driverId: string, distributorId: string, opsUserId: string) {
+    const driver = await distributorRepository.findDriverById(driverId);
+    if (!driver) {
+      throw new DistributorServiceError("DRIVER_NOT_FOUND", "Motorista não encontrado");
+    }
+
+    const prisma = getPrisma();
+    const linked = await prisma.$transaction(async (tx) => {
+      const result = await distributorRepository.linkDriverToDistributor(driverId, distributorId, tx);
+
+      await auditRepository.emit(
+        {
+          eventType: AuditEventType.DRIVER_LINKED_TO_DISTRIBUTOR,
+          actor: { type: ActorType.OPS, id: opsUserId },
+          orderId: null,
+          sourceApp: SourceApp.OPS_CONSOLE,
+          payload: { driver_id: driverId, distributor_id: distributorId },
+        },
+        tx
+      );
+
+      return result;
+    });
+
+    log.info({ driverId, distributorId, opsUserId }, "Driver linked to distributor");
+    return linked;
   },
 };
 

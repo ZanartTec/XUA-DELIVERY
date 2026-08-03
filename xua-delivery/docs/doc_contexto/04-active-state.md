@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **26/07/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **02/08/2026**.
 
 ---
 
@@ -54,6 +54,9 @@
 
 ## 2. O que precisa ser feito / Próximos passos
 
+### Bloqueado — aguardando o usuário
+- [ ] **Aplicar a migration do CRUD de Distribuidor/Motorista em DEV** (`20260802130000_add_consumer_is_active_and_management_audit_events`, código completo desde 02/08/2026 — ver item #18 em §3 e `doc_desenvolvimento/distribuidor-motorista-crud.md`). Bloqueado até o usuário fornecer as credenciais do banco de DEV. Depois de aplicada: validar smoke test ponta a ponta (criar distribuidora+admin, cadastrar/desativar motorista, vincular órfão, criar zona) e só então avaliar promoção para produção
+
 ### Do backlog v1 (robustez operacional) — pendentes
 - [ ] **Roteirização inteligente** (Google Directions API ou OSRM) — hoje a lista de paradas agrupa por zona/janela com link manual para o Google Maps
 - [ ] **Fila de divergências** de conciliação como fluxo de resolução (hoje é relatório; painel de divergências "fila de resolução" previsto)
@@ -99,6 +102,7 @@
 | 15 | **Invariante "1 item vendável ativo por produto" só aplicacional** | Não há constraint de banco (índice único parcial exigiria migration raw SQL). O provisionamento detecta >1 item ativo, loga warn e faz no-op. Decisão futura do xua-banco-dados |
 | 16 | **`createMovementOnce` captura P2002 dentro de transação interativa** | Padrão pré-existente em `inventory.repository.ts` (~linha 545): captura `P2002` e retorna `null`, mas em Postgres o erro aborta a transação — se um caller emitir statements na mesma tx após receber `null`, sofrerá `25P02` ("current transaction is aborted"). Candidato a revisão (por isso o provisionamento pré-checa unicidade do `code` antes do create, em vez de reagir à colisão) |
 | 17 | **`REDELIVERY_SCHEDULED` invisível na fila do distribuidor** | Status intermediário (não ativo, não terminal) que também some de toda a UI da fila — não entra em `DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES` nem no novo grupo `DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES` (aba "Histórico", 26/07/2026). Diferente do caso resolvido (pedido finalizado, consulta), este é operacional — o pedido ainda precisa de ação (voltar para `OUT_FOR_DELIVERY`). Fora de escopo da entrega de 26/07 por decisão do usuário; decidir se vira aba própria ou entra em algum stage ativo existente |
+| 18 | ~~**Cadastro de distribuidor/motorista só via SQL manual em produção**~~ **🟡 RESOLVIDO EM CÓDIGO (02/08/2026) — MIGRATION PENDENTE** | Não existia caminho de aplicação para criar distribuidora, criar motorista, vincular motorista↔distribuidora ou desativar qualquer um dos dois — evidência em `prisma/production/seed_distributor_sao_luiz_jf_users.sql` (admin criado via `INSERT` manual, hash de senha reciclado entre contas, sem auditoria). **Resolvido em código**: schema (`Consumer.is_active`, 5 novos `AuditEventType`), 6 endpoints novos no módulo `distributor` (`POST /api/distributor`, `PATCH /api/distributor/:id`, `POST/PATCH /api/distributor/drivers[/:id]`, `GET /api/distributor/drivers/unlinked`, `PATCH /api/distributor/drivers/:id/link`), checagem de `is_active` no login, 4 telas novas/editadas (`ops/distributors`, `ops/drivers`, `distributor/drivers`, `ops/zones` agora com escrita). **Não é um "concluído 100%":** a migration `20260802130000_add_consumer_is_active_and_management_audit_events` foi gerada mas **não foi aplicada em nenhum banco** — aguardando o usuário fornecer credenciais do banco de DEV (ver §2 "Bloqueado — aguardando o usuário"). Sem a migration aplicada, o campo `Consumer.is_active` e os novos endpoints não podem ser validados contra um banco real. **Recomendação sobre os seeds legados:** `prisma/production/seed_distributor_sao_luiz_jf*.sql` devem passar a ser tratados como fallback de emergência/disaster-recovery, não mais como fluxo padrão de onboarding de parceiros — o CRUD é o caminho oficial a partir desta entrega. Arquivos **não foram alterados nem removidos**, só a recomendação foi documentada. **Atenção — PII real:** `seed_distributor_sao_luiz_jf_users.sql` contém e-mail e hash de senha reais de um parceiro em produção (hash reciclado entre 3 contas); decisão de arquivar/restringir acesso/rotacionar senha cabe ao usuário e ao `xua-seguranca`. Detalhe completo: `doc_desenvolvimento/distribuidor-motorista-crud.md` |
 
 ---
 
@@ -107,6 +111,7 @@
 - Documentação detalhada original: `docs/doc_sistema/` (5 arquivos, atualizados em 06/07/2026)
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
-- Últimos marcos: aba "Histórico" na fila do distribuidor (26/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- CRUD de Distribuidor/Motorista (código completo, migration pendente): `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`
+- Últimos marcos: CRUD de Distribuidor/Motorista — código completo, migration pendente de aplicação em DEV (02/08), aba "Histórico" na fila do distribuidor (26/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
 
-**Última atualização: 26 de julho de 2026.**
+**Última atualização: 02 de agosto de 2026.**

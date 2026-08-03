@@ -133,6 +133,11 @@ enum AuditEventType {
   DEPOSIT_BOTTLES_WRITTEN_OFF
   DEPOSIT_PROGRAM_ENABLED
   DEPOSIT_PROGRAM_DISABLED
+  DISTRIBUTOR_CREATED
+  DISTRIBUTOR_UPDATED
+  DRIVER_CREATED
+  DRIVER_UPDATED
+  DRIVER_LINKED_TO_DISTRIBUTOR
 
   @@map("audit_event_type")
 }
@@ -242,6 +247,7 @@ model Consumer {
   password_hash            String
   role                     ConsumerRole @default(CONSUMER)
   is_b2b                   Boolean      @default(false)
+  is_active                Boolean      @default(true)
   distributor_id           String?      @db.Uuid
   auto_assign_distributor  Boolean      @default(true)
   preferred_distributor_id String?      @db.Uuid
