@@ -129,6 +129,31 @@ export const distributorRepository = {
     return orphanDrivers;
   },
 
+  /**
+   * Todos os motoristas do sistema (de qualquer distribuidora, incluindo
+   * órfãos sem `distributor_id`), com o nome da distribuidora vinculada —
+   * exclusivo para a tela de gestão completa `ops`. Distinto de
+   * `findDriversByDistributor` (que é escopado a UMA distribuidora e faz
+   * auto-vinculação de órfãos quando há distribuidora única ativa).
+   */
+  async findAllDriversForOps(): Promise<
+    Array<
+      Prisma.ConsumerGetPayload<{ select: typeof MANAGED_CONSUMER_SAFE_SELECT }> & {
+        distributor: { id: string; name: string } | null;
+      }
+    >
+  > {
+    const prisma = getPrisma();
+    return prisma.consumer.findMany({
+      where: { role: ConsumerRole.DRIVER },
+      select: {
+        ...MANAGED_CONSUMER_SAFE_SELECT,
+        distributor: { select: { id: true, name: true } },
+      },
+      orderBy: [{ distributor: { name: "asc" } }, { name: "asc" }],
+    });
+  },
+
   async findRouteStopsByDistributor(
     distributorId: string,
     deliveryDate: Date
