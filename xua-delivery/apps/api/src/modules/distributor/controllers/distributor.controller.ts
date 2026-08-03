@@ -854,6 +854,22 @@ export const distributorController = {
     }
   },
 
+  /**
+   * GET /api/distributor/drivers/all
+   * Lista TODOS os motoristas do sistema (de qualquer distribuidora,
+   * incluindo órfãos sem vínculo), com o nome da distribuidora de cada um —
+   * exclusivo para a tela de gestão completa `ops`.
+   */
+  async listAllDrivers(_req: Request, res: Response): Promise<void> {
+    try {
+      const drivers = await distributorRepository.findAllDriversForOps();
+      res.json({ drivers });
+    } catch (err) {
+      log.error({ err }, "Erro ao listar todos os motoristas");
+      res.status(500).json({ error: "Erro interno" });
+    }
+  },
+
   /** GET /api/distributor/drivers/unlinked — motoristas sem distribuidora. Exclusivo para ops. */
   async listUnlinkedDrivers(_req: Request, res: Response): Promise<void> {
     try {

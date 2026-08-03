@@ -331,6 +331,74 @@ describe("distributorRepository.findDriversByDistributor", () => {
   });
 });
 
+describe("distributorRepository.findAllDriversForOps", () => {
+  it("retorna motoristas de qualquer distribuidora com o nome da distribuidora vinculada", async () => {
+    mocks.prisma.consumer.findMany.mockResolvedValue([
+      {
+        id: "driver-1",
+        name: "Driver One",
+        email: "driver1@xua.test",
+        phone: "11977777777",
+        role: "DRIVER",
+        is_active: true,
+        distributor_id: distributorA,
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+        updated_at: new Date("2026-01-01T00:00:00.000Z"),
+        distributor: { id: distributorA, name: "Alpha" },
+      },
+    ]);
+
+    const result = await distributorRepository.findAllDriversForOps();
+
+    expect(mocks.prisma.consumer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { role: "DRIVER" },
+        select: expect.objectContaining({
+          email: true,
+          phone: true,
+          is_active: true,
+          distributor: { select: { id: true, name: true } },
+        }),
+        orderBy: [{ distributor: { name: "asc" } }, { name: "asc" }],
+      })
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "driver-1",
+        name: "Driver One",
+        distributor: { id: distributorA, name: "Alpha" },
+      }),
+    ]);
+  });
+
+  it("retorna distributor: null para motorista órfão (sem distribuidora vinculada)", async () => {
+    mocks.prisma.consumer.findMany.mockResolvedValue([
+      {
+        id: "driver-orphan",
+        name: "Driver Orphan",
+        email: "orphan@xua.test",
+        phone: "11966666666",
+        role: "DRIVER",
+        is_active: true,
+        distributor_id: null,
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+        updated_at: new Date("2026-01-01T00:00:00.000Z"),
+        distributor: null,
+      },
+    ]);
+
+    const result = await distributorRepository.findAllDriversForOps();
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "driver-orphan",
+        distributor_id: null,
+        distributor: null,
+      }),
+    ]);
+  });
+});
+
 describe("distributorRepository.findUnlinkedDrivers / linkDriverToDistributor", () => {
   it("lista motoristas sem distributor_id", async () => {
     mocks.prisma.consumer.findMany.mockResolvedValue([{ id: "driver-orphan", distributor_id: null }]);

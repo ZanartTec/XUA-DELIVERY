@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node --env-file=.env --import tsx --watch src/server/index.ts",
-    "dev:worker": "node --env-file=.env --import tsx --watch src/worker/index.ts",
+    "dev": "tsx watch --env-file=.env src/server/index.ts",
+    "dev:worker": "tsx watch --env-file=.env src/worker/index.ts",
     "start": "tsx src/server/index.ts",
     "worker": "tsx src/worker/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
