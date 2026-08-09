@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { coverageSchema, coverageBulkSchema, zoneUpdateSchema } from "./zone";
+import {
+  coverageSchema,
+  coverageBulkSchema,
+  zoneUpdateSchema,
+  zoneOpsQuerySchema,
+} from "./zone";
 import { normalizeZipCode, normalizeNeighborhood } from "../utils/zip";
 
 describe("normalizeZipCode", () => {
@@ -63,6 +68,38 @@ describe("coverageBulkSchema", () => {
 
   it("rejects an empty list", () => {
     expect(coverageBulkSchema.safeParse({ items: [] }).success).toBe(false);
+  });
+});
+
+describe("zoneOpsQuerySchema", () => {
+  it("defaults to the first page of active zones", () => {
+    const parsed = zoneOpsQuerySchema.parse({});
+    expect(parsed).toMatchObject({ status: "active", limit: 20, offset: 0 });
+  });
+
+  it("coerces limit and offset coming from the query string", () => {
+    const parsed = zoneOpsQuerySchema.parse({ limit: "50", offset: "100" });
+    expect(parsed.limit).toBe(50);
+    expect(parsed.offset).toBe(100);
+  });
+
+  it("caps limit at 100 so a client cannot ask for the whole table", () => {
+    expect(zoneOpsQuerySchema.safeParse({ limit: "500" }).success).toBe(false);
+  });
+
+  it("rejects a negative offset", () => {
+    expect(zoneOpsQuerySchema.safeParse({ offset: "-1" }).success).toBe(false);
+  });
+
+  it("treats empty filter strings as absent", () => {
+    const parsed = zoneOpsQuerySchema.parse({ q: "", coverage: "", distributor_id: "" });
+    expect(parsed.q).toBeUndefined();
+    expect(parsed.coverage).toBeUndefined();
+    expect(parsed.distributor_id).toBeUndefined();
+  });
+
+  it("rejects an unknown status", () => {
+    expect(zoneOpsQuerySchema.safeParse({ status: "deleted" }).success).toBe(false);
   });
 });
 

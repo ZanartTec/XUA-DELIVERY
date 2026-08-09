@@ -1,6 +1,6 @@
 # 03 — Domain & Data: Schema, Fluxos e Rotas
 
-> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas — 35 `model` Prisma + `z_arch_15_trn_deposits` arquivada fora do schema —, 19 enums). Última consolidação: 02/08/2026.
+> **Árvore de Contexto — Galhos.** Fonte da verdade do schema: `prisma/schema.prisma` (36 tabelas — 35 `model` Prisma + `z_arch_15_trn_deposits` arquivada fora do schema —, 19 enums). Última consolidação: 09/08/2026.
 
 ---
 
@@ -15,8 +15,8 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `01_mst_consumers` | `name`, `email` (unique), `phone`, `document`, `password_hash`, `role` (ConsumerRole), `is_active` (default `true`), `is_b2b`, `distributor_id` FK, `auto_assign_distributor`, `preferred_distributor_id` | Todos os usuários (5 roles). 1:N com addresses, orders, push_tokens, user_subscriptions, password_reset_tokens; N:1 com distributor quando usuário interno. `is_active` (02/08/2026, migration `20260802130000`) permite desativar motorista/admin de distribuidora sem apagar o registro — checado no login (`auth.service.ts`, 403 "Conta desativada") e, ao desativar, invalida JWTs já emitidos (`markAccountDeactivated`). Ver `doc_desenvolvimento/distribuidor-motorista-crud.md` |
 | `02_mst_addresses` | `street`, `number`, `complement`, `neighborhood`, `city`, `state`, `zip_code`, `zone_id` FK, `is_default` | Endereços do consumidor (sem lat/lng; lookup por CEP). N:1 consumers/zones; 1:N orders |
 | `03_mst_distributors` | `name`, `cnpj` (unique), `phone`, `email`, `acceptance_sla_seconds`, `is_active`, `allows_consumer_choice` | Distribuidoras parceiras. 1:N zones, orders, schedule, blocked_dates, time_slots, reconciliations; 1:1 payment_settings |
-| `04_mst_zones` | `distributor_id` FK, `name`, `is_active` | Zonas de atendimento. 1:N zone_coverage, addresses, orders |
-| `05_mst_zone_coverage` | `zone_id` FK, `neighborhood`, `zip_code` | Resolve "esse endereço é atendido?" |
+| `04_mst_zones` | `distributor_id` FK, `name`, `is_active` | Zonas de atendimento. 1:N zone_coverage, addresses, orders. Índice GIN trigram em `name` (busca por substring acento-insensível, ver `doc_desenvolvimento/zonas-cobertura-refactor.md`) |
+| `05_mst_zone_coverage` | `zone_id` FK, `distributor_id` FK, `neighborhood`, `zip_code` | Resolve "esse endereço é atendido?". `distributor_id` (09/08/2026) é denormalizado de `zone.distributor_id` — evita JOIN nas checagens de conflito, mantido em sincronia por `zones.repository.ts`. `zip_code` é gravado e comparado sempre em `#####-###` (8 dígitos); índices GIN trigram em `neighborhood` (acento-insensível) e `zip_code` |
 | `06_mst_products` | `name`, `price_cents`, `kind` (ProductKind), `bottle_product_id` FK, `is_active` | Catálogo. `WATER` aponta para seu vasilhame (`BOTTLE`) via `bottle_product_id`. N:N com categories; 1:N order_items. Criação/reativação pela ops provisiona automaticamente item de estoque `SELLABLE_PRODUCT` na mesma transação (fix 07/07/2026) |
 | `07_mst_categories` | `name`, `sort_order`, `is_active` | Categorias do catálogo (N:N implícito com products) |
 | `29_mst_inventory_items` | `code` (unique), `name`, `type` (InventoryItemType), `product_id` FK?, `unit_label`, `low_stock_threshold`, `is_active` (default `true`) | Itens de estoque: produtos vendáveis, retornáveis cheios/vazios, insumos. Origem: seeds + provisionamento automático na criação/reativação de produto (fix 07/07/2026, `code` = slug do nome + fragmento do UUID). `is_active = false` = soft delete do cadastro: saldos ocultos por default nas listagens (fix 07/07/2026), movimentos rejeitados, histórico preservado |
@@ -137,6 +137,18 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 - Distribuidora habilita cliente no programa (`max_bottles`; `0` = bloqueado).
 - Empréstimo/devolução geram movimentos append-only (`LOAN_OUT`, `RETURN_IN`, `MANUAL_ADJUSTMENT`, `WRITE_OFF`); saldo materializado nunca negativo.
 - Eventos de auditoria: `DEPOSIT_BOTTLES_LOANED/RETURNED/WRITTEN_OFF`, `DEPOSIT_PROGRAM_ENABLED/DISABLED`.
+
+### 2.6 Zonas e cobertura de atendimento (reescrito 09/08/2026)
+
+Módulo em `apps/api/src/modules/zones/`. Detalhe completo em `doc_desenvolvimento/zonas-cobertura-refactor.md`.
+
+- **Normalização de CEP:** todo CEP de cobertura é normalizado para `#####-###` (8 dígitos, `packages/shared/src/utils/zip.ts::normalizeZipCode`) — o mesmo formato gravado em `02_mst_addresses` e usado por `resolveDistributor()` (§2.3). Uma linha de cobertura exige bairro OU CEP (não ambos vazios).
+- **Conflito interno (BLOQUEADO):** bairro/CEP já coberto por outra zona **ativa da mesma distribuidora** é rejeitado na criação/import — permitir duplicidade tornava `resolveCoveredZone` não-determinístico (LIMIT 1 sem ORDER BY), roteando o pedido para uma zona aleatória entre as concorrentes.
+- **Sobreposição externa (só AVISA):** a mesma área coberta por zona de **outra** distribuidora não é bloqueada — alimenta a escolha manual de distribuidora no checkout (`allows_consumer_choice`, §2.3). O preview (`POST /:id/coverage/preview`) retorna essa lista como `warnings`, separada de `conflicts`.
+- **Zona nunca é hard-deletada:** `DELETE /:id` é soft delete (`is_active = false`). Reativar (`PATCH /:id` com `is_active: true`) recalcula conflito interno antes de permitir — a zona pode ter ficado obsoleta enquanto estava inativa.
+- **Transferência de zona (`PATCH /:id/transfer`, só `ops`):** muda `zone.distributor_id`, o que reroteia todo endereço já vinculado à zona. Só é permitida com **zero pedidos em aberto** na zona e sem conflito de cobertura com a distribuidora de destino (comparado no banco, nunca carregando a cobertura inteira para o Node).
+- **Ownership:** `distributor_admin` só cria/edita/transfere cobertura de zonas da própria distribuidora (checado em todas as rotas de escrita); `GET /api/zones/all` força o filtro à própria distribuidora quando o chamador não é `ops`.
+- **Auditoria:** `ZONE_CREATED`, `ZONE_UPDATED`, `ZONE_TRANSFERRED`, `ZONE_COVERAGE_CHANGED`.
 - **v1 (removida jul/2026):** a caução financeira (`15_trn_deposits`, "Regra A") foi desativada e a tabela arquivada em `z_arch_15_trn_deposits`. Ver `doc_desenvolvimento/caucao-vasilhames.md`.
 
 ### 2.6 KPIs (calculados só por eventos)
@@ -150,13 +162,15 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-## 3. Eventos de auditoria (`AuditEventType` — 39 tipos)
+## 3. Eventos de auditoria (`AuditEventType` — 43 tipos)
 
-`ORDER_CREATED · ORDER_PRICING_FINALIZED · ORDER_CONFIRMED · ORDER_CANCELLED · ORDER_RECEIVED_BY_DISTRIBUTOR · ORDER_ACCEPTED_BY_DISTRIBUTOR · ORDER_REJECTED_BY_DISTRIBUTOR · ORDER_DRIVER_ASSIGNED · DISPATCH_CHECKLIST_COMPLETED · ORDER_DISPATCHED · OTP_GENERATED · OTP_SENT · OTP_VALIDATION_ATTEMPTED · OTP_OVERRIDE · ORDER_DELIVERED · BOTTLE_EXCHANGE_RECORDED · EMPTY_NOT_COLLECTED · REDELIVERY_REQUIRED · REDELIVERY_SCHEDULED · PAYMENT_CREATED · PAYMENT_CAPTURED · PAYMENT_FAILED · PAYMENT_EXPIRED · PAYMENT_REFUNDED · PAYMENT_REFUND_FAILED · DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED · DAILY_RECONCILIATION_CLOSED · DEPOSIT_BOTTLES_LOANED · DEPOSIT_BOTTLES_RETURNED · DEPOSIT_BOTTLES_WRITTEN_OFF · DEPOSIT_PROGRAM_ENABLED · DEPOSIT_PROGRAM_DISABLED · DISTRIBUTOR_CREATED · DISTRIBUTOR_UPDATED · DRIVER_CREATED · DRIVER_UPDATED · DRIVER_LINKED_TO_DISTRIBUTOR`
+`ORDER_CREATED · ORDER_PRICING_FINALIZED · ORDER_CONFIRMED · ORDER_CANCELLED · ORDER_RECEIVED_BY_DISTRIBUTOR · ORDER_ACCEPTED_BY_DISTRIBUTOR · ORDER_REJECTED_BY_DISTRIBUTOR · ORDER_DRIVER_ASSIGNED · DISPATCH_CHECKLIST_COMPLETED · ORDER_DISPATCHED · OTP_GENERATED · OTP_SENT · OTP_VALIDATION_ATTEMPTED · OTP_OVERRIDE · ORDER_DELIVERED · BOTTLE_EXCHANGE_RECORDED · EMPTY_NOT_COLLECTED · REDELIVERY_REQUIRED · REDELIVERY_SCHEDULED · PAYMENT_CREATED · PAYMENT_CAPTURED · PAYMENT_FAILED · PAYMENT_EXPIRED · PAYMENT_REFUNDED · PAYMENT_REFUND_FAILED · DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED · DAILY_RECONCILIATION_CLOSED · DEPOSIT_BOTTLES_LOANED · DEPOSIT_BOTTLES_RETURNED · DEPOSIT_BOTTLES_WRITTEN_OFF · DEPOSIT_PROGRAM_ENABLED · DEPOSIT_PROGRAM_DISABLED · DISTRIBUTOR_CREATED · DISTRIBUTOR_UPDATED · DRIVER_CREATED · DRIVER_UPDATED · DRIVER_LINKED_TO_DISTRIBUTOR · ZONE_CREATED · ZONE_UPDATED · ZONE_TRANSFERRED · ZONE_COVERAGE_CHANGED`
 
 > `DEPOSIT_HELD · DEPOSIT_REFUND_INITIATED · DEPOSIT_REFUNDED` são da caução financeira v1 (removida jul/2026): **não são mais emitidos**, mas permanecem no enum porque a auditoria (`18_aud_audit_events`) é append-only e contém eventos históricos com esses tipos.
 
 > `DISTRIBUTOR_CREATED · DISTRIBUTOR_UPDATED · DRIVER_CREATED · DRIVER_UPDATED · DRIVER_LINKED_TO_DISTRIBUTOR` (02/08/2026, migration `20260802130000`) são do CRUD de Distribuidor/Motorista — ver `doc_desenvolvimento/distribuidor-motorista-crud.md`. Migration gerada, mas **ainda não aplicada em nenhum banco** — aguardando credenciais de DEV do usuário.
+
+> `ZONE_CREATED · ZONE_UPDATED · ZONE_TRANSFERRED · ZONE_COVERAGE_CHANGED` (09/08/2026, migration `20260809120000_zone_coverage_integrity`, **já aplicada em desenvolvimento**) são da reescrita do módulo de zonas — ver `doc_desenvolvimento/zonas-cobertura-refactor.md`.
 
 ---
 
@@ -172,7 +186,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | Distributors (público) | `/api/distributors` | `GET ?zone_id=&date=&window=` — lista para seleção no checkout, ordenada por `avg_nps DESC NULLS LAST` | Público |
 | Consumers | `/api/consumers` | `GET/PATCH /profile`, `GET/POST /addresses`, `DELETE /addresses/:id`, `PATCH /:id/assign-mode`, `GET /cep/:cep` | `consumer` |
 | Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo — `consumer`/`ops`/`distributor_admin`), `GET /all`, `POST /`, `PATCH /:id` (ops; em products, create/update provisiona item de estoque vendável na mesma transação) | JWT + RBAC |
-| Zones | `/api/zones` | `GET /:id/available-dates?days=14` (agenda + bloqueios + lead-time), `GET /:id/time-slots` público; `POST /`, `PATCH /:id`, `DELETE /:id`, `POST/DELETE /:id/coverage` (bairro/CEP) — escrita `distributor_admin`/`ops`. Tela `/ops/zones` ganhou UI de criação/cobertura em 02/08/2026 (backend já existia, só faltava a tela) | Público (leitura) / `distributor_admin`+`ops` (escrita) |
+| Zones | `/api/zones` | `GET /` (array puro, só zonas ativas — shape legado do checkout); `GET /all` (painel ops: paginado, filtros `distributor_id`/`q`/`coverage`/`status`, força `distributor_id` próprio quando chamado por `distributor_admin`); `GET /:id/available-dates?days=14`, `GET /:id/time-slots` (públicos); `POST /`, `PATCH /:id` (nome/status, não move de distribuidora), `DELETE /:id` (soft delete); `PATCH /:id/transfer` (só `ops` — muda distribuidora dona da zona); `GET /:id/coverage` (paginado), `POST /:id/coverage`, `POST /:id/coverage/bulk` (import em lote, máx 500 linhas), `POST /:id/coverage/preview` (checa conflito sem gravar), `DELETE /:id/coverage?coverageId=`. Reescrito em 09/08/2026 — ver `doc_desenvolvimento/zonas-cobertura-refactor.md` | Público (leitura) / `distributor_admin`+`ops` (escrita, com ownership check) / `ops` (transfer) |
 | Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |
 | User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/cancel` (sem caller na UI), `PATCH /:id/delivery-dates/:deliveryDateId` | `consumer` |
@@ -190,7 +204,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 - **(consumer):** `/catalog`, `/cart`, `/checkout/schedule`, `/checkout/distributor`, `/checkout/payment`, `/checkout/confirmation`, `/orders`, `/orders/[id]`, `/subscription/create`, `/subscription/manage`, `/profile`, `/profile/addresses`, `/profile/edit`
 - **(distributor):** `/distributor/queue`, `/distributor/orders/[id]`, `/distributor/orders/[id]/checklist`, `/distributor/routes/[id]`, `/distributor/reconciliation`, `/distributor/kpis`, `/distributor/schedule`, `/distributor/inventory`, `/distributor/inventory/reconciliation`, `/distributor/payment-config`, `/distributor/deposit-program`, `/distributor/drivers` **[NOVO 02/08/2026]** — `distributor_admin` cadastra/edita/desativa os próprios motoristas
 - **(driver):** `/driver/deliveries`, `/driver/deliveries/[id]/otp`, `/driver/deliveries/[id]/exchange`, `/driver/deliveries/[id]/non-collection`, `/driver/deliveries/[id]/failure`, `/driver/history`
-- **(ops):** `/ops/kpis`, `/ops/zones` (editada 02/08/2026 — ganhou criação de zona + gestão de cobertura, antes só leitura), `/ops/banners`, `/ops/products`, `/ops/subscription-plans`, `/ops/inventory`, `/ops/inventory/reconciliations`, `/ops/otp-override`, `/ops/audit-export`, `/ops/distributors` **[NOVO 02/08/2026]** — CRUD de distribuidoras, `/ops/drivers` **[NOVO 02/08/2026]** — motoristas órfãos + vínculo, `/support`, `/support/[id]`
+- **(ops):** `/ops/kpis`, `/ops/zones` (reescrita 09/08/2026 — painel master-detail: distribuidora à esquerda, tabela de zonas com filtro/paginação à direita; editor de cobertura com import em massa e transferência entre distribuidoras — ver `doc_desenvolvimento/zonas-cobertura-refactor.md`), `/ops/banners`, `/ops/products`, `/ops/subscription-plans`, `/ops/inventory`, `/ops/inventory/reconciliations`, `/ops/otp-override`, `/ops/audit-export`, `/ops/distributors` **[NOVO 02/08/2026]** — CRUD de distribuidoras, `/ops/drivers` **[NOVO 02/08/2026]** — motoristas órfãos + vínculo, `/support`, `/support/[id]`
 
 > CRUD de distribuidora/motorista (02/08/2026): código completo, migration pendente de aplicação em DEV. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md` e `doc_contexto/04-active-state.md`.
 
@@ -209,4 +223,4 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 ---
 
-**Última atualização: 02 de agosto de 2026.**
+**Última atualização: 09 de agosto de 2026.**

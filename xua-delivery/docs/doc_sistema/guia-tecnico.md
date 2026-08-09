@@ -82,7 +82,7 @@ Calculados exclusivamente via `18_aud_audit_events`. O `KpiService` faz queries 
 
 Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), `sec` (segurança), `aud` (auditoria append-only), `log` (histórico event-sourcing).
 
-> O schema atual tem **35 tabelas** (numeração `01`–`38`, sem `11`, `12` e `15`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. A `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema (jul/2026); o número `15` fica aposentado. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`. Em 02/08/2026, `01_mst_consumers` ganhou a coluna `is_active` e `audit_event_type` ganhou 5 valores (`DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR`) para o CRUD de Distribuidor/Motorista — migration `20260802130000_add_consumer_is_active_and_management_audit_events` gerada, **ainda não aplicada em nenhum banco** (ver `doc_desenvolvimento/distribuidor-motorista-crud.md`).
+> O schema atual tem **35 tabelas** (numeração `01`–`38`, sem `11`, `12` e `15`). A tabela `07_cfg_delivery_capacity` foi removida (migration `20260601000000_remove_delivery_capacity`) — o número `07` foi reutilizado por `07_mst_categories`. A `15_trn_deposits` (caução financeira v1) foi arquivada em `z_arch_15_trn_deposits` e removida do schema (jul/2026); o número `15` fica aposentado. O controle de disponibilidade agora é feito pela agenda da distribuidora e validação de lead-time. Além das 5 tabelas de inventário (`29`–`33`) e 4 de assinatura v2 (`25`–`28`), foram adicionadas: `34_cfg_distributor_payment_settings` (pagamento por distribuidora), `35`–`37` (caução de vasilhames v2) e `38_sec_password_reset_tokens` (redefinição de senha). O Prisma Client usa o adaptador `@prisma/adapter-pg`. Em 02/08/2026, `01_mst_consumers` ganhou a coluna `is_active` e `audit_event_type` ganhou 5 valores (`DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR`) para o CRUD de Distribuidor/Motorista — migration `20260802130000_add_consumer_is_active_and_management_audit_events` gerada, **ainda não aplicada em nenhum banco** (ver `doc_desenvolvimento/distribuidor-motorista-crud.md`). Em 09/08/2026, a reescrita do módulo de zonas adicionou `audit_event_type` mais 4 valores (`ZONE_CREATED`, `ZONE_UPDATED`, `ZONE_TRANSFERRED`, `ZONE_COVERAGE_CHANGED`), a coluna `05_mst_zone_coverage.distributor_id` e a extensão `pg_trgm` — migrations `20260809120000_zone_coverage_integrity` e `20260809130000_zone_coverage_scale`, **já aplicadas em desenvolvimento** (ver `doc_desenvolvimento/zonas-cobertura-refactor.md`).
 
 ### 2.1 Mapa de Tabelas
 
@@ -91,8 +91,8 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `01_mst_consumers` | mst | Usuários da plataforma. Roles: `consumer`, `distributor_admin`, `driver`, `ops`, `support`. Campos `auto_assign_distributor`, `preferred_distributor_id` e `is_active` (default `true`, migration `20260802130000` — desativa motorista/admin de distribuidora; checado no login, gerada mas não aplicada ainda) |
 | `02_mst_addresses` | mst | Endereços de entrega por consumidor (múltiplos, com `zone_id` para identificar zona) |
 | `03_mst_distributors` | mst | Parceiros distribuidores. Campo `allows_consumer_choice` habilita seleção manual no checkout |
-| `04_mst_zones` | mst | Regiões de cobertura por distribuidor |
-| `05_mst_zone_coverage` | mst | Bairros e CEPs cobertos por cada zona |
+| `04_mst_zones` | mst | Regiões de cobertura por distribuidor. Soft delete (`is_active`); transferível entre distribuidoras via `PATCH /api/zones/:id/transfer` (só `ops`) |
+| `05_mst_zone_coverage` | mst | Bairros e CEPs (sempre `#####-###`) cobertos por cada zona. `distributor_id` denormalizado (09/08/2026) para evitar JOIN nas checagens de conflito |
 | `06_mst_products` | mst | Catálogo de produtos. Campo `kind` (`WATER`/`BOTTLE`/`OTHER`) e vínculo `bottle_product_id` para caução de vasilhame |
 | `07_mst_categories` | mst | Categorias do catálogo (N:N com produtos) |
 | `08_sec_consumer_push_tokens` | sec | Tokens Web Push API para notificações no navegador |
@@ -103,7 +103,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | ~~`15_trn_deposits`~~ | — | Caução financeira v1 **removida (jul/2026)**: arquivada em `z_arch_15_trn_deposits` e substituída pela caução de vasilhames v2 (`35`–`37`) |
 | `16_sec_order_otps` | sec | OTPs: `otp_hash` HMAC-SHA256, TTL em `expires_at`, max 5 tentativas, status `LOCKED` |
 | `17_trn_reconciliations` | trn | Conciliação diária: `full_out`, `empty_returned`, `delta`, justificativa obrigatória se delta > 0 |
-| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 39 tipos de evento. Nunca UPDATE/DELETE. |
+| `18_aud_audit_events` | aud | **APPEND-ONLY** — fonte de verdade para KPIs. 43 tipos de evento. Nunca UPDATE/DELETE. |
 | `19_cfg_banners` | cfg | Banners promocionais configuráveis pela ops. Tipo: `CAROUSEL` ou `FEATURED` |
 | `20_cfg_idempotency_keys` | cfg | Chaves de idempotência para deduplicar operações críticas em fluxos assíncronos |
 | `21_trn_payment_transactions` | trn | Log técnico de interações com o provedor de pagamento |
@@ -160,7 +160,7 @@ Tipos: `mst` (master), `cfg` (config), `trn` (transacional), `piv` (pivot N:N), 
 | `ActorType` | `CONSUMER` \| `DISTRIBUTOR_USER` \| `DRIVER` \| `SUPPORT` \| `OPS` \| `SYSTEM` |
 | `ConsumerRole` | `CONSUMER` \| `DISTRIBUTOR_ADMIN` \| `DRIVER` \| `SUPPORT` \| `OPS` |
 | `SourceApp` | `CONSUMER_WEB` \| `DISTRIBUTOR_WEB` \| `DRIVER_WEB` \| `OPS_CONSOLE` \| `BACKEND` |
-| `AuditEventType` | 39 tipos — ver seção 3.5 |
+| `AuditEventType` | 43 tipos — ver seção 3.5 |
 | `IdempotencyStatus` | `PENDING` \| `PROCESSED` \| `FAILED` |
 | `UserSubscriptionStatus` | `PENDING_PAYMENT` \| `ACTIVE` \| `PAUSED` \| `CANCELLED` \| `COMPLETED` |
 | `DeliveryDateStatus` | `PENDING` \| `ORDER_CREATED` \| `DELIVERED` \| `FAILED` \| `CANCELLED` |
@@ -315,7 +315,7 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | 8 | `DELIVERED` | operator | OTP validado. Troca registrada (qty + condição). Eventos: `OTP_VALIDATION_ATTEMPTED` + `ORDER_DELIVERED` + `BOTTLE_EXCHANGE` |
 | 9 | (pós) | system | Troca de vasilhames registrada (settlement v2). A devolução de caução financeira v1 (`DEPOSIT_REFUND_*`) não ocorre mais — removida em jul/2026. |
 
-### 3.5 Mapa de Eventos de Auditoria (39 tipos)
+### 3.5 Mapa de Eventos de Auditoria (43 tipos)
 
 | Evento | Ator | Quando é emitido |
 |---|---|---|
@@ -358,8 +358,14 @@ async acceptOrder(orderId: string, distributorUserId: string) {
 | `DRIVER_CREATED` | dist_user/ops | Motorista cadastrado (`distributor_admin` só para a própria distribuidora) |
 | `DRIVER_UPDATED` | dist_user/ops | Motorista editado, inclui ativar/desativar (`is_active`) |
 | `DRIVER_LINKED_TO_DISTRIBUTOR` | ops | Motorista órfão (sem `distributor_id`) vinculado a uma distribuidora |
+| `ZONE_CREATED` | dist_user/ops | Zona de atendimento criada |
+| `ZONE_UPDATED` | dist_user/ops | Zona editada: nome, `is_active` (desativação/reativação) |
+| `ZONE_TRANSFERRED` | ops | Zona movida para outra distribuidora (`payload` traz `from_distributor_id`/`to_distributor_id`) |
+| `ZONE_COVERAGE_CHANGED` | dist_user/ops | Linha(s) de cobertura adicionada(s) ou removida(s) (`payload.action: 'added'|'removed'`, `count`) |
 
-> Os 5 eventos acima (02/08/2026) vêm da migration `20260802130000_add_consumer_is_active_and_management_audit_events` — **gerada, ainda não aplicada em nenhum banco**. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.
+> Os 5 eventos de Distribuidor/Motorista acima (02/08/2026) vêm da migration `20260802130000_add_consumer_is_active_and_management_audit_events` — **gerada, ainda não aplicada em nenhum banco**. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.
+>
+> Os 4 eventos `ZONE_*` acima (09/08/2026) vêm da migration `20260809120000_zone_coverage_integrity` — **já aplicada em desenvolvimento**. Ver `doc_desenvolvimento/zonas-cobertura-refactor.md`.
 
 ### 3.6 Autenticação e Redefinição de Senha
 
@@ -641,6 +647,7 @@ Estado persistido em `useSubscriptionStore` (Zustand persist `"xua-subscription"
 ---
 
 *Xuá Delivery — Guia Técnico v4.2 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 02 de agosto de 2026*
-*36 tabelas · 19 enums · 14 estados · 39 eventos · 5 perfis RBAC*
+*Zanart · Última atualização: 09 de agosto de 2026*
+*36 tabelas · 19 enums · 14 estados · 43 eventos · 5 perfis RBAC*
 *02/08/2026: CRUD de Distribuidor/Motorista — schema+backend+frontend completos, migration `20260802130000` gerada e NÃO aplicada (aguardando credenciais de DEV). Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.*
+*09/08/2026: Reescrita do módulo de Zonas — fix crítico de normalização de CEP, ownership em rotas de escrita, transferência entre distribuidoras, import em massa e escala (pg_trgm). Migrations aplicadas em desenvolvimento. Ver `doc_desenvolvimento/zonas-cobertura-refactor.md`.*

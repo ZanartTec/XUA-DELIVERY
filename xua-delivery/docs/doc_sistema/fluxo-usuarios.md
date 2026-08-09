@@ -343,12 +343,20 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── ops     -> /ops/kpis
 └── support -> /support
 
-[ops] Configurar zonas (/ops/zones) — [ATUALIZADO 02/08/2026: ganhou escrita, antes só leitura]
-├── Lista de zonas existentes em cards, com distribuidor vinculado e cobertura (bairro/CEP)
-├── Formulário inline 'Nova zona' (sem rota separada) -> POST /api/zones
-│   └── Configuração reflete imediatamente no checkout do consumidor
-└── Card da zona: adicionar/remover cobertura por bairro ou CEP inline
-    -> POST /api/zones/:id/coverage · DELETE /api/zones/:id/coverage?coverageId=
+[ops] Configurar zonas (/ops/zones) — [REESCRITO 09/08/2026: painel master-detail, ver doc_desenvolvimento/zonas-cobertura-refactor.md]
+├── Coluna esquerda: DistributorPicker (distribuidora específica ou "Todas") -> GET /api/zones/all (distributor_admin sempre restrito à própria distribuidora)
+├── Coluna direita: ZoneTable — filtros (nome, cobertura por bairro/CEP, status ativa/inativa/todas) + paginação, tudo resolvido no servidor
+│   └── No mobile os dois passos são sequenciais (picker -> tabela); no desktop convivem lado a lado
+├── ZoneForm: criar/editar zona (nome + status) -> POST /api/zones · PATCH /api/zones/:id
+│   └── Reativar uma zona desativada reexecuta a checagem de conflito de cobertura no servidor (pode ser recusada)
+├── CoverageEditor: lista paginada + busca da cobertura de UMA zona (GET /api/zones/:id/coverage) e import em massa colando uma lista de bairros/CEPs
+│   └── Preview de conflitos antes de gravar -> POST /api/zones/:id/coverage/preview; grava com POST /api/zones/:id/coverage/bulk
+│       ├── Conflito com outra zona ATIVA da MESMA distribuidora -> bloqueado
+│       └── Sobreposição com zona de OUTRA distribuidora -> só aviso (alimenta escolha de distribuidora no checkout)
+│   └── Remover linha de cobertura -> DELETE /api/zones/:id/coverage?coverageId=
+├── ZoneTransferDialog (só ops): move a zona para outra distribuidora -> PATCH /api/zones/:id/transfer
+│   └── Bloqueado se a zona tiver pedido em aberto ou a cobertura colidir com a distribuidora de destino
+└── ZoneDeactivateDialog: confirma desativação mostrando quantos endereços cadastrados ficam na zona
 
 [ops] Dashboard KPIs (/ops/kpis)
 ├── Visão de TODOS os distribuidores (diferente do /distributor/kpis que é individual)
@@ -387,7 +395,7 @@ Login (role: ops ou support) -> middleware redirect por role
 ├── Filtros:
 │   ├── Período: data início + data fim (Calendar shadcn)
 │   ├── Distribuidor: select (todos ou específico)
-│   └── Tipo de evento: multi-select dos 39 tipos
+│   └── Tipo de evento: multi-select dos 43 tipos
 ├── Preview: tabela com primeiros 50 resultados
 ├── Botão 'Exportar CSV' -> Route Handler gera e retorna download
 └── CSV com colunas: event_id, event_type, occurred_at, actor_type,
@@ -465,7 +473,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 | `/driver/deliveries/[id]/non-collection` | (driver) | driver | Não-coleta: select motivo obrigatório + texto opcional. |
 | `/driver/deliveries/[id]/failure` | (driver) | driver | Reportar falha de entrega com motivo. |
 | `/driver/history` | (driver) | driver | Histórico de entregas realizadas. |
-| `/ops/zones` | (ops) | ops | Configurar zonas: CRUD de zonas e cobertura (ganhou escrita em 02/08/2026, antes só leitura). |
+| `/ops/zones` | (ops) | ops | Painel master-detail: distribuidora + zonas com filtro/paginação, editor de cobertura com import em massa e transferência entre distribuidoras (reescrito 09/08/2026 — ver `doc_desenvolvimento/zonas-cobertura-refactor.md`). |
 | `/ops/distributors` | (ops) | ops | **[NOVO 02/08/2026]** CRUD de distribuidoras (cria com o primeiro admin, edita, ativa/desativa). |
 | `/ops/drivers` | (ops) | ops | **[NOVO 02/08/2026]** Visão global de motoristas; localiza órfãos (sem distribuidora) e vincula. |
 | `/ops/kpis` | (ops) | ops | KPIs global: todos distribuidores + gráficos + filtros. |
@@ -481,7 +489,7 @@ Todos os eventos de notificação passam pelo **Socket.io** no servidor Express 
 
 ---
 
-*Xuá Delivery — Fluxo de Usuários v4.2 (Monorepo Express + Next.js)*
-*Zanart · Última atualização: 02 de agosto de 2026*
+*Xuá Delivery — Fluxo de Usuários v4.3 (Monorepo Express + Next.js)*
+*Zanart · Última atualização: 09 de agosto de 2026*
 *49 páginas · 4 perfis · Socket.io (Express, porta 4000) · PWA offline*
 *02/08/2026: CRUD de Distribuidor/Motorista (`/ops/distributors`, `/ops/drivers`, `/distributor/drivers`, `/ops/zones` com escrita) — código completo, migration pendente de aplicação em DEV. Ver `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`.*

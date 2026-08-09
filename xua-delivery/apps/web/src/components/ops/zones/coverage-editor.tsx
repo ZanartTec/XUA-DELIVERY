@@ -1,18 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, ListPlus, Plus, X } from "lucide-react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { AlertTriangle, ListPlus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
+import { Pagination } from "@/src/components/shared/pagination";
 import { cn } from "@/src/lib/utils";
 import { coverageLabel, parseCoverageList } from "@/src/lib/zone-coverage";
 import {
+  COVERAGE_PAGE_SIZE,
   useAddCoverage,
   useAddCoverageBulk,
   usePreviewCoverage,
   useRemoveCoverage,
+  useZoneCoverage,
   type CoverageEntry,
   type CoveragePreview,
   type OpsZone,
@@ -31,6 +34,20 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
   const [zipCode, setZipCode] = useState("");
   const [bulkText, setBulkText] = useState("");
   const [preview, setPreview] = useState<CoveragePreview | null>(null);
+
+  // Busca e paginação da cobertura são do servidor: a zona pode ter milhares
+  // de linhas e nunca são baixadas de uma vez.
+  const [search, setSearch] = useState("");
+  const [offset, setOffset] = useState(0);
+  const deferredSearch = useDeferredValue(search);
+  const {
+    coverage,
+    pagination,
+    isLoading: isLoadingCoverage,
+  } = useZoneCoverage(zone.id, { q: deferredSearch.trim(), offset }, true);
+
+  const totalPages = pagination ? Math.ceil(pagination.total / pagination.limit) : 0;
+  const currentPage = pagination ? Math.floor(pagination.offset / pagination.limit) + 1 : 1;
 
   const addCoverage = useAddCoverage();
   const addBulk = useAddCoverageBulk();
@@ -113,25 +130,67 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
 
   return (
     <div className="space-y-2">
-      {zone.coverage.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {zone.coverage.map((coverage) => (
-            <span
-              key={coverage.id}
-              className="inline-flex items-center gap-1 rounded-lg bg-[#e1e3e4]/60 px-2 py-0.5 text-[11px] text-muted-foreground"
-            >
-              {coverageLabel(coverage)}
-              <button
-                type="button"
-                disabled={removeCoverage.isPending}
-                onClick={() => handleRemove(coverage.id)}
-                aria-label={`Remover cobertura ${coverageLabel(coverage)}`}
-                className="text-muted-foreground/60 hover:text-red-600 disabled:opacity-50"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
+      {zone._count.coverage > 0 && (
+        <div className="space-y-2">
+          <div className="relative max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOffset(0);
+              }}
+              placeholder="Buscar bairro ou CEP"
+              className={cn(OPS_INPUT, "h-8 pl-8")}
+            />
+          </div>
+
+          {isLoadingCoverage ? (
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-5 w-24 animate-pulse rounded-lg bg-[#e1e3e4]" />
+              ))}
+            </div>
+          ) : coverage.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              Nenhuma cobertura corresponde a “{deferredSearch}”.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {coverage.map((item) => (
+                <span
+                  key={item.id}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[#e1e3e4]/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  {coverageLabel(item)}
+                  <button
+                    type="button"
+                    disabled={removeCoverage.isPending}
+                    onClick={() => handleRemove(item.id)}
+                    aria-label={`Remover cobertura ${coverageLabel(item)}`}
+                    className="text-muted-foreground/60 hover:text-red-600 disabled:opacity-50"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {pagination && pagination.total > pagination.limit && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                {pagination.offset + 1}–
+                {Math.min(pagination.offset + pagination.limit, pagination.total)} de{" "}
+                {pagination.total}
+              </span>
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={(page) => setOffset((page - 1) * COVERAGE_PAGE_SIZE)}
+              />
+            </div>
+          )}
         </div>
       )}
 

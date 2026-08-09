@@ -54,7 +54,15 @@ const { ZoneServiceError } = await import("../services/zones.service.js");
 
 function req(
   role: string,
-  { body = {}, query = {}, params = { id: ZONE_ID } } = {}
+  {
+    body = {},
+    query = {},
+    params = { id: ZONE_ID },
+  }: {
+    body?: Record<string, unknown>;
+    query?: Record<string, unknown>;
+    params?: Record<string, string>;
+  } = {}
 ): Request {
   return { user: { sub: USER_ID, role }, params, query, body } as unknown as Request;
 }
@@ -144,6 +152,54 @@ describe("ownership nas rotas de escrita", () => {
 
     expect(r.status).toHaveBeenCalledWith(404);
     expect(r.json).toHaveBeenCalledWith({ error: "Zona não encontrada" });
+  });
+});
+
+describe("listForOps", () => {
+  it("forces a distributor_admin to only see their own distributor's zones", async () => {
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(OWNER_DISTRIBUTOR_ID);
+    mocks.zonesService.listForOps.mockResolvedValue([]);
+    const r = res();
+
+    // Sem distributor_id no query: sem o guard, veria a base inteira.
+    await zonesController.listForOps(
+      req("distributor_admin", { query: {}, params: {} }),
+      r
+    );
+
+    expect(mocks.zonesService.listForOps).toHaveBeenCalledWith(
+      expect.objectContaining({ distributor_id: OWNER_DISTRIBUTOR_ID })
+    );
+  });
+
+  it("ignores a distributor_id the distributor_admin tries to inject", async () => {
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(OWNER_DISTRIBUTOR_ID);
+    mocks.zonesService.listForOps.mockResolvedValue([]);
+    const r = res();
+
+    await zonesController.listForOps(
+      req("distributor_admin", {
+        query: { distributor_id: OTHER_DISTRIBUTOR_ID },
+        params: {},
+      }),
+      r
+    );
+
+    expect(mocks.zonesService.listForOps).toHaveBeenCalledWith(
+      expect.objectContaining({ distributor_id: OWNER_DISTRIBUTOR_ID })
+    );
+  });
+
+  it("lets ops query the whole base without a distributor filter", async () => {
+    mocks.zonesService.listForOps.mockResolvedValue([]);
+    const r = res();
+
+    await zonesController.listForOps(req("ops", { query: {}, params: {} }), r);
+
+    expect(mocks.distributorRepository.resolveDistributorId).not.toHaveBeenCalled();
+    expect(mocks.zonesService.listForOps).toHaveBeenCalledWith(
+      expect.not.objectContaining({ distributor_id: expect.anything() })
+    );
   });
 });
 

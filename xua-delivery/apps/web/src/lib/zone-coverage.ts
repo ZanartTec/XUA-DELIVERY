@@ -1,5 +1,5 @@
 import { normalizeZipCode } from "@xua/shared/utils/zip";
-import type { CoverageEntry, ZoneCoverage } from "@/src/hooks/ops/use-ops-zones";
+import type { CoverageEntry } from "@/src/hooks/ops/use-ops-zones";
 
 export interface ParsedCoverageLine {
   line: number;
@@ -66,18 +66,3 @@ export function coverageLabel(entry: {
   return entry.neighborhood ?? entry.zip_code ?? "—";
 }
 
-/** "4 bairros · 12 CEPs" — resumo da cobertura no cabeçalho do card. */
-export function coverageSummary(coverage: ZoneCoverage[]): string {
-  if (coverage.length === 0) return "Sem cobertura";
-  const neighborhoods = new Set(
-    coverage.map((c) => c.neighborhood).filter((v): v is string => Boolean(v))
-  ).size;
-  const zipCodes = new Set(
-    coverage.map((c) => c.zip_code).filter((v): v is string => Boolean(v))
-  ).size;
-
-  const parts: string[] = [];
-  if (neighborhoods > 0) parts.push(`${neighborhoods} ${neighborhoods === 1 ? "bairro" : "bairros"}`);
-  if (zipCodes > 0) parts.push(`${zipCodes} ${zipCodes === 1 ? "CEP" : "CEPs"}`);
-  return parts.join(" · ");
-}

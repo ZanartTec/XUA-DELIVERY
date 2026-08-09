@@ -60,15 +60,17 @@ Relacionamentos principais:
 
 ### 04_mst_zones
 
-Define as zonas de atendimento de cada distribuidora. Uma zona representa um agrupamento operacional para cobertura, capacidade e roteirização.
+Define as zonas de atendimento de cada distribuidora. Uma zona representa um agrupamento operacional para cobertura, capacidade e roteirização. Nunca é hard-deletada: "excluir" é `is_active = false`.
 
 Ela é importante para descobrir se um endereço pode ser atendido, qual distribuidora deve receber o pedido e qual capacidade existe para uma data e janela.
 
 Relacionamentos principais:
-- N:1 com `03_mst_distributors`
+- N:1 com `03_mst_distributors` — transferível entre distribuidoras via `PATCH /api/zones/:id/transfer` (só `ops`, exige zero pedidos em aberto na zona)
 - 1:N com `05_mst_zone_coverage`
 - 1:N com `02_mst_addresses`
 - 1:N com `09_trn_orders`
+
+Índice adicional (09/08/2026): GIN trigram em `name` (via função `immutable_unaccent`) para busca por substring acento-insensível no painel `/ops/zones` sem full scan.
 
 ### 05_mst_zone_coverage
 
@@ -76,8 +78,15 @@ Detalha a cobertura de cada zona por bairro e/ou CEP. É a tabela usada para tra
 
 Na prática, ela responde à pergunta: "esse endereço está dentro da área atendida?".
 
+`zip_code` é sempre gravado no formato `#####-###` (8 dígitos) — o mesmo formato de `02_mst_addresses.zip_code` e o que o cadastro de endereço do consumidor usa para buscar cobertura. Um CEP legado de 5 dígitos nunca casava com endereço nenhum; limpo pela migration `20260809120000_zone_coverage_integrity`.
+
+Regra de negócio (aplicada em `zones.service.ts`, não expressável só em constraint de banco): a mesma área (bairro OU CEP) não pode ser coberta por duas zonas **ativas da mesma distribuidora** — bloqueado na escrita. A mesma área coberta por zona de **outra** distribuidora é permitida e apenas sinalizada como aviso (alimenta a escolha de distribuidora no checkout quando `allows_consumer_choice`).
+
 Relacionamentos principais:
 - N:1 com `04_mst_zones`
+- N:1 com `03_mst_distributors` — coluna `distributor_id` (09/08/2026, migration `20260809130000_zone_coverage_scale`), denormalizada de `zone.distributor_id` para evitar JOIN nas checagens de conflito/sobreposição a cada cobertura adicionada; mantida em sincronia pela aplicação (criação de cobertura e transferência de zona)
+
+Índices adicionais (09/08/2026): unique defensivo `(zone_id, neighborhood, zip_code)`; GIN trigram em `neighborhood` (acento-insensível) e `zip_code`; B-tree em `distributor_id`.
 
 ### 06_mst_products
 
@@ -434,7 +443,8 @@ O schema atual possui **35 tabelas** e **19 enums** (fora a tabela de arquivo `z
 - **Retry de assinaturas** (migration `20260628000000`): status `ORDER_CREATED`/`FAILED` e campo `generation_attempts` em `28_trn_subscription_delivery_dates`.
 - **Redefinição de senha** (migration `20260701140000_add_password_reset_tokens`): tabela `38_sec_password_reset_tokens`.
 - **CRUD de Distribuidor/Motorista** (migration `20260802130000_add_consumer_is_active_and_management_audit_events`, 02/08/2026 — **gerada, ainda não aplicada em nenhum banco**): coluna `01_mst_consumers.is_active` (default `true`) e 5 novos valores em `audit_event_type` (`DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR` — `18_aud_audit_events` passa a ter 39 tipos possíveis, era 34). Fim do cadastro de distribuidora/motorista via SQL manual (`prisma/production/seed_distributor_sao_luiz_jf_users.sql`, que passa a ser só fallback de emergência). Detalhe: `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`.
+- **Integridade e escala de zonas** (migrations `20260809120000_zone_coverage_integrity` e `20260809130000_zone_coverage_scale`, 09/08/2026 — **aplicadas em desenvolvimento**): 4 novos valores em `audit_event_type` (`ZONE_CREATED`, `ZONE_UPDATED`, `ZONE_TRANSFERRED`, `ZONE_COVERAGE_CHANGED`); limpeza de `05_mst_zone_coverage.zip_code` com formato legado de 5 dígitos + índice único defensivo `(zone_id, neighborhood, zip_code)`; extensão `pg_trgm` + funções `immutable_unaccent`/`normalize_neighborhood` + índices GIN trigram em `04_mst_zones.name` e `05_mst_zone_coverage.neighborhood`/`zip_code`; coluna `05_mst_zone_coverage.distributor_id` (denormalizada de `zone.distributor_id`, `NOT NULL`, FK para `03_mst_distributors`). Detalhe: `docs/doc_desenvolvimento/zonas-cobertura-refactor.md`.
 
 Este documento reflete o estado atual do banco no repositório.
 
-**Última atualização: 02 de agosto de 2026.**
+**Última atualização: 09 de agosto de 2026.**

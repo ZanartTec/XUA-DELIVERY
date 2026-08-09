@@ -946,6 +946,8 @@ pilares._
 
 **1.4. Operações Xuá (Hub/central)**
 
+> **[ESTADO ATUAL — 09/08/2026]** O módulo de zonas (`/ops/zones`) foi reescrito: painel master-detail (distribuidora + tabela de zonas com filtro/paginação no servidor), criação/edição/reativação de zona, editor de cobertura com busca paginada e import em massa (colar lista de bairros/CEPs), e transferência de zona entre distribuidoras (`ops`). Corrigido um bug crítico herdado: o cadastro de cobertura exigia CEP de 5 dígitos, mas o resto do sistema grava e busca `#####-###` (8 dígitos) — toda cobertura cadastrada pela API nunca casava com um endereço real; migration `20260809120000_zone_coverage_integrity` limpou o passivo. Regra de negócio: mesma área coberta por duas zonas ativas da mesma distribuidora é bloqueada (evitava roteamento não-determinístico); a mesma área coberta por outra distribuidora só gera aviso (alimenta a escolha manual no checkout). "Capacidade impede overbooking" abaixo **não é real** — ver banner da Seção sobre agendamento (linha ~178): não há bloqueio numérico por slot. Detalhe completo: `doc_desenvolvimento/zonas-cobertura-refactor.md`.
+
 1. **Como operações, quero configurar zonas, janelas e capacidade** para garantir
     que a promessa do app seja executável.
     **Aceite**
@@ -1117,6 +1119,8 @@ vasilhames)** para argumentar contra WhatsApp/tradicional.
 > Eventos citados abaixo que **NÃO existem** no enum real: `payment_authorized`, `redelivery_completed`, `route_assigned`, `cart_created`, `cart_item_added`, `coverage_resolved`, `consumer_registered`, `consumer_address_saved`, `delivery_window_selected`, `exchange_intent_declared`, `order_submitted_for_payment`, `daily_reconciliation_started`, `daily_reconciliation_delta_justified`, `audit_snapshot_exported`. Existe `PAYMENT_EXPIRED` (não citado abaixo). **Os KPIs (SLA aceite, taxa de aceite, reentrega) são calculados via SQL diretamente sobre `18_aud_audit_events`** — ver `kpi.service.ts`.
 >
 > **[ESTADO ATUAL — 02/08/2026]** O enum `AuditEventType` passou de 34 para **39 tipos**: o CRUD de Distribuidor/Motorista (fim do cadastro via SQL manual em produção) adicionou `DISTRIBUTOR_CREATED`, `DISTRIBUTOR_UPDATED`, `DRIVER_CREATED`, `DRIVER_UPDATED`, `DRIVER_LINKED_TO_DISTRIBUTOR` (migration `20260802130000_add_consumer_is_active_and_management_audit_events`, **gerada mas ainda não aplicada em nenhum banco** — aguardando credenciais de DEV do usuário). Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.
+>
+> **[ESTADO ATUAL — 09/08/2026]** O enum passou de 39 para **43 tipos**: a reescrita do módulo de zonas adicionou `ZONE_CREATED`, `ZONE_UPDATED`, `ZONE_TRANSFERRED`, `ZONE_COVERAGE_CHANGED` (migration `20260809120000_zone_coverage_integrity`, **já aplicada em desenvolvimento**). Ver `doc_desenvolvimento/zonas-cobertura-refactor.md`.
 
 A base documental exige **governança/compliance** , **SLA de aceitação** , **taxa de
 aceitação** , **reentrega** , e controle de **troca / não coleta / conciliação de
@@ -4177,5 +4181,7 @@ schema._
 ---
 
 **Última atualização: 02 de agosto de 2026.** Principais mudanças refletidas nesta revisão: remoção da caução financeira v1 (`15_trn_deposits` arquivada em `z_arch_15_trn_deposits`; `DepositStatus` e `Product.deposit_cents` removidos), fluxo "esqueci minha senha" (`38_sec_password_reset_tokens`), caução de vasilhames v2 (`35`–`37`), configuração de pagamento por distribuidora (`34_cfg_distributor_payment_settings`), assinaturas fases 1 e 2 (geração atômica + compensação com retry), schema com 35 tabelas / 19 enums / 34 tipos de evento de auditoria (08/07/2026) e, em 02/08/2026, o CRUD de Distribuidor/Motorista (fim do cadastro via SQL manual): `Consumer.is_active` + 5 novos tipos de evento (39 no total) — código completo, migration `20260802130000` gerada e **ainda não aplicada em nenhum banco**. Ver `doc_desenvolvimento/distribuidor-motorista-crud.md`.
+
+**Revisão adicional — 09 de agosto de 2026:** reescrita do módulo de Zonas de Atendimento (fix de normalização de CEP, ownership em rotas de escrita, transferência entre distribuidoras, import em massa de cobertura, escala via `pg_trgm`) — mais 4 tipos de evento (`ZONE_*`, 43 no total), migrations `20260809120000_zone_coverage_integrity` e `20260809130000_zone_coverage_scale` **já aplicadas em desenvolvimento**. Ver `doc_desenvolvimento/zonas-cobertura-refactor.md`.
 
 

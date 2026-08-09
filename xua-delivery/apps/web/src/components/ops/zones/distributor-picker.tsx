@@ -7,6 +7,9 @@ import { cn } from "@/src/lib/utils";
 import type { DistributorOption } from "@/src/hooks/ops/use-ops-zones";
 import { OPS_CARD, OPS_INPUT } from "./styles";
 
+/** Sentinela de "sem filtro por distribuidora" — a tabela mostra a base inteira. */
+export const ALL_DISTRIBUTORS = "ALL";
+
 interface DistributorPickerProps {
   distributors: DistributorOption[];
   selectedId: string | null;
@@ -59,6 +62,22 @@ export function DistributorPicker({
         </p>
       ) : (
         <ul className="space-y-1">
+          <li>
+            <button
+              type="button"
+              onClick={() => onSelect(ALL_DISTRIBUTORS)}
+              aria-current={selectedId === ALL_DISTRIBUTORS ? "true" : undefined}
+              className={cn(
+                "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
+                selectedId === ALL_DISTRIBUTORS
+                  ? "bg-[#00E0FF]/15 font-semibold text-[#001735]"
+                  : "hover:bg-[#e1e3e4]/60"
+              )}
+            >
+              <span className="truncate">Todas as distribuidoras</span>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          </li>
           {filtered.map((distributor) => {
             const isSelected = distributor.id === selectedId;
             return (

@@ -1,6 +1,6 @@
 # 04 — Active State: Estado Atual e Tarefas
 
-> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **02/08/2026**.
+> **Árvore de Contexto — Folhas (arquivo dinâmico).** Atualize este arquivo a cada entrega relevante. Estado consolidado em: **09/08/2026**.
 
 ---
 
@@ -36,6 +36,9 @@
 - [x] Conciliação diária de vasilhames (delta > 0 exige justificativa)
 - [x] **Fix itens inativos nas listagens de saldo** (07/07/2026): `GET /api/distributor/inventory/balances` e `GET /api/ops/inventory/balances` ganharam filtro `is_active` (query param, default `true`) — antes, item desativado (`29_mst_inventory_items.is_active = false`) mantinha o saldo visível, gerando duplicidade com item substituto, KPIs inflados e alertas falsos de baixo estoque. Helper DRY `balance-query.helpers.ts` unifica o where entre os repositórios distributor/ops; `item.is_active` agora exposto nos payloads de saldos, movimentos e detalhe por id. Sem filtro (intencional): `findBalanceById` (auditoria) e extrato de movimentações (histórico imutável)
 - [x] **Fix produto criado pela ops nascia invendável** (07/07/2026): `POST /api/products` criava só o registro em `06_mst_products` — sem `InventoryItem` vinculado, o aceite falhava com `INVENTORY_ITEM_NOT_FOUND` (exigia INSERT manual). Agora `productsService.create`/`update` rodam em `$transaction` com o novo `inventory-item-provisioning.service.ts` (`provisionForProduct`, idempotente por `product_id`): 1 item ativo → no-op; >1 ativo → warn + no-op (conflito pré-existente); só inativos → reativa o mais recente; nenhum → cria item `SELLABLE_PRODUCT` (todos os kinds; nunca `RETURNABLE_*`, singletons do settlement de caução) com `code` determinístico slug+UUID, `unit_label "un"`, `low_stock_threshold 10`. Invariante: **produto ativo ⇒ item vendável ativo** (update provisiona quando o produto resultante está ativo — reativar produto legado provisiona sozinho). Sem propagação de `name`/`is_active` produto→item (deliberado); saldos continuam lazy (`upsertBalance` na 1ª movimentação); sem migration, sem mudança de contrato. **Saneamento de legados:** rodar `npx tsx scripts/backfill-product-inventory-items.ts --dry-run` e depois sem a flag em produção (uma transação por produto; falha em um não aborta os demais; exit code 1 se houver falhas). Produtos inativos legados só ganham item quando reativados (por design)
+
+### Zonas de atendimento
+- [x] **Reescrita do módulo de zonas** (09/08/2026): painel `/ops/zones` master-detail (distribuidora + tabela de zonas com filtro/paginação no servidor), criação/edição/reativação de zona, editor de cobertura (busca paginada + import em massa colando lista de bairros/CEPs, preview de conflito antes de gravar), transferência de zona entre distribuidoras (`ops`, bloqueada com pedido em aberto ou conflito de cobertura). **Fix crítico:** cobertura exigia CEP de 5 dígitos, mas o resto do sistema grava/busca `#####-###` (8 dígitos) — nenhuma cobertura cadastrada pela API casava com endereço real; migration `20260809120000_zone_coverage_integrity` limpou o legado. Regra de negócio nova: mesma área coberta por 2 zonas ativas da mesma distribuidora é bloqueada (evitava roteamento não-determinístico); a mesma área coberta por outra distribuidora só gera aviso (alimenta escolha de distribuidora no checkout). Ownership (`distributor_admin` só mexe na própria distribuidora) adicionado em todas as rotas de escrita — antes inexistente. Escala: `pg_trgm` + índices GIN trigram para busca por nome/bairro/CEP, `ZoneCoverage.distributor_id` denormalizado. 4 novos `AuditEventType` (`ZONE_*`). Migrations `20260809120000_zone_coverage_integrity` e `20260809130000_zone_coverage_scale` **já aplicadas em desenvolvimento** (Render). Ver `doc_desenvolvimento/zonas-cobertura-refactor.md`
 
 ### Autenticação e segurança
 - [x] Login JWT em cookie httpOnly + RBAC 5 roles + logout com blacklist Redis
@@ -112,6 +115,7 @@
 - Schema: `prisma/schema.prisma` · Rotas: `apps/api/src/http/routes.ts` · Páginas: `apps/web/app/`
 - Detalhes de filas: `docs/doc_desenvolvimento/redis-bullmq/`
 - CRUD de Distribuidor/Motorista (código completo, migration pendente): `docs/doc_desenvolvimento/distribuidor-motorista-crud.md`
-- Últimos marcos: CRUD de Distribuidor/Motorista — código completo, migration pendente de aplicação em DEV (02/08), aba "Histórico" na fila do distribuidor (26/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
+- Reescrita do módulo de Zonas (código completo, migrations já aplicadas em DEV): `docs/doc_desenvolvimento/zonas-cobertura-refactor.md`
+- Últimos marcos: reescrita do módulo de Zonas — fix de CEP de 5 dígitos, ownership, transferência, import em massa, escala (09/08), CRUD de Distribuidor/Motorista — código completo, migration pendente de aplicação em DEV (02/08), aba "Histórico" na fila do distribuidor (26/07), provisionamento automático de item de estoque na criação/reativação de produto (07/07), fix itens inativos no saldo de estoque (07/07), esqueci minha senha (`4ef76ad`, 01/07), fix aceite distribuidor (`01754e9`), caução v2 (24/06), retry de assinaturas (28/06)
 
-**Última atualização: 02 de agosto de 2026.**
+**Última atualização: 09 de agosto de 2026.**

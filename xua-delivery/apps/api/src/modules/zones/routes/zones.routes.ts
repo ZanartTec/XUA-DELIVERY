@@ -9,6 +9,8 @@ router.use(authMiddleware);
 
 // Leitura: consumer, distributor_admin, ops
 router.get("/", requireRole("consumer", "distributor_admin", "ops"), zonesController.list);
+// Painel de operação — inclui zonas inativas. Precede "/:id/*" por ser literal.
+router.get("/all", requireRole("distributor_admin", "ops"), zonesController.listForOps);
 router.get(
   "/:id/available-dates",
   requireRole("consumer", "distributor_admin", "ops"),
@@ -24,9 +26,27 @@ router.get(
 router.post("/", requireRole("distributor_admin", "ops"), zonesController.create);
 router.patch("/:id", requireRole("distributor_admin", "ops"), zonesController.update);
 router.delete("/:id", requireRole("distributor_admin", "ops"), zonesController.remove);
+// Transferir zona entre distribuidoras muda o roteamento de todos os endereços
+// já vinculados — decisão de operação, exclusiva de ops.
+router.patch("/:id/transfer", requireRole("ops"), zonesController.transfer);
 
 // Coverage: distributor_admin, ops
+router.get(
+  "/:id/coverage",
+  requireRole("distributor_admin", "ops"),
+  zonesController.listCoverage,
+);
 router.post("/:id/coverage", requireRole("distributor_admin", "ops"), zonesController.addCoverage);
+router.post(
+  "/:id/coverage/bulk",
+  requireRole("distributor_admin", "ops"),
+  zonesController.addCoverageBulk,
+);
+router.post(
+  "/:id/coverage/preview",
+  requireRole("distributor_admin", "ops"),
+  zonesController.previewCoverage,
+);
 router.delete("/:id/coverage", requireRole("distributor_admin", "ops"), zonesController.removeCoverage);
 
 export { router as zonesRoutes };

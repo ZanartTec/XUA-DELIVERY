@@ -11,15 +11,39 @@ export interface ZoneCoverage {
   zip_code: string | null;
 }
 
+/**
+ * Linha da tabela. NÃO traz as linhas de cobertura — só a contagem: uma zona de
+ * produção tem milhares delas. A cobertura vem de `useZoneCoverage`, paginada,
+ * quando a linha é expandida.
+ */
 export interface OpsZone {
   id: string;
   name: string;
   distributor_id: string;
   is_active: boolean;
-  coverage: ZoneCoverage[];
   distributor: { id: string; name: string; is_active: boolean };
-  _count: { addresses: number; orders: number };
+  _count: { coverage: number; addresses: number; orders: number };
 }
+
+export interface PaginationMeta {
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export type ZoneStatusFilter = "active" | "inactive" | "all";
+
+export interface ZoneFilters {
+  distributor_id: string | null;
+  q: string;
+  coverage: string;
+  status: ZoneStatusFilter;
+  offset: number;
+  limit: number;
+}
+
+export const ZONES_PAGE_SIZE = 20;
+export const COVERAGE_PAGE_SIZE = 20;
 
 export interface DistributorOption {
   id: string;
@@ -63,13 +87,16 @@ export interface CoverageBulkResult extends Omit<CoveragePreview, "accepted" | "
 
 // ─── Query keys ──────────────────────────────────────────────────────────────
 
-const zonesKey = (distributorId: string | null, includeInactive: boolean) =>
-  ["ops-zones", distributorId, includeInactive] as const;
-
-/** Toda mutação de zona invalida a árvore inteira — é barato e evita lista stale. */
+/**
+ * Toda mutação invalida zonas E cobertura: mexer na cobertura muda a contagem
+ * exibida na linha da tabela, e transferir/desativar muda a própria listagem.
+ */
 function useInvalidateZones() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["ops-zones"] });
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["ops-zones"] });
+    queryClient.invalidateQueries({ queryKey: ["ops-zone-coverage"] });
+  };
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -88,24 +115,69 @@ export function useOpsDistributors() {
   };
 }
 
-export function useOpsZones(distributorId: string | null, includeInactive: boolean) {
-  const query = useQuery<{ zones: OpsZone[] }>({
-    queryKey: zonesKey(distributorId, includeInactive),
+/** Listagem paginada. Todos os filtros são resolvidos no banco. */
+export function useOpsZones(filters: ZoneFilters) {
+  const query = useQuery<{ zones: OpsZone[]; pagination: PaginationMeta }>({
+    queryKey: [
+      "ops-zones",
+      filters.distributor_id,
+      filters.q,
+      filters.coverage,
+      filters.status,
+      filters.offset,
+      filters.limit,
+    ],
     queryFn: () => {
-      const params = new URLSearchParams();
-      if (distributorId) params.set("distributor_id", distributorId);
-      if (includeInactive) params.set("include_inactive", "true");
-      return api.get<{ zones: OpsZone[] }>(`/api/zones/all?${params}`);
+      const params = new URLSearchParams({
+        status: filters.status,
+        limit: String(filters.limit),
+        offset: String(filters.offset),
+      });
+      if (filters.distributor_id) params.set("distributor_id", filters.distributor_id);
+      if (filters.q) params.set("q", filters.q);
+      if (filters.coverage) params.set("coverage", filters.coverage);
+      return api.get(`/api/zones/all?${params}`);
     },
-    enabled: Boolean(distributorId),
     staleTime: 30_000,
+    placeholderData: (previous) => previous,
   });
 
   return {
     zones: query.data?.zones ?? [],
+    pagination: query.data?.pagination ?? null,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     isError: query.isError,
     error: query.error,
+  };
+}
+
+/** Cobertura de uma zona — só busca quando a linha está expandida. */
+export function useZoneCoverage(
+  zoneId: string,
+  filters: { q: string; offset: number },
+  enabled: boolean
+) {
+  const query = useQuery<{ coverage: ZoneCoverage[]; pagination: PaginationMeta }>({
+    queryKey: ["ops-zone-coverage", zoneId, filters.q, filters.offset],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(COVERAGE_PAGE_SIZE),
+        offset: String(filters.offset),
+      });
+      if (filters.q) params.set("q", filters.q);
+      return api.get(`/api/zones/${zoneId}/coverage?${params}`);
+    },
+    enabled,
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+  });
+
+  return {
+    coverage: query.data?.coverage ?? [],
+    pagination: query.data?.pagination ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
   };
 }
 

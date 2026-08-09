@@ -13,12 +13,12 @@
 | Monorepo | npm workspaces | `apps/api` + `apps/web` + `packages/shared` |
 | Backend | Express 5 (porta 4000) | Monólito modular, REST |
 | Frontend | Next.js 16.2 App Router + React 19 (porta 3001) | Cliente puro da API — sem Server Actions/Route Handlers de negócio |
-| ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 19 enums; schema em `prisma/schema.prisma` (raiz) |
+| ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 19 enums; schema em `prisma/schema.prisma` (raiz). Extensão `pg_trgm` (09/08/2026) para busca por substring acento-insensível (índices GIN em zonas/cobertura) |
 | Cache / Filas | Redis 7 (ioredis 5) + BullMQ 5.x | JWT blacklist, filas assíncronas |
 | Real-time | Socket.io 4.x | Acoplado ao servidor HTTP da API (porta 4000) |
 | Autenticação | JWT (`jose`) + bcryptjs | Cookie httpOnly `xua-token`, TTL 24h |
 | Validação | Zod 4 + React Hook Form | Schemas compartilhados em `packages/shared` |
-| Estado (client) | Zustand 5 (persist) + TanStack Query 5 | Cart, checkout, subscription wizard / cache de API |
+| Estado (client) | Zustand 5 (persist) + TanStack Query 5 | Cart, checkout, subscription wizard / cache de API. `/ops/zones` (09/08/2026) foi a primeira tela da área `(ops)` a usar `useMutation` — as demais telas ops seguem com fetch cru |
 | UI | Tailwind CSS 4 + shadcn/ui + Radix UI + Lucide | Mobile-first |
 | Gráficos | Recharts | KPI dashboards |
 | E-mail | Resend 4.8 | Redefinição de senha, notificações transacionais |
@@ -155,4 +155,4 @@ xua-delivery/
 
 ---
 
-**Última atualização: 02 de agosto de 2026.**
+**Última atualização: 09 de agosto de 2026.**
