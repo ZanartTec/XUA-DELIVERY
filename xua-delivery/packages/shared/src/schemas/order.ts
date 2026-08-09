@@ -5,6 +5,7 @@ import {
   DELIVERY_WINDOW_INPUT_VALUES,
   NON_COLLECTION_REASON_VALUES,
   OrderStatus,
+  OTP_OVERRIDE_REASON_VALUES,
   REJECT_ORDER_REASON_VALUES,
 } from "../enums";
 import { DEFAULT_CHECKOUT_PAYMENT_METHOD, isCashPaymentMethod } from "../mappers/payment";
@@ -68,14 +69,24 @@ export const DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES = [
   OrderStatus.READY_FOR_DISPATCH,
   OrderStatus.OUT_FOR_DELIVERY,
 ] as const;
-// Status finais consultáveis na aba "Histórico" da fila do distribuidor.
-// REDELIVERY_SCHEDULED fica fora de propósito: é operacional (exige ação), não histórico.
-export const DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES = [
+/**
+ * Status finais de um pedido — não recebem mais transição de estado.
+ * Fonte única: antes duplicado como array solto em orders.repository.ts
+ * (histórico do consumidor) e zones.repository.ts (guard de transferência de
+ * zona), com o mesmo conjunto de valores em cada lugar e risco de divergir.
+ */
+export const ORDER_TERMINAL_STATUS_VALUES = [
   OrderStatus.DELIVERED,
   OrderStatus.CANCELLED,
   OrderStatus.REJECTED_BY_DISTRIBUTOR,
   OrderStatus.DELIVERY_FAILED,
 ] as const;
+
+// Status finais consultáveis na aba "Histórico" da fila do distribuidor.
+// REDELIVERY_SCHEDULED fica fora de propósito: é operacional (exige ação), não histórico.
+// Mesmo conjunto de ORDER_TERMINAL_STATUS_VALUES — nome mantido por compatibilidade
+// com os callers existentes do contexto de fila do distribuidor.
+export const DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES = ORDER_TERMINAL_STATUS_VALUES;
 
 export const distributorQueueQuerySchema = z
   .object({
@@ -275,7 +286,16 @@ export const verifyOtpSchema = z.object({
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 
 export const otpOverrideSchema = z.object({
-  reason: z.string().trim().min(1, "Motivo obrigatório para override"),
+  reason: z.enum(OTP_OVERRIDE_REASON_VALUES),
+  details: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.reason === "other" && (!data.details || data.details.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["details"],
+      message: "Detalhe deve ter ao menos 10 caracteres para 'Outro'",
+    });
+  }
 });
 export type OtpOverrideInput = z.infer<typeof otpOverrideSchema>;
 

@@ -504,12 +504,29 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     expect(mocks.otpService.validate).not.toHaveBeenCalled();
   });
 
-  it("faz override do OTP com motivo obrigatorio e entrega o pedido", async () => {
+  it("faz override do OTP com motivo pre-definido e entrega o pedido", async () => {
     const response = res();
 
-    await ordersController.otpOverride(req("ops", { reason: "Cliente sem celular" }), response);
+    await ordersController.otpOverride(req("ops", { reason: "confirmed_by_phone" }), response);
 
-    expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "Cliente sem celular");
+    expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "confirmed_by_phone", undefined);
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+  });
+
+  it("aceita motivo 'other' com detalhe de ao menos 10 caracteres", async () => {
+    const response = res();
+
+    await ordersController.otpOverride(
+      req("ops", { reason: "other", details: "Cliente sem celular no momento" }),
+      response
+    );
+
+    expect(mocks.otpService.override).toHaveBeenCalledWith(
+      orderId,
+      userId,
+      "other",
+      "Cliente sem celular no momento"
+    );
     expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
   });
 
@@ -517,6 +534,15 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
 
     await ordersController.otpOverride(req("ops", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.override).not.toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando motivo 'other' nao tem detalhe suficiente", async () => {
+    const response = res();
+
+    await ordersController.otpOverride(req("ops", { reason: "other", details: "curto" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.otpService.override).not.toHaveBeenCalled();

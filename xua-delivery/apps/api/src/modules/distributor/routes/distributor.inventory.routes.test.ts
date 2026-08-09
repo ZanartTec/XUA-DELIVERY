@@ -96,6 +96,19 @@ vi.mock("../../../infra/logger/index.js", () => ({
   createLogger: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }),
 }));
 
+// rate-limit.js e limiter.js importam infra/redis/client.js, que exige
+// REDIS_URL no carregamento do módulo — este teste de rota não deve depender
+// de Redis real nem da env var.
+vi.mock("../../../middleware/rate-limit.js", () => ({
+  rateLimitMiddleware:
+    () =>
+    (_req: express.Request, _res: express.Response, next: express.NextFunction) =>
+      next(),
+}));
+vi.mock("../../../infra/rate-limit/limiter.js", () => ({
+  RATE_LIMITS: { authenticatedWrite: { windowSeconds: 60, maxRequests: 30 } },
+}));
+
 vi.mock("../services/kpi.service.js", () => ({
   kpiService: mocks.kpiService,
 }));

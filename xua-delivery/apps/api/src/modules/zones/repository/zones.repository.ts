@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type { OrderStatus } from "@xua/shared/enums";
+import { ORDER_TERMINAL_STATUS_VALUES } from "@xua/shared/schemas/order";
 import { normalizeNeighborhood } from "@xua/shared/utils/zip";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
@@ -7,15 +8,9 @@ type TxClient = Prisma.TransactionClient;
 
 /**
  * Pedidos nestes status já saíram do fluxo operacional — só eles não impedem
- * a transferência de uma zona para outra distribuidora. Mesma lista usada em
- * orders.repository.ts.
+ * a transferência de uma zona para outra distribuidora.
  */
-const TERMINAL_ORDER_STATUS = [
-  "DELIVERED",
-  "CANCELLED",
-  "DELIVERY_FAILED",
-  "REJECTED_BY_DISTRIBUTOR",
-] as OrderStatus[];
+const TERMINAL_ORDER_STATUS: OrderStatus[] = [...ORDER_TERMINAL_STATUS_VALUES];
 
 export type CoverageEntry = { neighborhood?: string; zip_code?: string };
 

@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
+import { rateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { RATE_LIMITS } from "../../../infra/rate-limit/limiter.js";
 import { distributorController } from "../controllers/distributor.controller.js";
 import { paymentSettingsController } from "../controllers/payment-settings.controller.js";
 import { depositController } from "../../deposits/index.js";
@@ -8,6 +10,15 @@ import { depositController } from "../../deposits/index.js";
 const router = Router();
 
 router.use(authMiddleware);
+// Módulo com mutações sensíveis (ajuste de saldo de caução, credenciais de
+// gateway de pagamento, CRUD de distribuidora/motorista) e nenhuma rota tinha
+// rate limit antes. Um limite único no nível do router — em vez de afinar
+// rota a rota — cobre o módulo inteiro sem deixar nenhuma escrita esquecida;
+// endpoints de leitura de alto volume podem ganhar override próprio depois se
+// o limite padrão se mostrar apertado demais na prática.
+router.use(
+  rateLimitMiddleware("distributor:write", RATE_LIMITS.authenticatedWrite, (req) => req.user?.sub ?? req.ip)
+);
 
 // ─── Programa de caução de vasilhames ─────────────────────
 router.get(

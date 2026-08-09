@@ -4,7 +4,11 @@ import { normalizeZipCode } from "../utils/zip";
 // ─── Zona ────────────────────────────────────────────────────────────────────
 
 export const zoneSchema = z.object({
-  name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Nome deve ter ao menos 2 caracteres")
+    .max(120, "Nome deve ter no máximo 120 caracteres"),
   distributor_id: z.string().uuid("Distribuidor inválido"),
   is_active: z.boolean().default(true),
 });
@@ -17,7 +21,12 @@ export type ZoneInput = z.infer<typeof zoneSchema>;
  */
 export const zoneUpdateSchema = z
   .object({
-    name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").optional(),
+    name: z
+      .string()
+      .trim()
+      .min(2, "Nome deve ter ao menos 2 caracteres")
+      .max(120, "Nome deve ter no máximo 120 caracteres")
+      .optional(),
     is_active: z.boolean().optional(),
   })
   .refine((d) => d.name !== undefined || d.is_active !== undefined, {
@@ -55,9 +64,9 @@ export const zoneOpsQuerySchema = z.object({
     z.string().uuid("Distribuidor inválido").optional()
   ),
   /** Busca por nome da zona. */
-  q: z.preprocess(emptyToUndefined, z.string().trim().min(1).optional()),
+  q: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(120).optional()),
   /** Busca por bairro ou CEP dentro da cobertura — "que zona atende o Centro?". */
-  coverage: z.preprocess(emptyToUndefined, z.string().trim().min(1).optional()),
+  coverage: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(120).optional()),
   status: z.enum(["active", "inactive", "all"]).default("active"),
   limit: LIMIT_QUERY,
   offset: OFFSET_QUERY,
@@ -66,7 +75,7 @@ export type ZoneOpsQueryInput = z.infer<typeof zoneOpsQuerySchema>;
 
 /** Cobertura de UMA zona, paginada: uma zona sozinha pode ter milhares de linhas. */
 export const zoneCoverageQuerySchema = z.object({
-  q: z.preprocess(emptyToUndefined, z.string().trim().min(1).optional()),
+  q: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(120).optional()),
   limit: LIMIT_QUERY,
   offset: OFFSET_QUERY,
 });
@@ -88,6 +97,7 @@ export const coverageSchema = z
       .string()
       .trim()
       .min(2, "Bairro deve ter ao menos 2 caracteres")
+      .max(120, "Bairro deve ter no máximo 120 caracteres")
       .optional()
       .or(z.literal("").transform(() => undefined)),
     zip_code: z

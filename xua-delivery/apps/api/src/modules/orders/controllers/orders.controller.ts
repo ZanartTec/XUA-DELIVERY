@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import type { Order, Product } from "@prisma/client";
-import type { DeliveryWindow } from "@xua/shared/enums";
+import { OrderStatus, type DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
@@ -100,18 +100,75 @@ export const ordersController = {
     const statusParam = req.query.status as string | undefined;
 
     try {
-      // SEC-08: Scope support — busca por telefone/email/id
+      // SEC-08: Scope support — busca por nome/telefone/email/CPF/id, com filtro opcional de data e status
       if (scope === "support") {
         if (user.role !== "support" && user.role !== "ops") {
           res.status(403).json({ error: "Acesso negado" });
           return;
         }
-        const q = ((req.query.q as string) ?? "").replace(/[%_\\]/g, "");
-        if (q.length < 3) {
-          res.status(400).json({ error: "Busca deve ter ao menos 3 caracteres" });
+        // Sanitiza texto livre: tira wildcards do LIKE (%_\) que dariam scan largo/lento
+        const sanitizeText = (value: unknown) =>
+          typeof value === "string" ? value.replace(/[%_\\]/g, "").trim() : "";
+        const onlyDigits = (value: unknown) => (typeof value === "string" ? value.replace(/\D/g, "") : "");
+
+        const q = sanitizeText(req.query.q);
+        const name = sanitizeText(req.query.name);
+        const email = sanitizeText(req.query.email);
+        const phone = sanitizeText(req.query.phone);
+        const document = onlyDigits(req.query.document);
+        const id = sanitizeText(req.query.id);
+        const dateParam = req.query.date as string | undefined;
+        const statusParamRaw = req.query.status as string | undefined;
+
+        const textFields: [string, string][] = [
+          ["q", q],
+          ["name", name],
+          ["email", email],
+          ["phone", phone],
+          ["document", document],
+          ["id", id],
+        ];
+        for (const [, value] of textFields) {
+          if (value && value.length < 3) {
+            res.status(400).json({ error: "Campo de busca deve ter ao menos 3 caracteres" });
+            return;
+          }
+        }
+
+        const hasFilter = textFields.some(([, value]) => value.length >= 3) || !!dateParam;
+        if (!hasFilter) {
+          res.status(400).json({ error: "Informe ao menos um campo de busca com 3+ caracteres ou uma data" });
           return;
         }
-        const orders = await orderService.searchOrders(q);
+
+        let date: Date | undefined;
+        if (dateParam) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            res.status(400).json({ error: "Data inválida (YYYY-MM-DD)" });
+            return;
+          }
+          date = new Date(`${dateParam}T00:00:00.000Z`);
+        }
+
+        let status: OrderStatus | undefined;
+        if (statusParamRaw) {
+          if (!Object.values(OrderStatus).includes(statusParamRaw as OrderStatus)) {
+            res.status(400).json({ error: "Status inválido" });
+            return;
+          }
+          status = statusParamRaw as OrderStatus;
+        }
+
+        const orders = await orderService.searchOrders({
+          q: q || undefined,
+          name: name || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
+          document: document || undefined,
+          id: id || undefined,
+          date,
+          status,
+        });
         const mapped = orders.map((order: any) => ({
           ...order,
           consumer: undefined,
@@ -514,7 +571,7 @@ export const ordersController = {
         return;
       }
 
-      await otpService.override(existing.id, req.user!.sub, parsed.data.reason);
+      await otpService.override(existing.id, req.user!.sub, parsed.data.reason, parsed.data.details);
       const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {

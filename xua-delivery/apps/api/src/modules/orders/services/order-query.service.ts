@@ -258,10 +258,20 @@ export const orderQueryService = {
   },
 
   /**
-   * Busca de pedidos por support (phone, email, id).
+   * Busca de pedidos por support/ops — livre (q) ou por campo individual
+   * (nome, telefone, e-mail, CPF/CNPJ, id), com filtro opcional de data e status.
    */
-  async searchOrders(query: string) {
-    return orderRepository.searchBySupport(query);
+  async searchOrders(filters: {
+    q?: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+    document?: string;
+    id?: string;
+    date?: Date;
+    status?: OrderStatus;
+  }) {
+    return orderRepository.searchBySupport(filters);
   },
 
   /**

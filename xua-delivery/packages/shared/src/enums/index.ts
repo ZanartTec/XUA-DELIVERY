@@ -401,6 +401,14 @@ export const REJECT_ORDER_REASON_VALUES = [
 ] as const;
 export type RejectOrderReason = (typeof REJECT_ORDER_REASON_VALUES)[number];
 
+export const OTP_OVERRIDE_REASON_VALUES = [
+  "elderly_no_smartphone",
+  "browser_technical_issue",
+  "confirmed_by_phone",
+  "other",
+] as const;
+export type OtpOverrideReason = (typeof OTP_OVERRIDE_REASON_VALUES)[number];
+
 export const ONLINE_PAYMENT_METHOD_VALUES = ["pix", "credit"] as const;
 export type OnlinePaymentMethod = (typeof ONLINE_PAYMENT_METHOD_VALUES)[number];
 

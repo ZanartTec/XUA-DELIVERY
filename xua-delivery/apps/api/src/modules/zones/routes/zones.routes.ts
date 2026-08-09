@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
+import { rateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { RATE_LIMITS } from "../../../infra/rate-limit/limiter.js";
 import { zonesController } from "../controllers/zones.controller.js";
 
 const router = Router();
@@ -40,11 +42,21 @@ router.post("/:id/coverage", requireRole("distributor_admin", "ops"), zonesContr
 router.post(
   "/:id/coverage/bulk",
   requireRole("distributor_admin", "ops"),
+  rateLimitMiddleware(
+    "zones:coverage-bulk",
+    RATE_LIMITS.bulkImport,
+    (req) => req.user?.sub ?? req.ip,
+  ),
   zonesController.addCoverageBulk,
 );
 router.post(
   "/:id/coverage/preview",
   requireRole("distributor_admin", "ops"),
+  rateLimitMiddleware(
+    "zones:coverage-bulk",
+    RATE_LIMITS.bulkImport,
+    (req) => req.user?.sub ?? req.ip,
+  ),
   zonesController.previewCoverage,
 );
 router.delete("/:id/coverage", requireRole("distributor_admin", "ops"), zonesController.removeCoverage);
