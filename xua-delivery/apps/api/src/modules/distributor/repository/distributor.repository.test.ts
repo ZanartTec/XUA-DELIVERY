@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prisma: {
+    $queryRaw: vi.fn(),
     zoneCoverage: {
       findMany: vi.fn(),
     },
@@ -38,15 +39,6 @@ const distributorB = "7e1d7b55-3f52-4d10-aac3-74387c236403";
 const distributorC = "7e1d7b55-3f52-4d10-aac3-74387c236404";
 const resolvedZoneId = "7e1d7b55-3f52-4d10-aac3-74387c236405";
 
-function capacitySlot(date: string, capacity_reserved: number, capacity_total: number) {
-  return {
-    delivery_date: new Date(`${date}T00:00:00.000Z`),
-    window: "MORNING",
-    capacity_reserved,
-    capacity_total,
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.prisma.zoneCoverage.findMany.mockResolvedValue([
@@ -56,36 +48,13 @@ beforeEach(() => {
 });
 
 describe("distributorRepository.findAvailableForZone", () => {
-  it("filtra por cobertura e capacidade usando Prisma e calcula ranking por NPS", async () => {
-    mocks.prisma.distributor.findMany.mockResolvedValue([
-      {
-        id: distributorA,
-        name: "Alpha",
-        zones: [
-          {
-            id: resolvedZoneId,
-            coverage: [{ neighborhood: "Centro", zip_code: null }],
-            capacity_slots: [
-              capacitySlot("2026-05-28", 0, 2),
-              capacitySlot("2026-05-30", 1, 3),
-            ],
-          },
-        ],
-      },
-      {
-        id: distributorB,
-        name: "Beta",
-        zones: [
-          {
-            id: "zone-full",
-            coverage: [{ neighborhood: "Centro", zip_code: null }],
-            capacity_slots: [capacitySlot("2026-05-28", 2, 2)],
-          },
-        ],
-      },
-    ]);
-    mocks.prisma.order.groupBy.mockResolvedValue([
-      { distributor_id: distributorA, _avg: { nps_score: 8.666 } },
+  it("mapeia as linhas retornadas pela query bruta, com next_available_date sempre null", async () => {
+    // Cobertura, capacidade e ranking por NPS são resolvidos inteiramente em SQL
+    // (ver zones.repository.integration.test.ts para o que isso cobre de verdade
+    // contra banco real) — o teste unitário aqui só garante o mapeamento do
+    // resultado da query, já que o mock não executa SQL.
+    mocks.prisma.$queryRaw.mockResolvedValue([
+      { id: distributorA, name: "Alpha", avg_nps: 8.7 },
     ]);
 
     const result = await distributorRepository.findAvailableForZone(
@@ -94,33 +63,19 @@ describe("distributorRepository.findAvailableForZone", () => {
       "morning"
     );
 
-    expect(mocks.prisma.distributor.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          is_active: true,
-          allows_consumer_choice: true,
-        }),
-      })
-    );
+    expect(mocks.prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const [, ...values] = mocks.prisma.$queryRaw.mock.calls[0]!;
+    expect(values).toContain(originZoneId);
     expect(result).toEqual([
-      {
-        id: distributorA,
-        name: "Alpha",
-        avg_nps: 8.7,
-        next_available_date: "2026-05-28",
-      },
+      { id: distributorA, name: "Alpha", avg_nps: 8.7, next_available_date: null },
     ]);
   });
 
-  it("mantem NPS nulo por ultimo e ordena nomes como desempate", async () => {
-    mocks.prisma.distributor.findMany.mockResolvedValue([
-      { id: distributorA, name: "Alpha", zones: [{ coverage: [{ neighborhood: "Centro", zip_code: null }] }] },
-      { id: distributorB, name: "Beta", zones: [{ coverage: [{ neighborhood: "Centro", zip_code: null }] }] },
-      { id: distributorC, name: "Gamma", zones: [{ coverage: [{ neighborhood: "Centro", zip_code: null }] }] },
-    ]);
-    mocks.prisma.order.groupBy.mockResolvedValue([
-      { distributor_id: distributorA, _avg: { nps_score: 8 } },
-      { distributor_id: distributorB, _avg: { nps_score: 9 } },
+  it("preserva a ordem (NPS nulo por último, nomes como desempate) já resolvida pela query", async () => {
+    mocks.prisma.$queryRaw.mockResolvedValue([
+      { id: distributorB, name: "Beta", avg_nps: 9 },
+      { id: distributorA, name: "Alpha", avg_nps: 8 },
+      { id: distributorC, name: "Gamma", avg_nps: null },
     ]);
 
     const result = await distributorRepository.findAvailableForZone(originZoneId);
@@ -134,30 +89,41 @@ describe("distributorRepository.findAvailableForZone", () => {
 });
 
 describe("distributorRepository.resolveCoveredZone", () => {
-  it("resolve a zona coberta por bairro ou CEP sem SQL bruto", async () => {
-    mocks.prisma.zone.findFirst.mockResolvedValue({ id: resolvedZoneId });
+  it("resolve a zona coberta por bairro ou CEP via SQL bruto", async () => {
+    mocks.prisma.$queryRaw.mockResolvedValue([{ zone_id: resolvedZoneId }]);
 
     await expect(distributorRepository.resolveCoveredZone(distributorA, originZoneId)).resolves.toBe(
       resolvedZoneId
     );
-    expect(mocks.prisma.zone.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ distributor_id: distributorA, is_active: true }),
-      })
-    );
+    const [, ...values] = mocks.prisma.$queryRaw.mock.calls[0]!;
+    expect(values).toContain(distributorA);
+    expect(values).toContain(originZoneId);
+  });
+
+  it("retorna null quando nenhuma zona da distribuidora cobre a mesma área", async () => {
+    mocks.prisma.$queryRaw.mockResolvedValue([]);
+
+    await expect(
+      distributorRepository.resolveCoveredZone(distributorA, originZoneId)
+    ).resolves.toBeNull();
   });
 });
 
 describe("distributorRepository.validateDistributorForZone", () => {
-  it("valida capacidade disponivel em memoria apos consulta Prisma", async () => {
-    mocks.prisma.zone.findMany.mockResolvedValue([
-      { id: "zone-full", capacity_slots: [{ capacity_reserved: 2, capacity_total: 2 }] },
-      { id: resolvedZoneId, capacity_slots: [{ capacity_reserved: 1, capacity_total: 3 }] },
-    ]);
+  it("válido quando a query encontra uma zona coberta", async () => {
+    mocks.prisma.$queryRaw.mockResolvedValue([{ zone_id: resolvedZoneId }]);
 
     await expect(
       distributorRepository.validateDistributorForZone(distributorA, originZoneId, "2026-05-28", "morning")
     ).resolves.toEqual({ valid: true, resolvedZoneId });
+  });
+
+  it("inválido quando a query não encontra nenhuma zona coberta", async () => {
+    mocks.prisma.$queryRaw.mockResolvedValue([]);
+
+    await expect(
+      distributorRepository.validateDistributorForZone(distributorA, originZoneId, "2026-05-28", "morning")
+    ).resolves.toEqual({ valid: false, resolvedZoneId: null });
   });
 });
 

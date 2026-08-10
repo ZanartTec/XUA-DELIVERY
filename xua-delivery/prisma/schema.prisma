@@ -138,6 +138,10 @@ enum AuditEventType {
   DRIVER_CREATED
   DRIVER_UPDATED
   DRIVER_LINKED_TO_DISTRIBUTOR
+  ZONE_CREATED
+  ZONE_UPDATED
+  ZONE_TRANSFERRED
+  ZONE_COVERAGE_CHANGED
 
   @@map("audit_event_type")
 }
@@ -307,6 +311,7 @@ model Distributor {
   users           Consumer[]               @relation("DistributorUsers")
   preferred_by    Consumer[]               @relation("ConsumerPreferredDistributor")
   zones           Zone[]
+  zone_coverage   ZoneCoverage[]
   orders          Order[]
   reconciliations Reconciliation[]
   schedules       DistributorSchedule[]
@@ -365,18 +370,36 @@ model Zone {
   addresses       Address[]
   orders          Order[]
 
+  @@index([distributor_id, is_active], map: "04_mst_zones_distributor_id_is_active_idx")
   @@map("04_mst_zones")
 }
 
 model ZoneCoverage {
-  id           String   @id @default(uuid()) @db.Uuid
-  zone_id      String   @db.Uuid
-  neighborhood String?
-  zip_code     String?
-  created_at   DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  zone_id        String   @db.Uuid
+  // Denormalizado de Zone.distributor_id: evita JOIN com Zone nas queries de
+  // conflito/sobreposição, que rodam a cada cobertura adicionada e precisam
+  // escalar com o tamanho de UMA distribuidora, não da tabela inteira.
+  // Sincronizado pelo trigger trg_05_mst_zone_coverage_sync_distributor_id
+  // (migration 20260809140000) — sempre re-derivado de zone_id no banco,
+  // então nenhuma via de escrita consegue dessincronizar esta coluna.
+  distributor_id String   @db.Uuid
+  neighborhood   String?
+  zip_code       String?
+  created_at     DateTime @default(now())
 
-  zone Zone @relation(fields: [zone_id], references: [id])
+  zone        Zone        @relation(fields: [zone_id], references: [id])
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
 
+  // Rede de segurança contra duplicata exata (ex: colar a mesma lista 2x).
+  // A regra de negócio real — sem sobreposição entre zonas ATIVAS da mesma
+  // distribuidora, ignorando acento e caixa — vive em zones.service.ts, porque
+  // atravessa linhas de zonas diferentes e o banco não consegue expressá-la.
+  @@unique([zone_id, neighborhood, zip_code], map: "05_mst_zone_coverage_unique_entry")
+  @@index([zone_id], map: "05_mst_zone_coverage_zone_id_idx")
+  @@index([zip_code], map: "05_mst_zone_coverage_zip_code_idx")
+  @@index([neighborhood], map: "05_mst_zone_coverage_neighborhood_idx")
+  @@index([distributor_id], map: "05_mst_zone_coverage_distributor_id_idx")
   @@map("05_mst_zone_coverage")
 }
 

@@ -324,13 +324,18 @@ function useVirtualSlice<T>(items: T[]) {
     index: startIndex + offset,
   }));
 
-  return {
+  // containerRef vem separado do resto (não dentro do mesmo objeto) — misturar
+  // um ref com valores derivados no mesmo objeto de retorno faz a análise de
+  // refs do compiler tratar tudo como "acesso a ref", mesmo os números puros.
+  return [
     containerRef,
-    virtualItems,
-    paddingTop: startIndex * VIRTUAL_ROW_HEIGHT,
-    paddingBottom: Math.max(0, (items.length - endIndex) * VIRTUAL_ROW_HEIGHT),
-    onScroll: (event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop),
-  };
+    {
+      virtualItems,
+      paddingTop: startIndex * VIRTUAL_ROW_HEIGHT,
+      paddingBottom: Math.max(0, (items.length - endIndex) * VIRTUAL_ROW_HEIGHT),
+      onScroll: (event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop),
+    },
+  ] as const;
 }
 
 function QueueSkeleton() {
@@ -508,7 +513,7 @@ function KanbanColumn({
   onSelect: (order: QueueOrder) => void;
   onAction: (order: QueueOrder, action: "accept" | "reject" | "assign") => void;
 }) {
-  const virtual = useVirtualSlice(orders);
+  const [containerRef, virtual] = useVirtualSlice(orders);
 
   return (
     <section className="min-h-0 rounded-lg border border-[#d8e0eb] bg-[#f7f9fc]">
@@ -523,7 +528,7 @@ function KanbanColumn({
         <span className="rounded bg-white/80 px-2 py-0.5 text-xs font-bold">{count}</span>
       </div>
 
-      <div ref={virtual.containerRef} onScroll={virtual.onScroll} className="h-[64vh] min-h-[360px] max-h-[680px] overflow-y-auto p-2">
+      <div ref={containerRef} onScroll={virtual.onScroll} className="h-[64vh] min-h-[360px] max-h-[680px] overflow-y-auto p-2">
         {orders.length === 0 ? (
           <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-[#ccd6e3] bg-white text-xs text-[#64748b]">
             Sem pedidos nesta etapa
@@ -808,11 +813,18 @@ function DistributorQueueContent() {
     [pathname, router, searchParams]
   );
 
+  // Sincroniza `search` com o `q` da URL (ex.: navegação back/forward) — é
+  // sincronização com um sistema externo (a URL), o caso de uso de efeito que
+  // a própria doc do React aponta como legítimo. skipNextSearchSync evita o
+  // loop com o efeito abaixo, que escreve de volta na URL a cada digitação; sem
+  // o guard, uma digitação nova enquanto o push anterior ainda está em voo
+  // seria sobrescrita pelo valor antigo vindo da URL.
   useEffect(() => {
     if (skipNextSearchSync.current) {
       skipNextSearchSync.current = false;
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima do efeito
     setSearch(qParam);
   }, [qParam]);
 

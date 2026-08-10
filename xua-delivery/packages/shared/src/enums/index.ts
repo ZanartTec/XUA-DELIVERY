@@ -225,6 +225,10 @@ export const AUDIT_EVENT_TYPE_VALUES = [
   "DRIVER_CREATED",
   "DRIVER_UPDATED",
   "DRIVER_LINKED_TO_DISTRIBUTOR",
+  "ZONE_CREATED",
+  "ZONE_UPDATED",
+  "ZONE_TRANSFERRED",
+  "ZONE_COVERAGE_CHANGED",
 ] as const;
 
 export const AuditEventType = {
@@ -267,6 +271,10 @@ export const AuditEventType = {
   DRIVER_CREATED: "DRIVER_CREATED",
   DRIVER_UPDATED: "DRIVER_UPDATED",
   DRIVER_LINKED_TO_DISTRIBUTOR: "DRIVER_LINKED_TO_DISTRIBUTOR",
+  ZONE_CREATED: "ZONE_CREATED",
+  ZONE_UPDATED: "ZONE_UPDATED",
+  ZONE_TRANSFERRED: "ZONE_TRANSFERRED",
+  ZONE_COVERAGE_CHANGED: "ZONE_COVERAGE_CHANGED",
 } as const;
 export type AuditEventType = EnumValue<typeof AuditEventType>;
 
@@ -392,6 +400,14 @@ export const REJECT_ORDER_REASON_VALUES = [
   "other",
 ] as const;
 export type RejectOrderReason = (typeof REJECT_ORDER_REASON_VALUES)[number];
+
+export const OTP_OVERRIDE_REASON_VALUES = [
+  "elderly_no_smartphone",
+  "browser_technical_issue",
+  "confirmed_by_phone",
+  "other",
+] as const;
+export type OtpOverrideReason = (typeof OTP_OVERRIDE_REASON_VALUES)[number];
 
 export const ONLINE_PAYMENT_METHOD_VALUES = ["pix", "credit"] as const;
 export type OnlinePaymentMethod = (typeof ONLINE_PAYMENT_METHOD_VALUES)[number];

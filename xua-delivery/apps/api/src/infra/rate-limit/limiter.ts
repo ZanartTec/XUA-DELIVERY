@@ -39,9 +39,39 @@ export async function checkRateLimit(
   };
 }
 
-// Configurações pré-definidas por categoria
+// ─── Categorias reutilizáveis ────────────────────────────────────────────────
+//
+// Aplique uma destas por padrão em qualquer rota nova. Só crie um override
+// nomeado abaixo (como paymentCharge, catalogRead, orderCreate) quando o
+// custo REAL daquela rota específica justificar um limiar diferente da
+// categoria — não crie uma entrada nova por rota por hábito.
+//
+// Antes desta reestruturação, cada rota que precisava de limite ganhava uma
+// config isolada (ex: zoneCoverageBulk) mesmo quando o padrão de risco já
+// existia em outro lugar — o que significava reinventar a config a cada
+// módulo novo em vez de reusar. Isso também deixava óbvio, por omissão, quais
+// rotas nunca tiveram rate limit aplicado (a maioria — ver auditoria de
+// 09/08/2026 em 04-active-state.md).
+const RATE_LIMIT_CATEGORIES = {
+  /** Leitura pública, sem autenticação (ex: catálogo, distribuidoras públicas). */
+  publicRead: { windowSeconds: 60, maxRequests: 60 },
+  /** Leitura autenticada padrão, sem custo de query fora do comum. */
+  authenticatedRead: { windowSeconds: 60, maxRequests: 120 },
+  /** Escrita/mutação autenticada padrão (CRUD comum). */
+  authenticatedWrite: { windowSeconds: 60, maxRequests: 30 },
+  /** Ações de segurança/autenticação — login, registro, troca de credencial. */
+  sensitiveAction: { windowSeconds: 60, maxRequests: 10 },
+  /** Import em massa ou mutação com múltiplas queries pesadas por request. */
+  bulkImport: { windowSeconds: 60, maxRequests: 20 },
+  /** Leitura cara (export, relatório) — não é mutação, mas custa como uma. */
+  heavyRead: { windowSeconds: 60, maxRequests: 20 },
+  /** Chamada que depende de serviço de terceiro (ex: lookup de CEP). */
+  externalLookup: { windowSeconds: 60, maxRequests: 30 },
+} as const;
+
+// ─── Overrides nomeados — tuning específico por domínio ────────────────────
 export const RATE_LIMITS = {
-  global: { windowSeconds: 60, maxRequests: 100 },
+  ...RATE_LIMIT_CATEGORIES,
   auth: { windowSeconds: 60, maxRequests: 10 },
   // Esqueci a senha — janela larga e limite baixo para evitar abuso/e-mail bombing.
   passwordReset: { windowSeconds: 900, maxRequests: 5 },

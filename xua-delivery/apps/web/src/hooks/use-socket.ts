@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuthStore } from "@/src/store/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useSocket() {
-  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
+  // Ref, não state: o socket em si não precisa disparar re-render ao ser criado
+  // (só a conexão/desconexão, via isConnected, precisa). on/off/socket sempre
+  // leem o valor atual do ref, então não precisam de identidade nova a cada
+  // reconexão.
+  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const user = useAuthStore((s) => s.user);
 
@@ -26,30 +30,24 @@ export function useSocket() {
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
 
-    setSocketInstance(socket);
+    socketRef.current = socket;
 
     return () => {
       socket.disconnect();
-      setSocketInstance(null);
+      socketRef.current = null;
       setIsConnected(false);
     };
   }, [user]);
 
-  const on = useCallback(
-    (event: string, handler: (...args: unknown[]) => void) => {
-      socketInstance?.on(event, handler);
-    },
-    [socketInstance]
-  );
+  const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
+    socketRef.current?.on(event, handler);
+  }, []);
 
-  const off = useCallback(
-    (event: string, handler: (...args: unknown[]) => void) => {
-      socketInstance?.off(event, handler);
-    },
-    [socketInstance]
-  );
+  const off = useCallback((event: string, handler: (...args: unknown[]) => void) => {
+    socketRef.current?.off(event, handler);
+  }, []);
 
-  const socket = useCallback(() => socketInstance, [socketInstance]);
+  const socket = useCallback(() => socketRef.current, []);
 
   return { socket, isConnected, on, off };
 }

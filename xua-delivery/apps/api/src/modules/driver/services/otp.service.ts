@@ -176,7 +176,7 @@ export const otpService = {
    * Override de OTP — somente roles ops/support com motivo obrigatório (seção Fluxo 4).
    * Marca OTP como usado sem validar código.
    */
-  async override(orderId: string, actorId: string, reason: string): Promise<void> {
+  async override(orderId: string, actorId: string, reason: string, details?: string): Promise<void> {
     const prisma = getPrisma();
 
     await prisma.$transaction(async (tx: TxClient) => {
@@ -194,12 +194,12 @@ export const otpService = {
           actor: { type: ActorType.SUPPORT, id: actorId },
           orderId,
           sourceApp: SourceApp.OPS_CONSOLE,
-          payload: { override: true, reason },
+          payload: { override: true, reason, details },
         },
         tx
       );
     });
 
-    logger.warn({ orderId, actorId, reason }, "OTP override by support");
+    logger.warn({ orderId, actorId, reason, details }, "OTP override by support");
   },
 };

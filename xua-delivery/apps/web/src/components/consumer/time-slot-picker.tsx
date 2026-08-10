@@ -96,31 +96,36 @@ export function TimeSlotPicker({
   className,
   columns,
 }: TimeSlotPickerProps) {
-  const [slots, setSlots] = useState<DeliveryTimeSlot[]>([]);
-  const [loading, setLoading] = useState(true);
+  // `loading` é derivado comparando a busca em curso com a última concluída —
+  // o efeito só toca estado dentro do .then()/.catch(), nunca de forma
+  // síncrona no corpo dele.
+  const requestKey = `${zoneId}|${date}|${distributorId ?? ""}`;
+  const [result, setResult] = useState<{ requestKey: string; slots: DeliveryTimeSlot[] }>({
+    requestKey: "",
+    slots: [],
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     const params = new URLSearchParams({ date });
     if (distributorId) params.set("distributor_id", distributorId);
 
     api
       .get<{ slots: DeliveryTimeSlot[] }>(`/api/zones/${zoneId}/time-slots?${params}`)
       .then((data) => {
-        if (!cancelled) setSlots(data.slots ?? []);
+        if (!cancelled) setResult({ requestKey, slots: data.slots ?? [] });
       })
       .catch(() => {
-        if (!cancelled) setSlots([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setResult({ requestKey, slots: [] });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [zoneId, date, distributorId]);
+  }, [requestKey, zoneId, date, distributorId]);
+
+  const loading = result.requestKey !== requestKey;
+  const slots = loading ? [] : result.slots;
 
   if (loading) {
     return (

@@ -24,6 +24,7 @@
     "./schemas/subscription-plan": "./src/schemas/subscription-plan.ts",
     "./schemas/user-subscription": "./src/schemas/user-subscription.ts",
     "./mappers/payment": "./src/mappers/payment.ts",
+    "./utils/zip": "./src/utils/zip.ts",
     "./constants/roles": "./src/constants/roles.ts",
     "./constants/kpi": "./src/constants/kpi.ts",
     "./contracts/api": "./src/contracts/api.ts"

@@ -11,7 +11,11 @@ import type {
   OrderOtp,
 } from "@prisma/client";
 import type { DeliveryDateStatus, OrderStatus, UserSubscriptionStatus } from "@xua/shared/enums";
-import type { DistributorQueueOriginInput, DistributorQueueSortInput } from "@xua/shared/schemas/order";
+import {
+  ORDER_TERMINAL_STATUS_VALUES,
+  type DistributorQueueOriginInput,
+  type DistributorQueueSortInput,
+} from "@xua/shared/schemas/order";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -294,12 +298,7 @@ export const orderRepository = {
   ): Promise<{ orders: Order[]; total: number; summary: Record<string, number> }> {
     const prisma = tx ?? getPrisma();
 
-    const TERMINAL = [
-      "DELIVERED" as OrderStatus,
-      "CANCELLED" as OrderStatus,
-      "DELIVERY_FAILED" as OrderStatus,
-      "REJECTED_BY_DISTRIBUTOR" as OrderStatus,
-    ];
+    const TERMINAL: OrderStatus[] = [...ORDER_TERMINAL_STATUS_VALUES];
 
     const whereFilter: Prisma.OrderWhereInput = (() => {
       switch (options.statusGroup) {
@@ -584,19 +583,55 @@ export const orderRepository = {
     return { ...order, driver } as OrderWithDetails;
   },
 
+  /**
+   * Busca por support/ops. `q` faz OR entre os campos (busca livre do console
+   * de suporte); os campos individuais (name/phone/email/document/id) entram
+   * em AND entre si — cada um restringe o resultado ao seu próprio índice em
+   * vez de fazer o Postgres varrer um OR de vários ILIKE (tela de override,
+   * que já sabe qual campo o ops está preenchendo).
+   */
   async searchBySupport(
-    query: string,
+    filters: {
+      q?: string;
+      name?: string;
+      phone?: string;
+      email?: string;
+      document?: string;
+      id?: string;
+      date?: Date;
+      status?: OrderStatus;
+    },
     tx?: TxClient
   ): Promise<OrderWithConsumer[]> {
     const prisma = getPrisma();
-    return (tx ?? prisma).order.findMany({
-      where: {
+    const conditions: Prisma.OrderWhereInput[] = [];
+
+    if (filters.q) {
+      const digitsOnly = filters.q.replace(/\D/g, "");
+      conditions.push({
         OR: [
-          { consumer: { phone: { contains: query } } },
-          { consumer: { email: { contains: query } } },
-          { id: query },
+          { consumer: { phone: { contains: filters.q } } },
+          { consumer: { email: { contains: filters.q, mode: "insensitive" } } },
+          { consumer: { name: { contains: filters.q, mode: "insensitive" } } },
+          { id: filters.q },
+          // CPF/CNPJ é normalizado (somente dígitos) — só entra na busca se
+          // sobrar dígito suficiente pra não virar um "contains" vazio/curto demais.
+          ...(digitsOnly.length >= 3 ? [{ consumer: { document: { contains: digitsOnly } } } as Prisma.OrderWhereInput] : []),
         ],
-      },
+      });
+    }
+    if (filters.name) conditions.push({ consumer: { name: { contains: filters.name, mode: "insensitive" } } });
+    if (filters.phone) conditions.push({ consumer: { phone: { contains: filters.phone } } });
+    if (filters.email) conditions.push({ consumer: { email: { contains: filters.email, mode: "insensitive" } } });
+    if (filters.document) conditions.push({ consumer: { document: { contains: filters.document } } });
+    if (filters.id) conditions.push({ id: filters.id });
+    if (filters.date) conditions.push({ delivery_date: filters.date });
+    if (filters.status) conditions.push({ status: filters.status });
+
+    const where: Prisma.OrderWhereInput = conditions.length ? { AND: conditions } : {};
+
+    return (tx ?? prisma).order.findMany({
+      where,
       include: {
         consumer: {
           select: { name: true, email: true, phone: true },

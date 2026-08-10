@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireRole } from "../../../middleware/rbac.js";
+import { rateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { RATE_LIMITS } from "../../../infra/rate-limit/limiter.js";
 import { driverController } from "../controllers/driver.controller.js";
 
 const router = Router();
@@ -8,6 +10,7 @@ const router = Router();
 // Todas as rotas de driver requerem autenticação + role driver
 router.use(authMiddleware);
 router.use(requireRole("driver"));
+router.use(rateLimitMiddleware("driver:read", RATE_LIMITS.authenticatedRead, (req) => req.user?.sub ?? req.ip));
 
 /**
  * GET /api/driver/deliveries
