@@ -14,6 +14,9 @@
 # testing
 /coverage
 worker.env
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/e2e/.cache/
 
 # next.js
 .next/

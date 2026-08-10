@@ -257,21 +257,21 @@ async function main() {
   // ════════════════════════════════════════════════════════════════
   const coverages = [
     // Zona Centro JF (Distribuidor 1)
-    { id: ID.cov_centro,       zone_id: ID.zoneCentroJF,  neighborhood: "Centro",        zip_code: "36010-000" },
-    { id: ID.cov_granbery,     zone_id: ID.zoneCentroJF,  neighborhood: "Granbery",      zip_code: "36035-000" },
-    { id: ID.cov_bairro_novo,  zone_id: ID.zoneCentroJF,  neighborhood: "Bairro Novo",   zip_code: "36021-000" },
-    { id: ID.cov_santa_helena, zone_id: ID.zoneCentroJF,  neighborhood: "Santa Helena",  zip_code: "36015-000" },
+    { id: ID.cov_centro,       zone_id: ID.zoneCentroJF,  distributor_id: ID.distributor,  neighborhood: "Centro",        zip_code: "36010-000" },
+    { id: ID.cov_granbery,     zone_id: ID.zoneCentroJF,  distributor_id: ID.distributor,  neighborhood: "Granbery",      zip_code: "36035-000" },
+    { id: ID.cov_bairro_novo,  zone_id: ID.zoneCentroJF,  distributor_id: ID.distributor,  neighborhood: "Bairro Novo",   zip_code: "36021-000" },
+    { id: ID.cov_santa_helena, zone_id: ID.zoneCentroJF,  distributor_id: ID.distributor,  neighborhood: "Santa Helena",  zip_code: "36015-000" },
     // Zona Norte JF (Distribuidor 1)
-    { id: ID.cov_benfica,      zone_id: ID.zoneNorteJF,   neighborhood: "Benfica",       zip_code: "36025-000" },
-    { id: ID.cov_sao_mateus,   zone_id: ID.zoneNorteJF,   neighborhood: "São Mateus",    zip_code: "36050-000" },
-    { id: ID.cov_cascatinha,   zone_id: ID.zoneNorteJF,   neighborhood: "Cascatinha",    zip_code: "36033-000" },
+    { id: ID.cov_benfica,      zone_id: ID.zoneNorteJF,   distributor_id: ID.distributor,  neighborhood: "Benfica",       zip_code: "36025-000" },
+    { id: ID.cov_sao_mateus,   zone_id: ID.zoneNorteJF,   distributor_id: ID.distributor,  neighborhood: "São Mateus",    zip_code: "36050-000" },
+    { id: ID.cov_cascatinha,   zone_id: ID.zoneNorteJF,   distributor_id: ID.distributor,  neighborhood: "Cascatinha",    zip_code: "36033-000" },
     // Zona Sul JF (Distribuidor 1)
-    { id: ID.cov_sao_pedro,    zone_id: ID.zoneSulJF,     neighborhood: "São Pedro",     zip_code: "36040-000" },
-    { id: ID.cov_borboleta,    zone_id: ID.zoneSulJF,     neighborhood: "Borboleta",     zip_code: "36038-000" },
-    { id: ID.cov_ipiranga,     zone_id: ID.zoneSulJF,     neighborhood: "Ipiranga",      zip_code: "36060-000" },
+    { id: ID.cov_sao_pedro,    zone_id: ID.zoneSulJF,     distributor_id: ID.distributor,  neighborhood: "São Pedro",     zip_code: "36040-000" },
+    { id: ID.cov_borboleta,    zone_id: ID.zoneSulJF,     distributor_id: ID.distributor,  neighborhood: "Borboleta",     zip_code: "36038-000" },
+    { id: ID.cov_ipiranga,     zone_id: ID.zoneSulJF,     distributor_id: ID.distributor,  neighborhood: "Ipiranga",      zip_code: "36060-000" },
     // Zona Centro JF (Distribuidor 2 — cobre as mesmas áreas → ambos aparecem no seletor)
-    { id: ID.cov2_centro,      zone_id: ID.zoneCentroJF2, neighborhood: "Centro",        zip_code: "36010-000" },
-    { id: ID.cov2_granbery,    zone_id: ID.zoneCentroJF2, neighborhood: "Granbery",      zip_code: "36035-000" },
+    { id: ID.cov2_centro,      zone_id: ID.zoneCentroJF2, distributor_id: ID.distributor2, neighborhood: "Centro",        zip_code: "36010-000" },
+    { id: ID.cov2_granbery,    zone_id: ID.zoneCentroJF2, distributor_id: ID.distributor2, neighborhood: "Granbery",      zip_code: "36035-000" },
   ];
   for (const cov of coverages) {
     await prisma.zoneCoverage.upsert({ where: { id: cov.id }, update: {}, create: cov });
