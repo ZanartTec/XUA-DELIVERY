@@ -37,32 +37,39 @@ const NO_DISTRIBUTOR_FALLBACK: DistributorPaymentMethodsPublic = {
  * Busca as capacidades de pagamento (métodos aceitos + mp_connected) da
  * distribuidora escolhida, para o checkout exibir só o que ela aceita.
  */
+interface FetchResult {
+  distributorId: string;
+  methods: DistributorPaymentMethodsPublic;
+}
+
 export function useDistributorPaymentMethods(distributorId: string | null) {
-  const [methods, setMethods] = useState<DistributorPaymentMethodsPublic | null>(null);
-  const [loading, setLoading] = useState(false);
+  // `loading` e "o resultado é da distribuidora atual?" são derivados na
+  // renderização comparando com `distributorId` — o efeito só toca estado
+  // dentro do .then()/.catch(), nunca de forma síncrona no corpo dele.
+  const [result, setResult] = useState<FetchResult | null>(null);
 
   useEffect(() => {
-    if (!distributorId) {
-      setMethods(NO_DISTRIBUTOR_FALLBACK);
-      return;
-    }
+    if (!distributorId) return;
+
     let cancelled = false;
-    setLoading(true);
     fetch(`/api/distributors/${distributorId}/payment-methods`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data: DistributorPaymentMethodsPublic) => {
-        if (!cancelled) setMethods(data);
+        if (!cancelled) setResult({ distributorId, methods: data });
       })
       .catch(() => {
-        if (!cancelled) setMethods(NO_DISTRIBUTOR_FALLBACK);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setResult({ distributorId, methods: NO_DISTRIBUTOR_FALLBACK });
       });
     return () => {
       cancelled = true;
     };
   }, [distributorId]);
 
-  return { methods, loading };
+  if (!distributorId) return { methods: NO_DISTRIBUTOR_FALLBACK, loading: false };
+
+  const isCurrent = result?.distributorId === distributorId;
+  return {
+    methods: isCurrent ? result.methods : null,
+    loading: !isCurrent,
+  };
 }

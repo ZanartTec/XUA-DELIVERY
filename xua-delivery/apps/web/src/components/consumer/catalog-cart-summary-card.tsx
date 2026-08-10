@@ -1,19 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import { useCartStore } from "@/src/store/cart";
+import { useIsClient } from "@/src/hooks/use-is-client";
 import { formatCurrency } from "@/src/lib/utils";
 
 export function CatalogCartSummaryCard() {
   const items = useCartStore((s) => s.items);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const summary = useMemo(() => {
     const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);

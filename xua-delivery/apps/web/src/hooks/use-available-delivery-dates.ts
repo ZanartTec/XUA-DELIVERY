@@ -25,51 +25,66 @@ function normalizeDays(days: number): number {
   return Math.max(1, Math.min(MAX_DAYS_AHEAD, Math.ceil(days)));
 }
 
+interface FetchResult {
+  requestKey: string;
+  availableDates: AvailableDeliveryDate[] | null;
+  error: string | null;
+}
+
 export function useAvailableDeliveryDates({
   zoneId,
   distributorId,
   days = DEFAULT_DAYS_AHEAD,
   enabled = true,
 }: UseAvailableDeliveryDatesOptions) {
-  const [availableDates, setAvailableDates] = useState<AvailableDeliveryDate[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // requestKey identifica a busca atual (vazio = nada a buscar). `loading` e o
+  // "resultado pertence à busca atual?" são derivados na renderização por
+  // comparação com esse key — o efeito só toca estado dentro do .then()/.catch(),
+  // nunca de forma síncrona no corpo dele.
+  const requestKey =
+    enabled && zoneId ? `${zoneId}|${distributorId ?? ""}|${normalizeDays(days)}` : "";
+
+  const [result, setResult] = useState<FetchResult>({
+    requestKey: "",
+    availableDates: null,
+    error: null,
+  });
 
   useEffect(() => {
-    if (!enabled || !zoneId) {
-      setAvailableDates(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!requestKey || !zoneId) return;
 
     let cancelled = false;
     const params = new URLSearchParams({ days: String(normalizeDays(days)) });
     if (distributorId) params.set("distributor_id", distributorId);
 
-    setLoading(true);
-    setError(null);
-
     fetch(`/api/zones/${encodeURIComponent(zoneId)}/available-dates?${params.toString()}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`);
-        if (!cancelled) setAvailableDates((data.dates ?? []) as AvailableDeliveryDate[]);
+        if (!cancelled) {
+          setResult({ requestKey, availableDates: (data.dates ?? []) as AvailableDeliveryDate[], error: null });
+        }
       })
       .catch((err) => {
         if (!cancelled) {
-          setAvailableDates(null);
-          setError(err instanceof Error ? err.message : "Erro ao carregar datas");
+          setResult({
+            requestKey,
+            availableDates: null,
+            error: err instanceof Error ? err.message : "Erro ao carregar datas",
+          });
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [zoneId, distributorId, days, enabled]);
+  }, [requestKey, zoneId, distributorId, days]);
 
-  return { availableDates, loading, error };
+  const isCurrent = requestKey !== "" && result.requestKey === requestKey;
+
+  return {
+    availableDates: isCurrent ? result.availableDates : null,
+    loading: requestKey !== "" && !isCurrent,
+    error: isCurrent ? result.error : null,
+  };
 }

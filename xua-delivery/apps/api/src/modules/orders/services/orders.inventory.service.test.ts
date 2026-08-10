@@ -102,6 +102,14 @@ vi.mock("../../notifications/services/notification.service.js", () => ({
   notificationService: mocks.notificationService,
 }));
 
+vi.mock("../../user-subscriptions/services/subscription-settlement.service.js", () => ({
+  subscriptionSettlementService: {
+    settleDelivered: vi.fn(async () => {}),
+    settleFailed: vi.fn(async () => null),
+    notifyPersistentFailure: vi.fn(async () => {}),
+  },
+}));
+
 vi.mock("../../payments/services/payments.service.js", () => ({
   paymentService: mocks.paymentService,
 }));

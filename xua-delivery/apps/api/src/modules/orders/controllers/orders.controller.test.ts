@@ -315,6 +315,7 @@ describe("ordersController create", () => {
     await ordersController.create(
       req("consumer", {
         address_id: addressId,
+        distributor_id: distributorId,
         delivery_date: "2026-06-12",
         delivery_window: "morning",
         payment_method: "cash",

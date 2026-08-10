@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { useCartStore } from "@/src/store/cart";
-import { useState, useEffect } from "react";
+import { useIsClient } from "@/src/hooks/use-is-client";
 
 interface CartNavItemProps {
   active: boolean;
@@ -20,11 +20,7 @@ interface CartNavItemProps {
  */
 export function CartNavItem({ active }: CartNavItemProps) {
   const totalItems = useCartStore((s) => s.getTotalItems());
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsClient();
 
   const hasItems = mounted && totalItems > 0;
   const badgeText = totalItems > 99 ? "99+" : String(totalItems);

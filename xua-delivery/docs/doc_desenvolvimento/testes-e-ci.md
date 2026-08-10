@@ -69,10 +69,13 @@ segredos fabricados só para o job — nunca herda esses arquivos `.env`).
 Todo PR (e push em `main`) dispara, em paralelo:
 
 - **`typecheck`** (bloqueante) — `tsc --noEmit` em api/web/shared + `prisma validate`. Hoje 100% verde.
-- **`lint`** (informativo, `continue-on-error`) — `apps/web` tem 16 erros de
-  ESLint pré-existentes (`react-hooks/set-state-in-effect` em `use-socket.ts`,
-  `use-distributor-payment-methods.ts` e outros hooks), sem relação com este
-  trabalho de CI. Promova para bloqueante depois de zerar esse débito.
+- **`lint`** (informativo, `continue-on-error`) — os 16 erros de ESLint que
+  existiam em `apps/web` (`react-hooks/set-state-in-effect` e `react-hooks/refs`
+  — regras novas do eslint-plugin-react-hooks v7/React Compiler) foram
+  corrigidos. `npm run lint` está em 0 erros (só 8 warnings pré-existentes, que
+  não bloqueiam o job). Pode promover para bloqueante quando quiser — mantido
+  como `continue-on-error` por enquanto só para não travar em cima de warnings
+  não relacionados a este trabalho.
 - **`unit-tests`** (bloqueante) — os `*.test.ts`, com coverage.
 - **`integration-tests`** (bloqueante, só roda se o PR tocar `apps/api/**`,
   `packages/shared/**` ou `prisma/**`) — sobe Postgres efêmero, roda
@@ -107,6 +110,17 @@ lista como opção os status checks que já rodaram):
    "sem status", o que travaria o merge de qualquer PR que só mexesse no
    frontend. Mesma lógica para `lint` e `e2e-smoke` — ainda informativos.
 5. (Opcional) marcar "Require branches to be up to date before merging".
+
+## Achado conhecido, não resolvido
+
+`/distributor/queue` fica preso em "Atualizando..." indefinidamente — o
+`useQuery` de `/api/orders` nunca chega a disparar a requisição no client
+(confirmado: o endpoint responde normal via `fetch` manual/curl com o mesmo
+cookie; o problema é a query nunca ser acionada). Reproduzido tanto com as
+correções de lint quanto com o arquivo original do `HEAD`, então é
+pré-existente — não foi introduzido por este trabalho de CI/testes. Não
+investigado a fundo; próximo passo é comparar com `/ops/kpis` (que funciona
+normalmente) para achar a diferença.
 
 ## Evitando pipeline lenta
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ALL_DISTRIBUTORS,
   DistributorPicker,
@@ -23,15 +23,13 @@ export default function ZonesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Pré-seleciona a primeira distribuidora ativa para a tela não abrir vazia no
-  // desktop. No mobile o passo 1 continua sendo a escolha explícita.
-  useEffect(() => {
-    if (selectedId || distributors.length === 0) return;
-    const firstActive = distributors.find((d) => d.is_active) ?? distributors[0];
-    if (firstActive) setSelectedId(firstActive.id);
-  }, [distributors, selectedId]);
+  // desktop, sem precisar de efeito: enquanto o usuário não escolheu nada
+  // (selectedId null), cai no fallback calculado direto na renderização.
+  const firstActiveId = distributors.find((d) => d.is_active)?.id ?? distributors[0]?.id ?? null;
+  const effectiveSelectedId = selectedId ?? firstActiveId;
 
-  const isAll = selectedId === ALL_DISTRIBUTORS;
-  const selected = isAll ? null : (distributors.find((d) => d.id === selectedId) ?? null);
+  const isAll = effectiveSelectedId === ALL_DISTRIBUTORS;
+  const selected = isAll ? null : (distributors.find((d) => d.id === effectiveSelectedId) ?? null);
   const hasSelection = isAll || selected !== null;
 
   if (isError) {
@@ -59,7 +57,7 @@ export default function ZonesPage() {
         <div className={cn(hasSelection && "hidden md:block")}>
           <DistributorPicker
             distributors={distributors}
-            selectedId={selectedId}
+            selectedId={effectiveSelectedId}
             onSelect={setSelectedId}
             isLoading={isLoading}
           />
@@ -68,7 +66,7 @@ export default function ZonesPage() {
         <div className={cn(!hasSelection && "hidden md:block")}>
           {hasSelection ? (
             <ZoneTable
-              key={selectedId}
+              key={effectiveSelectedId}
               distributor={selected}
               distributors={distributors}
               onBack={() => setSelectedId(null)}
