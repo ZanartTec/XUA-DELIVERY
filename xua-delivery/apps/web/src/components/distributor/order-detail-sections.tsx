@@ -348,7 +348,9 @@ export function OrderTimelineSection({ order }: { order: OrderDetail }) {
               {index < order.events.length - 1 ? <div className="mt-1 h-full w-px bg-[#d9dde6]" /> : null}
             </div>
             <div className="pb-2.5">
-              <p className="text-sm font-medium text-[#0d1b2f]">{formatEventLabel(event.status)}</p>
+              <p className="text-sm font-medium text-[#0d1b2f]">
+                {formatEventLabel(event.status, event.payload)}
+              </p>
               <p className="mt-0.5 text-xs text-[#64748b]">
                 {formatDate(event.timestamp)} às {formatTime(event.timestamp)}
                 {event.actor_type ? ` • ${event.actor_type.toLowerCase()}` : ""}

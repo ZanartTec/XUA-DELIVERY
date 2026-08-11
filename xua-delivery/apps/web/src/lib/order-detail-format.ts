@@ -100,8 +100,41 @@ export function formatSubscriptionProgress(order: OrderDetail) {
   return `Entrega ${order.delivery_sequence}/${order.total_deliveries}`;
 }
 
-export function formatEventLabel(status: string) {
-  return EVENT_LABELS[status] ?? status.toLowerCase().replaceAll("_", " ");
+/**
+ * Eventos de auditoria antigos gravados com o tipo errado.
+ *
+ * Até ago/2026 a falha de entrega era registrada como `ORDER_CANCELLED` e o
+ * agendamento de reentrega como `ORDER_CONFIRMED`, ambos com o tipo real em
+ * `payload.type`. Isso fazia a timeline dizer "Pedido cancelado" numa falha de
+ * entrega e "Pagamento confirmado" numa reentrega — o cliente entendia que
+ * tinha sido cobrado de novo. O escritor foi corrigido, mas os eventos já
+ * gravados continuam com o tipo antigo: auditoria é evidência e não se
+ * reescreve. Este mapa traduz os registros históricos na leitura.
+ */
+const LEGACY_EVENT_TYPES: Record<string, Record<string, string>> = {
+  ORDER_CANCELLED: { DELIVERY_FAILED: "REDELIVERY_REQUIRED" },
+  ORDER_CONFIRMED: { REDELIVERY_SCHEDULED: "REDELIVERY_SCHEDULED" },
+};
+
+/**
+ * Resolve o tipo canônico de um evento, traduzindo os registros históricos
+ * escritos com o tipo errado. Use antes de qualquer lookup por tipo de evento.
+ */
+export function resolveEventType(status: string, payload?: unknown): string {
+  const legacy = LEGACY_EVENT_TYPES[status];
+  if (!legacy) return status;
+
+  const payloadType =
+    payload && typeof payload === "object" && "type" in payload
+      ? (payload as { type?: unknown }).type
+      : undefined;
+
+  return typeof payloadType === "string" ? (legacy[payloadType] ?? status) : status;
+}
+
+export function formatEventLabel(status: string, payload?: unknown) {
+  const resolved = resolveEventType(status, payload);
+  return EVENT_LABELS[resolved] ?? resolved.toLowerCase().replaceAll("_", " ");
 }
 
 export function formatSubscriptionStatus(status?: string | null) {

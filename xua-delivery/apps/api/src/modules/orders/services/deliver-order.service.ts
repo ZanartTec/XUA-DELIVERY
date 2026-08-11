@@ -175,9 +175,15 @@ export const deliverOrderService = {
         tx
       );
 
+      // REDELIVERY_REQUIRED (e não ORDER_CANCELLED): falha de entrega não é
+      // cancelamento. É este evento que alimenta a taxa de reentrega dos
+      // painéis de distribuidora e ops — enquanto ele não era emitido, a
+      // métrica ficava constante em 0%. Eventos gravados antes de ago/2026
+      // continuam como ORDER_CANCELLED e são traduzidos na leitura pelo
+      // `resolveEventType` do front.
       await auditRepository.emit(
         {
-          eventType: AuditEventType.ORDER_CANCELLED,
+          eventType: AuditEventType.REDELIVERY_REQUIRED,
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
@@ -222,9 +228,13 @@ export const deliverOrderService = {
         tx
       );
 
+      // REDELIVERY_SCHEDULED (e não ORDER_CONFIRMED): agendar reentrega não é
+      // confirmação de pagamento. Com o evento errado, a timeline do cliente
+      // exibia "Pagamento confirmado" logo após uma falha de entrega, dando a
+      // entender que ele havia sido cobrado outra vez.
       await auditRepository.emit(
         {
-          eventType: AuditEventType.ORDER_CONFIRMED,
+          eventType: AuditEventType.REDELIVERY_SCHEDULED,
           actor: { type: ActorType.OPS, id: opsUserId },
           orderId,
           sourceApp: SourceApp.OPS_CONSOLE,

@@ -6,6 +6,9 @@ export interface OrderDetailEvent {
   actor?: string | null;
   actor_type?: string | null;
   source_app?: string | null;
+  /** Detalhe do evento. Necessário para resolver eventos históricos gravados
+   *  com o tipo errado — ver `resolveEventType` em `lib/order-detail-format`. */
+  payload?: unknown;
 }
 
 export interface OrderDetailPayment {
