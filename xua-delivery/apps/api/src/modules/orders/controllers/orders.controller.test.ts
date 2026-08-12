@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
-import { OrderStatus } from "@xua/shared/enums";
+import { ActorType, OrderStatus, SourceApp } from "@xua/shared/enums";
 
 const mocks = vi.hoisted(() => {
   class MockOrderServiceError extends Error {
@@ -443,15 +443,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   });
 });
 
-describe("ordersController deliver/verifyOtp/otpOverride", () => {
-  it("entrega pedido diretamente (uso administrativo)", async () => {
-    const response = res();
-
-    await ordersController.deliver(req("driver", {}), response);
-
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
-  });
-
+describe("ordersController verifyOtp/otpOverride", () => {
   it("retorna 429 quando o OTP ja estava bloqueado por tentativas anteriores", async () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(
@@ -493,7 +485,11 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
 
     await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
+      type: ActorType.DRIVER,
+      id: userId,
+      sourceApp: SourceApp.DRIVER_WEB,
+    });
   });
 
   it("retorna 400 quando o codigo informado nao tem 6 digitos", async () => {
@@ -511,7 +507,13 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     await ordersController.otpOverride(req("ops", { reason: "confirmed_by_phone" }), response);
 
     expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "confirmed_by_phone", undefined);
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    // Ator real do override: antes a conclusão era gravada como se o motorista
+    // tivesse validado o código, com o id do usuário de ops no lugar dele.
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
+      type: ActorType.OPS,
+      id: userId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
   });
 
   it("aceita motivo 'other' com detalhe de ao menos 10 caracteres", async () => {
@@ -528,7 +530,11 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
       "other",
       "Cliente sem celular no momento"
     );
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
+      type: ActorType.OPS,
+      id: userId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
   });
 
   it("retorna 400 quando o override nao informa motivo", async () => {

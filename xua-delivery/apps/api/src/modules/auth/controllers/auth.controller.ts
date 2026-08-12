@@ -4,6 +4,7 @@ import {
   registerSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from "@xua/shared/schemas/auth";
 import { verifyToken } from "../../../infra/auth/jwt.js";
 import { isBlacklisted } from "../../../infra/auth/blacklist.js";
@@ -96,6 +97,36 @@ export const authController = {
       }
 
       await passwordResetService.resetPassword(parsed.data.token, parsed.data.password);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/auth/change-password
+   * Troca a senha de quem já está logado, exigindo a senha atual.
+   * Requer autenticação (authMiddleware deve estar ativo).
+   */
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        res.status(401).json({ error: "Não autenticado" });
+        return;
+      }
+
+      const parsed = changePasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      await authService.changePassword(
+        userId,
+        parsed.data.current_password,
+        parsed.data.new_password
+      );
       res.json({ ok: true });
     } catch (err) {
       next(err);

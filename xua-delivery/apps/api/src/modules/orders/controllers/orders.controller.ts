@@ -3,6 +3,7 @@ import type { Order, Product } from "@prisma/client";
 import { OrderStatus, type DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
+import { driverDeliveryActor, opsDeliveryActor } from "../services/delivery-actor.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
@@ -511,22 +512,6 @@ export const ordersController = {
   },
 
   /**
-   * PATCH /api/orders/:id/deliver
-   * Motorista confirma entrega (sem validar OTP — uso administrativo/teste).
-   */
-  async deliver(req: Request, res: Response): Promise<void> {
-    try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
-
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
-      res.json({ order: updatedOrder });
-    } catch (error) {
-      handleActionError(error, res, "Error delivering order");
-    }
-  },
-
-  /**
    * PATCH /api/orders/:id/verify-otp
    * Motorista valida o código informado pelo cliente e confirma a entrega.
    */
@@ -554,7 +539,10 @@ export const ordersController = {
         return;
       }
 
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      const updatedOrder = await orderService.deliverOrder(
+        existing.id,
+        driverDeliveryActor(req.user!.sub)
+      );
       res.json({ order: updatedOrder });
     } catch (error) {
       handleActionError(error, res, "Error verifying OTP");
@@ -577,7 +565,13 @@ export const ordersController = {
       }
 
       await otpService.override(existing.id, req.user!.sub, parsed.data.reason, parsed.data.details);
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      // Ator real do override. Antes a conclusão era gravada como se o
+      // motorista tivesse validado o código, com o id do usuário de ops no
+      // campo do motorista — a trilha apontava para a pessoa errada.
+      const updatedOrder = await orderService.deliverOrder(
+        existing.id,
+        opsDeliveryActor(req.user!.sub, req.user!.role)
+      );
       res.json({ order: updatedOrder });
     } catch (error) {
       handleActionError(error, res, "Error overriding OTP");
@@ -708,7 +702,12 @@ export const ordersController = {
    */
   async recordBottleExchange(req: Request, res: Response): Promise<void> {
     const user = req.user!;
-    const id = req.params.id as string;
+
+    // Ownership no controller, como nas demais ações de pedido. O service
+    // mantém a própria checagem como defesa em profundidade, mas checar aqui
+    // uniformiza o padrão e evita 500 mascarando 403/404.
+    const existing = await loadOwnedOrder(req, res);
+    if (!existing) return;
 
     const parsed = bottleExchangeSchema.safeParse({ ...req.body, driver_id: user.sub });
     if (!parsed.success) {
@@ -717,7 +716,7 @@ export const ordersController = {
     }
 
     try {
-      const order = await orderService.recordBottleExchange(id, user.sub, {
+      const order = await orderService.recordBottleExchange(existing.id, user.sub, {
         // Vazios coletados do consumidor (settlement). Default = returned_empty_qty (compat).
         collectedQty: parsed.data.collected_empty_qty ?? parsed.data.returned_empty_qty,
         returnedQty: parsed.data.returned_empty_qty,
@@ -740,7 +739,9 @@ export const ordersController = {
    */
   async recordEmptyNotCollected(req: Request, res: Response): Promise<void> {
     const user = req.user!;
-    const id = req.params.id as string;
+
+    const existing = await loadOwnedOrder(req, res);
+    if (!existing) return;
 
     const parsed = nonCollectionSchema.safeParse({ ...req.body, driver_id: user.sub });
     if (!parsed.success) {
@@ -749,7 +750,7 @@ export const ordersController = {
     }
 
     try {
-      const order = await orderService.recordEmptyNotCollected(id, user.sub, {
+      const order = await orderService.recordEmptyNotCollected(existing.id, user.sub, {
         reason: parsed.data.reason,
         notes: parsed.data.notes,
       });

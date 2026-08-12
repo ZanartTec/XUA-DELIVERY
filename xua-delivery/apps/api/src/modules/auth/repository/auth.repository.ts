@@ -42,6 +42,28 @@ export const authRepository = {
   },
 
   /**
+   * Busca consumer por ID incluindo password_hash, para validar a senha atual
+   * na troca de senha autenticada. Nunca use para respostas de API.
+   */
+  async findByIdForAuth(id: string) {
+    return prisma.consumer.findUnique({
+      where: { id },
+      select: AUTH_SELECT,
+    });
+  },
+
+  /**
+   * Atualiza o hash da senha (retorno seguro, sem password_hash).
+   */
+  async updatePassword(id: string, password_hash: string) {
+    return prisma.consumer.update({
+      where: { id },
+      data: { password_hash },
+      select: SAFE_SELECT,
+    });
+  },
+
+  /**
    * Verifica se email já existe.
    */
   async emailExists(email: string): Promise<boolean> {

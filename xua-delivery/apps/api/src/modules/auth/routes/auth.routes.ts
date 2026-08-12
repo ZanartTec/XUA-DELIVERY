@@ -47,4 +47,13 @@ router.post(
 router.post("/logout", authController.logout); // Pode funcionar sem auth para limpar cookie
 router.get("/me", authMiddleware, authController.me);
 
+// Trocar a senha estando logado. Mesmo rate limit do reset por e-mail: a rota
+// exige a senha atual, então é um alvo de força bruta como o login.
+router.post(
+  "/change-password",
+  authMiddleware,
+  rateLimitMiddleware("auth:change-password", RATE_LIMITS.passwordReset),
+  authController.changePassword
+);
+
 export default router;

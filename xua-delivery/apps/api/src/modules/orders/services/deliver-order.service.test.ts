@@ -90,6 +90,12 @@ const tx = {
   payment: { findFirst: vi.fn(), update: vi.fn() },
 };
 
+const driverActor = {
+  type: ActorType.DRIVER,
+  id: driverId,
+  sourceApp: SourceApp.DRIVER_WEB,
+};
+
 function order(overrides: Record<string, unknown> = {}) {
   return {
     id: orderId,
@@ -154,7 +160,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("leva OUT_FOR_DELIVERY para DELIVERED e grava delivered_at", async () => {
     givenOrder(order());
 
-    const result = await deliverOrderService.deliverOrder(orderId, driverId);
+    const result = await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(result.status).toBe(OrderStatus.DELIVERED);
     expect(mocks.orderRepository.updateStatus).toHaveBeenCalledWith(
@@ -170,7 +176,7 @@ describe("deliverOrderService.deliverOrder", () => {
       order({ status: OrderStatus.READY_FOR_DISPATCH })
     );
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverId)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
       OrderServiceError
     );
     expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
@@ -179,7 +185,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("rejeita pedido inexistente", async () => {
     givenOrder(null);
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverId)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
       OrderServiceError
     );
   });
@@ -187,7 +193,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("emite ORDER_DELIVERED dentro da transação", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     const call = auditCallFor(AuditEventType.ORDER_DELIVERED);
     expect(call).toBeDefined();
@@ -204,7 +210,7 @@ describe("deliverOrderService.deliverOrder", () => {
     givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(tx.payment.update).toHaveBeenCalledWith({
       where: { id: paymentId },
@@ -223,7 +229,7 @@ describe("deliverOrderService.deliverOrder", () => {
     givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment({ status: PaymentStatus.REFUNDED }));
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverId)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
       OrderServiceError
     );
     expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
@@ -232,7 +238,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("compensa a assinatura dentro da mesma transação", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(mocks.subscriptionSettlementService.settleDelivered).toHaveBeenCalledWith(tx, orderId);
   });
@@ -240,7 +246,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("notifica o consumidor apenas depois do commit", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(mocks.orderEventsPublisher.notifyConsumer).toHaveBeenCalledWith(
       consumerId,
@@ -254,7 +260,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("hoje NÃO notifica a distribuidora quando a entrega conclui", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).not.toHaveBeenCalled();
     expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
@@ -268,7 +274,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("ainda conclui a entrega sem registro de vasilhame, mas marca na auditoria", async () => {
     givenOrder(order({ bottle_step_recorded_at: null }));
 
-    const result = await deliverOrderService.deliverOrder(orderId, driverId);
+    const result = await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(result.status).toBe(OrderStatus.DELIVERED);
     expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
@@ -280,7 +286,7 @@ describe("deliverOrderService.deliverOrder", () => {
     const recordedAt = new Date("2026-06-01T10:30:00.000Z");
     givenOrder(order({ bottle_step_recorded_at: recordedAt }));
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
       payload: {
@@ -295,21 +301,42 @@ describe("deliverOrderService.deliverOrder", () => {
   it("lê o pedido com lock", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverId);
+    await deliverOrderService.deliverOrder(orderId, driverActor);
 
     expect(mocks.orderRepository.findByIdWithItemsForUpdate).toHaveBeenCalledWith(orderId, tx);
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 3 do plano): o ator é sempre DRIVER/DRIVER_WEB,
-  // mesmo quando quem conclui é ops via otp-override — auditoria falsificada.
-  it("hoje audita como DRIVER mesmo quando o id recebido é de um usuário de ops", async () => {
+  // O ator vem de quem chamou, não é mais fixo em DRIVER/DRIVER_WEB. Antes, um
+  // override de ops era gravado como se o motorista tivesse validado o código,
+  // com o id do usuário de ops no campo do motorista.
+  it("audita com o ator real quando quem conclui é ops via override", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, opsUserId);
+    await deliverOrderService.deliverOrder(orderId, {
+      type: ActorType.OPS,
+      id: opsUserId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
 
     expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
-      actor: { type: ActorType.DRIVER, id: opsUserId },
-      sourceApp: SourceApp.DRIVER_WEB,
+      actor: { type: ActorType.OPS, id: opsUserId },
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
+  });
+
+  it("propaga o ator real também para a captura do pagamento em dinheiro", async () => {
+    givenOrder(order());
+    tx.payment.findFirst.mockResolvedValue(cashPayment());
+
+    await deliverOrderService.deliverOrder(orderId, {
+      type: ActorType.SUPPORT,
+      id: opsUserId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
+
+    expect(auditCallFor(AuditEventType.PAYMENT_CAPTURED)![0]).toMatchObject({
+      actor: { type: ActorType.SUPPORT, id: opsUserId },
+      sourceApp: SourceApp.OPS_CONSOLE,
     });
   });
 });

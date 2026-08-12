@@ -1,4 +1,4 @@
-import { createHmac, randomInt } from "crypto";
+import { createHmac, randomInt, timingSafeEqual } from "crypto";
 import { Prisma } from "@prisma/client";
 import { ActorType, AuditEventType, OtpStatus, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
@@ -28,6 +28,22 @@ const MAX_ATTEMPTS = 5;
 
 function hmacHash(code: string): string {
   return createHmac("sha256", OTP_SECRET).update(code).digest("hex");
+}
+
+/**
+ * Compara dois hashes em tempo constante.
+ *
+ * `===` em string sai no primeiro byte diferente, e o tempo de resposta vaza
+ * quantos caracteres do hash foram acertados. Como o hash é HMAC do código de
+ * 6 dígitos, isso permitiria descobrir o hash byte a byte. `timingSafeEqual`
+ * exige buffers do mesmo tamanho, daí a checagem de comprimento antes — que é
+ * pública (todo hash HMAC-SHA256 em hex tem 64 caracteres) e não vaza nada.
+ */
+function hashesMatch(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
 }
 
 export class OtpServiceError extends Error {
@@ -137,8 +153,7 @@ export const otpService = {
         throw new OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas");
       }
 
-      const hash = hmacHash(code);
-      const isValid = hash === otp.otp_hash;
+      const isValid = hashesMatch(hmacHash(code), otp.otp_hash);
 
       let attempts = otp.attempts + 1;
       let locked = false;

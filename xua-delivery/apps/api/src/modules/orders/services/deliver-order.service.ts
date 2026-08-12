@@ -29,6 +29,7 @@ import {
   PAYMENT_PAID_STATUS,
 } from "./payment-constants.js";
 import { subscriptionSettlementService } from "../../user-subscriptions/services/subscription-settlement.service.js";
+import type { DeliveryActor } from "./delivery-actor.js";
 
 const log = createLogger("orders");
 
@@ -38,6 +39,7 @@ type StockReturnOptions = {
   returnToStock?: boolean;
 };
 
+
 /**
  * deliverOrderService — desfechos da entrega: sucesso, falha e reagendamento.
  */
@@ -45,7 +47,7 @@ export const deliverOrderService = {
   /**
    * Entrega pedido: OUT_FOR_DELIVERY → DELIVERED
    */
-  async deliverOrder(orderId: string, driverId: string): Promise<Order> {
+  async deliverOrder(orderId: string, actor: DeliveryActor): Promise<Order> {
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
       // Leitura com lock: sem ela, duas confirmações concorrentes (motorista com
@@ -65,7 +67,7 @@ export const deliverOrderService = {
       const bottleStepRecordedAt = current.bottle_step_recorded_at;
       if (!bottleStepRecordedAt) {
         log.warn(
-          { orderId, driverId, status: current.status },
+          { orderId, actorId: actor.id, actorType: actor.type, status: current.status },
           "delivered_without_bottle_step"
         );
       }
@@ -97,9 +99,9 @@ export const deliverOrderService = {
         await auditRepository.emit(
           {
             eventType: AuditEventType.PAYMENT_CAPTURED,
-            actor: { type: ActorType.DRIVER, id: driverId },
+            actor: { type: actor.type, id: actor.id },
             orderId,
-            sourceApp: SourceApp.DRIVER_WEB,
+            sourceApp: actor.sourceApp,
             payload: {
               payment_id: cashPayment.id,
               payment_method: CASH_PAYMENT_METHOD,
@@ -123,9 +125,9 @@ export const deliverOrderService = {
       await auditRepository.emit(
         {
           eventType: AuditEventType.ORDER_DELIVERED,
-          actor: { type: ActorType.DRIVER, id: driverId },
+          actor: { type: actor.type, id: actor.id },
           orderId,
-          sourceApp: SourceApp.DRIVER_WEB,
+          sourceApp: actor.sourceApp,
           // Telemetria do Estágio 2A: é por este campo que se mede quantas
           // entregas ainda fecham sem o passo de vasilhame, e portanto quando
           // é seguro ligar o guard estrito.
