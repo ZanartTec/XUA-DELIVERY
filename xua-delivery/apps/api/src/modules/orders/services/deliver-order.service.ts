@@ -150,6 +150,10 @@ export const deliverOrderService = {
       orderId,
       status: OrderStatus.DELIVERED,
     });
+    // A distribuidora acompanha a fila em tempo real desde o aceite e o
+    // despacho, mas parava de receber sinal justamente no desfecho: a entrega
+    // só aparecia no painel depois de um refresh manual.
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERED);
 
     // Push notification
     notificationService
@@ -237,6 +241,16 @@ export const deliverOrderService = {
       orderId,
       status: OrderStatus.DELIVERY_FAILED,
     });
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERY_FAILED, {
+      reason,
+    });
+    // Falha de entrega exige decisão humana — é ops quem reagenda a reentrega.
+    orderEventsPublisher.notifyOps("order_status_changed", {
+      orderId,
+      status: OrderStatus.DELIVERY_FAILED,
+      distributorId: order.distributor_id,
+      reason,
+    });
 
     return order;
   },
@@ -279,6 +293,16 @@ export const deliverOrderService = {
     orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.REDELIVERY_SCHEDULED,
+    });
+    // A distribuidora precisa saber para reprogramar a rota do dia.
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.REDELIVERY_SCHEDULED, {
+      newDate: newDate.toISOString(),
+    });
+    orderEventsPublisher.notifyOps("order_status_changed", {
+      orderId,
+      status: OrderStatus.REDELIVERY_SCHEDULED,
+      distributorId: order.distributor_id,
+      newDate: newDate.toISOString(),
     });
 
     return order;

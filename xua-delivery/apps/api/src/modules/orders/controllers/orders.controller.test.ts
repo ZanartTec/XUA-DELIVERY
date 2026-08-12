@@ -56,12 +56,25 @@ const mocks = vi.hoisted(() => {
     socketEmit: vi.fn(),
     socketTo: vi.fn(),
     loggerError: vi.fn(),
+    orderEventsPublisher: {
+      notifyConsumer: vi.fn(),
+      notifyDistributor: vi.fn(),
+      notifyDriver: vi.fn(),
+      notifyOps: vi.fn(),
+      distributorOrderStatusChanged: vi.fn(),
+    },
   };
 });
 
 vi.mock("../services/orders.service.js", () => ({
   orderService: mocks.orderService,
   OrderServiceError: mocks.OrderServiceError,
+}));
+
+// Mockado para isolar o controller: o publisher real puxa gateway e logger,
+// e o que interessa aqui é se o controller decide emitir, não como se emite.
+vi.mock("../services/order-events.publisher.js", () => ({
+  orderEventsPublisher: mocks.orderEventsPublisher,
 }));
 
 vi.mock("../policies/order.policy.js", () => ({
@@ -458,6 +471,41 @@ describe("ordersController verifyOtp/otpOverride", () => {
       code: "OTP_LOCKED",
     });
     expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
+  });
+
+  // Desbloquear OTP é ação de ops, então ops precisa saber que aconteceu sem
+  // depender de o motorista ligar avisando.
+  it("avisa ops quando o OTP acabou de ser bloqueado", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({
+      isValid: false,
+      attempts: 5,
+      maxAttempts: 5,
+      locked: true,
+    });
+
+    await ordersController.verifyOtp(req("driver", { code: "000000" }), response);
+
+    expect(mocks.orderEventsPublisher.notifyOps).toHaveBeenCalledWith(
+      "otp_locked",
+      expect.objectContaining({ orderId, driverId: userId, attempts: 5 })
+    );
+  });
+
+  // Tentativa inválida sem bloqueio não é evento de ops: reemitir a cada erro
+  // de digitação inundaria uma sala que recebe todas as distribuidoras.
+  it("não avisa ops em tentativa inválida que não bloqueou", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({
+      isValid: false,
+      attempts: 2,
+      maxAttempts: 5,
+      locked: false,
+    });
+
+    await ordersController.verifyOtp(req("driver", { code: "000000" }), response);
+
+    expect(mocks.orderEventsPublisher.notifyOps).not.toHaveBeenCalled();
   });
 
   it("retorna 400 quando o OTP esta expirado", async () => {

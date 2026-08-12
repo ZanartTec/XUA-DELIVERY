@@ -4,6 +4,7 @@ import { OrderStatus, type DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { driverDeliveryActor, opsDeliveryActor } from "../services/delivery-actor.js";
+import { orderEventsPublisher } from "../services/order-events.publisher.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
@@ -528,6 +529,17 @@ export const ordersController = {
 
       const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub);
       if (!validation.isValid) {
+        // Só na transição para bloqueado. Reemitir a cada tentativa contra um
+        // OTP já bloqueado viraria ruído numa sala que recebe o tráfego de
+        // todas as distribuidoras — e o desbloqueio é ação de ops.
+        if (validation.locked) {
+          orderEventsPublisher.notifyOps("otp_locked", {
+            orderId: existing.id,
+            distributorId: existing.distributor_id,
+            driverId: req.user!.sub,
+            attempts: validation.attempts,
+          });
+        }
         res.status(validation.locked ? 429 : 400).json({
           error: validation.locked
             ? "Código bloqueado por excesso de tentativas"

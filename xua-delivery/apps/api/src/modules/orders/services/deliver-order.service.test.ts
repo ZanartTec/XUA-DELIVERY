@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
     notifyConsumer: vi.fn(),
     notifyDistributor: vi.fn(),
     notifyDriver: vi.fn(),
+    notifyOps: vi.fn(),
     distributorOrderStatusChanged: vi.fn(),
   },
   subscriptionSettlementService: { settleDelivered: vi.fn() },
@@ -255,15 +256,18 @@ describe("deliverOrderService.deliverOrder", () => {
     );
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 4 do plano): distribuidor e ops não recebem
-  // nenhum sinal quando o motorista conclui a entrega.
-  it("hoje NÃO notifica a distribuidora quando a entrega conclui", async () => {
+  // A distribuidora acompanha a fila em tempo real desde o aceite e o despacho,
+  // mas parava de receber sinal no desfecho: a entrega só aparecia no painel
+  // depois de um refresh manual.
+  it("notifica a distribuidora quando a entrega conclui", async () => {
     givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, driverActor);
 
-    expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).not.toHaveBeenCalled();
-    expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
+    expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ id: orderId }),
+      OrderStatus.DELIVERED
+    );
   });
 
   // MODO TOLERANTE (Estágio 2A). Ainda concluímos a entrega sem o registro de
@@ -406,6 +410,28 @@ describe("deliverOrderService.markDeliveryFailed", () => {
       consumerId,
       "order_status_changed",
       { orderId, status: OrderStatus.DELIVERY_FAILED }
+    );
+  });
+
+  // Falha de entrega é o evento que mais exige reação: a distribuidora
+  // reprograma a rota e ops decide a reentrega. Nenhum dos dois recebia sinal.
+  it("notifica distribuidora e ops na falha de entrega", async () => {
+    givenOrder(order());
+
+    await deliverOrderService.markDeliveryFailed(orderId, driverId, "Cliente ausente");
+
+    expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ id: orderId }),
+      OrderStatus.DELIVERY_FAILED,
+      { reason: "Cliente ausente" }
+    );
+    expect(mocks.orderEventsPublisher.notifyOps).toHaveBeenCalledWith(
+      "order_status_changed",
+      expect.objectContaining({
+        orderId,
+        status: OrderStatus.DELIVERY_FAILED,
+        reason: "Cliente ausente",
+      })
     );
   });
 });

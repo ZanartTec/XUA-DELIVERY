@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSocket } from "@/src/hooks/use-socket";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency } from "@/src/lib/utils";
 import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2, Banknote } from "lucide-react";
@@ -54,14 +55,42 @@ function DeliverySkeleton() {
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
+  const { on, off } = useSocket();
+
+  const loadDeliveries = useCallback(async () => {
+    try {
+      const response = await fetch("/api/driver/deliveries");
+      const data = await response.json();
+      setDeliveries(data.deliveries ?? []);
+    } catch {
+      // Estado de erro visível entra na sessão de redesign desta tela.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/driver/deliveries")
-      .then((r) => r.json())
-      .then((data) => setDeliveries(data.deliveries ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    void loadDeliveries();
+  }, [loadDeliveries]);
+
+  // O despacho já emitia `new_delivery` para a sala do motorista desde sempre,
+  // mas nenhuma tela escutava: a lista era buscada uma única vez na montagem,
+  // então uma entrega despachada com o app aberto só aparecia se o motorista
+  // saísse e voltasse. `order_status_changed` cobre o caminho inverso — pedido
+  // cancelado ou reatribuído enquanto ele está na rua.
+  useEffect(() => {
+    const refresh = () => {
+      void loadDeliveries();
+    };
+
+    on("new_delivery", refresh);
+    on("order_status_changed", refresh);
+
+    return () => {
+      off("new_delivery", refresh);
+      off("order_status_changed", refresh);
+    };
+  }, [on, off, loadDeliveries]);
 
   const pending = deliveries.filter((d) => canAdvanceToOtp(d.status));
   const done = deliveries.filter((d) => isCompleted(d.status));

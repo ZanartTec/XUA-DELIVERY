@@ -10,6 +10,7 @@ import { depositSettlementService } from "../../deposits/services/deposit-settle
 import { createLogger } from "../../../infra/logger/index.js";
 import { OrderServiceError } from "../errors.js";
 import { translateInventoryError } from "./order-inventory.helpers.js";
+import { orderEventsPublisher } from "./order-events.publisher.js";
 
 const log = createLogger("orders");
 
@@ -150,6 +151,22 @@ export const orderBottleService = {
       return updated;
     });
 
+    // Pós-commit, como nas demais ações de pedido. Antes o registro de
+    // vasilhame não emitia nada: a tela do consumidor e o painel da
+    // distribuidora não sabiam que a troca tinha acontecido.
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "bottle_step_recorded", {
+      orderId,
+      collectedEmptyQty: data.collectedQty,
+      returnedEmptyQty: data.returnedQty,
+    });
+    orderEventsPublisher.notifyDistributor(order.distributor_id, "bottle_step_recorded", {
+      orderId,
+      driverId,
+      collectedEmptyQty: data.collectedQty,
+      returnedEmptyQty: data.returnedQty,
+      bottleCondition: data.condition ?? null,
+    });
+
     return order;
   },
 
@@ -192,6 +209,16 @@ export const orderBottleService = {
       );
 
       return updated;
+    });
+
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "bottle_step_recorded", {
+      orderId,
+      notCollectedReason: data.reason,
+    });
+    orderEventsPublisher.notifyDistributor(order.distributor_id, "bottle_step_recorded", {
+      orderId,
+      driverId,
+      notCollectedReason: data.reason,
     });
 
     return order;

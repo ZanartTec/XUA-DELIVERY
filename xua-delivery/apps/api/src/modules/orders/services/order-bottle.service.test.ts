@@ -310,9 +310,9 @@ describe("orderBottleService.recordBottleExchange", () => {
     expect(mocks.orderRepository.update).not.toHaveBeenCalled();
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 4 do plano): nenhum evento de socket, então
-  // a tela do consumidor e o painel da distribuidora não sabem da troca.
-  it("hoje NÃO emite nenhum evento de socket", async () => {
+  // Antes o registro de vasilhame não emitia nada: nem a tela do consumidor nem
+  // o painel da distribuidora sabiam que a troca tinha acontecido.
+  it("avisa consumidor e distribuidora sobre a troca", async () => {
     mocks.orderRepository.findById.mockResolvedValue(order());
 
     await orderBottleService.recordBottleExchange(orderId, driverId, {
@@ -321,9 +321,16 @@ describe("orderBottleService.recordBottleExchange", () => {
       condition: "ok",
     });
 
-    expect(mocks.orderEventsPublisher.notifyConsumer).not.toHaveBeenCalled();
-    expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
-    expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).not.toHaveBeenCalled();
+    expect(mocks.orderEventsPublisher.notifyConsumer).toHaveBeenCalledWith(
+      consumerId,
+      "bottle_step_recorded",
+      expect.objectContaining({ orderId, collectedEmptyQty: 3, returnedEmptyQty: 2 })
+    );
+    expect(mocks.orderEventsPublisher.notifyDistributor).toHaveBeenCalledWith(
+      distributorId,
+      "bottle_step_recorded",
+      expect.objectContaining({ orderId, driverId, bottleCondition: "ok" })
+    );
   });
 });
 
@@ -399,13 +406,33 @@ describe("orderBottleService.recordEmptyNotCollected", () => {
     expect(mocks.depositSettlementService.settleDelivery).not.toHaveBeenCalled();
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 4 do plano).
-  it("hoje NÃO emite nenhum evento de socket", async () => {
+  it("avisa consumidor e distribuidora sobre a não-coleta", async () => {
     mocks.orderRepository.findById.mockResolvedValue(order());
 
     await orderBottleService.recordEmptyNotCollected(orderId, driverId, { reason: "no_access" });
 
+    expect(mocks.orderEventsPublisher.notifyConsumer).toHaveBeenCalledWith(
+      consumerId,
+      "bottle_step_recorded",
+      { orderId, notCollectedReason: "no_access" }
+    );
+    expect(mocks.orderEventsPublisher.notifyDistributor).toHaveBeenCalledWith(
+      distributorId,
+      "bottle_step_recorded",
+      { orderId, driverId, notCollectedReason: "no_access" }
+    );
+  });
+
+  // A emissão fica FORA da transação, como em todo o módulo: um evento
+  // disparado antes do commit anuncia um estado que pode não existir.
+  it("não emite socket quando a transação falha", async () => {
+    mocks.orderRepository.findById.mockResolvedValue(order({ status: OrderStatus.CANCELLED }));
+
+    await expect(
+      orderBottleService.recordEmptyNotCollected(orderId, driverId, { reason: "no_access" })
+    ).rejects.toThrow(OrderServiceError);
+
     expect(mocks.orderEventsPublisher.notifyConsumer).not.toHaveBeenCalled();
-    expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).not.toHaveBeenCalled();
+    expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
   });
 });

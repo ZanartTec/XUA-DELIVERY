@@ -57,6 +57,7 @@ vi.mock("../../../infra/prisma/client.js", () => ({
 
 vi.mock("../../../infra/socket/gateway.js", () => ({
   getIO: () => ({ to: mocks.socketTo }),
+  OPS_BROADCAST_ROOM: "ops:broadcast",
 }));
 
 vi.mock("../../../infra/logger/index.js", () => ({
