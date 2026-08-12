@@ -146,7 +146,12 @@ describe("orderBottleService.recordBottleExchange", () => {
 
     expect(mocks.orderRepository.update).toHaveBeenCalledWith(
       orderId,
-      { collected_empty_qty: 3, returned_empty_qty: 2, bottle_condition: "ok" },
+      {
+        collected_empty_qty: 3,
+        returned_empty_qty: 2,
+        bottle_condition: "ok",
+        bottle_step_recorded_at: expect.any(Date),
+      },
       tx
     );
   });
@@ -255,26 +260,13 @@ describe("orderBottleService.recordBottleExchange", () => {
     );
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 2 do plano): nenhuma validação de status.
-  // Com a inversão das telas planejada, isso permitiria registrar vasilhame de
-  // uma entrega que ainda vai falhar.
-  it("hoje aceita o registro em QUALQUER status do pedido", async () => {
-    for (const status of [
-      OrderStatus.CREATED,
-      OrderStatus.READY_FOR_DISPATCH,
-      OrderStatus.DELIVERED,
-      OrderStatus.DELIVERY_FAILED,
-      OrderStatus.CANCELLED,
-    ]) {
-      vi.clearAllMocks();
-      mocks.transaction.mockImplementation(async (callback: any) => callback(tx));
-      mocks.orderRepository.update.mockResolvedValue(order({ status }));
-      mocks.orderRepository.findItemsByOrderId.mockResolvedValue([]);
-      mocks.inventoryRepository.findActiveReturnableEmptyItem.mockResolvedValue(null);
-      mocks.depositSettlementService.settleDelivery.mockResolvedValue({
-        loaned: 0,
-        returnedFromLoan: 0,
-      });
+  // Aceita os dois lados da conclusão, porque as duas ordens de operação
+  // convivem durante a transição: app antigo confirma o código primeiro
+  // (pedido já DELIVERED), app novo registra o vasilhame antes (ainda
+  // OUT_FOR_DELIVERY).
+  it.each([OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED])(
+    "aceita o registro com o pedido em %s",
+    async (status) => {
       mocks.orderRepository.findById.mockResolvedValue(order({ status }));
 
       await expect(
@@ -285,6 +277,37 @@ describe("orderBottleService.recordBottleExchange", () => {
         })
       ).resolves.toBeDefined();
     }
+  );
+
+  // Antes não havia validação nenhuma de status: era possível gravar vasilhame
+  // de pedido cancelado, recusado ou que sequer saiu para entrega. Com a
+  // inversão das telas isso permitiria ainda registrar vasilhame de uma
+  // entrega que vai falhar logo em seguida.
+  it.each([
+    OrderStatus.CREATED,
+    OrderStatus.READY_FOR_DISPATCH,
+    OrderStatus.DELIVERY_FAILED,
+    OrderStatus.CANCELLED,
+  ])("recusa o registro com o pedido em %s", async (status) => {
+    mocks.orderRepository.findById.mockResolvedValue(order({ status }));
+
+    await expect(
+      orderBottleService.recordBottleExchange(orderId, driverId, {
+        collectedQty: 1,
+        returnedQty: 1,
+        condition: "ok",
+      })
+    ).rejects.toThrow(OrderServiceError);
+    expect(mocks.orderRepository.update).not.toHaveBeenCalled();
+  });
+
+  it("recusa não-coleta em status inválido", async () => {
+    mocks.orderRepository.findById.mockResolvedValue(order({ status: OrderStatus.CANCELLED }));
+
+    await expect(
+      orderBottleService.recordEmptyNotCollected(orderId, driverId, { reason: "no_access" })
+    ).rejects.toThrow(OrderServiceError);
+    expect(mocks.orderRepository.update).not.toHaveBeenCalled();
   });
 
   // COMPORTAMENTO A CORRIGIR (Fase 4 do plano): nenhum evento de socket, então
@@ -318,6 +341,7 @@ describe("orderBottleService.recordEmptyNotCollected", () => {
       {
         empty_not_collected_reason: "client_absent",
         empty_not_collected_notes: "Cliente não estava no endereço",
+        bottle_step_recorded_at: expect.any(Date),
       },
       tx
     );

@@ -11,6 +11,7 @@ import {
 } from "@xua/shared/enums";
 import { CASH_PAYMENT_METHOD } from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
+import { createLogger } from "../../../infra/logger/index.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
@@ -29,6 +30,8 @@ import {
 } from "./payment-constants.js";
 import { subscriptionSettlementService } from "../../user-subscriptions/services/subscription-settlement.service.js";
 
+const log = createLogger("orders");
+
 type TxClient = Prisma.TransactionClient;
 
 type StockReturnOptions = {
@@ -45,9 +48,27 @@ export const deliverOrderService = {
   async deliverOrder(orderId: string, driverId: string): Promise<Order> {
     const prisma = getPrisma();
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
+      // Leitura com lock: sem ela, duas confirmações concorrentes (motorista com
+      // conexão instável tocando duas vezes, ou fila offline sincronizando junto
+      // de um envio manual) liam o mesmo estado e ambas seguiam adiante.
+      // markDeliveryFailed já lia com lock; deliverOrder era a assimetria.
+      const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.DELIVERED);
+
+      // MODO TOLERANTE (Estágio 2A). A entrega deveria exigir o registro de
+      // vasilhame — troca ou motivo de não-coleta — antes de concluir. Ainda
+      // NÃO rejeitamos: apps antigos em cache no celular do motorista confirmam
+      // o código antes de abrir a tela de vasilhame, e recusar agora travaria
+      // entregas em campo durante o deploy. Por ora só medimos. O guard estrito
+      // entra em deploy separado, quando esta contagem chegar a ~zero.
+      const bottleStepRecordedAt = current.bottle_step_recorded_at;
+      if (!bottleStepRecordedAt) {
+        log.warn(
+          { orderId, driverId, status: current.status },
+          "delivered_without_bottle_step"
+        );
+      }
 
       const cashPayment = await tx.payment.findFirst({
         where: {
@@ -105,6 +126,13 @@ export const deliverOrderService = {
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
+          // Telemetria do Estágio 2A: é por este campo que se mede quantas
+          // entregas ainda fecham sem o passo de vasilhame, e portanto quando
+          // é seguro ligar o guard estrito.
+          payload: {
+            bottle_step_recorded: bottleStepRecordedAt != null,
+            bottle_step_recorded_at: bottleStepRecordedAt?.toISOString() ?? null,
+          },
         },
         tx
       );

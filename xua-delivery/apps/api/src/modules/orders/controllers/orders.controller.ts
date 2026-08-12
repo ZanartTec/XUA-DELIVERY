@@ -46,6 +46,11 @@ function errorStatus(code: string): number {
     INVALID_CASH_CHANGE: 400,
     CASH_PAYMENT_INVALID: 409,
     PAYMENT_METHOD_NOT_ALLOWED: 400,
+    // 422 e NÃO 409: a fila offline do app do motorista (use-offline-sync)
+    // considera 409 um sucesso e remove a ação da fila. Devolver 409 aqui faria
+    // o registro de vasilhame ser descartado silenciosamente, sem erro visível
+    // e com perda do dado que o motorista digitou em campo.
+    BOTTLE_STEP_INVALID_STATUS: 422,
   };
   return map[code] ?? 400;
 }

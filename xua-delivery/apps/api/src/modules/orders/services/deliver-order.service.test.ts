@@ -123,6 +123,18 @@ function auditCallFor(eventType: string) {
   return mocks.auditRepository.emit.mock.calls.find(([payload]) => payload.eventType === eventType);
 }
 
+/**
+ * Prepara a leitura do pedido nos dois caminhos (com e sem lock).
+ *
+ * Fixar só um deles esconde erro: quando deliverOrder passou a ler com lock,
+ * os testes que mockavam apenas findById continuaram "verdes" porque o serviço
+ * recebia null e lançava ORDER_NOT_FOUND — passando pelo motivo errado.
+ */
+function givenOrder(current: ReturnType<typeof order> | null) {
+  mocks.orderRepository.findById.mockResolvedValue(current);
+  mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(current);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback: any) => callback(tx));
@@ -140,7 +152,7 @@ beforeEach(() => {
 
 describe("deliverOrderService.deliverOrder", () => {
   it("leva OUT_FOR_DELIVERY para DELIVERED e grava delivered_at", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     const result = await deliverOrderService.deliverOrder(orderId, driverId);
 
@@ -154,7 +166,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("rejeita transição a partir de um status que não permite entrega", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(
+    givenOrder(
       order({ status: OrderStatus.READY_FOR_DISPATCH })
     );
 
@@ -165,7 +177,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("rejeita pedido inexistente", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(null);
+    givenOrder(null);
 
     await expect(deliverOrderService.deliverOrder(orderId, driverId)).rejects.toThrow(
       OrderServiceError
@@ -173,7 +185,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("emite ORDER_DELIVERED dentro da transação", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, driverId);
 
@@ -189,7 +201,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("captura pagamento em dinheiro pendente e audita PAYMENT_CAPTURED", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment());
 
     await deliverOrderService.deliverOrder(orderId, driverId);
@@ -208,7 +220,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("recusa entrega quando o pagamento em dinheiro está em status inválido", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment({ status: PaymentStatus.REFUNDED }));
 
     await expect(deliverOrderService.deliverOrder(orderId, driverId)).rejects.toThrow(
@@ -218,7 +230,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("compensa a assinatura dentro da mesma transação", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, driverId);
 
@@ -226,7 +238,7 @@ describe("deliverOrderService.deliverOrder", () => {
   });
 
   it("notifica o consumidor apenas depois do commit", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, driverId);
 
@@ -240,7 +252,7 @@ describe("deliverOrderService.deliverOrder", () => {
   // COMPORTAMENTO A CORRIGIR (Fase 4 do plano): distribuidor e ops não recebem
   // nenhum sinal quando o motorista conclui a entrega.
   it("hoje NÃO notifica a distribuidora quando a entrega conclui", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, driverId);
 
@@ -248,33 +260,50 @@ describe("deliverOrderService.deliverOrder", () => {
     expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 2 do plano): a entrega fecha sem nenhum
-  // registro de vasilhame (nem troca, nem motivo de não-coleta).
-  it("hoje conclui a entrega mesmo sem registro de vasilhame", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(
-      order({ collected_empty_qty: 0, returned_empty_qty: null, empty_not_collected_reason: null })
-    );
+  // MODO TOLERANTE (Estágio 2A). Ainda concluímos a entrega sem o registro de
+  // vasilhame, de propósito: apps antigos em cache no celular confirmam o
+  // código antes de abrir a tela de vasilhame, e rejeitar agora travaria
+  // entregas em campo durante o deploy. Quando o Estágio 2C ligar o guard
+  // estrito, este teste deve falhar e virar uma asserção de rejeição.
+  it("ainda conclui a entrega sem registro de vasilhame, mas marca na auditoria", async () => {
+    givenOrder(order({ bottle_step_recorded_at: null }));
 
     const result = await deliverOrderService.deliverOrder(orderId, driverId);
 
     expect(result.status).toBe(OrderStatus.DELIVERED);
+    expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
+      payload: { bottle_step_recorded: false, bottle_step_recorded_at: null },
+    });
   });
 
-  // COMPORTAMENTO A CORRIGIR (Fase 2 do plano): leitura sem lock, assimétrica
-  // com markDeliveryFailed, que usa findByIdWithItemsForUpdate.
-  it("hoje lê o pedido sem lock", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+  it("registra na auditoria quando o passo de vasilhame foi cumprido", async () => {
+    const recordedAt = new Date("2026-06-01T10:30:00.000Z");
+    givenOrder(order({ bottle_step_recorded_at: recordedAt }));
 
     await deliverOrderService.deliverOrder(orderId, driverId);
 
-    expect(mocks.orderRepository.findById).toHaveBeenCalledWith(orderId, tx);
-    expect(mocks.orderRepository.findByIdWithItemsForUpdate).not.toHaveBeenCalled();
+    expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
+      payload: {
+        bottle_step_recorded: true,
+        bottle_step_recorded_at: recordedAt.toISOString(),
+      },
+    });
+  });
+
+  // Lê com lock, simétrico com markDeliveryFailed. Sem isso, duas confirmações
+  // concorrentes liam o mesmo estado e ambas seguiam adiante.
+  it("lê o pedido com lock", async () => {
+    givenOrder(order());
+
+    await deliverOrderService.deliverOrder(orderId, driverId);
+
+    expect(mocks.orderRepository.findByIdWithItemsForUpdate).toHaveBeenCalledWith(orderId, tx);
   });
 
   // COMPORTAMENTO A CORRIGIR (Fase 3 do plano): o ator é sempre DRIVER/DRIVER_WEB,
   // mesmo quando quem conclui é ops via otp-override — auditoria falsificada.
   it("hoje audita como DRIVER mesmo quando o id recebido é de um usuário de ops", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.deliverOrder(orderId, opsUserId);
 
@@ -287,7 +316,7 @@ describe("deliverOrderService.deliverOrder", () => {
 
 describe("deliverOrderService.markDeliveryFailed", () => {
   it("leva OUT_FOR_DELIVERY para DELIVERY_FAILED gravando o motivo", async () => {
-    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(order());
+    givenOrder(order());
 
     const result = await deliverOrderService.markDeliveryFailed(
       orderId,
@@ -305,7 +334,7 @@ describe("deliverOrderService.markDeliveryFailed", () => {
   });
 
   it("rejeita transição a partir de status inválido", async () => {
-    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(
+    givenOrder(
       order({ status: OrderStatus.DELIVERED })
     );
 
@@ -315,7 +344,7 @@ describe("deliverOrderService.markDeliveryFailed", () => {
   });
 
   it("lê o pedido com lock", async () => {
-    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.markDeliveryFailed(orderId, driverId, "Cliente ausente");
 
@@ -327,7 +356,7 @@ describe("deliverOrderService.markDeliveryFailed", () => {
   // mantinha o KPI zerado e fazia a timeline do cliente dizer "Pedido
   // cancelado". Corrigido em ago/2026.
   it("emite REDELIVERY_REQUIRED com o motivo, e não ORDER_CANCELLED", async () => {
-    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.markDeliveryFailed(orderId, driverId, "Cliente ausente");
 
@@ -342,7 +371,7 @@ describe("deliverOrderService.markDeliveryFailed", () => {
   });
 
   it("notifica o consumidor após o commit", async () => {
-    mocks.orderRepository.findByIdWithItemsForUpdate.mockResolvedValue(order());
+    givenOrder(order());
 
     await deliverOrderService.markDeliveryFailed(orderId, driverId, "Cliente ausente");
 
@@ -358,7 +387,7 @@ describe("deliverOrderService.scheduleRedelivery", () => {
   const newDate = new Date("2026-06-05T00:00:00.000Z");
 
   it("leva DELIVERY_FAILED para REDELIVERY_SCHEDULED com a nova data", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order({ status: OrderStatus.DELIVERY_FAILED }));
+    givenOrder(order({ status: OrderStatus.DELIVERY_FAILED }));
 
     const result = await deliverOrderService.scheduleRedelivery(orderId, opsUserId, newDate);
 
@@ -372,7 +401,7 @@ describe("deliverOrderService.scheduleRedelivery", () => {
   });
 
   it("rejeita reagendamento de pedido que não falhou", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order({ status: OrderStatus.OUT_FOR_DELIVERY }));
+    givenOrder(order({ status: OrderStatus.OUT_FOR_DELIVERY }));
 
     await expect(
       deliverOrderService.scheduleRedelivery(orderId, opsUserId, newDate)
@@ -383,7 +412,7 @@ describe("deliverOrderService.scheduleRedelivery", () => {
   // do consumidor renderiza como "Pagamento confirmado" — logo após uma falha
   // de entrega, o cliente entendia que tinha sido cobrado de novo.
   it("emite REDELIVERY_SCHEDULED, e não ORDER_CONFIRMED", async () => {
-    mocks.orderRepository.findById.mockResolvedValue(order({ status: OrderStatus.DELIVERY_FAILED }));
+    givenOrder(order({ status: OrderStatus.DELIVERY_FAILED }));
 
     await deliverOrderService.scheduleRedelivery(orderId, opsUserId, newDate);
 

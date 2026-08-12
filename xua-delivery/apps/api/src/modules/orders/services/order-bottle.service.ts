@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
-import { ActorType, AuditEventType, InventoryMovementType, InventoryReferenceType, SourceApp } from "@xua/shared/enums";
+import { ActorType, AuditEventType, InventoryMovementType, InventoryReferenceType, OrderStatus, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
@@ -14,6 +14,29 @@ import { translateInventoryError } from "./order-inventory.helpers.js";
 const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
+
+/**
+ * Status em que registrar vasilhame faz sentido.
+ *
+ * Aceita os dois lados da conclusão porque as duas ordens de operação convivem:
+ * o app antigo confirma o código primeiro (pedido já DELIVERED) e o app novo
+ * registra o vasilhame antes (pedido ainda OUT_FOR_DELIVERY). Qualquer outro
+ * status é registro indevido — sem esta checagem era possível gravar vasilhame
+ * de um pedido cancelado, recusado ou que sequer saiu para entrega.
+ */
+const BOTTLE_STEP_ALLOWED_STATUSES: ReadonlySet<string> = new Set([
+  OrderStatus.OUT_FOR_DELIVERY,
+  OrderStatus.DELIVERED,
+]);
+
+function assertBottleStepAllowed(status: string): void {
+  if (!BOTTLE_STEP_ALLOWED_STATUSES.has(status)) {
+    throw new OrderServiceError(
+      "BOTTLE_STEP_INVALID_STATUS",
+      "Pedido não está em uma etapa que permita registrar vasilhame"
+    );
+  }
+}
 
 /**
  * orderBottleService — registros de troca/não-coleta de vasilhame pelo motorista.
@@ -34,6 +57,7 @@ export const orderBottleService = {
       if (current.driver_id !== driverId) {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
       }
+      assertBottleStepAllowed(current.status);
 
       let emptyReturnInventoryItem: Awaited<
         ReturnType<typeof inventoryRepository.findActiveReturnableEmptyItem>
@@ -83,6 +107,7 @@ export const orderBottleService = {
           collected_empty_qty: data.collectedQty,
           returned_empty_qty: data.returnedQty,
           bottle_condition: data.condition ?? null,
+          bottle_step_recorded_at: new Date(),
         },
         tx
       );
@@ -143,12 +168,14 @@ export const orderBottleService = {
       if (current.driver_id !== driverId) {
         throw new OrderServiceError("FORBIDDEN", "Acesso negado");
       }
+      assertBottleStepAllowed(current.status);
 
       const updated = await orderRepository.update(
         orderId,
         {
           empty_not_collected_reason: data.reason,
           empty_not_collected_notes: data.notes ?? null,
+          bottle_step_recorded_at: new Date(),
         },
         tx
       );
