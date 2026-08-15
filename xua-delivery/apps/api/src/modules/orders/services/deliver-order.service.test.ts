@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   resolveOrderInventoryLines: vi.fn(),
   applyOrderInventoryMovements: vi.fn(),
   inventoryAuditLines: vi.fn(),
+  recordBottleStepInTx: vi.fn(),
+  publishBottleStepEvents: vi.fn(),
 }));
 
 vi.mock("../../../infra/prisma/client.js", () => ({
@@ -74,6 +76,11 @@ vi.mock("../../user-subscriptions/services/subscription-settlement.service.js", 
   subscriptionSettlementService: mocks.subscriptionSettlementService,
 }));
 
+vi.mock("./order-bottle.service.js", () => ({
+  recordBottleStepInTx: mocks.recordBottleStepInTx,
+  publishBottleStepEvents: mocks.publishBottleStepEvents,
+}));
+
 // A máquina de estados e OrderServiceError NÃO são mockadas — queremos a
 // validação de transição real.
 const { deliverOrderService } = await import("./deliver-order.service.js");
@@ -95,6 +102,16 @@ const driverActor = {
   type: ActorType.DRIVER,
   id: driverId,
   sourceApp: SourceApp.DRIVER_WEB,
+};
+
+const bottleStepRecordedAt = new Date("2026-06-01T10:30:00.000Z");
+
+/** Passo de vasilhame que o motorista envia junto do código, no fluxo normal. */
+const bottleStep = {
+  kind: "exchange" as const,
+  collectedQty: 2,
+  returnedQty: 2,
+  condition: "ok",
 };
 
 function order(overrides: Record<string, unknown> = {}) {
@@ -155,13 +172,18 @@ beforeEach(() => {
   mocks.inventoryAuditLines.mockReturnValue([]);
   mocks.notificationService.send.mockResolvedValue({ sent: 0, failed: 0 });
   mocks.subscriptionSettlementService.settleDelivered.mockResolvedValue(undefined);
+  mocks.recordBottleStepInTx.mockResolvedValue({
+    order: { ...order(), bottle_step_recorded_at: bottleStepRecordedAt },
+    consumerPayload: {},
+    distributorPayload: {},
+  });
 });
 
 describe("deliverOrderService.deliverOrder", () => {
   it("leva OUT_FOR_DELIVERY para DELIVERED e grava delivered_at", async () => {
     givenOrder(order());
 
-    const result = await deliverOrderService.deliverOrder(orderId, driverActor);
+    const result = await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(result.status).toBe(OrderStatus.DELIVERED);
     expect(mocks.orderRepository.updateStatus).toHaveBeenCalledWith(
@@ -177,7 +199,7 @@ describe("deliverOrderService.deliverOrder", () => {
       order({ status: OrderStatus.READY_FOR_DISPATCH })
     );
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor, bottleStep)).rejects.toThrow(
       OrderServiceError
     );
     expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
@@ -186,7 +208,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("rejeita pedido inexistente", async () => {
     givenOrder(null);
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor, bottleStep)).rejects.toThrow(
       OrderServiceError
     );
   });
@@ -194,7 +216,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("emite ORDER_DELIVERED dentro da transação", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     const call = auditCallFor(AuditEventType.ORDER_DELIVERED);
     expect(call).toBeDefined();
@@ -211,7 +233,7 @@ describe("deliverOrderService.deliverOrder", () => {
     givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(tx.payment.update).toHaveBeenCalledWith({
       where: { id: paymentId },
@@ -230,7 +252,7 @@ describe("deliverOrderService.deliverOrder", () => {
     givenOrder(order());
     tx.payment.findFirst.mockResolvedValue(cashPayment({ status: PaymentStatus.REFUNDED }));
 
-    await expect(deliverOrderService.deliverOrder(orderId, driverActor)).rejects.toThrow(
+    await expect(deliverOrderService.deliverOrder(orderId, driverActor, bottleStep)).rejects.toThrow(
       OrderServiceError
     );
     expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
@@ -239,7 +261,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("compensa a assinatura dentro da mesma transação", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(mocks.subscriptionSettlementService.settleDelivered).toHaveBeenCalledWith(tx, orderId);
   });
@@ -247,7 +269,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("notifica o consumidor apenas depois do commit", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(mocks.orderEventsPublisher.notifyConsumer).toHaveBeenCalledWith(
       consumerId,
@@ -262,7 +284,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("notifica a distribuidora quando a entrega conclui", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(mocks.orderEventsPublisher.distributorOrderStatusChanged).toHaveBeenCalledWith(
       expect.objectContaining({ id: orderId }),
@@ -270,15 +292,53 @@ describe("deliverOrderService.deliverOrder", () => {
     );
   });
 
-  // MODO TOLERANTE (Estágio 2A). Ainda concluímos a entrega sem o registro de
-  // vasilhame, de propósito: apps antigos em cache no celular confirmam o
-  // código antes de abrir a tela de vasilhame, e rejeitar agora travaria
-  // entregas em campo durante o deploy. Quando o Estágio 2C ligar o guard
-  // estrito, este teste deve falhar e virar uma asserção de rejeição.
-  it("ainda conclui a entrega sem registro de vasilhame, mas marca na auditoria", async () => {
+  // O vasilhame é gravado na MESMA transação da conclusão — é isso que impede
+  // a entrega de fechar sem o registro.
+  it("grava o passo de vasilhame dentro da transação da entrega", async () => {
     givenOrder(order({ bottle_step_recorded_at: null }));
 
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
+
+    expect(mocks.recordBottleStepInTx).toHaveBeenCalledWith(orderId, driverId, bottleStep, tx);
+    expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
+      payload: {
+        bottle_step_recorded: true,
+        bottle_step_recorded_at: bottleStepRecordedAt.toISOString(),
+      },
+    });
+  });
+
+  // O guard central desta fase: motorista não fecha entrega sem vasilhame.
+  it("recusa a entrega do motorista quando não há passo de vasilhame", async () => {
+    givenOrder(order({ bottle_step_recorded_at: null }));
+
+    await expect(
+      deliverOrderService.deliverOrder(orderId, driverActor)
+    ).rejects.toMatchObject({ code: "BOTTLE_STEP_REQUIRED" });
+
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("aceita a entrega quando o vasilhame já havia sido registrado antes", async () => {
+    givenOrder(order({ bottle_step_recorded_at: bottleStepRecordedAt }));
+
     const result = await deliverOrderService.deliverOrder(orderId, driverActor);
+
+    expect(result.status).toBe(OrderStatus.DELIVERED);
+    expect(mocks.recordBottleStepInTx).not.toHaveBeenCalled();
+  });
+
+  // Ops/suporte passam sem vasilhame porque o override existe justamente para
+  // quando o motorista não consegue reportar — sem sinal, por exemplo. A
+  // auditoria registra que o dado não veio.
+  it("permite override de ops sem vasilhame, marcando na auditoria", async () => {
+    givenOrder(order({ bottle_step_recorded_at: null }));
+
+    const result = await deliverOrderService.deliverOrder(orderId, {
+      type: ActorType.OPS,
+      id: opsUserId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
 
     expect(result.status).toBe(OrderStatus.DELIVERED);
     expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
@@ -286,18 +346,22 @@ describe("deliverOrderService.deliverOrder", () => {
     });
   });
 
-  it("registra na auditoria quando o passo de vasilhame foi cumprido", async () => {
-    const recordedAt = new Date("2026-06-01T10:30:00.000Z");
-    givenOrder(order({ bottle_step_recorded_at: recordedAt }));
+  it("emite os eventos do vasilhame apenas depois do commit", async () => {
+    givenOrder(order({ bottle_step_recorded_at: null }));
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
-    expect(auditCallFor(AuditEventType.ORDER_DELIVERED)![0]).toMatchObject({
-      payload: {
-        bottle_step_recorded: true,
-        bottle_step_recorded_at: recordedAt.toISOString(),
-      },
-    });
+    expect(mocks.publishBottleStepEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("não emite eventos de vasilhame quando a entrega falha", async () => {
+    givenOrder(order({ status: OrderStatus.READY_FOR_DISPATCH }));
+
+    await expect(
+      deliverOrderService.deliverOrder(orderId, driverActor, bottleStep)
+    ).rejects.toThrow(OrderServiceError);
+
+    expect(mocks.publishBottleStepEvents).not.toHaveBeenCalled();
   });
 
   // Lê com lock, simétrico com markDeliveryFailed. Sem isso, duas confirmações
@@ -305,7 +369,7 @@ describe("deliverOrderService.deliverOrder", () => {
   it("lê o pedido com lock", async () => {
     givenOrder(order());
 
-    await deliverOrderService.deliverOrder(orderId, driverActor);
+    await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
     expect(mocks.orderRepository.findByIdWithItemsForUpdate).toHaveBeenCalledWith(orderId, tx);
   });

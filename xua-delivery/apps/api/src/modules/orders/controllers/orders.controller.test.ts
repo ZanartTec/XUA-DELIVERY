@@ -123,6 +123,13 @@ const existingOrder = {
   status: OrderStatus.SENT_TO_DISTRIBUTOR,
 };
 
+/** Passo de vasilhame exigido na conclusão da entrega, no formato do contrato. */
+const bottleStepBody = {
+  kind: "exchange",
+  returned_empty_qty: 2,
+  bottle_condition: "ok",
+};
+
 function req(role: string, body: Record<string, unknown>, query: Record<string, unknown> = {}): Request {
   return {
     user: { sub: userId, role },
@@ -463,7 +470,7 @@ describe("ordersController verifyOtp/otpOverride", () => {
       new mocks.OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas")
     );
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(429);
     expect(response.json).toHaveBeenCalledWith({
@@ -484,7 +491,7 @@ describe("ordersController verifyOtp/otpOverride", () => {
       locked: true,
     });
 
-    await ordersController.verifyOtp(req("driver", { code: "000000" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "000000", bottle_step: bottleStepBody }), response);
 
     expect(mocks.orderEventsPublisher.notifyOps).toHaveBeenCalledWith(
       "otp_locked",
@@ -503,7 +510,7 @@ describe("ordersController verifyOtp/otpOverride", () => {
       locked: false,
     });
 
-    await ordersController.verifyOtp(req("driver", { code: "000000" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "000000", bottle_step: bottleStepBody }), response);
 
     expect(mocks.orderEventsPublisher.notifyOps).not.toHaveBeenCalled();
   });
@@ -512,7 +519,7 @@ describe("ordersController verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_EXPIRED", "OTP expirado"));
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({ error: "OTP expirado", code: "OTP_EXPIRED" });
@@ -522,7 +529,7 @@ describe("ordersController verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_NOT_FOUND", "OTP não encontrado"));
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await ordersController.verifyOtp(req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(404);
   });
@@ -531,13 +538,44 @@ describe("ordersController verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
 
+    await ordersController.verifyOtp(req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
+
+    // O vasilhame vai junto do código, na mesma chamada: é o que garante que
+    // a entrega não conclui sem o registro.
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(
+      orderId,
+      { type: ActorType.DRIVER, id: userId, sourceApp: SourceApp.DRIVER_WEB },
+      { kind: "exchange", collectedQty: 2, returnedQty: 2, condition: "ok" }
+    );
+  });
+
+  it("recusa a conclusão sem o passo de vasilhame", async () => {
+    const response = res();
+
     await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
 
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
-      type: ActorType.DRIVER,
-      id: userId,
-      sourceApp: SourceApp.DRIVER_WEB,
-    });
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.validate).not.toHaveBeenCalled();
+    expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
+  });
+
+  it("aceita não-coleta como passo de vasilhame", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
+
+    await ordersController.verifyOtp(
+      req("driver", {
+        code: "123456",
+        bottle_step: { kind: "not_collected", reason: "client_absent" },
+      }),
+      response
+    );
+
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(
+      orderId,
+      expect.anything(),
+      { kind: "not_collected", reason: "client_absent", notes: undefined }
+    );
   });
 
   it("retorna 400 quando o codigo informado nao tem 6 digitos", async () => {

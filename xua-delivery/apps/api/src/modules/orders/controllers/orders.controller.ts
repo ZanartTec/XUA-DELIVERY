@@ -5,6 +5,8 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderService, OrderServiceError } from "../services/orders.service.js";
 import { driverDeliveryActor, opsDeliveryActor } from "../services/delivery-actor.js";
 import { orderEventsPublisher } from "../services/order-events.publisher.js";
+import type { BottleStep } from "../services/order-bottle.service.js";
+import type { BottleStepInput } from "@xua/shared/schemas/order";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
@@ -19,7 +21,7 @@ import {
   assignDriverSchema,
   dispatchSchema,
   dispatchWithChecklistSchema,
-  verifyOtpSchema,
+  completeDeliverySchema,
   otpOverrideSchema,
   cancelOrderSchema,
   deliveryFailedSchema,
@@ -53,6 +55,7 @@ function errorStatus(code: string): number {
     // o registro de vasilhame ser descartado silenciosamente, sem erro visível
     // e com perda do dado que o motorista digitou em campo.
     BOTTLE_STEP_INVALID_STATUS: 422,
+    BOTTLE_STEP_REQUIRED: 422,
   };
   return map[code] ?? 400;
 }
@@ -86,6 +89,22 @@ async function loadOwnedOrder(req: Request, res: Response): Promise<Order | null
     return null;
   }
   return existing;
+}
+
+/**
+ * Traduz o passo de vasilhame do contrato HTTP para o tipo do serviço.
+ * `collected_empty_qty` ausente assume o valor de `returned_empty_qty`.
+ */
+function toBottleStep(input: BottleStepInput): BottleStep {
+  if (input.kind === "exchange") {
+    return {
+      kind: "exchange",
+      collectedQty: input.collected_empty_qty ?? input.returned_empty_qty,
+      returnedQty: input.returned_empty_qty,
+      condition: input.bottle_condition,
+    };
+  }
+  return { kind: "not_collected", reason: input.reason, notes: input.notes };
 }
 
 function stockReturnOptions(payload: Record<string, unknown>) {
@@ -514,14 +533,19 @@ export const ordersController = {
 
   /**
    * PATCH /api/orders/:id/verify-otp
-   * Motorista valida o código informado pelo cliente e confirma a entrega.
+   * Conclusão da entrega: código do cliente + vasilhame, numa requisição só.
+   *
+   * A validação do código roda em transação própria, de propósito: a tentativa
+   * precisa ser contabilizada mesmo quando o código está errado, senão a trava
+   * de 5 tentativas nunca fecharia. Só depois de o código conferir é que o
+   * vasilhame e a mudança de status acontecem — juntos, na mesma transação.
    */
   async verifyOtp(req: Request, res: Response): Promise<void> {
     try {
       const existing = await loadOwnedOrder(req, res);
       if (!existing) return;
 
-      const parsed = verifyOtpSchema.safeParse(req.body);
+      const parsed = completeDeliverySchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: parsed.error.issues[0].message });
         return;
@@ -553,7 +577,8 @@ export const ordersController = {
 
       const updatedOrder = await orderService.deliverOrder(
         existing.id,
-        driverDeliveryActor(req.user!.sub)
+        driverDeliveryActor(req.user!.sub),
+        toBottleStep(parsed.data.bottle_step)
       );
       res.json({ order: updatedOrder });
     } catch (error) {
