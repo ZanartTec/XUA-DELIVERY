@@ -99,7 +99,7 @@ Novo utilitário `src/lib/zone-coverage.ts` — parser da lista colada no import
 
 ## Testes
 
-Cobertura Vitest em `apps/api/src/modules/zones/{controllers,services}/*.test.ts` e `packages/shared/src/schemas/zone.test.ts` (mock do Prisma, sem banco real): normalização de CEP de 8 dígitos em vários formatos de entrada, rejeição de CEP de 5 dígitos, bloqueio de conflito interno, aviso (não bloqueio) de sobreposição externa, ownership em rotas de escrita (`distributor_admin` de uma distribuidora não mexe em zona de outra), transferência bloqueada com pedido em aberto, transferência bloqueada por conflito de cobertura no destino, reativação de zona recusada por conflito.
+Cobertura Vitest em `tests/unit/api/modules/zones/{controllers,services}/*.test.ts` e `tests/unit/shared/schemas/zone.test.ts` (mock do Prisma, sem banco real): normalização de CEP de 8 dígitos em vários formatos de entrada, rejeição de CEP de 5 dígitos, bloqueio de conflito interno, aviso (não bloqueio) de sobreposição externa, ownership em rotas de escrita (`distributor_admin` de uma distribuidora não mexe em zona de outra), transferência bloqueada com pedido em aberto, transferência bloqueada por conflito de cobertura no destino, reativação de zona recusada por conflito.
 
 ## Referências cruzadas
 

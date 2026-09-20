@@ -2,17 +2,32 @@
 
 ## Estrutura de testes
 
-Os testes ficam **ao lado do código** (`arquivo.ts` + `arquivo.test.ts` no mesmo
-diretório) — não há pasta `__tests__` separada. Essa convenção já era seguida
-pelos 44 testes existentes e continua sendo o padrão: facilita achar o teste de
-um arquivo e evita a estrutura de pastas divergir do código real.
+Os testes ficam **centralizados em `tests/`**, na raiz do monorepo — `apps/api/src`
+e `packages/shared/src` contêm só código de produção. A árvore de `tests/unit` e
+`tests/integration` **espelha a do `src`**, então achar o teste de um arquivo
+continua sendo mecânico.
+
+> Até setembro/2026 os testes eram co-localizados (`arquivo.ts` + `arquivo.test.ts`
+> no mesmo diretório). A referência completa da estrutura nova, dos aliases de
+> import e das convenções está em [`tests/README.md`](../../tests/README.md).
+
+```
+tests/
+├── support/       helpers (fixtures, reset de banco, errorForwardingNext)
+├── unit/          api/ e shared/, Prisma e Redis mockados
+├── integration/   api/, Postgres real
+└── e2e/           Playwright (roda contra stack de pé, não usa Vitest)
+```
+
+Testes importam o código por alias (`@api/*`, `@xua/shared/*`, `@tests/*`),
+nunca por caminho relativo — ver `tests/aliases.ts` e `tests/tsconfig.json`.
 
 Duas camadas, diferenciadas por sufixo:
 
 | Sufixo | O que é | Roda contra | Config |
 |---|---|---|---|
-| `*.test.ts` | Unitário — Prisma/Redis mockados (`vi.mock`), sem I/O real | Nada (mock total) | `vitest.config.ts` |
-| `*.integration.test.ts` | Integração — bate no Postgres de verdade | Postgres real (local ou CI) | `vitest.integration.config.ts` |
+| `tests/unit/**/*.test.ts` | Unitário — Prisma/Redis mockados (`vi.mock`), sem I/O real | Nada (mock total) | `vitest.config.ts` |
+| `tests/integration/**/*.integration.test.ts` | Integração — bate no Postgres de verdade | Postgres real (local ou CI) | `vitest.integration.config.ts` |
 
 Reserve `.integration.test.ts` para lógica que só existe no banco e que um mock
 não consegue exercitar: `$queryRaw`, triggers, constraints, funções SQL
@@ -27,7 +42,7 @@ realmente depender do banco.
 
 ### E2E (Playwright) — fase 2, ainda scaffold
 
-`apps/web/e2e/` tem um único smoke test (`smoke.spec.ts`): login como
+`tests/e2e/` tem um único smoke test (`smoke.spec.ts`): login como
 consumer + chegada no `/catalog`. Não substitui unit/integration para regra de
 negócio — é só a garantia de que o caminho mais básico não está quebrado.
 Roda no CI como job informativo (`e2e-smoke`, `continue-on-error: true`), não
@@ -41,6 +56,7 @@ distribuidor, entrega + OTP) antes de promovê-lo a required check.
 npm test
 npm run test:watch
 npm run test:coverage
+npm run typecheck:tests   # testes têm tsconfig próprio
 
 # Integração — precisa de Postgres rodando
 docker compose up -d postgres

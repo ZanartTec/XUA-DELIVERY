@@ -54,7 +54,7 @@ Nenhuma mudança em `apps/web/proxy.ts` — as novas rotas caem sob `/ops/...` e
 
 ## Testes
 
-Cobertura Vitest (mock do Prisma via `vi.hoisted`/`vi.mock`, sem banco real) em `apps/api/src/modules/distributor/{repository,services}/*.test.ts`: criação de distribuidora+admin em transação única, rejeição de CNPJ/e-mail duplicado, criação de motorista por `distributor_admin` (ignorando `distributor_id` do body), edição de motorista de outra distribuidora (deve falhar com 403), vinculação de motorista órfão, bloqueio de login por `is_active=false`.
+Cobertura Vitest (mock do Prisma via `vi.hoisted`/`vi.mock`, sem banco real) em `tests/unit/api/modules/distributor/{repository,services}/*.test.ts`: criação de distribuidora+admin em transação única, rejeição de CNPJ/e-mail duplicado, criação de motorista por `distributor_admin` (ignorando `distributor_id` do body), edição de motorista de outra distribuidora (deve falhar com 403), vinculação de motorista órfão, bloqueio de login por `is_active=false`.
 
 ## O que falta (bloqueado até o usuário fornecer credenciais de DEV)
 

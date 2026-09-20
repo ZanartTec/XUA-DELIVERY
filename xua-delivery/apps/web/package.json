@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:e2e": "playwright test --config e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config ../../tests/e2e/playwright.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

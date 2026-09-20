@@ -19,6 +19,8 @@
     "lint": "npm run lint -w @xua/web",
     "typecheck:api": "npm run typecheck -w @xua/api",
     "typecheck:web": "tsc -p apps/web/tsconfig.json --noEmit",
+    "typecheck:tests": "tsc -p tests/tsconfig.json --noEmit",
+    "typecheck": "npm run typecheck:api && npm run typecheck:web && npm run typecheck:tests",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

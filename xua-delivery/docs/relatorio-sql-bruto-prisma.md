@@ -444,7 +444,7 @@ Alternativa Prisma considerada: `order.findUnique({ include: { items: true } })`
 
 ## Validacao executada
 
-- `npm test -- apps/api/src/modules/distributor/services/kpi.service.test.ts apps/api/src/modules/distributor/repository/distributor.repository.test.ts` - passou, 7 testes.
+- `npm test -- tests/unit/api/modules/distributor/services/kpi.service.test.ts tests/unit/api/modules/distributor/repository/distributor.repository.test.ts` - passou, 7 testes.
 - `npm run typecheck:api` - passou.
 - `npm test` - passou, 18 arquivos e 132 testes.
 - Busca final por `$queryRaw|$executeRaw|queryRawUnsafe|executeRawUnsafe` em `apps/api/src/**` - restaram apenas 6 ocorrencias, todas ligadas a `FOR UPDATE` e documentadas no codigo.
