@@ -89,7 +89,10 @@ describe("subscriptionPlansService.listPlans", () => {
 describe("subscriptionPlansService.getPlan", () => {
   it("lança PLAN_NOT_FOUND quando o plano não existe", async () => {
     mocks.subscriptionPlansRepository.findById.mockResolvedValue(null);
-    await expect(subscriptionPlansService.getPlan("plan-x")).rejects.toThrow("PLAN_NOT_FOUND");
+    await expect(subscriptionPlansService.getPlan("plan-x")).rejects.toMatchObject({
+      code: "PLAN_NOT_FOUND",
+      status: 404,
+    });
   });
 
   it("retorna o plano mascarado quando existe", async () => {
@@ -113,9 +116,10 @@ describe("subscriptionPlansService.createPlan", () => {
   it("bloqueia quando alguma distribuidora não tem gateway MP configurado (regra P2)", async () => {
     mocks.distributorGatewayService.findMissingGatewayIds.mockResolvedValue(["dist-1"]);
 
-    await expect(subscriptionPlansService.createPlan(payload)).rejects.toThrow(
-      "DISTRIBUTOR_GATEWAY_REQUIRED"
-    );
+    await expect(subscriptionPlansService.createPlan(payload)).rejects.toMatchObject({
+      code: "DISTRIBUTOR_GATEWAY_REQUIRED",
+      status: 400,
+    });
     expect(mocks.subscriptionPlansRepository.create).not.toHaveBeenCalled();
   });
 
@@ -149,7 +153,7 @@ describe("subscriptionPlansService.updatePlan", () => {
     mocks.subscriptionPlansRepository.findById.mockResolvedValue(null);
     await expect(
       subscriptionPlansService.updatePlan("plan-x", { name: "Novo nome" })
-    ).rejects.toThrow("PLAN_NOT_FOUND");
+    ).rejects.toMatchObject({ code: "PLAN_NOT_FOUND", status: 404 });
   });
 
   it("bloqueia troca de distribuidoras sem gateway MP configurado", async () => {
@@ -158,7 +162,7 @@ describe("subscriptionPlansService.updatePlan", () => {
 
     await expect(
       subscriptionPlansService.updatePlan("plan-1", { distributor_ids: ["dist-2"] })
-    ).rejects.toThrow("DISTRIBUTOR_GATEWAY_REQUIRED");
+    ).rejects.toMatchObject({ code: "DISTRIBUTOR_GATEWAY_REQUIRED", status: 400 });
     expect(mocks.subscriptionPlansRepository.update).not.toHaveBeenCalled();
   });
 

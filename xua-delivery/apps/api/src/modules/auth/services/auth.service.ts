@@ -7,6 +7,7 @@ import { createLogger } from "../../../infra/logger";
 import { isUserRole } from "@xua/shared/constants/roles";
 import type { UserRole } from "@xua/shared/constants/roles";
 import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("auth");
 
@@ -17,12 +18,20 @@ if (!DUMMY_HASH) {
   throw new Error("FATAL: A variável de ambiente DUMMY_HASH não está configurada.");
 }
 
-export class AuthServiceError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
+const AUTH_ERROR_CODES: Record<number, string> = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+};
+
+export class AuthServiceError extends AppError {
+  // Assinatura (message, status) mantida: o módulo de auth nunca teve codes de
+  // domínio, só status. O code genérico vem do status para a resposta continuar
+  // carregando um `code` como a dos outros módulos.
+  constructor(message: string, status: number) {
+    super(AUTH_ERROR_CODES[status] ?? "BAD_REQUEST", message, { status });
     this.name = "AuthServiceError";
   }
 }

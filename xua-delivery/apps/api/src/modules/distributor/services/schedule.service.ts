@@ -3,6 +3,7 @@ import { DeliveryWindow } from "@xua/shared/enums";
 import { scheduleRepository } from "../repository/schedule.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("schedule-service");
 
@@ -80,9 +81,9 @@ function pad2(n: number): string {
   return n.toString().padStart(2, "0");
 }
 
-export class ScheduleServiceError extends Error {
-  constructor(public code: string, message: string, public status = 422) {
-    super(message);
+export class ScheduleServiceError extends AppError {
+  constructor(code: string, message: string, status = 422) {
+    super(code, message, { status });
     this.name = "ScheduleServiceError";
   }
 }

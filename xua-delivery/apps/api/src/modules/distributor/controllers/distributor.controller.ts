@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { kpiService } from "../services/kpi.service.js";
 
 import { scheduleService } from "../services/schedule.service.js";
@@ -27,6 +27,7 @@ import {
   opsInventoryReadIdParamSchema,
 } from "@xua/shared/schemas/inventory";
 import { InventoryReconciliationSessionError } from "../../inventory/services/reconciliation-session.service.js";
+import { badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
 import {
   weekdayBulkSchema,
   blockDateSchema,
@@ -39,10 +40,10 @@ export const distributorController = {
    * GET /api/distributors?zone_id=&date=&window=
    * Lista distribuidoras disponíveis para seleção manual pelo consumidor.
    */
-  async listAvailable(req: Request, res: Response): Promise<void> {
+  async listAvailable(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = distributorQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -54,8 +55,7 @@ export const distributorController = {
       );
       res.json({ distributors });
     } catch (err) {
-      log.error({ err }, "Erro ao buscar distribuidoras disponíveis");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -66,13 +66,12 @@ export const distributorController = {
    * RBAC, então não há problema de segurança em expor distribuidoras
    * inativas aqui).
    */
-  async listAll(_req: Request, res: Response): Promise<void> {
+  async listAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const distributors = await distributorRepository.findAllForOps();
       res.json({ distributors });
     } catch (err) {
-      log.error({ err }, "Erro ao listar distribuidoras");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -80,10 +79,10 @@ export const distributorController = {
    * GET /api/distributor/kpis?period=7d
    * Retorna KPIs do distribuidor autenticado.
    */
-  async getKpis(req: Request, res: Response): Promise<void> {
+  async getKpis(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
     if (!distributorId) {
-      res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+      next(forbidden("Usuário não vinculado a nenhuma distribuidora"));
       return;
     }
     const period = (req.query.period as string) ?? "7d";
@@ -113,18 +112,17 @@ export const distributorController = {
    * GET /api/distributor/drivers
    * Retorna lista de motoristas disponíveis para despacho.
    */
-  async getDrivers(req: Request, res: Response): Promise<void> {
+  async getDrivers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (!distributorId) {
-        res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+        next(forbidden("Usuário não vinculado a nenhuma distribuidora"));
         return;
       }
       const drivers = await distributorRepository.findDriversByDistributor(distributorId);
       res.json({ drivers });
     } catch (err) {
-      log.error({ err }, "Erro ao buscar motoristas");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -132,10 +130,10 @@ export const distributorController = {
    * GET /api/distributor/inventory/balances
    * Lista saldos materializados da distribuidora autenticada.
    */
-  async listInventoryBalances(req: Request, res: Response): Promise<void> {
+  async listInventoryBalances(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryBalanceQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -147,13 +145,7 @@ export const distributorController = {
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao listar saldos de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -161,10 +153,10 @@ export const distributorController = {
    * GET /api/distributor/inventory/items
    * Lista itens de estoque ativos para filtros, carga inicial e conciliação.
    */
-  async listInventoryItems(req: Request, res: Response): Promise<void> {
+  async listInventoryItems(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryItemFilterSchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -176,13 +168,7 @@ export const distributorController = {
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao listar itens de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -190,10 +176,10 @@ export const distributorController = {
    * GET /api/distributor/inventory/movements
    * Lista movimentos de estoque da distribuidora autenticada.
    */
-  async listInventoryMovements(req: Request, res: Response): Promise<void> {
+  async listInventoryMovements(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryMovementQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -205,13 +191,7 @@ export const distributorController = {
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao listar movimentos de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -219,10 +199,10 @@ export const distributorController = {
    * POST /api/distributor/inventory/initial-load
    * Registra carga inicial de estoque para a distribuidora autenticada.
    */
-  async createInitialInventoryLoad(req: Request, res: Response): Promise<void> {
+  async createInitialInventoryLoad(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryInitialLoadSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -234,31 +214,7 @@ export const distributorController = {
 
       res.status(result.applied_count > 0 ? 201 : 200).json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      if (
-        err instanceof DistributorServiceError &&
-        ["INITIAL_LOAD_BATCH_CONFLICT", "INITIAL_LOAD_ALREADY_EXISTS"].includes(err.code)
-      ) {
-        res.status(409).json({ error: err.message });
-        return;
-      }
-
-      if (err instanceof InventoryServiceError) {
-        if (err.code === "IDEMPOTENCY_CONFLICT") {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-
-        res.status(400).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao aplicar carga inicial de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -266,10 +222,10 @@ export const distributorController = {
    * POST /api/distributor/inventory/reconciliation-sessions
    * Abre sessão física de conciliação da distribuidora autenticada.
    */
-  async openInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+  async openInventoryReconciliationSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryReconciliationSessionOpenSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -280,23 +236,7 @@ export const distributorController = {
 
       res.status(201).json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      if (err instanceof InventoryReconciliationSessionError) {
-        if (err.code === "OPEN_SESSION_EXISTS") {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-
-        res.status(400).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao abrir sessão de conciliação de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -304,10 +244,10 @@ export const distributorController = {
    * GET /api/distributor/inventory/reconciliation-sessions
    * Lista sessões físicas da distribuidora autenticada.
    */
-  async listInventoryReconciliationSessions(req: Request, res: Response): Promise<void> {
+  async listInventoryReconciliationSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = inventoryReconciliationSessionQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -319,13 +259,7 @@ export const distributorController = {
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao listar sessões de conciliação de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -333,10 +267,10 @@ export const distributorController = {
    * GET /api/distributor/inventory/reconciliation-sessions/:id
    * Consulta sessão física da distribuidora autenticada.
    */
-  async getInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+  async getInventoryReconciliationSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = opsInventoryReadIdParamSchema.safeParse(req.params);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -347,19 +281,13 @@ export const distributorController = {
       });
 
       if (!result) {
-        res.status(404).json({ error: "Sessão de conciliação não encontrada" });
+        next(notFound("Sessão de conciliação não encontrada"));
         return;
       }
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao consultar sessão de conciliação de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -367,16 +295,16 @@ export const distributorController = {
    * POST /api/distributor/inventory/reconciliation-sessions/:id/close
    * Fecha sessão física e aplica ajustes via ledger.
    */
-  async closeInventoryReconciliationSession(req: Request, res: Response): Promise<void> {
+  async closeInventoryReconciliationSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsedParams = opsInventoryReadIdParamSchema.safeParse(req.params);
     if (!parsedParams.success) {
-      res.status(400).json({ error: parsedParams.error.issues[0].message });
+      next(badRequest(parsedParams.error.issues[0]!.message));
       return;
     }
 
     const parsedBody = inventoryReconciliationSessionCloseSchema.safeParse(req.body);
     if (!parsedBody.success) {
-      res.status(400).json({ error: parsedBody.error.issues[0].message });
+      next(badRequest(parsedBody.error.issues[0]!.message));
       return;
     }
 
@@ -389,33 +317,7 @@ export const distributorController = {
 
       res.json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DISTRIBUTOR_NOT_LINKED") {
-        res.status(403).json({ error: err.message });
-        return;
-      }
-
-      if (err instanceof InventoryReconciliationSessionError) {
-        if (err.code === "SESSION_NOT_FOUND") {
-          res.status(404).json({ error: err.message });
-          return;
-        }
-
-        if (["OPEN_SESSION_EXISTS", "SESSION_NOT_OPEN"].includes(err.code)) {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-
-        res.status(400).json({ error: err.message });
-        return;
-      }
-
-      if (err instanceof InventoryServiceError) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao fechar sessão de conciliação de estoque");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -423,24 +325,18 @@ export const distributorController = {
    * GET /api/distributor/routes/:id
    * Retorna as paradas de uma rota diária agrupadas por zona e janela.
    */
-  async getRouteById(req: Request, res: Response): Promise<void> {
+  async getRouteById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (!distributorId) {
-        res.status(403).json({ error: "Usuário não vinculado a nenhuma distribuidora" });
+        next(forbidden("Usuário não vinculado a nenhuma distribuidora"));
         return;
       }
 
       const route = await routeService.getDailyRoute(distributorId, req.params.id as string);
       res.json({ route });
     } catch (err) {
-      if (err instanceof Error && err.message === "INVALID_ROUTE_ID") {
-        res.status(400).json({ error: "Rota inválida. Use yyyy-mm-dd ou 'today'." });
-        return;
-      }
-
-      log.error({ err }, "Erro ao buscar rota do distribuidor");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -452,10 +348,10 @@ export const distributorController = {
    * dos dias úteis e horários disponíveis (ex.: criação de assinatura).
    * Retorna apenas weekdays e time slots ATIVOS.
    */
-  async getPublicSchedule(req: Request, res: Response): Promise<void> {
+  async getPublicSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     if (!distributorId) {
-      res.status(400).json({ error: "distributorId obrigatório" });
+      next(badRequest("distributorId obrigatório"));
       return;
     }
 
@@ -470,8 +366,7 @@ export const distributorController = {
         time_slots: timeSlots,
       });
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao buscar agenda pública");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -479,10 +374,10 @@ export const distributorController = {
    * GET /api/distributor/schedule/:distributorId
    * Retorna configuração de dias ativos + lead_time + datas bloqueadas.
    */
-  async getScheduleConfig(req: Request, res: Response): Promise<void> {
+  async getScheduleConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     if (!distributorId) {
-      res.status(400).json({ error: "distributorId obrigatório" });
+      next(badRequest("distributorId obrigatório"));
       return;
     }
 
@@ -490,7 +385,7 @@ export const distributorController = {
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        next(forbidden("Sem permissão para acessar esta distribuidora"));
         return;
       }
     }
@@ -499,8 +394,7 @@ export const distributorController = {
       const config = await scheduleService.getScheduleConfig(distributorId);
       res.json(config);
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao buscar config de agenda");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -508,11 +402,11 @@ export const distributorController = {
    * POST /api/distributor/schedule/:distributorId/weekdays
    * Configura múltiplos dias da semana em batch.
    */
-  async upsertWeekdays(req: Request, res: Response): Promise<void> {
+  async upsertWeekdays(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     const parsed = weekdayBulkSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -520,7 +414,7 @@ export const distributorController = {
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        next(forbidden("Sem permissão para acessar esta distribuidora"));
         return;
       }
     }
@@ -542,19 +436,18 @@ export const distributorController = {
       });
       res.status(200).json({ weekdays: results });
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao configurar dias da semana");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /**
    * POST /api/distributor/schedule/:distributorId/block-date
    */
-  async blockDate(req: Request, res: Response): Promise<void> {
+  async blockDate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     const parsed = blockDateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -562,7 +455,7 @@ export const distributorController = {
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        next(forbidden("Sem permissão para acessar esta distribuidora"));
         return;
       }
     }
@@ -576,23 +469,22 @@ export const distributorController = {
       res.status(201).json(blocked);
     } catch (err: any) {
       if (err?.code === "P2002") {
-        res.status(409).json({ error: "Data já está bloqueada" });
+        next(conflict("Data já está bloqueada"));
         return;
       }
-      log.error({ err, distributorId }, "Erro ao bloquear data");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /**
    * DELETE /api/distributor/schedule/:distributorId/block-date/:date
    */
-  async unblockDate(req: Request, res: Response): Promise<void> {
+  async unblockDate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     const date = req.params.date as string;
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      res.status(400).json({ error: "Data inválida (YYYY-MM-DD)" });
+      next(badRequest("Data inválida (YYYY-MM-DD)"));
       return;
     }
 
@@ -600,7 +492,7 @@ export const distributorController = {
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
+        next(forbidden("Sem permissão para acessar esta distribuidora"));
         return;
       }
     }
@@ -609,21 +501,20 @@ export const distributorController = {
       await scheduleRepository.unblockDate(distributorId, date);
       res.status(204).end();
     } catch (err) {
-      log.error({ err, distributorId, date }, "Erro ao desbloquear data");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   // ─── Time Slots CRUD ──────────────────────────────────────
 
   /** GET /api/distributor/schedule/:distributorId/time-slots */
-  async listTimeSlots(req: Request, res: Response): Promise<void> {
+  async listTimeSlots(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
 
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão" });
+        next(forbidden("Sem permissão"));
         return;
       }
     }
@@ -632,30 +523,29 @@ export const distributorController = {
       const slots = await timeslotRepository.findAllByDistributor(distributorId);
       res.json({ slots });
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao listar time slots");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** POST /api/distributor/schedule/:distributorId/time-slots */
-  async upsertTimeSlot(req: Request, res: Response): Promise<void> {
+  async upsertTimeSlot(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
 
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão" });
+        next(forbidden("Sem permissão"));
         return;
       }
     }
 
     const { id, label, start_hour, start_minute, end_hour, end_minute, window, sort_order, is_active } = req.body;
     if (!label || start_hour == null || end_hour == null || !window) {
-      res.status(400).json({ error: "Campos obrigatórios: label, start_hour, end_hour, window" });
+      next(badRequest("Campos obrigatórios: label, start_hour, end_hour, window"));
       return;
     }
     if (!["MORNING", "AFTERNOON"].includes(window)) {
-      res.status(400).json({ error: "window deve ser MORNING ou AFTERNOON" });
+      next(badRequest("window deve ser MORNING ou AFTERNOON"));
       return;
     }
 
@@ -673,27 +563,26 @@ export const distributorController = {
       });
       res.status(id ? 200 : 201).json(slot);
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao salvar time slot");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** PATCH /api/distributor/schedule/:distributorId/time-slots/:slotId/toggle */
-  async toggleTimeSlot(req: Request, res: Response): Promise<void> {
+  async toggleTimeSlot(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     const slotId = req.params.slotId as string;
 
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão" });
+        next(forbidden("Sem permissão"));
         return;
       }
     }
 
     const { is_active } = req.body;
     if (typeof is_active !== "boolean") {
-      res.status(400).json({ error: "is_active (boolean) obrigatório" });
+      next(badRequest("is_active (boolean) obrigatório"));
       return;
     }
 
@@ -701,20 +590,19 @@ export const distributorController = {
       const slot = await timeslotRepository.toggleSlot(slotId, is_active);
       res.json(slot);
     } catch (err) {
-      log.error({ err, slotId }, "Erro ao alternar time slot");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** DELETE /api/distributor/schedule/:distributorId/time-slots/:slotId */
-  async deleteTimeSlot(req: Request, res: Response): Promise<void> {
+  async deleteTimeSlot(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
     const slotId = req.params.slotId as string;
 
     if (req.user!.role !== "ops") {
       const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
       if (userDistId !== distributorId) {
-        res.status(403).json({ error: "Sem permissão" });
+        next(forbidden("Sem permissão"));
         return;
       }
     }
@@ -723,18 +611,17 @@ export const distributorController = {
       await timeslotRepository.deleteSlot(slotId);
       res.status(204).end();
     } catch (err) {
-      log.error({ err, slotId }, "Erro ao deletar time slot");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   // ─── CRUD de distribuidora (ops) ──────────────────────────
 
   /** POST /api/distributor — cria distribuidora + primeiro admin. Exclusivo para ops. */
-  async create(req: Request, res: Response): Promise<void> {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = distributorCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -742,23 +629,17 @@ export const distributorController = {
       const result = await distributorService.createDistributor(parsed.data, req.user!.sub);
       res.status(201).json(result);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DUPLICATE_DISTRIBUTOR") {
-        res.status(409).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao criar distribuidora");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** PATCH /api/distributor/:id — edita distribuidora, incluindo is_active. Exclusivo para ops. */
-  async update(req: Request, res: Response): Promise<void> {
+  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     const id = req.params.id as string;
 
     const parsed = distributorUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -766,13 +647,7 @@ export const distributorController = {
       const distributor = await distributorService.updateDistributor(id, parsed.data, req.user!.sub);
       res.json(distributor);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DUPLICATE_DISTRIBUTOR") {
-        res.status(409).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, distributorId: id }, "Erro ao atualizar distribuidora");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -783,10 +658,10 @@ export const distributorController = {
    * `distributor_admin` cadastra para a própria distribuidora; `ops` deve
    * informar `distributor_id` no body.
    */
-  async createDriver(req: Request, res: Response): Promise<void> {
+  async createDriver(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = driverCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -797,23 +672,7 @@ export const distributorController = {
       );
       res.status(201).json(driver);
     } catch (err) {
-      if (err instanceof DistributorServiceError) {
-        if (err.code === "DUPLICATE_DRIVER_EMAIL") {
-          res.status(409).json({ error: err.message });
-          return;
-        }
-        if (err.code === "DISTRIBUTOR_NOT_LINKED") {
-          res.status(403).json({ error: err.message });
-          return;
-        }
-        if (err.code === "DISTRIBUTOR_ID_REQUIRED") {
-          res.status(400).json({ error: err.message });
-          return;
-        }
-      }
-
-      log.error({ err, userId: req.user?.sub }, "Erro ao criar motorista");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -821,12 +680,12 @@ export const distributorController = {
    * PATCH /api/distributor/drivers/:id
    * `distributor_admin` só edita motoristas da própria distribuidora.
    */
-  async updateDriver(req: Request, res: Response): Promise<void> {
+  async updateDriver(req: Request, res: Response, next: NextFunction): Promise<void> {
     const driverId = req.params.id as string;
 
     const parsed = driverUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -838,19 +697,7 @@ export const distributorController = {
       );
       res.json(driver);
     } catch (err) {
-      if (err instanceof DistributorServiceError) {
-        if (err.code === "DRIVER_NOT_FOUND") {
-          res.status(404).json({ error: err.message });
-          return;
-        }
-        if (err.code === "DRIVER_NOT_OWNED_BY_DISTRIBUTOR") {
-          res.status(403).json({ error: err.message });
-          return;
-        }
-      }
-
-      log.error({ err, driverId }, "Erro ao atualizar motorista");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -860,34 +707,32 @@ export const distributorController = {
    * incluindo órfãos sem vínculo), com o nome da distribuidora de cada um —
    * exclusivo para a tela de gestão completa `ops`.
    */
-  async listAllDrivers(_req: Request, res: Response): Promise<void> {
+  async listAllDrivers(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const drivers = await distributorRepository.findAllDriversForOps();
       res.json({ drivers });
     } catch (err) {
-      log.error({ err }, "Erro ao listar todos os motoristas");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** GET /api/distributor/drivers/unlinked — motoristas sem distribuidora. Exclusivo para ops. */
-  async listUnlinkedDrivers(_req: Request, res: Response): Promise<void> {
+  async listUnlinkedDrivers(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const drivers = await distributorService.listUnlinkedDrivers();
       res.json({ drivers });
     } catch (err) {
-      log.error({ err }, "Erro ao listar motoristas não vinculados");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** PATCH /api/distributor/drivers/:id/link — vincula motorista órfão. Exclusivo para ops. */
-  async linkDriver(req: Request, res: Response): Promise<void> {
+  async linkDriver(req: Request, res: Response, next: NextFunction): Promise<void> {
     const driverId = req.params.id as string;
     const distributorId = req.body?.distributor_id;
 
     if (!distributorId || typeof distributorId !== "string") {
-      res.status(400).json({ error: "distributor_id obrigatório" });
+      next(badRequest("distributor_id obrigatório"));
       return;
     }
 
@@ -895,13 +740,7 @@ export const distributorController = {
       const driver = await distributorService.linkDriver(driverId, distributorId, req.user!.sub);
       res.json(driver);
     } catch (err) {
-      if (err instanceof DistributorServiceError && err.code === "DRIVER_NOT_FOUND") {
-        res.status(404).json({ error: err.message });
-        return;
-      }
-
-      log.error({ err, driverId }, "Erro ao vincular motorista");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 };

@@ -1,24 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { OrderStatus } from "@xua/shared/enums";
 
-const mocks = vi.hoisted(() => {
-  class MockOrderServiceError extends Error {
-    constructor(
-      public code: string,
-      message: string
-    ) {
-      super(message);
+const mocks = await vi.hoisted(async () => {
+  // Os erros de domínio estendem AppError — é dele que o errorHandler tira o
+  // status. Dublês que herdassem de Error viravam 500 em vez do status real.
+  const { AppError } = await import("../../../errors/index.js");
+
+  class MockOrderServiceError extends AppError {
+    constructor(code: string, message: string) {
+      super(code, message);
       this.name = "OrderServiceError";
     }
   }
 
-  class MockOtpServiceError extends Error {
-    constructor(
-      public code: string,
-      message: string
-    ) {
-      super(message);
+  class MockOtpServiceError extends AppError {
+    constructor(code: string, message: string) {
+      super(code, message);
       this.name = "OtpServiceError";
     }
   }
@@ -82,7 +80,7 @@ vi.mock("../../../infra/socket/gateway.js", () => ({
 }));
 
 vi.mock("../../../infra/logger/index.js", () => ({
-  logger: { error: mocks.loggerError },
+  logger: { error: mocks.loggerError, warn: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("../../../infra/prisma/client.js", () => ({
@@ -94,6 +92,7 @@ vi.mock("../../distributor/index.js", () => ({
   DistributorServiceError: class DistributorServiceError extends Error {},
 }));
 
+const { errorForwardingNext } = await import("../../../test-support/error-next.js");
 const { ordersController } = await import("./orders.controller.js");
 
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236901";
@@ -127,6 +126,16 @@ function res() {
 
   response.status.mockReturnValue(response);
   return response;
+}
+
+type Handler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+/**
+ * Invoca o handler ligando o `next` ao errorHandler real — os controllers não
+ * montam mais a resposta de erro, então é ele quem traduz code → status.
+ */
+function call(handler: Handler, request: Request, response: ReturnType<typeof res>): Promise<void> {
+  return handler(request, response, errorForwardingNext(request, response));
 }
 
 beforeEach(() => {
@@ -190,7 +199,7 @@ describe("ordersController list distributor queue", () => {
   it("bloqueia consumer em scope distributor", async () => {
     const response = res();
 
-    await ordersController.list(req("consumer", {}, { scope: "distributor" }), response);
+    await call(ordersController.list, req("consumer", {}, { scope: "distributor" }), response);
 
     expect(response.status).toHaveBeenCalledWith(403);
     expect(mocks.orderService.listDistributorQueue).not.toHaveBeenCalled();
@@ -199,7 +208,7 @@ describe("ordersController list distributor queue", () => {
   it("retorna 400 para query inválida", async () => {
     const response = res();
 
-    await ordersController.list(req("distributor_admin", {}, { scope: "distributor", q: "a" }), response);
+    await call(ordersController.list, req("distributor_admin", {}, { scope: "distributor", q: "a" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({
@@ -232,7 +241,7 @@ describe("ordersController list distributor queue", () => {
     };
     mocks.orderService.listDistributorQueue.mockResolvedValueOnce(result);
 
-    await ordersController.list(
+    await call(ordersController.list, 
       req("distributor_admin", {}, {
         scope: "distributor",
         stage: "incoming",
@@ -286,7 +295,7 @@ describe("ordersController list distributor queue", () => {
     };
     mocks.orderService.listDistributorQueue.mockResolvedValueOnce(result);
 
-    await ordersController.list(
+    await call(ordersController.list, 
       req("distributor_admin", {}, {
         scope: "distributor",
         stage: "history",
@@ -312,7 +321,7 @@ describe("ordersController create", () => {
   it("cria pedido em dinheiro com troco", async () => {
     const response = res();
 
-    await ordersController.create(
+    await call(ordersController.create, 
       req("consumer", {
         address_id: addressId,
         distributor_id: distributorId,
@@ -345,7 +354,7 @@ describe("ordersController accept/reject (ownership)", () => {
     const response = res();
     mocks.orderRepository.findById.mockResolvedValueOnce(null);
 
-    await ordersController.accept(req("distributor_admin", {}), response);
+    await call(ordersController.accept, req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(404);
     expect(mocks.orderService.acceptOrder).not.toHaveBeenCalled();
@@ -355,7 +364,7 @@ describe("ordersController accept/reject (ownership)", () => {
     const response = res();
     mocks.orderPolicy.canAccess.mockResolvedValueOnce(false);
 
-    await ordersController.accept(req("distributor_admin", {}), response);
+    await call(ordersController.accept, req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(403);
     expect(mocks.orderService.acceptOrder).not.toHaveBeenCalled();
@@ -364,7 +373,7 @@ describe("ordersController accept/reject (ownership)", () => {
   it("aceita pedido e devolve o resultado do service", async () => {
     const response = res();
 
-    await ordersController.accept(req("distributor_admin", {}), response);
+    await call(ordersController.accept, req("distributor_admin", {}), response);
 
     expect(mocks.orderService.acceptOrder).toHaveBeenCalledWith(orderId, userId);
     expect(response.json).toHaveBeenCalledWith({
@@ -375,7 +384,7 @@ describe("ordersController accept/reject (ownership)", () => {
   it("rejeita pedido com motivo validado pelo schema", async () => {
     const response = res();
 
-    await ordersController.reject(req("distributor_admin", { reason: "out_of_stock" }), response);
+    await call(ordersController.reject, req("distributor_admin", { reason: "out_of_stock" }), response);
 
     expect(mocks.orderService.rejectOrder).toHaveBeenCalledWith(orderId, userId, "out_of_stock", undefined);
   });
@@ -383,7 +392,7 @@ describe("ordersController accept/reject (ownership)", () => {
   it("retorna 400 quando o motivo de rejeicao e invalido", async () => {
     const response = res();
 
-    await ordersController.reject(req("distributor_admin", { reason: "not_a_valid_reason" }), response);
+    await call(ordersController.reject, req("distributor_admin", { reason: "not_a_valid_reason" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.orderService.rejectOrder).not.toHaveBeenCalled();
@@ -394,7 +403,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   it("atribui motorista validando driver_id", async () => {
     const response = res();
 
-    await ordersController.assignDriver(req("distributor_admin", { driver_id: userId }), response);
+    await call(ordersController.assignDriver, req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.assignDriver).toHaveBeenCalledWith(orderId, userId, userId);
     expect(response.json).toHaveBeenCalledWith({
@@ -405,7 +414,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   it("retorna 400 quando driver_id nao e um uuid valido", async () => {
     const response = res();
 
-    await ordersController.assignDriver(req("distributor_admin", { driver_id: "not-a-uuid" }), response);
+    await call(ordersController.assignDriver, req("distributor_admin", { driver_id: "not-a-uuid" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.orderService.assignDriver).not.toHaveBeenCalled();
@@ -414,7 +423,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   it("completa checklist de despacho", async () => {
     const response = res();
 
-    await ordersController.completeChecklist(req("distributor_admin", {}), response);
+    await call(ordersController.completeChecklist, req("distributor_admin", {}), response);
 
     expect(mocks.orderService.completeChecklist).toHaveBeenCalledWith(orderId, userId);
   });
@@ -422,7 +431,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   it("despacha pedido e emite OTP via socket", async () => {
     const response = res();
 
-    await ordersController.dispatch(req("distributor_admin", { driver_id: userId }), response);
+    await call(ordersController.dispatch, req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.dispatch).toHaveBeenCalledWith(orderId, userId, userId);
     expect(mocks.socketTo).toHaveBeenCalledWith(`consumer:${userId}`);
@@ -436,7 +445,7 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   it("despacha com checklist atomico e emite OTP via socket", async () => {
     const response = res();
 
-    await ordersController.dispatchWithChecklist(req("distributor_admin", { driver_id: userId }), response);
+    await call(ordersController.dispatchWithChecklist, req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.dispatchWithChecklist).toHaveBeenCalledWith(orderId, userId, userId);
     expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "654321" });
@@ -447,7 +456,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("entrega pedido diretamente (uso administrativo)", async () => {
     const response = res();
 
-    await ordersController.deliver(req("driver", {}), response);
+    await call(ordersController.deliver, req("driver", {}), response);
 
     expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
   });
@@ -458,7 +467,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
       new mocks.OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas")
     );
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(429);
     expect(response.json).toHaveBeenCalledWith({
@@ -472,7 +481,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_EXPIRED", "OTP expirado"));
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({ error: "OTP expirado", code: "OTP_EXPIRED" });
@@ -482,7 +491,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_NOT_FOUND", "OTP não encontrado"));
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(404);
   });
@@ -491,7 +500,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
 
-    await ordersController.verifyOtp(req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
     expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
   });
@@ -499,7 +508,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("retorna 400 quando o codigo informado nao tem 6 digitos", async () => {
     const response = res();
 
-    await ordersController.verifyOtp(req("driver", { code: "123" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.otpService.validate).not.toHaveBeenCalled();
@@ -508,7 +517,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("faz override do OTP com motivo pre-definido e entrega o pedido", async () => {
     const response = res();
 
-    await ordersController.otpOverride(req("ops", { reason: "confirmed_by_phone" }), response);
+    await call(ordersController.otpOverride, req("ops", { reason: "confirmed_by_phone" }), response);
 
     expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "confirmed_by_phone", undefined);
     expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
@@ -517,7 +526,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("aceita motivo 'other' com detalhe de ao menos 10 caracteres", async () => {
     const response = res();
 
-    await ordersController.otpOverride(
+    await call(ordersController.otpOverride, 
       req("ops", { reason: "other", details: "Cliente sem celular no momento" }),
       response
     );
@@ -534,7 +543,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("retorna 400 quando o override nao informa motivo", async () => {
     const response = res();
 
-    await ordersController.otpOverride(req("ops", {}), response);
+    await call(ordersController.otpOverride, req("ops", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.otpService.override).not.toHaveBeenCalled();
@@ -543,7 +552,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
   it("retorna 400 quando motivo 'other' nao tem detalhe suficiente", async () => {
     const response = res();
 
-    await ordersController.otpOverride(req("ops", { reason: "other", details: "curto" }), response);
+    await call(ordersController.otpOverride, req("ops", { reason: "other", details: "curto" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.otpService.override).not.toHaveBeenCalled();
@@ -554,7 +563,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("cancela pedido repassando actorType conforme a role", async () => {
     const response = res();
 
-    await ordersController.cancel(req("ops", { reason: "Operacao", return_to_stock: true }), response);
+    await call(ordersController.cancel, req("ops", { reason: "Operacao", return_to_stock: true }), response);
 
     expect(mocks.orderService.cancelOrder).toHaveBeenCalledWith(orderId, userId, "ops", "Operacao", {
       returnToStock: true,
@@ -564,7 +573,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("usa motivo padrao quando reason nao e informado no cancelamento", async () => {
     const response = res();
 
-    await ordersController.cancel(req("consumer", {}), response);
+    await call(ordersController.cancel, req("consumer", {}), response);
 
     expect(mocks.orderService.cancelOrder).toHaveBeenCalledWith(
       orderId,
@@ -578,7 +587,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("registra falha de entrega com retorno fisico confirmado", async () => {
     const response = res();
 
-    await ordersController.deliveryFailed(
+    await call(ordersController.deliveryFailed, 
       req("driver", { reason: "Ausente", physical_return_confirmed: true }),
       response
     );
@@ -591,7 +600,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("retorna 400 quando delivery-failed nao informa motivo", async () => {
     const response = res();
 
-    await ordersController.deliveryFailed(req("driver", {}), response);
+    await call(ordersController.deliveryFailed, req("driver", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.orderService.markDeliveryFailed).not.toHaveBeenCalled();
@@ -600,7 +609,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("agenda reentrega com nova data valida", async () => {
     const response = res();
 
-    await ordersController.scheduleRedelivery(req("ops", { new_date: "2026-07-01" }), response);
+    await call(ordersController.scheduleRedelivery, req("ops", { new_date: "2026-07-01" }), response);
 
     expect(mocks.orderService.scheduleRedelivery).toHaveBeenCalledWith(orderId, userId, new Date("2026-07-01"));
   });
@@ -608,7 +617,7 @@ describe("ordersController cancel/deliveryFailed/scheduleRedelivery", () => {
   it("retorna 400 quando a nova data de reentrega e invalida", async () => {
     const response = res();
 
-    await ordersController.scheduleRedelivery(req("ops", { new_date: "data-invalida" }), response);
+    await call(ordersController.scheduleRedelivery, req("ops", { new_date: "data-invalida" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.orderService.scheduleRedelivery).not.toHaveBeenCalled();
@@ -622,7 +631,7 @@ describe("ordersController inventory errors", () => {
       new mocks.OrderServiceError("STOCK_UNAVAILABLE", "Saldo insuficiente")
     );
 
-    await ordersController.accept(req("distributor_admin", {}), response);
+    await call(ordersController.accept, req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(response.json).toHaveBeenCalledWith({
@@ -637,7 +646,7 @@ describe("ordersController inventory errors", () => {
       new mocks.OrderServiceError("IDEMPOTENCY_CONFLICT", "Referencia de estoque divergente")
     );
 
-    await ordersController.accept(req("distributor_admin", {}), response);
+    await call(ordersController.accept, req("distributor_admin", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(response.json).toHaveBeenCalledWith({
@@ -651,7 +660,7 @@ describe("ordersController list (consumer)", () => {
   it("retorna 400 para statusGroup inválido", async () => {
     const response = res();
 
-    await ordersController.list(req("consumer", {}, { statusGroup: "invalido" }), response);
+    await call(ordersController.list, req("consumer", {}, { statusGroup: "invalido" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(mocks.orderService.listOrders).not.toHaveBeenCalled();
@@ -668,7 +677,7 @@ describe("ordersController list (consumer)", () => {
       summary: { all: 0, active: 0, delivered: 0, cancelled: 0 },
     });
 
-    await ordersController.list(
+    await call(ordersController.list, 
       req("consumer", {}, { statusGroup: "active", page: "2", limit: "6" }),
       response
     );
@@ -690,7 +699,7 @@ describe("ordersController getById", () => {
     const response = res();
     mocks.orderService.getOrderDetail.mockResolvedValueOnce(existingOrder);
 
-    await ordersController.getById(req("driver", {}), response);
+    await call(ordersController.getById, req("driver", {}), response);
 
     expect(mocks.orderService.getOrderDetail).toHaveBeenCalledWith(orderId, "driver");
   });
@@ -700,7 +709,7 @@ describe("ordersController getById", () => {
     mocks.orderService.getOrderDetail.mockResolvedValueOnce(existingOrder);
     mocks.orderPolicy.canAccess.mockResolvedValueOnce(false);
 
-    await ordersController.getById(req("consumer", {}), response);
+    await call(ordersController.getById, req("consumer", {}), response);
 
     expect(response.status).toHaveBeenCalledWith(403);
   });
@@ -713,7 +722,7 @@ describe("ordersController submitRating", () => {
       new mocks.OrderServiceError("ALREADY_RATED", "Pedido já foi avaliado")
     );
 
-    await ordersController.submitRating(req("consumer", { rating: 5 }), response);
+    await call(ordersController.submitRating, req("consumer", { rating: 5 }), response);
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(response.json).toHaveBeenCalledWith({

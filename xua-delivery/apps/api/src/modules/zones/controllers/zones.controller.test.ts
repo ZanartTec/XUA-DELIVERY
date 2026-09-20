@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
 const ZONE_ID = "7e1d7b55-3f52-4d10-aac3-74387c236901";
 const OWNER_DISTRIBUTOR_ID = "7e1d7b55-3f52-4d10-aac3-74387c236910";
@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../../infra/logger/index.js", () => ({
   createLogger: () => ({ info: vi.fn(), error: mocks.logError }),
+  logger: { info: vi.fn(), warn: vi.fn(), error: mocks.logError },
 }));
 vi.mock("../services/zones.service.js", async () => {
   const actual = await vi.importActual<typeof import("../services/zones.service.js")>(
@@ -49,6 +50,7 @@ vi.mock("../../distributor/repository/timeslot.repository.js", () => ({
   timeslotRepository: { findActiveByDistributor: vi.fn() },
 }));
 
+const { errorForwardingNext } = await import("../../../test-support/error-next.js");
 const { zonesController } = await import("./zones.controller.js");
 const { ZoneServiceError } = await import("../services/zones.service.js");
 
@@ -81,6 +83,16 @@ function res() {
   return response;
 }
 
+type Handler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+/**
+ * Invoca o handler ligando o `next` ao errorHandler real — os controllers não
+ * montam mais a resposta de erro, então é ele quem traduz code → status.
+ */
+function call(handler: Handler, request: Request, response: ReturnType<typeof res>): Promise<void> {
+  return handler(request, response, errorForwardingNext(request, response));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.zonesRepository.findDistributorId.mockResolvedValue(OWNER_DISTRIBUTOR_ID);
@@ -93,10 +105,10 @@ describe("ownership nas rotas de escrita", () => {
     mocks.distributorRepository.resolveDistributorId.mockResolvedValue(OTHER_DISTRIBUTOR_ID);
     const r = res();
 
-    await zonesController.update(req("distributor_admin", { body: { name: "Hack" } }), r);
+    await call(zonesController.update, req("distributor_admin", { body: { name: "Hack" } }), r);
 
     expect(r.status).toHaveBeenCalledWith(403);
-    expect(r.json).toHaveBeenCalledWith({ error: "Acesso negado" });
+    expect(r.json).toHaveBeenCalledWith({ error: "Acesso negado", code: "FORBIDDEN" });
     expect(mocks.zonesService.update).not.toHaveBeenCalled();
   });
 
@@ -104,7 +116,7 @@ describe("ownership nas rotas de escrita", () => {
     mocks.distributorRepository.resolveDistributorId.mockResolvedValue(OWNER_DISTRIBUTOR_ID);
     const r = res();
 
-    await zonesController.update(req("distributor_admin", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("distributor_admin", { body: { name: "Zona Sul" } }), r);
 
     expect(mocks.zonesService.update).toHaveBeenCalledOnce();
     expect(r.status).not.toHaveBeenCalledWith(403);
@@ -113,7 +125,7 @@ describe("ownership nas rotas de escrita", () => {
   it("lets ops edit any zone without resolving ownership", async () => {
     const r = res();
 
-    await zonesController.update(req("ops", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("ops", { body: { name: "Zona Sul" } }), r);
 
     expect(mocks.distributorRepository.resolveDistributorId).not.toHaveBeenCalled();
     expect(mocks.zonesService.update).toHaveBeenCalledOnce();
@@ -123,8 +135,7 @@ describe("ownership nas rotas de escrita", () => {
     mocks.distributorRepository.resolveDistributorId.mockResolvedValue(OTHER_DISTRIBUTOR_ID);
     const r = res();
 
-    await zonesController.create(
-      req("distributor_admin", {
+    await call(zonesController.create, req("distributor_admin", {
         body: { name: "Zona Sul", distributor_id: OWNER_DISTRIBUTOR_ID },
       }),
       r
@@ -138,7 +149,7 @@ describe("ownership nas rotas de escrita", () => {
     mocks.distributorRepository.resolveDistributorId.mockResolvedValue(null);
     const r = res();
 
-    await zonesController.remove(req("distributor_admin"), r);
+    await call(zonesController.remove, req("distributor_admin"), r);
 
     expect(r.status).toHaveBeenCalledWith(403);
     expect(mocks.zonesService.remove).not.toHaveBeenCalled();
@@ -148,10 +159,10 @@ describe("ownership nas rotas de escrita", () => {
     mocks.zonesRepository.findDistributorId.mockResolvedValue(null);
     const r = res();
 
-    await zonesController.update(req("distributor_admin", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("distributor_admin", { body: { name: "Zona Sul" } }), r);
 
     expect(r.status).toHaveBeenCalledWith(404);
-    expect(r.json).toHaveBeenCalledWith({ error: "Zona não encontrada" });
+    expect(r.json).toHaveBeenCalledWith({ error: "Zona não encontrada", code: "NOT_FOUND" });
   });
 });
 
@@ -162,8 +173,7 @@ describe("listForOps", () => {
     const r = res();
 
     // Sem distributor_id no query: sem o guard, veria a base inteira.
-    await zonesController.listForOps(
-      req("distributor_admin", { query: {}, params: {} }),
+    await call(zonesController.listForOps, req("distributor_admin", { query: {}, params: {} }),
       r
     );
 
@@ -177,8 +187,7 @@ describe("listForOps", () => {
     mocks.zonesService.listForOps.mockResolvedValue([]);
     const r = res();
 
-    await zonesController.listForOps(
-      req("distributor_admin", {
+    await call(zonesController.listForOps, req("distributor_admin", {
         query: { distributor_id: OTHER_DISTRIBUTOR_ID },
         params: {},
       }),
@@ -194,7 +203,7 @@ describe("listForOps", () => {
     mocks.zonesService.listForOps.mockResolvedValue([]);
     const r = res();
 
-    await zonesController.listForOps(req("ops", { query: {}, params: {} }), r);
+    await call(zonesController.listForOps, req("ops", { query: {}, params: {} }), r);
 
     expect(mocks.distributorRepository.resolveDistributorId).not.toHaveBeenCalled();
     expect(mocks.zonesService.listForOps).toHaveBeenCalledWith(
@@ -215,7 +224,7 @@ describe("mapeamento de erro de domínio para HTTP", () => {
     mocks.zonesService.update.mockRejectedValue(new ZoneServiceError(code, "erro de domínio"));
     const r = res();
 
-    await zonesController.update(req("ops", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("ops", { body: { name: "Zona Sul" } }), r);
 
     expect(r.status).toHaveBeenCalledWith(status);
     expect(r.json).toHaveBeenCalledWith(
@@ -227,10 +236,10 @@ describe("mapeamento de erro de domínio para HTTP", () => {
     mocks.zonesService.update.mockRejectedValue(new Error("boom"));
     const r = res();
 
-    await zonesController.update(req("ops", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("ops", { body: { name: "Zona Sul" } }), r);
 
     expect(r.status).toHaveBeenCalledWith(500);
-    expect(r.json).toHaveBeenCalledWith({ error: "Erro interno" });
+    expect(r.json).toHaveBeenCalledWith({ error: "Erro interno", code: "INTERNAL_ERROR" });
     expect(mocks.logError).toHaveBeenCalled();
   });
 
@@ -242,7 +251,7 @@ describe("mapeamento de erro de domínio para HTTP", () => {
     );
     const r = res();
 
-    await zonesController.update(req("ops", { body: { name: "Zona Sul" } }), r);
+    await call(zonesController.update, req("ops", { body: { name: "Zona Sul" } }), r);
 
     expect(r.json).toHaveBeenCalledWith(
       expect.objectContaining({ details: { conflicts: [{ zone_name: "JF — Norte" }] } })
@@ -254,7 +263,7 @@ describe("validação de payload", () => {
   it("rejects an empty patch with 400", async () => {
     const r = res();
 
-    await zonesController.update(req("ops", { body: {} }), r);
+    await call(zonesController.update, req("ops", { body: {} }), r);
 
     expect(r.status).toHaveBeenCalledWith(400);
     expect(mocks.zonesService.update).not.toHaveBeenCalled();
@@ -263,7 +272,7 @@ describe("validação de payload", () => {
   it("rejects a coverage entry with neither neighborhood nor zip", async () => {
     const r = res();
 
-    await zonesController.addCoverage(req("ops", { body: {} }), r);
+    await call(zonesController.addCoverage, req("ops", { body: {} }), r);
 
     expect(r.status).toHaveBeenCalledWith(400);
     expect(mocks.zonesService.addCoverage).not.toHaveBeenCalled();

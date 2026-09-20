@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
@@ -6,8 +6,9 @@ import { ONLINE_PAYMENT_METHOD_VALUES, PaymentKind } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { enqueuePaymentWebhookJob, PAYMENT_JOB_NAMES } from "../../../infra/queue/index.js";
 import { logger } from "../../../infra/logger/index.js";
+import { badRequest, unauthorized } from "../../../errors/index.js";
 import { PAYMENT_PROVIDERS } from "../gateway/payments.gateway.js";
-import { paymentService, PaymentServiceError } from "../services/payments.service.js";
+import { paymentService } from "../services/payments.service.js";
 import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
   normalizeWebhookPaymentKind,
@@ -21,15 +22,6 @@ const chargeSchema = z.object({
   order_id: z.string().uuid(),
   payment_method: z.enum(ONLINE_PAYMENT_METHOD_VALUES),
 });
-
-function errorStatus(code: string): number {
-  const map: Record<string, number> = {
-    ORDER_NOT_FOUND: 404,
-    INVALID_ORDER_STATUS: 409,
-    PROVIDER_REDIRECT_MISSING: 502,
-  };
-  return map[code] ?? 400;
-}
 
 function headerValue(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -228,15 +220,12 @@ function getProviderEventRef(body: Record<string, unknown>, resourceId: string):
 }
 
 export const paymentsController = {
-  async charge(req: Request, res: Response): Promise<void> {
+  async charge(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
-    const parsed = chargeSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-
     try {
+      const parsed = chargeSchema.safeParse(req.body);
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+
       const result = await paymentService.createCheckoutPayment(
         parsed.data.order_id,
         user.sub,
@@ -254,16 +243,11 @@ export const paymentsController = {
         redirectUrl: result.redirectUrl,
       });
     } catch (error) {
-      if (error instanceof PaymentServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ err: error }, "Error creating Mercado Pago checkout payment");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
-  async status(req: Request, res: Response): Promise<void> {
+  async status(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const orderId = req.params.orderId as string;
 
@@ -271,12 +255,7 @@ export const paymentsController = {
       const result = await paymentService.getOrderPaymentStatus(orderId, user.sub);
       res.json(result);
     } catch (error) {
-      if (error instanceof PaymentServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ err: error }, "Error fetching payment status");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -284,13 +263,13 @@ export const paymentsController = {
    * POST /api/payments/webhook
    * Endpoint público; Mercado Pago assina via x-signature + x-request-id.
    */
-  async webhook(req: Request, res: Response): Promise<void> {
+  async webhook(req: Request, res: Response, next: NextFunction): Promise<void> {
     const body = req.body as Record<string, unknown>;
 
     // 1. Contexto assinado por nós (global) → confiamos no referenceId/kind.
     const context = extractVerifiedWebhookContext(req);
     if (!context) {
-      res.status(401).json({ error: "Contexto inválido" });
+      next(unauthorized("Contexto inválido"));
       return;
     }
 
@@ -298,7 +277,7 @@ export const paymentsController = {
     const distributorId = await resolveDistributorIdFromContext(context);
     if (!distributorId) {
       logger.warn({ referenceId: context.referenceId }, "Webhook sem distribuidora resolvível");
-      res.status(401).json({ error: "Distribuidora não encontrada" });
+      next(unauthorized("Distribuidora não encontrada"));
       return;
     }
 
@@ -306,7 +285,7 @@ export const paymentsController = {
     const secret = await distributorGatewayService.getWebhookSecret(distributorId);
     if (!secret) {
       logger.warn({ distributorId }, "Distribuidora sem webhook secret configurado");
-      res.status(401).json({ error: "Gateway não configurado" });
+      next(unauthorized("Gateway não configurado"));
       return;
     }
 
@@ -315,7 +294,7 @@ export const paymentsController = {
     const { resourceId, requestId } = signature;
     if (!signature.valid || !resourceId) {
       logger.warn({ reason: signature.reason, distributorId }, "Mercado Pago webhook rejected");
-      res.status(401).json({ error: "Assinatura inválida" });
+      next(unauthorized("Assinatura inválida"));
       return;
     }
 
@@ -374,7 +353,7 @@ export const paymentsController = {
       res.status(200).json({ ok: true });
     } catch (error) {
       logger.error({ err: error, providerEventRef }, "Error accepting Mercado Pago webhook");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 };

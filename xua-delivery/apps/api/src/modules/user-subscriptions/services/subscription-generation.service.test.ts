@@ -24,6 +24,7 @@ vi.mock("../../../infra/logger/index.js", () => ({ createLogger: () => mocks.log
 vi.mock("../../orders/services/orders.service.js", () => ({ orderService: mocks.orderService }));
 vi.mock("../../distributor/services/schedule.service.js", () => ({
   scheduleService: mocks.scheduleService,
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
 }));
 vi.mock("../repository/user-subscriptions.repository.js", () => ({
   userSubscriptionsRepository: mocks.repo,

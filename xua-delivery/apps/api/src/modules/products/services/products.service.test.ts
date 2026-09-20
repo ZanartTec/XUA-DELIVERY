@@ -34,6 +34,7 @@ vi.mock("../repository/products.repository.js", () => ({
 
 vi.mock("../../../infra/logger", () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() }),
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
 }));
 
 const { productsService } = await import("./products.service.js");

@@ -5,6 +5,7 @@ import type { CoverageInput, ZoneInput, ZoneUpdateInput } from "@xua/shared/sche
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { auditRepository } from "../../audit/audit.repository.js";
+import { AppError } from "../../../errors/index.js";
 import {
   zonesRepository,
   type ConflictRow,
@@ -17,13 +18,9 @@ const log = createLogger("zones");
 /** Quem executou a ação — `ops` ou o `distributor_admin` dono da zona. */
 export type ZoneActor = { type: ActorType; id: string };
 
-export class ZoneServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
+export class ZoneServiceError extends AppError {
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, { details });
     this.name = "ZoneServiceError";
   }
 }

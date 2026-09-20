@@ -61,6 +61,7 @@ vi.mock("../../../infra/socket/gateway.js", () => ({
 
 vi.mock("../../../infra/logger/index.js", () => ({
   createLogger: () => ({ info: mocks.loggerInfo, warn: mocks.loggerWarn }),
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
 }));
 
 vi.mock("../../../infra/redis/client.js", () => ({

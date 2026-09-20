@@ -6,6 +6,7 @@ import { otpRepository } from "../repository/otp.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import redis from "../../../infra/redis/client.js";
+import { AppError } from "../../../errors/index.js";
 
 const logger = createLogger("otp");
 
@@ -30,12 +31,9 @@ function hmacHash(code: string): string {
   return createHmac("sha256", OTP_SECRET).update(code).digest("hex");
 }
 
-export class OtpServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
+export class OtpServiceError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message);
     this.name = "OtpServiceError";
   }
 }

@@ -1,5 +1,6 @@
 import { DeliveryWindow, OrderStatus } from "@xua/shared/enums";
 import { distributorRepository } from "../repository/distributor.repository.js";
+import { badRequest } from "../../../errors/index.js";
 
 function parseRouteId(routeId: string): Date {
   if (routeId === "today") {
@@ -7,12 +8,12 @@ function parseRouteId(routeId: string): Date {
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(routeId)) {
-    throw new Error("INVALID_ROUTE_ID");
+    throw badRequest("Rota inválida. Use yyyy-mm-dd ou 'today'.");
   }
 
   const parsed = new Date(`${routeId}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) {
-    throw new Error("INVALID_ROUTE_ID");
+    throw badRequest("Rota inválida. Use yyyy-mm-dd ou 'today'.");
   }
 
   return parsed;

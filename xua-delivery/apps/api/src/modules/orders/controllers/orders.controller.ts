@@ -1,13 +1,13 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { Order, Product } from "@prisma/client";
 import { OrderStatus, type DeliveryWindow } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
-import { orderService, OrderServiceError } from "../services/orders.service.js";
+import { orderService } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
-import { otpService, OtpServiceError } from "../../driver/services/otp.service.js";
+import { otpService } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
-import { distributorService, DistributorServiceError, ScheduleServiceError } from "../../distributor/index.js";
+import { distributorService } from "../../distributor/index.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -25,59 +25,16 @@ import {
   distributorQueueQuerySchema,
   consumerOrdersQuerySchema,
 } from "@xua/shared/schemas/order";
-import { logger } from "../../../infra/logger/index.js";
+import { AppError, badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
 
-/** Helper: mapeia OrderServiceError/OtpServiceError para HTTP status */
-function errorStatus(code: string): number {
-  const map: Record<string, number> = {
-    ORDER_NOT_FOUND: 404,
-    FORBIDDEN: 403,
-    INVALID_TRANSITION: 400,
-    INVALID_STATUS: 400,
-    ALREADY_RATED: 409,
-    STOCK_UNAVAILABLE: 409,
-    IDEMPOTENCY_CONFLICT: 409,
-    INVENTORY_ITEM_NOT_FOUND: 400,
-    INVENTORY_ITEM_INACTIVE: 400,
-    INVENTORY_ITEM_CONFLICT: 409,
-    OTP_NOT_FOUND: 404,
-    OTP_EXPIRED: 400,
-    OTP_LOCKED: 429,
-    INVALID_CASH_CHANGE: 400,
-    CASH_PAYMENT_INVALID: 409,
-    PAYMENT_METHOD_NOT_ALLOWED: 400,
-  };
-  return map[code] ?? 400;
-}
-
-/** Encaminha erros conhecidos (OrderServiceError/OtpServiceError) para o status certo; o resto vira 500. */
-function handleActionError(error: unknown, res: Response, logMessage: string): void {
-  if (error instanceof OrderServiceError || error instanceof OtpServiceError) {
-    res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-    return;
-  }
-  logger.error({ error }, logMessage);
-  res.status(500).json({ error: "Erro interno" });
-}
-
-/**
- * SEC-05: carrega o pedido e verifica ownership antes de qualquer ação.
- * Responde 404/403 e retorna `null` quando o acesso já foi negado — o
- * chamador deve checar o retorno e simplesmente `return` nesse caso.
- */
-async function loadOwnedOrder(req: Request, res: Response): Promise<Order | null> {
+/** SEC-05: carrega o pedido e verifica ownership antes de qualquer ação. */
+async function loadOwnedOrder(req: Request): Promise<Order> {
   const user = req.user!;
   const id = req.params.id as string;
 
   const existing = await orderRepository.findById(id);
-  if (!existing) {
-    res.status(404).json({ error: "Pedido não encontrado" });
-    return null;
-  }
-  if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) {
-    res.status(403).json({ error: "Acesso negado" });
-    return null;
-  }
+  if (!existing) throw notFound("Pedido não encontrado");
+  if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) throw forbidden();
   return existing;
 }
 
@@ -94,7 +51,7 @@ export const ordersController = {
    * GET /api/orders
    * Lista pedidos com base no scope e role do usuário.
    */
-  async list(req: Request, res: Response): Promise<void> {
+  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const scope = req.query.scope as string | undefined;
     const statusParam = req.query.status as string | undefined;
@@ -103,8 +60,7 @@ export const ordersController = {
       // SEC-08: Scope support — busca por nome/telefone/email/CPF/id, com filtro opcional de data e status
       if (scope === "support") {
         if (user.role !== "support" && user.role !== "ops") {
-          res.status(403).json({ error: "Acesso negado" });
-          return;
+          throw forbidden();
         }
         // Sanitiza texto livre: tira wildcards do LIKE (%_\) que dariam scan largo/lento
         const sanitizeText = (value: unknown) =>
@@ -130,22 +86,19 @@ export const ordersController = {
         ];
         for (const [, value] of textFields) {
           if (value && value.length < 3) {
-            res.status(400).json({ error: "Campo de busca deve ter ao menos 3 caracteres" });
-            return;
+            throw badRequest("Campo de busca deve ter ao menos 3 caracteres");
           }
         }
 
         const hasFilter = textFields.some(([, value]) => value.length >= 3) || !!dateParam;
         if (!hasFilter) {
-          res.status(400).json({ error: "Informe ao menos um campo de busca com 3+ caracteres ou uma data" });
-          return;
+          throw badRequest("Informe ao menos um campo de busca com 3+ caracteres ou uma data");
         }
 
         let date: Date | undefined;
         if (dateParam) {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-            res.status(400).json({ error: "Data inválida (YYYY-MM-DD)" });
-            return;
+            throw badRequest("Data inválida (YYYY-MM-DD)");
           }
           date = new Date(`${dateParam}T00:00:00.000Z`);
         }
@@ -153,8 +106,7 @@ export const ordersController = {
         let status: OrderStatus | undefined;
         if (statusParamRaw) {
           if (!Object.values(OrderStatus).includes(statusParamRaw as OrderStatus)) {
-            res.status(400).json({ error: "Status inválido" });
-            return;
+            throw badRequest("Status inválido");
           }
           status = statusParamRaw as OrderStatus;
         }
@@ -182,17 +134,16 @@ export const ordersController = {
 
       if (scope === "distributor") {
         if (user.role !== "distributor_admin") {
-          res.status(403).json({ error: "Acesso negado" });
-          return;
+          throw forbidden();
         }
 
         const parsed = distributorQueueQuerySchema.safeParse(req.query);
         if (!parsed.success) {
-          res.status(400).json({
-            error: parsed.error.issues[0]?.message ?? "Query inválida",
-            code: "INVALID_QUERY",
+          // code preservado: o painel do distribuidor diferencia query inválida
+          // de erro de validação de corpo.
+          throw new AppError("INVALID_QUERY", parsed.error.issues[0]?.message ?? "Query inválida", {
+            status: 400,
           });
-          return;
         }
 
         const result = await orderService.listDistributorQueue(user.sub, user.role, parsed.data);
@@ -202,11 +153,9 @@ export const ordersController = {
 
       const parsedQuery = consumerOrdersQuerySchema.safeParse(req.query);
       if (!parsedQuery.success) {
-        res.status(400).json({
-          error: parsedQuery.error.issues[0]?.message ?? "Query inválida",
-          code: "INVALID_QUERY",
+        throw new AppError("INVALID_QUERY", parsedQuery.error.issues[0]?.message ?? "Query inválida", {
+          status: 400,
         });
-        return;
       }
 
       const result = await orderService.listOrders(
@@ -226,12 +175,7 @@ export const ordersController = {
         res.json(result);
       }
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ error }, "Error listing orders");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -239,36 +183,30 @@ export const ordersController = {
    * POST /api/orders
    * Cria novo pedido.
    */
-  async create(req: Request, res: Response): Promise<void> {
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const prisma = getPrisma();
 
-    const parsed = createOrderSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-
     try {
+      const parsed = createOrderSchema.safeParse(req.body);
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+
       // FUNC-03: Resolve zona e distribuidor pelo endereço
       const address = await prisma.address.findFirst({
         where: { id: parsed.data.address_id, consumer_id: user.sub },
       });
       if (!address) {
-        res.status(404).json({ error: "Endereço não encontrado" });
-        return;
+        throw notFound("Endereço não encontrado");
       }
       if (!address.zone_id) {
-        res.status(400).json({ error: "Endereço sem zona de entrega configurada" });
-        return;
+        throw badRequest("Endereço sem zona de entrega configurada");
       }
 
       const zone = await prisma.zone.findFirst({
         where: { id: address.zone_id, is_active: true },
       });
       if (!zone) {
-        res.status(400).json({ error: "Zona de entrega inativa" });
-        return;
+        throw badRequest("Zona de entrega inativa");
       }
 
       // Busca preços reais dos produtos
@@ -277,8 +215,7 @@ export const ordersController = {
         where: { id: { in: productIds }, is_active: true },
       });
       if (products.length !== productIds.length) {
-        res.status(400).json({ error: "Um ou mais produtos inválidos ou inativos" });
-        return;
+        throw badRequest("Um ou mais produtos inválidos ou inativos");
       }
 
       const productMap = new Map(products.map((p: Product) => [p.id, p] as const));
@@ -317,30 +254,17 @@ export const ordersController = {
       });
       res.status(201).json({ order });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
+      // Nenhum serviço lança estes dois hoje (resquício da agenda antiga);
+      // mantidos como rede de segurança até se confirmar que não voltam.
+      if (error instanceof Error && error.message === "SLOT_FULL") {
+        next(conflict("Horário de entrega esgotado"));
         return;
       }
-      if (error instanceof ScheduleServiceError) {
-        res.status(error.status).json({ error: error.message, code: error.code });
+      if (error instanceof Error && error.message === "SLOT_NOT_FOUND") {
+        next(notFound("Horário de entrega não disponível"));
         return;
       }
-      if (error instanceof DistributorServiceError) {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      if (error instanceof Error) {
-        if (error.message === "SLOT_FULL") {
-          res.status(409).json({ error: "Horário de entrega esgotado" });
-          return;
-        }
-        if (error.message === "SLOT_NOT_FOUND") {
-          res.status(404).json({ error: "Horário de entrega não disponível" });
-          return;
-        }
-      }
-      logger.error({ error }, "Error creating order");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -348,26 +272,23 @@ export const ordersController = {
    * GET /api/orders/:id
    * Busca detalhes de um pedido com timeline.
    */
-  async getById(req: Request, res: Response): Promise<void> {
+  async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const id = req.params.id as string;
 
     try {
       const detail = await orderService.getOrderDetail(id, user.role);
       if (!detail) {
-        res.status(404).json({ error: "Pedido não encontrado" });
-        return;
+        throw notFound("Pedido não encontrado");
       }
 
       if (!(await orderPolicy.canAccess(detail, user.sub, user.role))) {
-        res.status(403).json({ error: "Acesso negado" });
-        return;
+        throw forbidden();
       }
 
       res.json({ order: detail });
     } catch (error) {
-      logger.error({ error }, "Error fetching order");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -375,15 +296,14 @@ export const ordersController = {
    * PATCH /api/orders/:id/accept
    * Distribuidor aceita o pedido.
    */
-  async accept(req: Request, res: Response): Promise<void> {
+  async accept(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const updatedOrder = await orderService.acceptOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error accepting order");
+      next(error);
     }
   },
 
@@ -391,16 +311,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/reject
    * Distribuidor rejeita o pedido.
    */
-  async reject(req: Request, res: Response): Promise<void> {
+  async reject(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = rejectOrderSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const updatedOrder = await orderService.rejectOrder(
         existing.id,
@@ -410,7 +326,7 @@ export const ordersController = {
       );
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error rejecting order");
+      next(error);
     }
   },
 
@@ -418,21 +334,17 @@ export const ordersController = {
    * PATCH /api/orders/:id/assign-driver
    * Distribuidor atribui (ou reatribui) motorista ao pedido.
    */
-  async assignDriver(req: Request, res: Response): Promise<void> {
+  async assignDriver(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = assignDriverSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const updatedOrder = await orderService.assignDriver(existing.id, req.user!.sub, parsed.data.driver_id);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error assigning driver");
+      next(error);
     }
   },
 
@@ -440,15 +352,14 @@ export const ordersController = {
    * PATCH /api/orders/:id/complete-checklist
    * Distribuidor completa o checklist de despacho.
    */
-  async completeChecklist(req: Request, res: Response): Promise<void> {
+  async completeChecklist(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const updatedOrder = await orderService.completeChecklist(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error completing checklist");
+      next(error);
     }
   },
 
@@ -456,16 +367,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/dispatch
    * Distribuidor despacha o pedido (gera OTP).
    */
-  async dispatch(req: Request, res: Response): Promise<void> {
+  async dispatch(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = dispatchSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const result = await orderService.dispatch(existing.id, req.user!.sub, parsed.data.driver_id);
       // Envia OTP em tempo real ao consumer via Socket.IO
@@ -475,7 +382,7 @@ export const ordersController = {
       });
       res.json({ order: result.order, otp: result.otpCode });
     } catch (error) {
-      handleActionError(error, res, "Error dispatching order");
+      next(error);
     }
   },
 
@@ -483,16 +390,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/dispatch-with-checklist
    * Checklist + dispatch numa única chamada (gera OTP).
    */
-  async dispatchWithChecklist(req: Request, res: Response): Promise<void> {
+  async dispatchWithChecklist(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = dispatchWithChecklistSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const result = await orderService.dispatchWithChecklist(existing.id, req.user!.sub, parsed.data.driver_id);
       getIO().to(`consumer:${result.order.consumer_id}`).emit("otp_generated", {
@@ -501,7 +404,7 @@ export const ordersController = {
       });
       res.json({ order: result.order, otp: result.otpCode });
     } catch (error) {
-      handleActionError(error, res, "Error dispatching order with checklist");
+      next(error);
     }
   },
 
@@ -509,15 +412,14 @@ export const ordersController = {
    * PATCH /api/orders/:id/deliver
    * Motorista confirma entrega (sem validar OTP — uso administrativo/teste).
    */
-  async deliver(req: Request, res: Response): Promise<void> {
+  async deliver(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error delivering order");
+      next(error);
     }
   },
 
@@ -525,16 +427,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/verify-otp
    * Motorista valida o código informado pelo cliente e confirma a entrega.
    */
-  async verifyOtp(req: Request, res: Response): Promise<void> {
+  async verifyOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = verifyOtpSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub);
       if (!validation.isValid) {
@@ -552,7 +450,7 @@ export const ordersController = {
       const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error verifying OTP");
+      next(error);
     }
   },
 
@@ -560,22 +458,18 @@ export const ordersController = {
    * PATCH /api/orders/:id/otp-override
    * Ops/support faz bypass do OTP (sempre com motivo obrigatório).
    */
-  async otpOverride(req: Request, res: Response): Promise<void> {
+  async otpOverride(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = otpOverrideSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       await otpService.override(existing.id, req.user!.sub, parsed.data.reason, parsed.data.details);
       const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error overriding OTP");
+      next(error);
     }
   },
 
@@ -583,16 +477,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/cancel
    * Cancela o pedido (consumer, distributor_admin, driver ou ops).
    */
-  async cancel(req: Request, res: Response): Promise<void> {
+  async cancel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = cancelOrderSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const user = req.user!;
       const actorType =
@@ -613,7 +503,7 @@ export const ordersController = {
       );
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error cancelling order");
+      next(error);
     }
   },
 
@@ -621,16 +511,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/delivery-failed
    * Motorista registra falha na entrega.
    */
-  async deliveryFailed(req: Request, res: Response): Promise<void> {
+  async deliveryFailed(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = deliveryFailedSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const updatedOrder = await orderService.markDeliveryFailed(
         existing.id,
@@ -640,7 +526,7 @@ export const ordersController = {
       );
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error marking delivery failed");
+      next(error);
     }
   },
 
@@ -648,16 +534,12 @@ export const ordersController = {
    * PATCH /api/orders/:id/schedule-redelivery
    * Ops/support agenda uma reentrega.
    */
-  async scheduleRedelivery(req: Request, res: Response): Promise<void> {
+  async scheduleRedelivery(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const existing = await loadOwnedOrder(req, res);
-      if (!existing) return;
+      const existing = await loadOwnedOrder(req);
 
       const parsed = scheduleRedeliverySchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
-        return;
-      }
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const updatedOrder = await orderService.scheduleRedelivery(
         existing.id,
@@ -666,7 +548,7 @@ export const ordersController = {
       );
       res.json({ order: updatedOrder });
     } catch (error) {
-      handleActionError(error, res, "Error scheduling redelivery");
+      next(error);
     }
   },
 
@@ -674,26 +556,18 @@ export const ordersController = {
    * POST /api/orders/:id/rating
    * Submete avaliação NPS.
    */
-  async submitRating(req: Request, res: Response): Promise<void> {
+  async submitRating(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const id = req.params.id as string;
 
-    const parsed = ratingSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-
     try {
+      const parsed = ratingSchema.safeParse(req.body);
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+
       const order = await orderService.submitRating(id, user.sub, parsed.data.rating, parsed.data.comment);
       res.json({ order });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ error }, "Error submitting rating");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -701,17 +575,14 @@ export const ordersController = {
    * POST /api/orders/:id/bottle-exchange
    * Registra troca de vasilhame.
    */
-  async recordBottleExchange(req: Request, res: Response): Promise<void> {
+  async recordBottleExchange(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const id = req.params.id as string;
 
-    const parsed = bottleExchangeSchema.safeParse({ ...req.body, driver_id: user.sub });
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-
     try {
+      const parsed = bottleExchangeSchema.safeParse({ ...req.body, driver_id: user.sub });
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+
       const order = await orderService.recordBottleExchange(id, user.sub, {
         // Vazios coletados do consumidor (settlement). Default = returned_empty_qty (compat).
         collectedQty: parsed.data.collected_empty_qty ?? parsed.data.returned_empty_qty,
@@ -720,12 +591,7 @@ export const ordersController = {
       });
       res.json({ order });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ error }, "Error recording bottle exchange");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 
@@ -733,29 +599,21 @@ export const ordersController = {
    * POST /api/orders/:id/empty-not-collected
    * Registra vasilhame não coletado.
    */
-  async recordEmptyNotCollected(req: Request, res: Response): Promise<void> {
+  async recordEmptyNotCollected(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
     const id = req.params.id as string;
 
-    const parsed = nonCollectionSchema.safeParse({ ...req.body, driver_id: user.sub });
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-
     try {
+      const parsed = nonCollectionSchema.safeParse({ ...req.body, driver_id: user.sub });
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+
       const order = await orderService.recordEmptyNotCollected(id, user.sub, {
         reason: parsed.data.reason,
         notes: parsed.data.notes,
       });
       res.json({ order });
     } catch (error) {
-      if (error instanceof OrderServiceError) {
-        res.status(errorStatus(error.code)).json({ error: error.message, code: error.code });
-        return;
-      }
-      logger.error({ error }, "Error recording empty not collected");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 };

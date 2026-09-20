@@ -2,33 +2,28 @@ import express from "express";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => {
-  class MockDistributorServiceError extends Error {
-    constructor(
-      public code: string,
-      message: string
-    ) {
-      super(message);
+const mocks = await vi.hoisted(async () => {
+  // Os erros de dominio estendem AppError — e dele que o errorHandler tira o
+  // status. Dubles herdando de Error viravam 500 em vez do status real.
+  const { AppError } = await import("../../../errors/index.js");
+
+  class MockDistributorServiceError extends AppError {
+    constructor(code: string, message: string) {
+      super(code, message);
       this.name = "DistributorServiceError";
     }
   }
 
-  class MockInventoryServiceError extends Error {
-    constructor(
-      public code: string,
-      message: string
-    ) {
-      super(message);
+  class MockInventoryServiceError extends AppError {
+    constructor(code: string, message: string) {
+      super(code, message);
       this.name = "InventoryServiceError";
     }
   }
 
-  class MockInventoryReconciliationSessionError extends Error {
-    constructor(
-      public code: string,
-      message: string
-    ) {
-      super(message);
+  class MockInventoryReconciliationSessionError extends AppError {
+    constructor(code: string, message: string) {
+      super(code, message);
       this.name = "InventoryReconciliationSessionError";
     }
   }
@@ -94,6 +89,7 @@ vi.mock("../../../middleware/auth.js", () => ({
 
 vi.mock("../../../infra/logger/index.js", () => ({
   createLogger: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }),
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
 }));
 
 // rate-limit.js e limiter.js importam infra/redis/client.js, que exige
@@ -149,6 +145,7 @@ vi.mock("../../inventory/services/reconciliation-session.service.js", () => ({
 }));
 
 const { distributorRoutes } = await import("../index.js");
+const { errorHandler } = await import("../../../middleware/error-handler.js");
 
 const itemId = "7e1d7b55-3f52-4d10-aac3-74387c236801";
 const batchId = "7e1d7b55-3f52-4d10-aac3-74387c236802";
@@ -177,6 +174,8 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use("/api/distributor", distributorRoutes);
+  // Mesma cadeia do app real: e o errorHandler que traduz AppError em resposta.
+  app.use(errorHandler);
 
   server = await new Promise((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
@@ -367,6 +366,6 @@ describe("distributorRoutes inventory", () => {
     const response = await request("/api/distributor/inventory/items?limit=100&offset=0", "distributor_admin");
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "Usuario sem distribuidora" });
+    expect(response.body).toEqual({ error: "Usuario sem distribuidora", code: "DISTRIBUTOR_NOT_LINKED" });
   });
 });

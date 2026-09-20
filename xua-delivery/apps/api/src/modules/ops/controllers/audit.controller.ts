@@ -1,13 +1,14 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
 import { auditExportSchema } from "@xua/shared/schemas/audit";
 import type { AuditEventType } from "@xua/shared/enums";
 import { buildCsv } from "../../../utils/csv.js";
 import { auditExportService } from "../audit.service.js";
+import { badRequest } from "../../../errors/index.js";
 
 export const auditController = {
   /** GET /api/audit/export — exporta eventos de auditoria como CSV */
-  async exportCsv(req: Request, res: Response): Promise<void> {
+  async exportCsv(req: Request, res: Response, next: NextFunction): Promise<void> {
     const params = {
       startDate: req.query.startDate as string,
       endDate: req.query.endDate as string,
@@ -21,7 +22,7 @@ export const auditController = {
 
     const parsed = auditExportSchema.safeParse(params);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -65,8 +66,7 @@ export const auditController = {
       );
       res.send(csv);
     } catch (error) {
-      logger.error({ error }, "Error exporting audit events");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 };

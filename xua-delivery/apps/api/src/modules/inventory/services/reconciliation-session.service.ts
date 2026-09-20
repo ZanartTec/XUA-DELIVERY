@@ -15,18 +15,16 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { inventoryRepository } from "../repository/inventory.repository.js";
 import { inventoryService } from "./inventory.service.js";
 import { reconciliationSessionRepository } from "../repository/reconciliation-session.repository.js";
+import { AppError } from "../../../errors/index.js";
 import type {
   ReconciliationSessionItemRead,
   ReconciliationSessionListRow,
   ReconciliationSessionRead,
 } from "../repository/reconciliation-session.repository.js";
 
-export class InventoryReconciliationSessionError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
+export class InventoryReconciliationSessionError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message);
     this.name = "InventoryReconciliationSessionError";
   }
 }

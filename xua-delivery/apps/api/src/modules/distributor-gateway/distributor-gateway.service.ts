@@ -7,13 +7,11 @@ import type {
 } from "@xua/shared/schemas/distributor-payment-settings";
 import { decryptSecret, encryptSecret, maskSecret } from "../../infra/crypto/secret-cipher.js";
 import { distributorGatewayRepository } from "./distributor-gateway.repository.js";
+import { AppError } from "../../errors/index.js";
 
-export class DistributorGatewayError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string
-  ) {
-    super(message);
+export class DistributorGatewayError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message, { defaultStatus: 500 });
     this.name = "DistributorGatewayError";
   }
 }

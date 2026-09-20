@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { PaymentKind } from "@xua/shared/enums";
 import { signWebhookContext } from "../utils/webhook-context.js";
 
@@ -37,7 +37,7 @@ vi.mock("../../../infra/queue/index.js", () => ({
 }));
 
 vi.mock("../../../infra/logger/index.js", () => ({
-  logger: { error: mocks.loggerError, warn: mocks.loggerWarn },
+  logger: { error: mocks.loggerError, warn: mocks.loggerWarn, info: vi.fn() },
 }));
 
 vi.mock("../services/payments.service.js", () => ({
@@ -49,6 +49,7 @@ vi.mock("../../distributor-gateway/index.js", () => ({
   distributorGatewayService: mocks.distributorGatewayService,
 }));
 
+const { errorForwardingNext } = await import("../../../test-support/error-next.js");
 const { paymentsController } = await import("./payments.controller.js");
 
 const secret = "webhook-secret-test";
@@ -69,6 +70,16 @@ function res() {
   } as unknown as Response & { status: ReturnType<typeof vi.fn>; json: ReturnType<typeof vi.fn> };
   response.status.mockReturnValue(response);
   return response;
+}
+
+type Handler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+/**
+ * Invoca o handler ligando o `next` ao errorHandler real — os controllers não
+ * montam mais a resposta de erro, então é ele quem traduz code → status.
+ */
+function call(handler: Handler, request: Request, response: ReturnType<typeof res>): Promise<void> {
+  return handler(request, response, errorForwardingNext(request, response));
 }
 
 beforeEach(() => {
@@ -105,7 +116,7 @@ describe("paymentsController.webhook", () => {
       },
     } as unknown as Request;
 
-    await paymentsController.webhook(request, response);
+    await call(paymentsController.webhook, request, response);
 
     expect(mocks.prisma.paymentWebhookEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -141,7 +152,7 @@ describe("paymentsController.webhook", () => {
       },
     } as unknown as Request;
 
-    await paymentsController.webhook(request, response);
+    await call(paymentsController.webhook, request, response);
 
     expect(mocks.prisma.paymentWebhookEvent.create).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
@@ -161,7 +172,7 @@ describe("paymentsController.webhook", () => {
       .mockResolvedValueOnce(existingEvent);
     mocks.prisma.paymentWebhookEvent.create.mockRejectedValueOnce({ code: "P2002" });
 
-    await paymentsController.webhook({
+    await call(paymentsController.webhook, {
       body: { type: "payment", action: "payment.updated", data: { id: resourceId } },
       query: {
         "xua_reference_id": orderId,

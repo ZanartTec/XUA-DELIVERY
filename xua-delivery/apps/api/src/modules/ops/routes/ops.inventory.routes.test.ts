@@ -73,6 +73,7 @@ vi.mock("../../inventory/services/reconciliation-session.service.js", () => ({
 }));
 
 const { opsRoutes } = await import("../index.js");
+const { errorHandler } = await import("../../../middleware/error-handler.js");
 
 const distributorA = "7e1d7b55-3f52-4d10-aac3-74387c236701";
 const distributorB = "7e1d7b55-3f52-4d10-aac3-74387c236702";
@@ -99,6 +100,8 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use("/api/ops", opsRoutes);
+  // Mesma cadeia do app real: e o errorHandler que traduz AppError em resposta.
+  app.use(errorHandler);
 
   server = await new Promise((resolve) => {
     const instance = app.listen(0, () => resolve(instance));

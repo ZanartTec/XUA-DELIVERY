@@ -26,6 +26,7 @@ import { inventoryReconciliationSessionService } from "../../inventory/services/
 import { hashPassword } from "../../../infra/auth/password.js";
 import { markAccountDeactivated } from "../../../infra/auth/password-change.js";
 import { auditRepository } from "../../audit/audit.repository.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("distributor-service");
 
@@ -736,12 +737,26 @@ export const distributorService = {
   },
 };
 
-export class DistributorServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
+/**
+ * Status próprios do módulo, aplicados antes do registry global.
+ * `ZONE_NOT_FOUND` aqui é zona inválida no payload do checkout (400), não o
+ * recurso ausente do módulo de zonas (404) — mesmo code, contextos diferentes.
+ */
+const DISTRIBUTOR_ERROR_STATUS: Record<string, number> = {
+  DISTRIBUTOR_NOT_LINKED: 403,
+  DISTRIBUTOR_ID_REQUIRED: 400,
+  DUPLICATE_DISTRIBUTOR: 409,
+  DUPLICATE_DRIVER_EMAIL: 409,
+  DRIVER_NOT_FOUND: 404,
+  DRIVER_NOT_OWNED_BY_DISTRIBUTOR: 403,
+  INITIAL_LOAD_BATCH_CONFLICT: 409,
+  INITIAL_LOAD_ALREADY_EXISTS: 409,
+  ZONE_NOT_FOUND: 400,
+};
+
+export class DistributorServiceError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message, { status: DISTRIBUTOR_ERROR_STATUS[code] });
     this.name = "DistributorServiceError";
   }
 }

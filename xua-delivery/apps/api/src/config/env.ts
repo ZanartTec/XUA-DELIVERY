@@ -14,6 +14,11 @@ import { z } from "zod";
  * por isso replica as mesmas regras (ver comentários em cada campo).
  */
 
+/**
+ * Trecho do placeholder que acompanha o .env de exemplo. Precisa ser o MESMO
+ * que infra/auth/jwt.ts rejeita — se divergir, um .env ainda com o placeholder
+ * passa aqui no boot e só explode depois, no primeiro login.
+ */
 const PLACEHOLDER_JWT_SECRET = "troque-por-uma-chave-segura";
 
 /** Aceita "1", "true", "yes", "on" (case-insensitive) como verdadeiro. */

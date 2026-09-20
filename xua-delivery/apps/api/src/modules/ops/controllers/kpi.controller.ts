@@ -1,12 +1,13 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { logger } from "../../../infra/logger/index.js";
 import { kpiService } from "../../distributor/services/kpi.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
+import { forbidden } from "../../../errors/index.js";
 
 export const kpiController = {
   /** GET /api/kpis */
-  async get(req: Request, res: Response): Promise<void> {
+  async get(req: Request, res: Response, next: NextFunction): Promise<void> {
     const { role } = req.user!;
     const period = (req.query.period as string) ?? "7d";
     const distributorIdQuery = req.query.distributorId as string | undefined;
@@ -80,10 +81,9 @@ export const kpiController = {
         return;
       }
 
-      res.status(403).json({ error: "Acesso negado" });
+      next(forbidden("Acesso negado"));
     } catch (error) {
-      logger.error({ error }, "Error fetching KPIs");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 };

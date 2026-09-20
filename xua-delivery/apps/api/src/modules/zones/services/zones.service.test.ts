@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../../infra/logger/index.js", () => ({
   createLogger: () => ({ info: mocks.logInfo, error: mocks.logError }),
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
 }));
 vi.mock("../../../infra/prisma/client.js", () => ({
   getPrisma: () => ({ $transaction: mocks.transaction }),

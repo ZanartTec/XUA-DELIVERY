@@ -8,15 +8,13 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { createLogger } from "../../../infra/logger";
 import { depositRepository, type TxClient } from "../repository/deposit.repository.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("deposit-program");
 
-export class DepositProgramError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
+export class DepositProgramError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message);
     this.name = "DepositProgramError";
   }
 }
