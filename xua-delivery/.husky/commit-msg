@@ -1,0 +1,9 @@
+# Os hooks rodam a partir da raiz do repositório, mas o projeto (e o commitlint)
+# vive em xua-delivery/ — por isso o caminho da mensagem é resolvido antes do cd.
+msg="$1"
+case "$msg" in
+  /*) ;;
+  *) msg="$PWD/$msg" ;;
+esac
+
+cd xua-delivery && npx --no -- commitlint --edit "$msg"

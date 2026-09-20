@@ -1,0 +1,48 @@
+name: Release
+
+# Versionamento automático: cada push em main gera release estável (vX.Y.Z) e
+# cada push em develop gera prerelease (vX.Y.Z-beta.N). A versão sai dos
+# Conventional Commits — feat => minor, fix/perf/refactor/docs => patch,
+# BREAKING CHANGE => major. Ver .releaserc.json.
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Nunca dois releases ao mesmo tempo na mesma branch: a segunda execução
+# esperaria a primeira empurrar a tag e o commit de release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Todo o projeto vive em xua-delivery/ — a raiz do repositório só tem o wrapper.
+defaults:
+  run:
+    working-directory: xua-delivery
+
+permissions:
+  contents: write      # criar tag, commit de release e GitHub Release
+  issues: write        # comentar nas issues fechadas pelo release
+  pull-requests: write # comentar nos PRs incluídos no release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # O commit de release é feito pelo próprio bot com [skip ci]; esta guarda
+    # evita loop caso a proteção de branch reescreva a mensagem.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # semantic-release precisa do histórico completo
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: xua-delivery/package-lock.json
+      - run: npm ci
+      - name: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
