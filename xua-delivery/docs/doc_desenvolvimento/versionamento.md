@@ -15,16 +15,20 @@ nas branches de release.
 
 Regras em [`.releaserc.json`](../../.releaserc.json).
 
-## Branches
+## Quando a versão troca
 
-- **`main`** → release estável, tag `vX.Y.Z`.
-- **`develop`** → prerelease, tag `vX.Y.Z-beta.N` (canal `beta`).
+Só na **`main`**, e só no **merge de um PR** — o merge é um push na `main`, e é
+esse push que dispara o workflow. Abrir o PR não gera release; commits em
+`develop` ou em branches de feature também não.
 
-## O que acontece no push
+A versão do release cobre todos os commits acumulados desde a última tag: se o
+PR traz um `feat` e três `fix`, sai um único bump minor.
+
+## O que acontece no merge
 
 O workflow [`.github/workflows/release.yml`](../../../.github/workflows/release.yml)
 (na raiz do repositório, já que o projeto vive em `xua-delivery/`) roda
-`npx semantic-release`, que:
+`npx semantic-release` na `main`, que:
 
 1. lê os commits desde a última tag e calcula a próxima versão;
 2. atualiza o `CHANGELOG.md`;

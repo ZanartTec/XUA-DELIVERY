@@ -1,12 +1,13 @@
 name: Release
 
-# Versionamento automático: cada push em main gera release estável (vX.Y.Z) e
-# cada push em develop gera prerelease (vX.Y.Z-beta.N). A versão sai dos
-# Conventional Commits — feat => minor, fix/perf/refactor/docs => patch,
-# BREAKING CHANGE => major. Ver .releaserc.json.
+# Versionamento automático: a versão só troca quando um PR é mergeado na main
+# (o merge é um push na main). Pushes em develop não geram release nenhum.
+# A versão sai dos Conventional Commits acumulados desde a última tag —
+# feat => minor, fix/perf/refactor/docs => patch, BREAKING CHANGE => major.
+# Ver .releaserc.json.
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 # Nunca dois releases ao mesmo tempo na mesma branch: a segunda execução
