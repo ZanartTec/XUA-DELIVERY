@@ -1,53 +1,26 @@
-import http from "node:http";
-import { createApp } from "../http/app";
+import { loadEnv, EnvValidationError } from "../config/env";
 import { logger } from "../infra/logger";
-import { createSocketGateway } from "../infra/socket/gateway";
-import { disconnectPrisma } from "../infra/prisma/client";
-import { disconnectRedis } from "../infra/redis/client";
 
-const PORT = Number(process.env.PORT) || 4000;
-const HOST = process.env.HOST ?? "0.0.0.0";
-
-const app = createApp();
-const server = http.createServer(app);
-
-// Socket.IO integrado ao mesmo servidor HTTP
-const io = createSocketGateway(server);
-
-server.listen(PORT, HOST, () => {
-  logger.info({ port: PORT, host: HOST }, "XUA API server started");
-});
-
-// ── Graceful shutdown ────────────────────────────────────────────────
-async function shutdown(signal: string): Promise<void> {
-  logger.info({ signal }, "Shutdown signal received — closing server");
-
-  io.close();
-
-  await disconnectPrisma();
-  await disconnectRedis();
-
-  server.close(() => {
-    logger.info("HTTP server closed");
-    process.exit(0);
-  });
-
-  // Força encerramento se demorar mais de 10s
-  setTimeout(() => {
-    logger.error("Forced shutdown after timeout");
-    process.exit(1);
-  }, 10_000).unref();
+/**
+ * Entrypoint da API.
+ *
+ * Só faz duas coisas, nesta ordem: valida o ambiente e, se estiver íntegro,
+ * carrega o bootstrap. O import do bootstrap é dinâmico de propósito — imports
+ * estáticos são içados e executariam os módulos de infra (que validam suas
+ * próprias envs no topo do arquivo) antes desta validação, devolvendo só o
+ * primeiro erro em vez da lista completa.
+ */
+try {
+  const { env, warnings } = loadEnv();
+  for (const warning of warnings) logger.warn({ env: env.NODE_ENV }, warning);
+  logger.info({ env: env.NODE_ENV }, "Environment validated");
+} catch (err) {
+  if (err instanceof EnvValidationError) {
+    logger.fatal({ issues: err.issues }, err.message);
+  } else {
+    logger.fatal({ err }, "Failed to validate environment");
+  }
+  process.exit(1);
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-
-// ── Exceções não tratadas ────────────────────────────────────────────
-process.on("uncaughtException", (err) => {
-  logger.fatal({ err }, "Uncaught exception — shutting down");
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (reason) => {
-  logger.error({ reason }, "Unhandled promise rejection");
-});
+void import("./bootstrap").then(({ startServer }) => startServer());
