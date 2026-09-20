@@ -1,5 +1,6 @@
 import { OrderServiceError } from "../errors.js";
 import { createOrderService } from "./create-order.service.js";
+import { checkoutService } from "./checkout.service.js";
 import { acceptOrderService } from "./accept-order.service.js";
 import { rejectOrderService } from "./reject-order.service.js";
 import { dispatchOrderService } from "./dispatch-order.service.js";
@@ -21,6 +22,7 @@ export { OrderServiceError };
  */
 export const orderService = {
   ...createOrderService,
+  ...checkoutService,
   ...acceptOrderService,
   ...rejectOrderService,
   ...dispatchOrderService,

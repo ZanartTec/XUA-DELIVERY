@@ -34,6 +34,32 @@ export const scheduleRepository = {
     });
   },
 
+  /**
+   * Configuração semanal inteira numa transação — ou a agenda da distribuidora
+   * muda por completo, ou não muda. A transação ficava no controller, que para
+   * isso importava o Prisma direto.
+   */
+  async upsertWeekdays(
+    distributorId: string,
+    weekdays: Array<{ weekday: number; is_active: boolean; lead_time_hours?: number }>
+  ): Promise<DistributorSchedule[]> {
+    const prisma = getPrisma();
+    return prisma.$transaction(async (tx) => {
+      const items: DistributorSchedule[] = [];
+      for (const weekday of weekdays) {
+        items.push(
+          await this.upsertWeekday(
+            distributorId,
+            weekday.weekday,
+            { is_active: weekday.is_active, lead_time_hours: weekday.lead_time_hours },
+            tx
+          )
+        );
+      }
+      return items;
+    });
+  },
+
   async upsertWeekday(
     distributorId: string,
     weekday: number,

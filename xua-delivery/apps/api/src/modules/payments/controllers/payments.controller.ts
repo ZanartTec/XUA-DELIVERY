@@ -3,11 +3,11 @@ import type { Prisma } from "@prisma/client";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { ONLINE_PAYMENT_METHOD_VALUES, PaymentKind } from "@xua/shared/enums";
-import { getPrisma } from "../../../infra/prisma/client.js";
 import { enqueuePaymentWebhookJob, PAYMENT_JOB_NAMES } from "../../../infra/queue/index.js";
 import { logger } from "../../../infra/logger/index.js";
 import { badRequest, unauthorized } from "../../../errors/index.js";
 import { PAYMENT_PROVIDERS } from "../gateway/payments.gateway.js";
+import { paymentsRepository } from "../repository/payments.repository.js";
 import { paymentService } from "../services/payments.service.js";
 import { distributorGatewayService } from "../../distributor-gateway/index.js";
 import {
@@ -177,19 +177,10 @@ function extractVerifiedWebhookContext(req: Request): VerifiedWebhookContext | n
 async function resolveDistributorIdFromContext(
   context: VerifiedWebhookContext
 ): Promise<string | null> {
-  const prisma = getPrisma();
   if (context.paymentKind === PaymentKind.SUBSCRIPTION) {
-    const subscription = await prisma.userSubscription.findUnique({
-      where: { id: context.referenceId },
-      select: { distributor_id: true },
-    });
-    return subscription?.distributor_id ?? null;
+    return paymentsRepository.findSubscriptionDistributorId(context.referenceId);
   }
-  const order = await prisma.order.findUnique({
-    where: { id: context.referenceId },
-    select: { distributor_id: true },
-  });
-  return order?.distributor_id ?? null;
+  return paymentsRepository.findOrderDistributorId(context.referenceId);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -303,25 +294,17 @@ export const paymentsController = {
       return;
     }
 
-    const prisma = getPrisma();
     const providerEventRef = getProviderEventRef(body, resourceId);
     const eventType = getEventType(req, body);
     const correlationId = requestId ?? randomUUID();
 
     try {
-      const eventKey = {
-        provider: PAYMENT_PROVIDERS.mercadoPago,
-        provider_event_ref: providerEventRef,
-      };
-      let event = await prisma.paymentWebhookEvent.findUnique({
-        where: {
-          provider_provider_event_ref: eventKey,
-        },
-      });
+      const provider = PAYMENT_PROVIDERS.mercadoPago;
+      let event = await paymentsRepository.findWebhookEvent(provider, providerEventRef);
 
       if (!event) {
         const createData = {
-          provider: PAYMENT_PROVIDERS.mercadoPago,
+          provider,
           provider_event_ref: providerEventRef,
           event_type: eventType,
           distributor_id: distributorId,
@@ -331,12 +314,12 @@ export const paymentsController = {
         } satisfies Prisma.PaymentWebhookEventCreateInput;
 
         try {
-          event = await prisma.paymentWebhookEvent.create({ data: createData });
+          event = await paymentsRepository.createWebhookEvent(createData);
         } catch (error) {
+          // Corrida entre duas notificações do mesmo evento: a outra ganhou o
+          // insert, então basta reler o registro que ela criou.
           if (!isUniqueConstraintError(error)) throw error;
-          event = await prisma.paymentWebhookEvent.findUnique({
-            where: { provider_provider_event_ref: eventKey },
-          });
+          event = await paymentsRepository.findWebhookEvent(provider, providerEventRef);
           if (!event) throw error;
         }
       }

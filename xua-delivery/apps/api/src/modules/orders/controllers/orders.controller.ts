@@ -1,13 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import type { Order, Product } from "@prisma/client";
-import { OrderStatus, type DeliveryWindow } from "@xua/shared/enums";
-import { getPrisma } from "../../../infra/prisma/client.js";
+import type { Order } from "@prisma/client";
+import { OrderStatus } from "@xua/shared/enums";
 import { orderService } from "../services/orders.service.js";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
 import { getIO } from "../../../infra/socket/gateway.js";
-import { distributorService } from "../../distributor/index.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -184,74 +182,11 @@ export const ordersController = {
    * Cria novo pedido.
    */
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const user = req.user!;
-    const prisma = getPrisma();
-
     try {
       const parsed = createOrderSchema.safeParse(req.body);
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
-      // FUNC-03: Resolve zona e distribuidor pelo endereço
-      const address = await prisma.address.findFirst({
-        where: { id: parsed.data.address_id, consumer_id: user.sub },
-      });
-      if (!address) {
-        throw notFound("Endereço não encontrado");
-      }
-      if (!address.zone_id) {
-        throw badRequest("Endereço sem zona de entrega configurada");
-      }
-
-      const zone = await prisma.zone.findFirst({
-        where: { id: address.zone_id, is_active: true },
-      });
-      if (!zone) {
-        throw badRequest("Zona de entrega inativa");
-      }
-
-      // Busca preços reais dos produtos
-      const productIds = parsed.data.items.map((i) => i.product_id);
-      const products = await prisma.product.findMany({
-        where: { id: { in: productIds }, is_active: true },
-      });
-      if (products.length !== productIds.length) {
-        throw badRequest("Um ou mais produtos inválidos ou inativos");
-      }
-
-      const productMap = new Map(products.map((p: Product) => [p.id, p] as const));
-
-      // Resolve distribuidora: manual (se informado) ou automática
-      const resolved = await distributorService.resolveDistributor(
-        user.sub,
-        zone.id,
-        parsed.data.delivery_date,
-        parsed.data.delivery_window,
-        parsed.data.distributor_id,
-      );
-
-      const order = await orderService.createOrder({
-        consumerId: user.sub,
-        addressId: parsed.data.address_id,
-        distributorId: resolved.distributorId,
-        zoneId: resolved.zoneId,
-        deliveryDate: parsed.data.delivery_date,
-        deliveryWindow: parsed.data.delivery_window.toUpperCase() as DeliveryWindow,
-        distributorSelectionMode: resolved.mode,
-        timeSlotId: parsed.data.time_slot_id ?? null,
-        deliveryInstructions: parsed.data.delivery_instructions ?? null,
-        paymentMethod: parsed.data.payment_method,
-        cashChangeForCents: parsed.data.cash_change_for_cents ?? null,
-        emptyBottles: parsed.data.empty_bottles,
-        items: parsed.data.items.map((i) => {
-          const product = productMap.get(i.product_id)!;
-          return {
-            product_id: i.product_id,
-            product_name: product.name,
-            unit_price_cents: product.price_cents,
-            quantity: i.quantity,
-          };
-        }),
-      });
+      const order = await orderService.createOrderFromCheckout(req.user!.sub, parsed.data);
       res.status(201).json({ order });
     } catch (error) {
       // Nenhum serviço lança estes dois hoje (resquício da agenda antiga);

@@ -29,6 +29,7 @@ const mocks = await vi.hoisted(async () => {
       searchOrders: vi.fn(),
       listDistributorQueue: vi.fn(),
       createOrder: vi.fn(),
+      createOrderFromCheckout: vi.fn(),
       acceptOrder: vi.fn(),
       rejectOrder: vi.fn(),
       assignDriver: vi.fn(),
@@ -318,10 +319,13 @@ describe("ordersController list distributor queue", () => {
 });
 
 describe("ordersController create", () => {
-  it("cria pedido em dinheiro com troco", async () => {
+  it("delega o checkout para o service com o payload validado", async () => {
     const response = res();
+    const order = { id: orderId };
+    mocks.orderService.createOrderFromCheckout.mockResolvedValue(order);
 
-    await call(ordersController.create, 
+    await call(
+      ordersController.create,
       req("consumer", {
         address_id: addressId,
         distributor_id: distributorId,
@@ -334,18 +338,28 @@ describe("ordersController create", () => {
       response
     );
 
-    expect(mocks.orderService.createOrder).toHaveBeenCalledWith(
+    // Resolver endereço/zona/preço é responsabilidade do checkout.service
+    // (coberto em checkout.service.test.ts); aqui só importa a delegação.
+    expect(mocks.orderService.createOrderFromCheckout).toHaveBeenCalledWith(
+      userId,
       expect.objectContaining({
-        consumerId: userId,
-        addressId,
-        distributorId,
-        zoneId,
-        deliveryWindow: "MORNING",
-        paymentMethod: "cash",
-        cashChangeForCents: 10000,
+        address_id: addressId,
+        distributor_id: distributorId,
+        payment_method: "cash",
+        cash_change_for_cents: 10000,
       })
     );
     expect(response.status).toHaveBeenCalledWith(201);
+    expect(response.json).toHaveBeenCalledWith({ order });
+  });
+
+  it("rejeita payload inválido sem chamar o service", async () => {
+    const response = res();
+
+    await call(ordersController.create, req("consumer", { items: [] }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.orderService.createOrderFromCheckout).not.toHaveBeenCalled();
   });
 });
 

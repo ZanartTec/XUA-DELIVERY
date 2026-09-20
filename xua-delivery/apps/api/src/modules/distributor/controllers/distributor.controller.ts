@@ -420,21 +420,8 @@ export const distributorController = {
     }
 
     try {
-      const prisma = (await import("../../../infra/prisma/client.js")).getPrisma();
-      const results = await prisma.$transaction(async (tx: any) => {
-        const items = [];
-        for (const w of parsed.data.weekdays) {
-          const result = await scheduleRepository.upsertWeekday(
-            distributorId,
-            w.weekday,
-            { is_active: w.is_active, lead_time_hours: w.lead_time_hours },
-            tx,
-          );
-          items.push(result);
-        }
-        return items;
-      });
-      res.status(200).json({ weekdays: results });
+      const weekdays = await scheduleRepository.upsertWeekdays(distributorId, parsed.data.weekdays);
+      res.status(200).json({ weekdays });
     } catch (err) {
       next(err);
     }
