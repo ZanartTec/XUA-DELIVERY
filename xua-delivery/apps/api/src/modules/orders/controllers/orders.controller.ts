@@ -2,6 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import type { Order } from "@prisma/client";
 import { OrderStatus } from "@xua/shared/enums";
 import { orderService } from "../services/orders.service.js";
+import { driverDeliveryActor, opsDeliveryActor } from "../services/delivery-actor.js";
+import { orderEventsPublisher } from "../services/order-events.publisher.js";
+import type { BottleStep } from "../services/order-bottle.service.js";
+import type { BottleStepInput } from "@xua/shared/schemas/order";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
@@ -15,7 +19,7 @@ import {
   assignDriverSchema,
   dispatchSchema,
   dispatchWithChecklistSchema,
-  verifyOtpSchema,
+  completeDeliverySchema,
   otpOverrideSchema,
   cancelOrderSchema,
   deliveryFailedSchema,
@@ -34,6 +38,22 @@ async function loadOwnedOrder(req: Request): Promise<Order> {
   if (!existing) throw notFound("Pedido não encontrado");
   if (!(await orderPolicy.canAccess(existing, user.sub, user.role))) throw forbidden();
   return existing;
+}
+
+/**
+ * Traduz o passo de vasilhame do contrato HTTP para o tipo do serviço.
+ * `collected_empty_qty` ausente assume o valor de `returned_empty_qty`.
+ */
+function toBottleStep(input: BottleStepInput): BottleStep {
+  if (input.kind === "exchange") {
+    return {
+      kind: "exchange",
+      collectedQty: input.collected_empty_qty ?? input.returned_empty_qty,
+      returnedQty: input.returned_empty_qty,
+      condition: input.bottle_condition,
+    };
+  }
+  return { kind: "not_collected", reason: input.reason, notes: input.notes };
 }
 
 function stockReturnOptions(payload: Record<string, unknown>) {
@@ -344,33 +364,34 @@ export const ordersController = {
   },
 
   /**
-   * PATCH /api/orders/:id/deliver
-   * Motorista confirma entrega (sem validar OTP — uso administrativo/teste).
-   */
-  async deliver(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const existing = await loadOwnedOrder(req);
-
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
-      res.json({ order: updatedOrder });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /**
    * PATCH /api/orders/:id/verify-otp
-   * Motorista valida o código informado pelo cliente e confirma a entrega.
+   * Conclusão da entrega: código do cliente + vasilhame, numa requisição só.
+   *
+   * A validação do código roda em transação própria, de propósito: a tentativa
+   * precisa ser contabilizada mesmo quando o código está errado, senão a trava
+   * de 5 tentativas nunca fecharia. Só depois de o código conferir é que o
+   * vasilhame e a mudança de status acontecem — juntos, na mesma transação.
    */
   async verifyOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const existing = await loadOwnedOrder(req);
 
-      const parsed = verifyOtpSchema.safeParse(req.body);
+      const parsed = completeDeliverySchema.safeParse(req.body);
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub);
       if (!validation.isValid) {
+        // Só na transição para bloqueado. Reemitir a cada tentativa contra um
+        // OTP já bloqueado viraria ruído numa sala que recebe o tráfego de
+        // todas as distribuidoras — e o desbloqueio é ação de ops.
+        if (validation.locked) {
+          orderEventsPublisher.notifyOps("otp_locked", {
+            orderId: existing.id,
+            distributorId: existing.distributor_id,
+            driverId: req.user!.sub,
+            attempts: validation.attempts,
+          });
+        }
         res.status(validation.locked ? 429 : 400).json({
           error: validation.locked
             ? "Código bloqueado por excesso de tentativas"
@@ -382,7 +403,11 @@ export const ordersController = {
         return;
       }
 
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      const updatedOrder = await orderService.deliverOrder(
+        existing.id,
+        driverDeliveryActor(req.user!.sub),
+        toBottleStep(parsed.data.bottle_step)
+      );
       res.json({ order: updatedOrder });
     } catch (error) {
       next(error);
@@ -401,7 +426,13 @@ export const ordersController = {
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       await otpService.override(existing.id, req.user!.sub, parsed.data.reason, parsed.data.details);
-      const updatedOrder = await orderService.deliverOrder(existing.id, req.user!.sub);
+      // Ator real do override. Antes a conclusão era gravada como se o
+      // motorista tivesse validado o código, com o id do usuário de ops no
+      // campo do motorista — a trilha apontava para a pessoa errada.
+      const updatedOrder = await orderService.deliverOrder(
+        existing.id,
+        opsDeliveryActor(req.user!.sub, req.user!.role)
+      );
       res.json({ order: updatedOrder });
     } catch (error) {
       next(error);
@@ -512,13 +543,17 @@ export const ordersController = {
    */
   async recordBottleExchange(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
-    const id = req.params.id as string;
 
     try {
+      // Ownership no controller, como nas demais ações de pedido. O service
+      // mantém a própria checagem como defesa em profundidade, mas checar aqui
+      // uniformiza o padrão e evita 500 mascarando 403/404.
+      const existing = await loadOwnedOrder(req);
+
       const parsed = bottleExchangeSchema.safeParse({ ...req.body, driver_id: user.sub });
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
-      const order = await orderService.recordBottleExchange(id, user.sub, {
+      const order = await orderService.recordBottleExchange(existing.id, user.sub, {
         // Vazios coletados do consumidor (settlement). Default = returned_empty_qty (compat).
         collectedQty: parsed.data.collected_empty_qty ?? parsed.data.returned_empty_qty,
         returnedQty: parsed.data.returned_empty_qty,
@@ -536,13 +571,14 @@ export const ordersController = {
    */
   async recordEmptyNotCollected(req: Request, res: Response, next: NextFunction): Promise<void> {
     const user = req.user!;
-    const id = req.params.id as string;
 
     try {
+      const existing = await loadOwnedOrder(req);
+
       const parsed = nonCollectionSchema.safeParse({ ...req.body, driver_id: user.sub });
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
-      const order = await orderService.recordEmptyNotCollected(id, user.sub, {
+      const order = await orderService.recordEmptyNotCollected(existing.id, user.sub, {
         reason: parsed.data.reason,
         notes: parsed.data.notes,
       });

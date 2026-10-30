@@ -614,6 +614,11 @@ model Order {
   bottle_condition           String?
   empty_not_collected_reason String?
   empty_not_collected_notes  String?
+  // Sentinela do passo de vasilhame: marca QUANDO o motorista registrou troca
+  // ou não-coleta. Existe porque `collected_empty_qty` é NOT NULL DEFAULT 0 e
+  // portanto não distingue "não registrou o passo" de "coletou zero" — sem
+  // esta coluna não há como exigir o registro antes de concluir a entrega.
+  bottle_step_recorded_at    DateTime?
   payment_status             String?
   cancellation_reason        String?
   accepted_at                DateTime?

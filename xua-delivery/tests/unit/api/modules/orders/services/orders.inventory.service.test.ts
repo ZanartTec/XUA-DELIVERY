@@ -57,6 +57,7 @@ vi.mock("@api/infra/prisma/client.js", () => ({
 
 vi.mock("@api/infra/socket/gateway.js", () => ({
   getIO: () => ({ to: mocks.socketTo }),
+  OPS_BROADCAST_ROOM: "ops:broadcast",
 }));
 
 vi.mock("@api/infra/logger/index.js", () => ({

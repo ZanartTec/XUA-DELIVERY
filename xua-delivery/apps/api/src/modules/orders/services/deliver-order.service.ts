@@ -11,6 +11,7 @@ import {
 } from "@xua/shared/enums";
 import { CASH_PAYMENT_METHOD } from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
+import { createLogger } from "../../../infra/logger/index.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
 import { notificationService } from "../../notifications/services/notification.service.js";
@@ -28,12 +29,22 @@ import {
   PAYMENT_PAID_STATUS,
 } from "./payment-constants.js";
 import { subscriptionSettlementService } from "../../user-subscriptions/services/subscription-settlement.service.js";
+import type { DeliveryActor } from "./delivery-actor.js";
+import {
+  publishBottleStepEvents,
+  recordBottleStepInTx,
+  type BottleStep,
+  type BottleStepResult,
+} from "./order-bottle.service.js";
+
+const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
 
 type StockReturnOptions = {
   returnToStock?: boolean;
 };
+
 
 /**
  * deliverOrderService — desfechos da entrega: sucesso, falha e reagendamento.
@@ -42,12 +53,51 @@ export const deliverOrderService = {
   /**
    * Entrega pedido: OUT_FOR_DELIVERY → DELIVERED
    */
-  async deliverOrder(orderId: string, driverId: string): Promise<Order> {
+  async deliverOrder(
+    orderId: string,
+    actor: DeliveryActor,
+    bottleStep?: BottleStep
+  ): Promise<Order> {
     const prisma = getPrisma();
+    let bottleStepResult: BottleStepResult | null = null;
+
     const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
+      // Leitura com lock: sem ela, duas confirmações concorrentes (motorista com
+      // conexão instável tocando duas vezes, ou fila offline sincronizando junto
+      // de um envio manual) liam o mesmo estado e ambas seguiam adiante.
+      // markDeliveryFailed já lia com lock; deliverOrder era a assimetria.
+      const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.DELIVERED);
+
+      // O vasilhame é gravado na MESMA transação da conclusão: ou as duas
+      // coisas acontecem, ou nenhuma. Antes eram duas requisições em sequência
+      // e o pedido já virava DELIVERED na primeira — se o motorista fechasse o
+      // app entre uma e outra, a entrega ficava concluída para sempre sem
+      // registro de vasilhame.
+      if (bottleStep) {
+        bottleStepResult = await recordBottleStepInTx(orderId, actor.id, bottleStep, tx);
+      }
+
+      const bottleStepRecordedAt =
+        bottleStepResult?.order.bottle_step_recorded_at ?? current.bottle_step_recorded_at;
+
+      // Motorista não conclui entrega sem registrar vasilhame. Ops e suporte
+      // passam porque o override existe justamente para os casos em que o
+      // motorista não consegue reportar (sem sinal, por exemplo) — aí o
+      // registro fica como não informado e a auditoria abaixo marca isso.
+      if (!bottleStepRecordedAt) {
+        if (actor.type === ActorType.DRIVER) {
+          throw new OrderServiceError(
+            "BOTTLE_STEP_REQUIRED",
+            "Registre a troca de vasilhame ou o motivo da não-coleta para concluir a entrega"
+          );
+        }
+        log.warn(
+          { orderId, actorId: actor.id, actorType: actor.type, status: current.status },
+          "delivered_without_bottle_step"
+        );
+      }
 
       const cashPayment = await tx.payment.findFirst({
         where: {
@@ -76,9 +126,9 @@ export const deliverOrderService = {
         await auditRepository.emit(
           {
             eventType: AuditEventType.PAYMENT_CAPTURED,
-            actor: { type: ActorType.DRIVER, id: driverId },
+            actor: { type: actor.type, id: actor.id },
             orderId,
-            sourceApp: SourceApp.DRIVER_WEB,
+            sourceApp: actor.sourceApp,
             payload: {
               payment_id: cashPayment.id,
               payment_method: CASH_PAYMENT_METHOD,
@@ -102,9 +152,16 @@ export const deliverOrderService = {
       await auditRepository.emit(
         {
           eventType: AuditEventType.ORDER_DELIVERED,
-          actor: { type: ActorType.DRIVER, id: driverId },
+          actor: { type: actor.type, id: actor.id },
           orderId,
-          sourceApp: SourceApp.DRIVER_WEB,
+          sourceApp: actor.sourceApp,
+          // Telemetria do Estágio 2A: é por este campo que se mede quantas
+          // entregas ainda fecham sem o passo de vasilhame, e portanto quando
+          // é seguro ligar o guard estrito.
+          payload: {
+            bottle_step_recorded: bottleStepRecordedAt != null,
+            bottle_step_recorded_at: bottleStepRecordedAt?.toISOString() ?? null,
+          },
         },
         tx
       );
@@ -116,10 +173,16 @@ export const deliverOrderService = {
       return updated;
     });
 
+    if (bottleStepResult) publishBottleStepEvents(bottleStepResult);
+
     orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.DELIVERED,
     });
+    // A distribuidora acompanha a fila em tempo real desde o aceite e o
+    // despacho, mas parava de receber sinal justamente no desfecho: a entrega
+    // só aparecia no painel depois de um refresh manual.
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERED);
 
     // Push notification
     notificationService
@@ -175,9 +238,15 @@ export const deliverOrderService = {
         tx
       );
 
+      // REDELIVERY_REQUIRED (e não ORDER_CANCELLED): falha de entrega não é
+      // cancelamento. É este evento que alimenta a taxa de reentrega dos
+      // painéis de distribuidora e ops — enquanto ele não era emitido, a
+      // métrica ficava constante em 0%. Eventos gravados antes de ago/2026
+      // continuam como ORDER_CANCELLED e são traduzidos na leitura pelo
+      // `resolveEventType` do front.
       await auditRepository.emit(
         {
-          eventType: AuditEventType.ORDER_CANCELLED,
+          eventType: AuditEventType.REDELIVERY_REQUIRED,
           actor: { type: ActorType.DRIVER, id: driverId },
           orderId,
           sourceApp: SourceApp.DRIVER_WEB,
@@ -201,6 +270,16 @@ export const deliverOrderService = {
       orderId,
       status: OrderStatus.DELIVERY_FAILED,
     });
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERY_FAILED, {
+      reason,
+    });
+    // Falha de entrega exige decisão humana — é ops quem reagenda a reentrega.
+    orderEventsPublisher.notifyOps("order_status_changed", {
+      orderId,
+      status: OrderStatus.DELIVERY_FAILED,
+      distributorId: order.distributor_id,
+      reason,
+    });
 
     return order;
   },
@@ -222,9 +301,13 @@ export const deliverOrderService = {
         tx
       );
 
+      // REDELIVERY_SCHEDULED (e não ORDER_CONFIRMED): agendar reentrega não é
+      // confirmação de pagamento. Com o evento errado, a timeline do cliente
+      // exibia "Pagamento confirmado" logo após uma falha de entrega, dando a
+      // entender que ele havia sido cobrado outra vez.
       await auditRepository.emit(
         {
-          eventType: AuditEventType.ORDER_CONFIRMED,
+          eventType: AuditEventType.REDELIVERY_SCHEDULED,
           actor: { type: ActorType.OPS, id: opsUserId },
           orderId,
           sourceApp: SourceApp.OPS_CONSOLE,
@@ -239,6 +322,16 @@ export const deliverOrderService = {
     orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
       orderId,
       status: OrderStatus.REDELIVERY_SCHEDULED,
+    });
+    // A distribuidora precisa saber para reprogramar a rota do dia.
+    orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.REDELIVERY_SCHEDULED, {
+      newDate: newDate.toISOString(),
+    });
+    orderEventsPublisher.notifyOps("order_status_changed", {
+      orderId,
+      status: OrderStatus.REDELIVERY_SCHEDULED,
+      distributorId: order.distributor_id,
+      newDate: newDate.toISOString(),
     });
 
     return order;

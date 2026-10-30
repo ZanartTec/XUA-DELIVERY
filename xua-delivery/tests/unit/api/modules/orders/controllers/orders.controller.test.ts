@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
-import { OrderStatus } from "@xua/shared/enums";
+import { ActorType, OrderStatus, SourceApp } from "@xua/shared/enums";
 
 const mocks = await vi.hoisted(async () => {
   // Os erros de domínio estendem AppError — é dele que o errorHandler tira o
@@ -55,12 +55,25 @@ const mocks = await vi.hoisted(async () => {
     socketEmit: vi.fn(),
     socketTo: vi.fn(),
     loggerError: vi.fn(),
+    orderEventsPublisher: {
+      notifyConsumer: vi.fn(),
+      notifyDistributor: vi.fn(),
+      notifyDriver: vi.fn(),
+      notifyOps: vi.fn(),
+      distributorOrderStatusChanged: vi.fn(),
+    },
   };
 });
 
 vi.mock("@api/modules/orders/services/orders.service.js", () => ({
   orderService: mocks.orderService,
   OrderServiceError: mocks.OrderServiceError,
+}));
+
+// Mockado para isolar o controller: o publisher real puxa gateway e logger,
+// e o que interessa aqui é se o controller decide emitir, não como se emite.
+vi.mock("@api/modules/orders/services/order-events.publisher.js", () => ({
+  orderEventsPublisher: mocks.orderEventsPublisher,
 }));
 
 vi.mock("@api/modules/orders/policies/order.policy.js", () => ({
@@ -108,6 +121,13 @@ const existingOrder = {
   distributor_id: distributorId,
   driver_id: userId,
   status: OrderStatus.SENT_TO_DISTRIBUTOR,
+};
+
+/** Passo de vasilhame exigido na conclusão da entrega, no formato do contrato. */
+const bottleStepBody = {
+  kind: "exchange",
+  returned_empty_qty: 2,
+  bottle_condition: "ok",
 };
 
 function req(role: string, body: Record<string, unknown>, query: Record<string, unknown> = {}): Request {
@@ -466,22 +486,14 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
   });
 });
 
-describe("ordersController deliver/verifyOtp/otpOverride", () => {
-  it("entrega pedido diretamente (uso administrativo)", async () => {
-    const response = res();
-
-    await call(ordersController.deliver, req("driver", {}), response);
-
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
-  });
-
+describe("ordersController verifyOtp/otpOverride", () => {
   it("retorna 429 quando o OTP ja estava bloqueado por tentativas anteriores", async () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(
       new mocks.OtpServiceError("OTP_LOCKED", "OTP bloqueado por excesso de tentativas")
     );
 
-    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(429);
     expect(response.json).toHaveBeenCalledWith({
@@ -491,11 +503,46 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
   });
 
+  // Desbloquear OTP é ação de ops, então ops precisa saber que aconteceu sem
+  // depender de o motorista ligar avisando.
+  it("avisa ops quando o OTP acabou de ser bloqueado", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({
+      isValid: false,
+      attempts: 5,
+      maxAttempts: 5,
+      locked: true,
+    });
+
+    await call(ordersController.verifyOtp, req("driver", { code: "000000", bottle_step: bottleStepBody }), response);
+
+    expect(mocks.orderEventsPublisher.notifyOps).toHaveBeenCalledWith(
+      "otp_locked",
+      expect.objectContaining({ orderId, driverId: userId, attempts: 5 })
+    );
+  });
+
+  // Tentativa inválida sem bloqueio não é evento de ops: reemitir a cada erro
+  // de digitação inundaria uma sala que recebe todas as distribuidoras.
+  it("não avisa ops em tentativa inválida que não bloqueou", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({
+      isValid: false,
+      attempts: 2,
+      maxAttempts: 5,
+      locked: false,
+    });
+
+    await call(ordersController.verifyOtp, req("driver", { code: "000000", bottle_step: bottleStepBody }), response);
+
+    expect(mocks.orderEventsPublisher.notifyOps).not.toHaveBeenCalled();
+  });
+
   it("retorna 400 quando o OTP esta expirado", async () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_EXPIRED", "OTP expirado"));
 
-    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({ error: "OTP expirado", code: "OTP_EXPIRED" });
@@ -505,7 +552,7 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockRejectedValueOnce(new mocks.OtpServiceError("OTP_NOT_FOUND", "OTP não encontrado"));
 
-    await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
 
     expect(response.status).toHaveBeenCalledWith(404);
   });
@@ -514,9 +561,45 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     const response = res();
     mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
 
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
+
+    // O vasilhame vai junto do código, na mesma chamada: é o que garante que
+    // a entrega não conclui sem o registro.
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(
+      orderId,
+      { type: ActorType.DRIVER, id: userId, sourceApp: SourceApp.DRIVER_WEB },
+      { kind: "exchange", collectedQty: 2, returnedQty: 2, condition: "ok" }
+    );
+  });
+
+  it("recusa a conclusão sem o passo de vasilhame", async () => {
+    const response = res();
+
     await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.validate).not.toHaveBeenCalled();
+    expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
+  });
+
+  it("aceita não-coleta como passo de vasilhame", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
+
+    await call(
+      ordersController.verifyOtp,
+      req("driver", {
+        code: "123456",
+        bottle_step: { kind: "not_collected", reason: "client_absent" },
+      }),
+      response
+    );
+
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(
+      orderId,
+      expect.anything(),
+      { kind: "not_collected", reason: "client_absent", notes: undefined }
+    );
   });
 
   it("retorna 400 quando o codigo informado nao tem 6 digitos", async () => {
@@ -534,7 +617,13 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
     await call(ordersController.otpOverride, req("ops", { reason: "confirmed_by_phone" }), response);
 
     expect(mocks.otpService.override).toHaveBeenCalledWith(orderId, userId, "confirmed_by_phone", undefined);
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    // Ator real do override: antes a conclusão era gravada como se o motorista
+    // tivesse validado o código, com o id do usuário de ops no lugar dele.
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
+      type: ActorType.OPS,
+      id: userId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
   });
 
   it("aceita motivo 'other' com detalhe de ao menos 10 caracteres", async () => {
@@ -551,7 +640,11 @@ describe("ordersController deliver/verifyOtp/otpOverride", () => {
       "other",
       "Cliente sem celular no momento"
     );
-    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, userId);
+    expect(mocks.orderService.deliverOrder).toHaveBeenCalledWith(orderId, {
+      type: ActorType.OPS,
+      id: userId,
+      sourceApp: SourceApp.OPS_CONSOLE,
+    });
   });
 
   it("retorna 400 quando o override nao informa motivo", async () => {

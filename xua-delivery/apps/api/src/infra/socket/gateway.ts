@@ -6,6 +6,9 @@ import { logger } from "../logger";
 
 let io: Server | null = null;
 
+/** Sala compartilhada de ops/suporte, que acompanham todas as distribuidoras. */
+export const OPS_BROADCAST_ROOM = "ops:broadcast";
+
 /**
  * Cria e configura a instância Socket.IO no servidor HTTP.
  * Inclui middleware de autenticação JWT no handshake.
@@ -53,6 +56,15 @@ export function createSocketGateway(httpServer: HttpServer): Server {
       if (payload.role === "distributor_admin" && payload.distributor_id) {
         socket.join(`distributor:${payload.distributor_id}`);
         socket.data.distributorId = payload.distributor_id;
+      }
+
+      // Ops e suporte enxergam o sistema inteiro, então não há sala por
+      // distribuidora que sirva: entram numa sala compartilhada. Sem ela, o
+      // console de operações só descobria uma falha de entrega quando alguém
+      // atualizava a página. Reservada a eventos que exigem ação — não é um
+      // espelho de tudo que acontece.
+      if (payload.role === "ops" || payload.role === "support") {
+        socket.join(OPS_BROADCAST_ROOM);
       }
 
       logger.debug(

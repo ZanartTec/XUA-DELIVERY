@@ -1,6 +1,7 @@
 import { signToken } from "../../../infra/auth/jwt";
 import { hashPassword, comparePassword } from "../../../infra/auth/password";
 import { blacklistToken } from "../../../infra/auth/blacklist";
+import { markPasswordChanged } from "../../../infra/auth/password-change.js";
 import { authRepository } from "../repository/auth.repository.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger";
@@ -151,5 +152,35 @@ export const authService = {
       throw new AuthServiceError("Consumidor não encontrado", 404);
     }
     return consumer;
+  },
+
+  /**
+   * Troca a senha de quem já está autenticado, exigindo a senha atual.
+   *
+   * Vale para todos os papéis. Até existir, a única forma de trocar a senha era
+   * o fluxo de "esqueci minha senha" por e-mail — o que, para um motorista em
+   * campo, significa sair do app e abrir a caixa de entrada.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const consumer = await authRepository.findByIdForAuth(userId);
+    if (!consumer) {
+      throw new AuthServiceError("Usuário não encontrado", 404);
+    }
+
+    const valid = await comparePassword(currentPassword, consumer.password_hash);
+    if (!valid) {
+      log.warn({ userId }, "Change password — wrong current password");
+      throw new AuthServiceError("Senha atual incorreta", 401);
+    }
+
+    const password_hash = await hashPassword(newPassword);
+    const changedAt = new Date();
+    await authRepository.updatePassword(userId, password_hash);
+
+    // Derruba as sessões emitidas antes da troca, mesmo comportamento do reset
+    // por token: trocar a senha tem que expulsar quem já estava dentro.
+    await markPasswordChanged(userId, changedAt.getTime());
+
+    log.info({ userId }, "Password changed");
   },
 };

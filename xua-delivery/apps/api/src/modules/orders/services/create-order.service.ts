@@ -237,6 +237,9 @@ async function buildOrderInTx(
       bottle_condition: null,
       empty_not_collected_reason: null,
       empty_not_collected_notes: null,
+      // Passo de vasilhame ainda não cumprido — só o motorista o registra, na
+      // entrega. Nulo é o estado correto de um pedido recém-criado.
+      bottle_step_recorded_at: null,
       payment_status: initialPaymentStatus,
       cancellation_reason: null,
       accepted_at: null,

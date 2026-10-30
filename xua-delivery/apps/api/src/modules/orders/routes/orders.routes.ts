@@ -107,12 +107,6 @@ router.patch(
 );
 
 /**
- * PATCH /api/orders/:id/deliver
- * Motorista confirma entrega (uso administrativo/teste, sem validar OTP).
- */
-router.patch("/:id/deliver", requireRole("driver"), driverActionLimit, ordersController.deliver);
-
-/**
  * PATCH /api/orders/:id/verify-otp
  * Motorista valida o código informado pelo cliente e confirma a entrega.
  */

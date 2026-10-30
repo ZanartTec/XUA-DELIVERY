@@ -7,6 +7,8 @@ process.env.DUMMY_HASH = "$2b$10$wXg1jNr2OCG.oa4U0Z3YXukHuIW/LnpTfPgFQVsudRT/Dda
 const mocks = vi.hoisted(() => ({
   authRepository: {
     findByEmailForAuth: vi.fn(),
+    findByIdForAuth: vi.fn(),
+    updatePassword: vi.fn(),
   },
   distributorRepository: {
     resolveDistributorId: vi.fn(),
@@ -15,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   comparePassword: vi.fn(),
   hashPassword: vi.fn(),
   blacklistToken: vi.fn(),
+  markPasswordChanged: vi.fn(),
 }));
 
 vi.mock("@api/modules/auth/repository/auth.repository.js", () => ({
@@ -36,6 +39,12 @@ vi.mock("@api/infra/auth/password", () => ({
 
 vi.mock("@api/infra/auth/blacklist", () => ({
   blacklistToken: mocks.blacklistToken,
+}));
+
+// password-change.js importa o cliente Redis, que lança no import quando
+// REDIS_URL não está definida — mockar aqui mantém o teste sem infra externa.
+vi.mock("@api/infra/auth/password-change.js", () => ({
+  markPasswordChanged: mocks.markPasswordChanged,
 }));
 
 const { authService, AuthServiceError } = await import("@api/modules/auth/services/auth.service.js");
@@ -107,6 +116,62 @@ describe("authService.login", () => {
       "senha1234",
       "$2b$10$wXg1jNr2OCG.oa4U0Z3YXukHuIW/LnpTfPgFQVsudRT/Ddagqx0JW"
     );
+  });
+});
+
+describe("authService.changePassword", () => {
+  const userId = "8b1c0d20-3333-4c00-9000-000000000001";
+
+  function givenUser() {
+    mocks.authRepository.findByIdForAuth.mockResolvedValue({
+      id: userId,
+      password_hash: "$2b$10$hash-atual",
+    });
+  }
+
+  it("troca a senha quando a atual confere", async () => {
+    givenUser();
+    mocks.comparePassword.mockResolvedValue(true);
+    mocks.hashPassword.mockResolvedValue("$2b$10$hash-novo");
+
+    await authService.changePassword(userId, "senha-atual", "senha-nova-123");
+
+    expect(mocks.comparePassword).toHaveBeenCalledWith("senha-atual", "$2b$10$hash-atual");
+    expect(mocks.authRepository.updatePassword).toHaveBeenCalledWith(userId, "$2b$10$hash-novo");
+  });
+
+  it("recusa quando a senha atual está errada, sem gravar nada", async () => {
+    givenUser();
+    mocks.comparePassword.mockResolvedValue(false);
+
+    await expect(
+      authService.changePassword(userId, "senha-errada", "senha-nova-123")
+    ).rejects.toMatchObject({ name: "AuthServiceError", status: 401 });
+
+    expect(mocks.authRepository.updatePassword).not.toHaveBeenCalled();
+    expect(mocks.markPasswordChanged).not.toHaveBeenCalled();
+  });
+
+  it("recusa usuário inexistente", async () => {
+    mocks.authRepository.findByIdForAuth.mockResolvedValue(null);
+
+    await expect(
+      authService.changePassword(userId, "senha-atual", "senha-nova-123")
+    ).rejects.toMatchObject({ name: "AuthServiceError", status: 404 });
+
+    expect(mocks.authRepository.updatePassword).not.toHaveBeenCalled();
+  });
+
+  // Trocar a senha tem que expulsar quem já estava dentro: se a conta foi
+  // comprometida, a sessão do atacante morre no request seguinte.
+  it("invalida as sessões emitidas antes da troca", async () => {
+    givenUser();
+    mocks.comparePassword.mockResolvedValue(true);
+    mocks.hashPassword.mockResolvedValue("$2b$10$hash-novo");
+
+    await authService.changePassword(userId, "senha-atual", "senha-nova-123");
+
+    expect(mocks.markPasswordChanged).toHaveBeenCalledWith(userId, expect.any(Number));
   });
 });
 
