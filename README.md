@@ -3,7 +3,7 @@
 Plataforma fullstack de delivery de água mineral em garrafão retornável 20L.
 
 Organizado como **monorepo npm workspaces** com dois apps independentes:
-- **`apps/api`** — API REST + Socket.io (Express 5, porta 4000)
+- **`apps/api`** — API REST + Socket.io (Express 5, porta 3000) e worker BullMQ
 - **`apps/web`** — Frontend PWA (Next.js 16.2 App Router, porta 3001)
 - **`packages/shared`** — Tipos, enums, schemas e constantes compartilhados
 
@@ -102,16 +102,64 @@ aud_audit_events         — Auditoria append-only (fonte dos KPIs)
 
 ## Como Rodar
 
-### Infraestrutura (PostgreSQL + Redis)
+O padrão do projeto é **infraestrutura em Docker + apps rodando nativos** — API e Web usam
+hot-reload (`tsx watch` / `next dev`), que é bem mais rápido fora de container. Só Postgres e
+Redis sobem via Docker.
+
+### 1. Suba a infraestrutura (Postgres + Redis)
 
 ```bash
+cd xua-delivery
 docker compose up -d
 ```
 
-### Desenvolvimento
+Isso sobe dois containers definidos em [`docker-compose.yml`](xua-delivery/docker-compose.yml):
+
+| Serviço | Container | Porta no host | Porta no container |
+|---|---|---|---|
+| PostgreSQL 16 | `xua-postgres` | `5433` | `5432` |
+| Redis 7 | `xua-redis` | `6379` | `6379` |
+
+> **Por que 5433 e não 5432?** Evita conflito com um Postgres local (nativo ou de outro
+> projeto/container) que já ocupe a porta padrão. Se a 5432 estiver livre na sua máquina, pode
+> trocar o mapeamento de volta para `"5432:5432"` no `docker-compose.yml` — só lembre de
+> atualizar o `DATABASE_URL` do próximo passo para bater com a porta escolhida.
+
+Confira se os dois estão de pé e saudáveis:
 
 ```bash
-# Roda API (porta 4000) e Web (porta 3001) simultaneamente
+docker compose ps
+```
+
+### 2. Configure o `.env` da API para apontar pro Postgres local
+
+`apps/api/.env` já vem com as duas opções comentadas — deixe ativa a **Opção A**:
+
+```bash
+# ─── Banco de Dados (PostgreSQL) ───────────────────────────────
+# Opção A — Docker local (docker compose up -d):
+DATABASE_URL="postgresql://xua:xua_secret_change_me@localhost:5433/xua_delivery"
+
+# Opção B — Render (PRODUÇÃO — evite usar no dev local, grava em dados reais):
+#DATABASE_URL="postgresql://xua:...@....render.com/xua?sslmode=require"
+```
+
+`REDIS_URL="redis://localhost:6379"` já aponta pro Redis do compose por padrão.
+
+### 3. Primeira vez: aplique as migrations e gere o Prisma Client
+
+Rodado a partir da raiz de `xua-delivery/` (o `prisma.config.ts` não lê `apps/api/.env`
+automaticamente, então passe a `DATABASE_URL` explícita neste passo único de setup):
+
+```bash
+DATABASE_URL="postgresql://xua:xua_secret_change_me@localhost:5433/xua_delivery" npx prisma migrate deploy
+DATABASE_URL="postgresql://xua:xua_secret_change_me@localhost:5433/xua_delivery" npx prisma generate
+```
+
+### 4. Rode API e Web
+
+```bash
+# API (porta 3000, conforme apps/api/.env) + Web (porta 3001) em paralelo
 npm run dev
 
 # Ou separadamente:
@@ -119,20 +167,47 @@ npm run dev:api
 npm run dev:web
 ```
 
-A API usa `tsx --watch` com hot-reload nativo. O frontend usa `next dev`.
+A API usa `tsx watch` com hot-reload nativo (lê `apps/api/.env` sozinha). O frontend usa
+`next dev`. Teste rapidamente com:
+
+```bash
+curl http://localhost:3000/health
+```
+
+### 5. Parar/limpar
+
+```bash
+# Para os containers, mantém os dados no volume
+docker compose down
+
+# Para os containers E apaga os dados (banco/redis zerados)
+docker compose down -v
+```
+
+### Rotina do dia a dia
+
+Depois do setup inicial (passos 1–3, feitos uma vez), o ciclo normal é só:
+
+```bash
+docker compose up -d   # sobe infra (se não estiver rodando)
+npm run dev             # sobe API + Web com hot-reload
+```
 
 ### Produção
 
-```bash
-# Build do frontend
-npm run build:web
+Produção roda no **Render**, sem Docker: API, Web e Worker são serviços Node nativos, e
+Postgres e Redis são serviços gerenciados.
 
-# Inicia API
-npm run start:api
+| Serviço Render | Tipo | Equivale a |
+|---|---|---|
+| `xua-api` | Web Service (Node) | `npm run start:api` |
+| `xua-web` | Web Service (Node) | `npm run build:web` + `npm run start:web` |
+| `xua-worker` | Background Worker (Node) | `npm run worker -w @xua/api` |
+| `xua-bd` | PostgreSQL gerenciado | `xua-postgres` do compose |
+| `xua-redis` | Key Value gerenciado (Valkey, compatível com Redis) | `xua-redis` do compose |
 
-# Inicia Web
-npm run start:web
-```
+Migrations em produção são aplicadas com `npx prisma migrate deploy` apontando o
+`DATABASE_URL` para o `xua-bd`.
 
 ---
 
@@ -164,7 +239,7 @@ xua-delivery/
 │   └── migrations/            # Histórico de migrations
 │
 ├── apps/
-│   ├── api/                   # @xua/api — Express 5 (porta 4000)
+│   ├── api/                   # @xua/api — Express 5 (porta 3000)
 │   │   └── src/
 │   │       ├── server/        # Entrypoint HTTP + Socket.io + graceful shutdown
 │   │       ├── http/          # App Express, registro de rotas
