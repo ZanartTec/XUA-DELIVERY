@@ -181,6 +181,26 @@ body {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* Feedback de código incorreto na conclusão da entrega. A classe já era usada
+   pela tela do motorista, mas a animação nunca existiu — o erro passava sem
+   nenhum sinal físico, justamente na tela em que o motorista está de pé na
+   porta do cliente olhando de relance. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake {
+    animation: none;
+  }
+}
+
 .animate-badge-pop {
   animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }

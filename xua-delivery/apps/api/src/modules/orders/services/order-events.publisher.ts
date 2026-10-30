@@ -1,6 +1,6 @@
 import type { Order } from "@prisma/client";
 import type { OrderStatus } from "@xua/shared/enums";
-import { getIO } from "../../../infra/socket/gateway.js";
+import { getIO, OPS_BROADCAST_ROOM } from "../../../infra/socket/gateway.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
 const log = createLogger("order-events");
@@ -28,6 +28,15 @@ export const orderEventsPublisher = {
 
   notifyDriver(driverId: string, event: string, payload: Record<string, unknown>): void {
     safeEmit(`driver:${driverId}`, event, payload);
+  },
+
+  /**
+   * Notifica ops/suporte. Reservado a eventos que exigem ação humana — uma
+   * sala global recebe o tráfego de todas as distribuidoras, então espelhar
+   * tudo aqui vira ruído e custo à toa.
+   */
+  notifyOps(event: string, payload: Record<string, unknown>): void {
+    safeEmit(OPS_BROADCAST_ROOM, event, payload);
   },
 
   /** Notifica a sala da distribuidora sobre mudança de status de um pedido. */

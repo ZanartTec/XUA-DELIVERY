@@ -5,13 +5,14 @@ import {
   productUpdateSchema,
 } from "@xua/shared/schemas/product";
 import { productsService } from "../services/products.service.js";
+import { badRequest } from "../../../errors/index.js";
 
 export const productsController = {
   /** GET /api/products — catálogo ativo, paginado e filtrável */
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = productListQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -37,7 +38,7 @@ export const productsController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = productCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -55,7 +56,7 @@ export const productsController = {
 
     const parsed = productUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 

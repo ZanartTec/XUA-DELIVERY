@@ -7,6 +7,7 @@ import type {
 } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { AppError } from "../../../errors/index.js";
 import {
   inventoryRepository,
   type TxClient,
@@ -42,12 +43,9 @@ export type ApplyInventoryMovementResult = {
   idempotentReplay: boolean;
 };
 
-export class InventoryServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
+export class InventoryServiceError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message);
     this.name = "InventoryServiceError";
   }
 }

@@ -4,12 +4,14 @@ import {
   registerSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from "@xua/shared/schemas/auth";
 import { verifyToken } from "../../../infra/auth/jwt.js";
 import { isBlacklisted } from "../../../infra/auth/blacklist.js";
 import { isTokenStale } from "../../../infra/auth/password-change.js";
 import { authService } from "../services/auth.service.js";
 import { passwordResetService } from "../services/password-reset.service.js";
+import { badRequest, forbidden, unauthorized } from "../../../errors/index.js";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -27,7 +29,7 @@ export const authController = {
     try {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
+        next(badRequest(parsed.error.issues[0]!.message));
         return;
       }
 
@@ -47,7 +49,7 @@ export const authController = {
     try {
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
+        next(badRequest(parsed.error.issues[0]!.message));
         return;
       }
 
@@ -68,7 +70,7 @@ export const authController = {
     try {
       const parsed = forgotPasswordSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
+        next(badRequest(parsed.error.issues[0]!.message));
         return;
       }
 
@@ -91,11 +93,41 @@ export const authController = {
     try {
       const parsed = resetPasswordSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: parsed.error.issues[0].message });
+        next(badRequest(parsed.error.issues[0]!.message));
         return;
       }
 
       await passwordResetService.resetPassword(parsed.data.token, parsed.data.password);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/auth/change-password
+   * Troca a senha de quem já está logado, exigindo a senha atual.
+   * Requer autenticação (authMiddleware deve estar ativo).
+   */
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.sub;
+      if (!userId) {
+        res.status(401).json({ error: "Não autenticado" });
+        return;
+      }
+
+      const parsed = changePasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0].message });
+        return;
+      }
+
+      await authService.changePassword(
+        userId,
+        parsed.data.current_password,
+        parsed.data.new_password
+      );
       res.json({ ok: true });
     } catch (err) {
       next(err);
@@ -135,7 +167,7 @@ export const authController = {
     try {
       const userId = req.user?.sub;
       if (!userId) {
-        res.status(401).json({ error: "Não autenticado" });
+        next(unauthorized("Não autenticado"));
         return;
       }
 
@@ -155,7 +187,7 @@ export const authController = {
     try {
       const secret = req.headers["x-internal-secret"];
       if (secret !== process.env.INTERNAL_SECRET) {
-        res.status(403).json({ error: "Forbidden" });
+        next(forbidden("Forbidden"));
         return;
       }
 

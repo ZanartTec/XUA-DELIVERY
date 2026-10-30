@@ -49,6 +49,17 @@ export const consumerRepository = {
 
   // ─── Address methods ──────────────────────────────────────
 
+  /**
+   * Endereço restrito ao consumidor dono. O checkout usa isto para não
+   * aceitar um address_id de outra pessoa vindo no payload.
+   */
+  async findAddressOwnedBy(addressId: string, consumerId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.findFirst({
+      where: { id: addressId, consumer_id: consumerId },
+    });
+  },
+
   async findAddresses(consumerId: string, tx?: TxClient) {
     const prisma = getPrisma();
     return (tx ?? prisma).address.findMany({

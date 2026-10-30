@@ -2,11 +2,15 @@
 
 import { cn } from "@/src/lib/utils";
 import { useIsClient } from "@/src/hooks/use-is-client";
+import { resolveEventType } from "@/src/lib/order-detail-format";
 
 export interface TimelineEvent {
   status: string;
   timestamp: string;
   actor?: string;
+  /** Detalhe do evento. Necessário para resolver eventos históricos gravados
+   *  com o tipo errado — ver `resolveEventType`. */
+  payload?: unknown;
 }
 
 interface OrderTimelineProps {
@@ -30,6 +34,8 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   ORDER_OUT_FOR_DELIVERY:      { label: "Em rota de entrega", color: "bg-purple-100 text-purple-700" },
   ORDER_DELIVERED:             { label: "Entregue com sucesso", color: "bg-green-100 text-green-800" },
   ORDER_DELIVERY_FAILED:       { label: "Falha na entrega", color: "bg-red-100 text-red-700" },
+  REDELIVERY_REQUIRED:         { label: "Falha na entrega", color: "bg-red-100 text-red-700" },
+  REDELIVERY_SCHEDULED:        { label: "Reentrega agendada", color: "bg-amber-100 text-amber-700" },
   ORDER_CANCELLED:             { label: "Pedido cancelado", color: "bg-gray-200 text-gray-600" },
   OTP_GENERATED:               { label: "Código de confirmação gerado", color: "bg-blue-100 text-blue-700" },
   OTP_VALIDATED:               { label: "Código de confirmação validado", color: "bg-green-100 text-green-700" },
@@ -59,8 +65,9 @@ export function OrderTimeline({ events, className }: OrderTimelineProps) {
     <ol className={cn("relative border-l border-[#e1e3e4] ml-3", className)}>
       {events.map((event, i) => {
         const isLast = i === events.length - 1;
-        const config = EVENT_LABELS[event.status] ?? {
-          label: event.status.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
+        const eventType = resolveEventType(event.status, event.payload);
+        const config = EVENT_LABELS[eventType] ?? {
+          label: eventType.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
           color: "bg-gray-100 text-gray-600",
         };
         const actor = event.actor ? formatActor(event.actor) : "";

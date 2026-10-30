@@ -285,6 +285,51 @@ export const verifyOtpSchema = z.object({
 });
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 
+/**
+ * Passo do vasilhame na conclusão da entrega: ou o motorista registrou a troca,
+ * ou registrou o motivo de não ter coletado. Não existe terceira opção — é essa
+ * exclusividade que garante que nenhuma entrega feche sem o dado.
+ */
+export const bottleStepSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("exchange"),
+    // Vazios efetivamente coletados do consumidor (settlement de caução).
+    // Ausente = igual a returned_empty_qty.
+    collected_empty_qty: z.number().int().min(0, "Quantidade inválida").optional(),
+    // Vazios devolvidos ao estoque da distribuidora (RETURNABLE_EMPTY in).
+    returned_empty_qty: z.number().int().min(0, "Quantidade inválida"),
+    bottle_condition: z.enum(BOTTLE_CONDITION_VALUES),
+  }),
+  z.object({
+    kind: z.literal("not_collected"),
+    reason: z.enum(NON_COLLECTION_REASON_VALUES),
+    notes: z.string().trim().min(10, "Detalhe deve ter ao menos 10 caracteres").optional(),
+  }),
+]).superRefine((data, ctx) => {
+  if (data.kind === "not_collected" && data.reason === "other" && (!data.notes || data.notes.length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["notes"],
+      message: "Detalhe deve ter ao menos 10 caracteres",
+    });
+  }
+});
+export type BottleStepInput = z.infer<typeof bottleStepSchema>;
+
+/**
+ * Conclusão da entrega numa única requisição: código do cliente + vasilhame.
+ *
+ * Antes eram duas chamadas em sequência, e o pedido já virava DELIVERED na
+ * primeira — se o motorista fechasse o app entre uma e outra, a entrega ficava
+ * concluída para sempre sem nenhum registro de vasilhame. Juntando as duas no
+ * mesmo payload, ou as duas coisas acontecem ou nenhuma acontece.
+ */
+export const completeDeliverySchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Código OTP deve ter 6 dígitos"),
+  bottle_step: bottleStepSchema,
+});
+export type CompleteDeliveryInput = z.infer<typeof completeDeliverySchema>;
+
 export const otpOverrideSchema = z.object({
   reason: z.enum(OTP_OVERRIDE_REASON_VALUES),
   details: z.string().trim().optional(),

@@ -1,7 +1,8 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { notificationService } from "../services/notification.service.js";
 import { logger } from "../../../infra/logger/index.js";
+import { badRequest } from "../../../errors/index.js";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -13,10 +14,10 @@ const subscribeSchema = z.object({
 
 export const notificationsController = {
   /** POST /api/notifications/subscribe */
-  async subscribe(req: Request, res: Response): Promise<void> {
+  async subscribe(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = subscribeSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -27,8 +28,7 @@ export const notificationsController = {
       );
       res.status(201).json({ id: token.id });
     } catch (error) {
-      logger.error({ error }, "Error subscribing to push notifications");
-      res.status(500).json({ error: "Erro interno" });
+      next(error);
     }
   },
 };

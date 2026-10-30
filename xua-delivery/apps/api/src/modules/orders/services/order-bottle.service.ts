@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
-import { ActorType, AuditEventType, InventoryMovementType, InventoryReferenceType, SourceApp } from "@xua/shared/enums";
+import { ActorType, AuditEventType, InventoryMovementType, InventoryReferenceType, OrderStatus, SourceApp } from "@xua/shared/enums";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
@@ -10,163 +10,288 @@ import { depositSettlementService } from "../../deposits/services/deposit-settle
 import { createLogger } from "../../../infra/logger/index.js";
 import { OrderServiceError } from "../errors.js";
 import { translateInventoryError } from "./order-inventory.helpers.js";
+import { orderEventsPublisher } from "./order-events.publisher.js";
 
 const log = createLogger("orders");
 
 type TxClient = Prisma.TransactionClient;
 
 /**
- * orderBottleService — registros de troca/não-coleta de vasilhame pelo motorista.
+ * Status em que registrar vasilhame faz sentido.
+ *
+ * Aceita os dois lados da conclusão: o passo de vasilhame roda junto da
+ * confirmação do código (pedido ainda OUT_FOR_DELIVERY) e também isolado, para
+ * correção posterior de um pedido já entregue. Qualquer outro status é registro
+ * indevido — sem esta checagem era possível gravar vasilhame de um pedido
+ * cancelado, recusado ou que sequer saiu para entrega.
+ */
+const BOTTLE_STEP_ALLOWED_STATUSES: ReadonlySet<string> = new Set([
+  OrderStatus.OUT_FOR_DELIVERY,
+  OrderStatus.DELIVERED,
+]);
+
+function assertBottleStepAllowed(status: string): void {
+  if (!BOTTLE_STEP_ALLOWED_STATUSES.has(status)) {
+    throw new OrderServiceError(
+      "BOTTLE_STEP_INVALID_STATUS",
+      "Pedido não está em uma etapa que permita registrar vasilhame"
+    );
+  }
+}
+
+export type BottleExchangeData = {
+  collectedQty: number;
+  returnedQty: number;
+  condition?: string;
+};
+
+export type EmptyNotCollectedData = { reason: string; notes?: string };
+
+/**
+ * Passo do vasilhame: ou troca, ou motivo de não-coleta. Não existe terceira
+ * opção — é essa exclusividade que permite exigir o registro na conclusão da
+ * entrega.
+ */
+export type BottleStep =
+  | ({ kind: "exchange" } & BottleExchangeData)
+  | ({ kind: "not_collected" } & EmptyNotCollectedData);
+
+/** Descreve o que foi gravado, para o chamador emitir os eventos pós-commit. */
+export type BottleStepResult = {
+  order: Order;
+  consumerPayload: Record<string, unknown>;
+  distributorPayload: Record<string, unknown>;
+};
+
+/**
+ * Corpo da troca de vasilhame, para rodar DENTRO de uma transação existente.
+ *
+ * Separado do método público porque a conclusão da entrega precisa gravar o
+ * vasilhame e mudar o status do pedido na MESMA transação. Em transações
+ * distintas, uma poderia falhar sem a outra e o pedido voltaria a poder ficar
+ * entregue sem registro de vasilhame — exatamente o problema que se quer fechar.
+ */
+async function recordBottleExchangeInTx(
+  orderId: string,
+  driverId: string,
+  data: BottleExchangeData,
+  tx: TxClient
+): Promise<BottleStepResult> {
+  const current = await orderRepository.findById(orderId, tx);
+  if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+  if (current.driver_id !== driverId) {
+    throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+  }
+  assertBottleStepAllowed(current.status);
+
+  let emptyReturnInventoryItem: Awaited<
+    ReturnType<typeof inventoryRepository.findActiveReturnableEmptyItem>
+  > = null;
+
+  if (data.returnedQty > 0) {
+    emptyReturnInventoryItem = await inventoryRepository.findActiveReturnableEmptyItem(tx);
+    if (emptyReturnInventoryItem) {
+      try {
+        await inventoryService.applyMovement(
+          {
+            distributorId: current.distributor_id,
+            inventoryItemId: emptyReturnInventoryItem.id,
+            quantityDelta: data.returnedQty,
+            movementType: InventoryMovementType.EMPTY_RETURN_IN,
+            actor: { type: ActorType.DRIVER, id: driverId },
+            sourceApp: SourceApp.DRIVER_WEB,
+            reference: { type: InventoryReferenceType.ORDER, id: orderId },
+            metadata: {
+              origin: "bottle_exchange",
+              order_id: orderId,
+              distributor_id: current.distributor_id,
+              driver_id: driverId,
+              returned_empty_qty: data.returnedQty,
+              collected_empty_qty: data.collectedQty,
+              bottle_condition: data.condition ?? null,
+              inventory_item_id: emptyReturnInventoryItem.id,
+              inventory_item_code: emptyReturnInventoryItem.code,
+            },
+          },
+          tx
+        );
+      } catch (error) {
+        translateInventoryError(error);
+      }
+    } else {
+      log.warn(
+        { orderId, distributorId: current.distributor_id, returnedQty: data.returnedQty },
+        "Bottle exchange recorded without returnable empty inventory item"
+      );
+    }
+  }
+
+  const updated = await orderRepository.update(
+    orderId,
+    {
+      collected_empty_qty: data.collectedQty,
+      returned_empty_qty: data.returnedQty,
+      bottle_condition: data.condition ?? null,
+      bottle_step_recorded_at: new Date(),
+    },
+    tx
+  );
+
+  // Settlement de caução de vasilhames com contagem REAL da entrega:
+  // empresta faltantes elegíveis e abate dívida com vazios excedentes.
+  // Idempotente por order_id. Resolve vasilhames a partir dos itens (água→vasilhame).
+  const orderItems = await orderRepository.findItemsByOrderId(orderId, tx);
+  await depositSettlementService.settleDelivery(
+    {
+      orderId,
+      distributorId: current.distributor_id,
+      consumerId: current.consumer_id,
+      items: orderItems,
+      collectedEmpties: data.collectedQty,
+      actor: { type: ActorType.DRIVER, id: driverId },
+      sourceApp: SourceApp.DRIVER_WEB,
+    },
+    tx
+  );
+
+  await auditRepository.emit(
+    {
+      eventType: AuditEventType.BOTTLE_EXCHANGE_RECORDED,
+      actor: { type: ActorType.DRIVER, id: driverId },
+      orderId,
+      sourceApp: SourceApp.DRIVER_WEB,
+      payload: {
+        collectedQty: data.collectedQty,
+        returnedQty: data.returnedQty,
+        condition: data.condition,
+        inventory_movement_type:
+          data.returnedQty > 0 && emptyReturnInventoryItem
+            ? InventoryMovementType.EMPTY_RETURN_IN
+            : null,
+        inventory_item_id: emptyReturnInventoryItem?.id ?? null,
+      },
+    },
+    tx
+  );
+
+  return {
+    order: updated,
+    consumerPayload: {
+      orderId,
+      collectedEmptyQty: data.collectedQty,
+      returnedEmptyQty: data.returnedQty,
+    },
+    distributorPayload: {
+      orderId,
+      driverId,
+      collectedEmptyQty: data.collectedQty,
+      returnedEmptyQty: data.returnedQty,
+      bottleCondition: data.condition ?? null,
+    },
+  };
+}
+
+/** Corpo da não-coleta, para rodar DENTRO de uma transação existente. */
+async function recordEmptyNotCollectedInTx(
+  orderId: string,
+  driverId: string,
+  data: EmptyNotCollectedData,
+  tx: TxClient
+): Promise<BottleStepResult> {
+  const current = await orderRepository.findById(orderId, tx);
+  if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
+  if (current.driver_id !== driverId) {
+    throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+  }
+  assertBottleStepAllowed(current.status);
+
+  const updated = await orderRepository.update(
+    orderId,
+    {
+      empty_not_collected_reason: data.reason,
+      empty_not_collected_notes: data.notes ?? null,
+      bottle_step_recorded_at: new Date(),
+    },
+    tx
+  );
+
+  await auditRepository.emit(
+    {
+      eventType: AuditEventType.EMPTY_NOT_COLLECTED,
+      actor: { type: ActorType.DRIVER, id: driverId },
+      orderId,
+      sourceApp: SourceApp.DRIVER_WEB,
+      payload: { reason: data.reason, notes: data.notes },
+    },
+    tx
+  );
+
+  return {
+    order: updated,
+    consumerPayload: { orderId, notCollectedReason: data.reason },
+    distributorPayload: { orderId, driverId, notCollectedReason: data.reason },
+  };
+}
+
+/** Grava o passo do vasilhame (troca ou não-coleta) dentro de uma transação. */
+export async function recordBottleStepInTx(
+  orderId: string,
+  driverId: string,
+  step: BottleStep,
+  tx: TxClient
+): Promise<BottleStepResult> {
+  return step.kind === "exchange"
+    ? recordBottleExchangeInTx(orderId, driverId, step, tx)
+    : recordEmptyNotCollectedInTx(orderId, driverId, step, tx);
+}
+
+/** Emite os eventos do passo de vasilhame. Sempre pós-commit. */
+export function publishBottleStepEvents(result: BottleStepResult): void {
+  orderEventsPublisher.notifyConsumer(
+    result.order.consumer_id,
+    "bottle_step_recorded",
+    result.consumerPayload
+  );
+  orderEventsPublisher.notifyDistributor(
+    result.order.distributor_id,
+    "bottle_step_recorded",
+    result.distributorPayload
+  );
+}
+
+/**
+ * orderBottleService — registro isolado de vasilhame.
+ *
+ * O caminho normal do motorista grava o vasilhame junto da conclusão da entrega
+ * (ver deliverOrder). Estes métodos cobrem o registro avulso — correção de um
+ * pedido já entregue, por exemplo.
  */
 export const orderBottleService = {
-  /**
-   * Registra troca de vasilhame
-   */
   async recordBottleExchange(
     orderId: string,
     driverId: string,
-    data: { collectedQty: number; returnedQty: number; condition?: string }
+    data: BottleExchangeData
   ): Promise<Order> {
     const prisma = getPrisma();
-    const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
-      if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
-      if (current.driver_id !== driverId) {
-        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
-      }
+    const result = await prisma.$transaction((tx: TxClient) =>
+      recordBottleExchangeInTx(orderId, driverId, data, tx)
+    );
 
-      let emptyReturnInventoryItem: Awaited<
-        ReturnType<typeof inventoryRepository.findActiveReturnableEmptyItem>
-      > = null;
-
-      if (data.returnedQty > 0) {
-        emptyReturnInventoryItem = await inventoryRepository.findActiveReturnableEmptyItem(tx);
-        if (emptyReturnInventoryItem) {
-          try {
-            await inventoryService.applyMovement(
-              {
-                distributorId: current.distributor_id,
-                inventoryItemId: emptyReturnInventoryItem.id,
-                quantityDelta: data.returnedQty,
-                movementType: InventoryMovementType.EMPTY_RETURN_IN,
-                actor: { type: ActorType.DRIVER, id: driverId },
-                sourceApp: SourceApp.DRIVER_WEB,
-                reference: { type: InventoryReferenceType.ORDER, id: orderId },
-                metadata: {
-                  origin: "bottle_exchange",
-                  order_id: orderId,
-                  distributor_id: current.distributor_id,
-                  driver_id: driverId,
-                  returned_empty_qty: data.returnedQty,
-                  collected_empty_qty: data.collectedQty,
-                  bottle_condition: data.condition ?? null,
-                  inventory_item_id: emptyReturnInventoryItem.id,
-                  inventory_item_code: emptyReturnInventoryItem.code,
-                },
-              },
-              tx
-            );
-          } catch (error) {
-            translateInventoryError(error);
-          }
-        } else {
-          log.warn(
-            { orderId, distributorId: current.distributor_id, returnedQty: data.returnedQty },
-            "Bottle exchange recorded without returnable empty inventory item"
-          );
-        }
-      }
-
-      const updated = await orderRepository.update(
-        orderId,
-        {
-          collected_empty_qty: data.collectedQty,
-          returned_empty_qty: data.returnedQty,
-          bottle_condition: data.condition ?? null,
-        },
-        tx
-      );
-
-      // Settlement de caução de vasilhames com contagem REAL da entrega:
-      // empresta faltantes elegíveis e abate dívida com vazios excedentes.
-      // Idempotente por order_id. Resolve vasilhames a partir dos itens (água→vasilhame).
-      const orderItems = await orderRepository.findItemsByOrderId(orderId, tx);
-      await depositSettlementService.settleDelivery(
-        {
-          orderId,
-          distributorId: current.distributor_id,
-          consumerId: current.consumer_id,
-          items: orderItems,
-          collectedEmpties: data.collectedQty,
-          actor: { type: ActorType.DRIVER, id: driverId },
-          sourceApp: SourceApp.DRIVER_WEB,
-        },
-        tx
-      );
-
-      await auditRepository.emit(
-        {
-          eventType: AuditEventType.BOTTLE_EXCHANGE_RECORDED,
-          actor: { type: ActorType.DRIVER, id: driverId },
-          orderId,
-          sourceApp: SourceApp.DRIVER_WEB,
-          payload: {
-            ...data,
-            inventory_movement_type:
-              data.returnedQty > 0 && emptyReturnInventoryItem
-                ? InventoryMovementType.EMPTY_RETURN_IN
-                : null,
-            inventory_item_id: emptyReturnInventoryItem?.id ?? null,
-          },
-        },
-        tx
-      );
-
-      return updated;
-    });
-
-    return order;
+    publishBottleStepEvents(result);
+    return result.order;
   },
 
-  /**
-   * Registra vasilhame não coletado
-   */
   async recordEmptyNotCollected(
     orderId: string,
     driverId: string,
-    data: { reason: string; notes?: string }
+    data: EmptyNotCollectedData
   ): Promise<Order> {
     const prisma = getPrisma();
-    const order = await prisma.$transaction(async (tx: TxClient) => {
-      const current = await orderRepository.findById(orderId, tx);
-      if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
-      if (current.driver_id !== driverId) {
-        throw new OrderServiceError("FORBIDDEN", "Acesso negado");
-      }
+    const result = await prisma.$transaction((tx: TxClient) =>
+      recordEmptyNotCollectedInTx(orderId, driverId, data, tx)
+    );
 
-      const updated = await orderRepository.update(
-        orderId,
-        {
-          empty_not_collected_reason: data.reason,
-          empty_not_collected_notes: data.notes ?? null,
-        },
-        tx
-      );
-
-      await auditRepository.emit(
-        {
-          eventType: AuditEventType.EMPTY_NOT_COLLECTED,
-          actor: { type: ActorType.DRIVER, id: driverId },
-          orderId,
-          sourceApp: SourceApp.DRIVER_WEB,
-          payload: data,
-        },
-        tx
-      );
-
-      return updated;
-    });
-
-    return order;
+    publishBottleStepEvents(result);
+    return result.order;
   },
 };

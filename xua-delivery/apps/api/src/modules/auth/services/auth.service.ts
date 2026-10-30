@@ -1,12 +1,14 @@
 import { signToken } from "../../../infra/auth/jwt";
 import { hashPassword, comparePassword } from "../../../infra/auth/password";
 import { blacklistToken } from "../../../infra/auth/blacklist";
+import { markPasswordChanged } from "../../../infra/auth/password-change.js";
 import { authRepository } from "../repository/auth.repository.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { createLogger } from "../../../infra/logger";
 import { isUserRole } from "@xua/shared/constants/roles";
 import type { UserRole } from "@xua/shared/constants/roles";
 import type { LoginInput, RegisterInput } from "@xua/shared/schemas/auth";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("auth");
 
@@ -17,12 +19,20 @@ if (!DUMMY_HASH) {
   throw new Error("FATAL: A variável de ambiente DUMMY_HASH não está configurada.");
 }
 
-export class AuthServiceError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
+const AUTH_ERROR_CODES: Record<number, string> = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+};
+
+export class AuthServiceError extends AppError {
+  // Assinatura (message, status) mantida: o módulo de auth nunca teve codes de
+  // domínio, só status. O code genérico vem do status para a resposta continuar
+  // carregando um `code` como a dos outros módulos.
+  constructor(message: string, status: number) {
+    super(AUTH_ERROR_CODES[status] ?? "BAD_REQUEST", message, { status });
     this.name = "AuthServiceError";
   }
 }
@@ -142,5 +152,35 @@ export const authService = {
       throw new AuthServiceError("Consumidor não encontrado", 404);
     }
     return consumer;
+  },
+
+  /**
+   * Troca a senha de quem já está autenticado, exigindo a senha atual.
+   *
+   * Vale para todos os papéis. Até existir, a única forma de trocar a senha era
+   * o fluxo de "esqueci minha senha" por e-mail — o que, para um motorista em
+   * campo, significa sair do app e abrir a caixa de entrada.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const consumer = await authRepository.findByIdForAuth(userId);
+    if (!consumer) {
+      throw new AuthServiceError("Usuário não encontrado", 404);
+    }
+
+    const valid = await comparePassword(currentPassword, consumer.password_hash);
+    if (!valid) {
+      log.warn({ userId }, "Change password — wrong current password");
+      throw new AuthServiceError("Senha atual incorreta", 401);
+    }
+
+    const password_hash = await hashPassword(newPassword);
+    const changedAt = new Date();
+    await authRepository.updatePassword(userId, password_hash);
+
+    // Derruba as sessões emitidas antes da troca, mesmo comportamento do reset
+    // por token: trocar a senha tem que expulsar quem já estava dentro.
+    await markPasswordChanged(userId, changedAt.getTime());
+
+    log.info({ userId }, "Password changed");
   },
 };

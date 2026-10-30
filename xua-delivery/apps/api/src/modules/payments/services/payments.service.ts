@@ -20,17 +20,15 @@ import {
 } from "../gateway/payments.gateway.js";
 import { createLogger } from "../../../infra/logger";
 import { schedulePaymentExpiration } from "../../../infra/queue/payment-jobs.producer.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("payments");
 
 type TxClient = Prisma.TransactionClient;
 
-export class PaymentServiceError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string
-  ) {
-    super(message);
+export class PaymentServiceError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message);
     this.name = "PaymentServiceError";
   }
 }
