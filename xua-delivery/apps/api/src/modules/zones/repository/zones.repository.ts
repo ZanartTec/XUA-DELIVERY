@@ -228,6 +228,12 @@ export const zonesRepository = {
     return (tx ?? prisma).zone.findUnique({ where: { id } });
   },
 
+  /** Só zonas ativas — zona desativada não aceita pedido novo. */
+  async findActiveById(id: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).zone.findFirst({ where: { id, is_active: true } });
+  },
+
   /** Nome de zona é único por distribuidora — evita duas "Zona Sul" na mesma casa. */
   async findByNameInDistributor(
     distributorId: string,

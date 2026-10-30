@@ -5,6 +5,7 @@ import {
   bannerUpdateSchema,
 } from "@xua/shared/schemas/banner";
 import { bannersService } from "../services/banners.service.js";
+import { badRequest } from "../../../errors/index.js";
 
 export const bannersController = {
   /** GET /api/banners — banners ativos (consumer) */
@@ -13,7 +14,7 @@ export const bannersController = {
     if (req.query.type !== undefined) {
       const parsedType = bannerTypeSchema.safeParse(req.query.type);
       if (!parsedType.success) {
-        res.status(400).json({ error: parsedType.error.issues[0].message });
+        next(badRequest(parsedType.error.issues[0]!.message));
         return;
       }
       type = parsedType.data;
@@ -41,7 +42,7 @@ export const bannersController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     const parsed = bannerCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 
@@ -59,7 +60,7 @@ export const bannersController = {
 
     const parsed = bannerUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      next(badRequest(parsed.error.issues[0]!.message));
       return;
     }
 

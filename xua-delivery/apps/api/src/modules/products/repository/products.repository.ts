@@ -101,6 +101,14 @@ export const productsRepository = {
     return { products, total };
   },
 
+  /** Produtos ativos por id — o checkout usa para pegar o preço real (nunca o do cliente). */
+  async findActiveByIds(ids: string[], tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).product.findMany({
+      where: { id: { in: ids }, is_active: true },
+    });
+  },
+
   async findAll() {
     const prisma = getPrisma();
     return prisma.product.findMany({

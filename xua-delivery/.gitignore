@@ -51,3 +51,6 @@ docs/api-de-pagamento/credencias-teste.md
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# husky (arquivos gerados)
+.husky/_/

@@ -1,16 +1,13 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { distributorPaymentSettingsUpdateSchema } from "@xua/shared/schemas/distributor-payment-settings";
 import type { DistributorPaymentSettingsView } from "@xua/shared/schemas/distributor-payment-settings";
-import { createLogger } from "../../../infra/logger/index.js";
+import { badRequest, forbidden } from "../../../errors/index.js";
 import {
   distributorGatewayService,
-  DistributorGatewayError,
   DEFAULT_PUBLIC_PAYMENT_METHODS,
 } from "../../distributor-gateway/index.js";
 import { PAYMENT_PROVIDERS } from "../../payments/gateway/payments.gateway.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
-
-const log = createLogger("distributor-payment-settings");
 
 /** Defaults para distribuidora ainda sem configuração persistida. */
 const DEFAULT_VIEW: DistributorPaymentSettingsView = {
@@ -21,60 +18,40 @@ const DEFAULT_VIEW: DistributorPaymentSettingsView = {
 };
 
 /** distributor_admin só acessa a própria distribuidora; ops acessa qualquer. */
-async function assertOwnership(req: Request, distributorId: string): Promise<boolean> {
-  if (req.user!.role === "ops") return true;
+async function assertOwnership(req: Request, distributorId: string): Promise<void> {
+  if (req.user!.role === "ops") return;
   const userDistId = await distributorRepository.resolveDistributorId(req.user!.sub);
-  return userDistId === distributorId;
+  if (userDistId !== distributorId) {
+    throw forbidden("Sem permissão para acessar esta distribuidora");
+  }
 }
 
 export const paymentSettingsController = {
   /** GET /api/distributor/payment-settings/:distributorId — view mascarada. */
-  async get(req: Request, res: Response): Promise<void> {
+  async get(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
-    if (!distributorId) {
-      res.status(400).json({ error: "distributorId obrigatório" });
-      return;
-    }
-    if (!(await assertOwnership(req, distributorId))) {
-      res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
-      return;
-    }
-
     try {
+      if (!distributorId) throw badRequest("distributorId obrigatório");
+      await assertOwnership(req, distributorId);
+
       const view = await distributorGatewayService.getAdminView(distributorId);
       res.json(view ?? DEFAULT_VIEW);
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao buscar config de pagamento");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
   /** PATCH /api/distributor/payment-settings/:distributorId */
-  async update(req: Request, res: Response): Promise<void> {
+  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
-    const parsed = distributorPaymentSettingsUpdateSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
-      return;
-    }
-    if (!(await assertOwnership(req, distributorId))) {
-      res.status(403).json({ error: "Sem permissão para acessar esta distribuidora" });
-      return;
-    }
-
     try {
-      const view = await distributorGatewayService.updateSettings(distributorId, parsed.data);
-      res.json(view);
+      const parsed = distributorPaymentSettingsUpdateSchema.safeParse(req.body);
+      if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+      await assertOwnership(req, distributorId);
+
+      res.json(await distributorGatewayService.updateSettings(distributorId, parsed.data));
     } catch (err) {
-      if (err instanceof DistributorGatewayError) {
-        res.status(err.code === "GATEWAY_REQUIRED" ? 400 : 500).json({
-          error: err.message,
-          code: err.code,
-        });
-        return;
-      }
-      log.error({ err, distributorId }, "Erro ao salvar config de pagamento");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 
@@ -82,19 +59,15 @@ export const paymentSettingsController = {
    * GET /api/distributors/:distributorId/payment-methods — capacidades públicas
    * (sem segredos) consumidas pelo checkout.
    */
-  async getPublicMethods(req: Request, res: Response): Promise<void> {
+  async getPublicMethods(req: Request, res: Response, next: NextFunction): Promise<void> {
     const distributorId = req.params.distributorId as string;
-    if (!distributorId) {
-      res.status(400).json({ error: "distributorId obrigatório" });
-      return;
-    }
-
     try {
+      if (!distributorId) throw badRequest("distributorId obrigatório");
+
       const methods = await distributorGatewayService.getPublicMethods(distributorId);
       res.json(methods ?? DEFAULT_PUBLIC_PAYMENT_METHODS);
     } catch (err) {
-      log.error({ err, distributorId }, "Erro ao buscar métodos de pagamento");
-      res.status(500).json({ error: "Erro interno" });
+      next(err);
     }
   },
 };

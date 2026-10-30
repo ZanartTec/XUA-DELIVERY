@@ -1,6 +1,7 @@
 import { subscriptionPlansRepository } from "../repository/subscription-plans.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { distributorGatewayService } from "../../distributor-gateway/index.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("subscription-plans");
 
@@ -43,7 +44,10 @@ async function assertDistributorsHaveGateway(distributorIds: string[] | undefine
   if (!distributorIds || distributorIds.length === 0) return;
   const missing = await distributorGatewayService.findMissingGatewayIds(distributorIds);
   if (missing.length > 0) {
-    throw new Error("DISTRIBUTOR_GATEWAY_REQUIRED");
+    throw new AppError(
+      "DISTRIBUTOR_GATEWAY_REQUIRED",
+      "Só é possível vincular distribuidoras com gateway de pagamento (Mercado Pago) configurado."
+    );
   }
 }
 
@@ -55,7 +59,7 @@ export const subscriptionPlansService = {
 
   async getPlan(id: string) {
     const plan = await subscriptionPlansRepository.findById(id);
-    if (!plan) throw new Error("PLAN_NOT_FOUND");
+    if (!plan) throw new AppError("PLAN_NOT_FOUND", "Plano não encontrado");
     return withDistributorGatewayFlag(plan as unknown as RawPlan);
   },
 
@@ -102,7 +106,7 @@ export const subscriptionPlansService = {
     }
   ) {
     const existing = await subscriptionPlansRepository.findById(id);
-    if (!existing) throw new Error("PLAN_NOT_FOUND");
+    if (!existing) throw new AppError("PLAN_NOT_FOUND", "Plano não encontrado");
 
     await assertDistributorsHaveGateway(data.distributor_ids);
 

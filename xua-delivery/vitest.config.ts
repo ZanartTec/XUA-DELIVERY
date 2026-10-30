@@ -1,11 +1,12 @@
 import { configDefaults, defineConfig } from "vitest/config";
-import path from "path";
+import { ALIASES } from "./tests/aliases";
 
 export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    // Os testes vivem fora do src desde a centralizacao em tests/ — ver tests/README.md.
+    include: ["tests/unit/**/*.test.ts"],
     exclude: [...configDefaults.exclude, "**/*.integration.test.ts"],
     coverage: {
       provider: "v8",
@@ -13,8 +14,6 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@xua/shared": path.resolve(__dirname, "packages/shared/src"),
-    },
+    alias: ALIASES,
   },
 });

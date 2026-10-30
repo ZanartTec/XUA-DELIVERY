@@ -30,11 +30,13 @@ jobs:
               - 'apps/api/**'
               - 'packages/shared/**'
               - 'prisma/**'
+              - 'tests/**'
             fullstack:
               - 'apps/api/**'
               - 'apps/web/**'
               - 'packages/shared/**'
               - 'prisma/**'
+              - 'tests/**'
 
   # Bloqueante: erros de tipo nunca devem entrar. Hoje 100% verde.
   typecheck:
@@ -49,6 +51,9 @@ jobs:
       - run: npx prisma generate
       - run: npm run typecheck:api
       - run: npm run typecheck:web
+      # Os testes vivem em tests/ e têm tsconfig próprio — sem esta linha,
+      # erro de tipo em teste passaria batido no CI.
+      - run: npm run typecheck:tests
       - run: npm run shared:check
       - run: npx prisma validate
 

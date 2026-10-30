@@ -20,6 +20,7 @@ import {
   getPaymentGateway,
 } from "../../payments/gateway/payments.gateway.js";
 import { scheduleSubscriptionExpiration } from "../../../infra/queue/subscription-jobs.producer.js";
+import { AppError } from "../../../errors/index.js";
 
 const log = createLogger("user-subscriptions");
 
@@ -30,12 +31,18 @@ type PaymentWithTransactions = Payment & {
   transactions: Array<{ provider_response: Prisma.JsonValue }>;
 };
 
-export class UserSubscriptionError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
+/**
+ * Status próprios do módulo, aplicados antes do registry global.
+ * `INVALID_STATUS` aqui é conflito de estado da assinatura (409); em pedidos o
+ * mesmo code significa status inválido no payload (400).
+ */
+const SUBSCRIPTION_ERROR_STATUS: Record<string, number> = {
+  INVALID_STATUS: 409,
+};
+
+export class UserSubscriptionError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message, { status: SUBSCRIPTION_ERROR_STATUS[code] });
     this.name = "UserSubscriptionError";
   }
 }
