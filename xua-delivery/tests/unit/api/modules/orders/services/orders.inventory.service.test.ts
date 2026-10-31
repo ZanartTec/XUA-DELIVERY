@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => {
     paymentService: { charge: vi.fn() },
     distributorRepository: { resolveDistributorId: vi.fn(), findDriversByDistributor: vi.fn() },
     otpService: { generateInTx: vi.fn(), cacheCode: vi.fn() },
+    receiptService: { issueInTx: vi.fn() },
     enqueueRefundPaymentJob: vi.fn(),
   };
 });
@@ -122,6 +123,10 @@ vi.mock("@api/modules/distributor/repository/distributor.repository.js", () => (
 
 vi.mock("@api/modules/driver/services/otp.service.js", () => ({
   otpService: mocks.otpService,
+}));
+
+vi.mock("@api/modules/orders/services/receipt.service.js", () => ({
+  receiptService: mocks.receiptService,
 }));
 
 vi.mock("@api/infra/queue/payment-jobs.producer.js", () => ({
@@ -247,6 +252,7 @@ beforeEach(() => {
   mocks.auditRepository.emit.mockResolvedValue({ id: "audit-1" });
   mocks.otpService.generateInTx.mockResolvedValue("123456");
   mocks.otpService.cacheCode.mockResolvedValue(undefined);
+  mocks.receiptService.issueInTx.mockResolvedValue({ receipt: { number: 42 }, created: true });
   mocks.enqueueRefundPaymentJob.mockResolvedValue({ id: "job-1", name: "refund-payment", correlationId: "corr-1" });
 });
 
@@ -732,6 +738,13 @@ describe("orderService inventory integration", () => {
     expect(result.otpCode).toBe("123456");
     expect(mocks.otpService.generateInTx).toHaveBeenCalledWith(orderId, distributorUserId, tx);
     expect(mocks.otpService.cacheCode).toHaveBeenCalledWith(orderId, "123456");
+    // Comprovante de venda emitido na MESMA transação do despacho.
+    expect(mocks.receiptService.issueInTx).toHaveBeenCalledWith(
+      orderId,
+      { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId, sourceApp: SourceApp.DISTRIBUTOR_WEB },
+      tx
+    );
+    expect(result.receiptNumber).toBe(42);
     expect(mocks.orderRepository.updateStatus).toHaveBeenNthCalledWith(
       1,
       orderId,

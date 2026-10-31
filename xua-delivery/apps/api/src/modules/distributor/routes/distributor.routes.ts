@@ -125,6 +125,14 @@ router.post(
 // Lista de paradas agrupadas por zona/janela para uma data
 router.get("/routes/:id", requireRole("distributor_admin"), distributorController.getRouteById);
 
+// Lote de comprovantes de venda da rota (PDF) — leitura cara, limite próprio
+router.get(
+  "/routes/:id/receipts.pdf",
+  requireRole("distributor_admin"),
+  rateLimitMiddleware("distributor:route-receipts", RATE_LIMITS.heavyRead, (req) => req.user?.sub ?? req.ip),
+  distributorController.getRouteReceiptsPdf,
+);
+
 
 
 // ─── Schedule / Blocked Dates ─────────────────────────────
@@ -174,6 +182,14 @@ router.delete(
 
 // Lista todas as distribuidoras ativas — exclusivo para ops
 router.get("/all", requireRole("ops"), distributorController.listAll);
+
+// Lookup de CEP para o endereço do emitente — chama serviço externo (ViaCEP)
+router.get(
+  "/cep/:cep",
+  requireRole("ops", "distributor_admin"),
+  rateLimitMiddleware("distributor:cep-lookup", RATE_LIMITS.externalLookup, (req) => req.user?.sub ?? req.ip),
+  distributorController.lookupCep,
+);
 
 // ─── CRUD de distribuidora (ops) ───────────────────────────
 router.post("/", requireRole("ops"), distributorController.create);

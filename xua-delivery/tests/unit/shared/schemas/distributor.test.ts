@@ -56,3 +56,45 @@ describe("distributorUpdateSchema", () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+describe("dados do emitente (comprovante de venda)", () => {
+  it("criacao sem dados do emitente continua valida (campos opcionais)", () => {
+    const parsed = distributorCreateSchema.parse(validCreatePayload);
+    expect(parsed.legal_name).toBeUndefined();
+    expect(parsed.zip_code).toBeUndefined();
+  });
+
+  it("normaliza CEP para digitos e UF para maiusculas", () => {
+    const parsed = distributorUpdateSchema.parse({ zip_code: "01001-000", state: " sp " });
+    expect(parsed.zip_code).toBe("01001000");
+    expect(parsed.state).toBe("SP");
+  });
+
+  it("string vazia vira null para permitir limpar o campo na edicao", () => {
+    const parsed = distributorUpdateSchema.parse({
+      legal_name: "  ",
+      state_registration: "",
+      zip_code: "",
+      state: "",
+    });
+    expect(parsed).toMatchObject({ legal_name: null, state_registration: null, zip_code: null, state: null });
+  });
+
+  it("campo ausente na edicao nao e tocado (undefined)", () => {
+    const parsed = distributorUpdateSchema.parse({ name: "Nova Razão" });
+    expect(parsed).not.toHaveProperty("legal_name", null);
+    expect(parsed.legal_name).toBeUndefined();
+  });
+
+  it("rejeita CEP com tamanho errado e UF invalida", () => {
+    expect(distributorUpdateSchema.safeParse({ zip_code: "0100100" }).success).toBe(false);
+    expect(distributorUpdateSchema.safeParse({ state: "São" }).success).toBe(false);
+  });
+
+  it("aceita inscricao estadual como texto (numero ou ISENTO)", () => {
+    expect(distributorUpdateSchema.parse({ state_registration: "ISENTO" }).state_registration).toBe("ISENTO");
+    expect(distributorUpdateSchema.parse({ state_registration: "123.456.789.110" }).state_registration).toBe(
+      "123.456.789.110"
+    );
+  });
+});

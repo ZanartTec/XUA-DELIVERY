@@ -13,6 +13,7 @@ import {
   OrderSubscriptionSection,
   OrderTimelineSection,
 } from "@/src/components/distributor/order-detail-sections";
+import { OrderReceiptSection } from "@/src/components/distributor/order-receipt-section";
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -210,6 +211,7 @@ export default function DistributorOrderDetailPage() {
             </section>
           ) : null}
 
+          <OrderReceiptSection order={order} />
           <OrderDeliveryStepsSection order={order} />
           <OrderSubscriptionSection order={order} />
           <OrderPaymentSection order={order} />

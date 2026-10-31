@@ -6,6 +6,14 @@ import { scheduleRepository } from "../repository/schedule.repository.js";
 import { timeslotRepository } from "../repository/timeslot.repository.js";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { parsePeriodDates } from "../../../utils/date.js";
+import { fetchCep } from "../../../infra/cep/viacep.js";
+import { parseOrThrow } from "../../../http/validate.js";
+import { receiptQuerySchema } from "@xua/shared/schemas/order";
+import { receiptActorFromRole, receiptService } from "../../orders/services/receipt.service.js";
+import { sendReceiptsPdf } from "../../orders/receipt-pdf/send-receipt-pdf.js";
+
+/** Teto do lote de comprovantes por rota (PDF gerado de forma síncrona na API). */
+const ROUTE_RECEIPTS_LIMIT = 100;
 import { createLogger } from "../../../infra/logger/index.js";
 import { routeService } from "../services/route.service.js";
 import { distributorService, DistributorServiceError } from "../services/distributor.service.js";
@@ -27,7 +35,7 @@ import {
   opsInventoryReadIdParamSchema,
 } from "@xua/shared/schemas/inventory";
 import { InventoryReconciliationSessionError } from "../../inventory/services/reconciliation-session.service.js";
-import { badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
+import { AppError, badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
 import {
   weekdayBulkSchema,
   blockDateSchema,
@@ -340,6 +348,68 @@ export const distributorController = {
     }
   },
 
+  /**
+   * GET /api/distributor/routes/:id/receipts.pdf?format=a4|thermal
+   * Lote com os comprovantes já emitidos da rota do dia, na ordem da rota.
+   */
+  async getRouteReceiptsPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { format } = parseOrThrow(receiptQuerySchema, req.query);
+      const distributorId = await distributorRepository.resolveDistributorId(req.user!.sub);
+      if (!distributorId) {
+        next(forbidden("Usuário não vinculado a nenhuma distribuidora"));
+        return;
+      }
+
+      const { date, orderIds } = await routeService.getRouteOrderIds(distributorId, req.params.id as string);
+      if (orderIds.length > ROUTE_RECEIPTS_LIMIT) {
+        throw new AppError(
+          "RECEIPT_BATCH_TOO_LARGE",
+          `A rota tem mais de ${ROUTE_RECEIPTS_LIMIT} pedidos; imprima os comprovantes por pedido`
+        );
+      }
+
+      const receipts = await receiptService.loadForPrint(
+        orderIds,
+        receiptActorFromRole(req.user!.sub, req.user!.role),
+        format
+      );
+      if (receipts.length === 0) {
+        throw new AppError("RECEIPT_NOT_ISSUED", "Nenhum comprovante emitido para esta rota");
+      }
+
+      const position = new Map(orderIds.map((orderId, index) => [orderId, index]));
+      receipts.sort((left, right) => position.get(left.order_id)! - position.get(right.order_id)!);
+
+      await sendReceiptsPdf(res, receipts, format, `comprovantes-rota-${date}.pdf`);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /api/distributor/cep/:cep
+   * Lookup de CEP para o cadastro do endereço do emitente (ops/distribuidora).
+   * O lookup de /api/consumers é exclusivo do papel consumer.
+   */
+  async lookupCep(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const clean = (req.params.cep as string).replace(/\D/g, "");
+    if (clean.length !== 8) {
+      next(badRequest("CEP inválido"));
+      return;
+    }
+
+    try {
+      const data = await fetchCep(clean);
+      if (!data) {
+        next(notFound("CEP não encontrado"));
+        return;
+      }
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  },
 
 
   /**

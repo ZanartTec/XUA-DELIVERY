@@ -40,6 +40,8 @@ export const ERROR_STATUS: Record<string, number> = {
   // e com perda do dado que o motorista digitou em campo.
   BOTTLE_STEP_INVALID_STATUS: 422,
   BOTTLE_STEP_REQUIRED: 422,
+  RECEIPT_NOT_ISSUED: 404,
+  RECEIPT_BATCH_TOO_LARGE: 422,
 
   // ── Inventário / vasilhames ───────────────────────────────────
   INVENTORY_ITEM_NOT_FOUND: 400,

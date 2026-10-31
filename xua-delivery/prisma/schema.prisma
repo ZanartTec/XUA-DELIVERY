@@ -142,6 +142,8 @@ enum AuditEventType {
   ZONE_UPDATED
   ZONE_TRANSFERRED
   ZONE_COVERAGE_CHANGED
+  RECEIPT_ISSUED
+  RECEIPT_PRINTED
 
   @@map("audit_event_type")
 }
@@ -305,6 +307,21 @@ model Distributor {
   acceptance_sla_seconds   Int      @default(180)
   is_active                Boolean  @default(true)
   allows_consumer_choice   Boolean  @default(false)
+  // Dados do emitente impressos no comprovante de venda (sem valor fiscal).
+  // Opcionais: distribuidoras antigas seguem emitindo com `name` como fallback.
+  legal_name               String?
+  trade_name               String?
+  state_registration       String?
+  zip_code                 String?
+  street                   String?
+  number                   String?
+  complement               String?
+  neighborhood             String?
+  city                     String?
+  state                    String?
+  // Próximo número de comprovante desta distribuidora. Incrementado de forma
+  // atômica (UPDATE … RETURNING) na transação que emite o comprovante.
+  next_receipt_number      Int      @default(1)
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
@@ -326,6 +343,7 @@ model Distributor {
   deposit_programs               ConsumerDepositProgram[]
   deposit_balances               ConsumerDepositBalance[]
   deposit_movements              ConsumerDepositMovement[]
+  sales_receipts                 SalesReceipt[]
 
   @@map("03_mst_distributors")
 }
@@ -638,6 +656,7 @@ model Order {
   otps        OrderOtp[]
   audit_events AuditEvent[]
   subscription_delivery_date  SubscriptionDeliveryDate?
+  sales_receipt               SalesReceipt?
 
   @@index([distributor_id, status, created_at], map: "09_trn_orders_distributor_status_created_idx")
   @@index([distributor_id, delivery_date, status], map: "09_trn_orders_distributor_delivery_status_idx")
@@ -645,6 +664,32 @@ model Order {
   @@index([consumer_id, created_at], map: "09_trn_orders_consumer_created_idx")
   @@index([distributor_id, nps_score], map: "09_trn_orders_distributor_nps_idx")
   @@map("09_trn_orders")
+}
+
+/// Comprovante de venda e entrega (SEM valor fiscal). Um por pedido, numerado
+/// em sequência própria de cada distribuidora. `snapshot` congela os dados no
+/// momento da emissão: reimpressões (2ª via) saem idênticas mesmo que cadastro
+/// do cliente/emitente mude depois. `kind` reserva espaço para NFC-e/NF-e.
+model SalesReceipt {
+  id                   String    @id @default(uuid()) @db.Uuid
+  order_id             String    @unique @db.Uuid
+  distributor_id       String    @db.Uuid
+  number               Int
+  kind                 String    @default("NON_FISCAL")
+  snapshot             Json
+  snapshot_version     Int       @default(1)
+  issued_by_actor_type ActorType
+  issued_by_actor_id   String?
+  print_count          Int       @default(0)
+  last_printed_at      DateTime?
+  issued_at            DateTime  @default(now())
+
+  order       Order       @relation(fields: [order_id], references: [id])
+  distributor Distributor @relation(fields: [distributor_id], references: [id])
+
+  @@unique([distributor_id, number], map: "39_trn_sales_receipts_distributor_number_key")
+  @@index([distributor_id, issued_at], map: "39_trn_sales_receipts_distributor_issued_idx")
+  @@map("39_trn_sales_receipts")
 }
 
 model OrderItem {

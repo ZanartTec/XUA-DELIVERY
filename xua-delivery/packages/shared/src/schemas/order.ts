@@ -374,3 +374,12 @@ export const scheduleRedeliverySchema = z.object({
 });
 export type ScheduleRedeliveryInput = z.infer<typeof scheduleRedeliverySchema>;
 
+
+// ─── Comprovante de venda (PDF, sem valor fiscal) ─────────────
+export const RECEIPT_FORMAT_VALUES = ["a4", "thermal"] as const;
+export type ReceiptFormat = (typeof RECEIPT_FORMAT_VALUES)[number];
+
+export const receiptQuerySchema = z.object({
+  format: z.enum(RECEIPT_FORMAT_VALUES, { message: "Formato inválido (a4 ou thermal)" }).default("a4"),
+});
+export type ReceiptQueryInput = z.infer<typeof receiptQuerySchema>;

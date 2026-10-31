@@ -36,6 +36,8 @@ export const EVENT_LABELS: Record<string, string> = {
   PAYMENT_EXPIRED: "Pagamento expirado",
   PAYMENT_REFUNDED: "Pagamento reembolsado",
   PAYMENT_REFUND_FAILED: "Falha no reembolso",
+  RECEIPT_ISSUED: "Comprovante de venda emitido",
+  RECEIPT_PRINTED: "Comprovante de venda impresso",
 };
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {

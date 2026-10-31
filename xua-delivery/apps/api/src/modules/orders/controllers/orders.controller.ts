@@ -28,6 +28,11 @@ import {
   consumerOrdersQuerySchema,
 } from "@xua/shared/schemas/order";
 import { AppError, badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
+import { parseOrThrow } from "../../../http/validate.js";
+import { receiptQuerySchema } from "@xua/shared/schemas/order";
+import { receiptActorFromRole, receiptService } from "../services/receipt.service.js";
+import { sendReceiptsPdf } from "../receipt-pdf/send-receipt-pdf.js";
+import { formatReceiptNumber } from "../receipt-pdf/receipt-format.js";
 
 /** SEC-05: carrega o pedido e verifica ownership antes de qualquer ação. */
 async function loadOwnedOrder(req: Request): Promise<Order> {
@@ -335,7 +340,7 @@ export const ordersController = {
         orderId: existing.id,
         code: result.otpCode,
       });
-      res.json({ order: result.order, otp: result.otpCode });
+      res.json({ order: result.order, otp: result.otpCode, receipt_number: result.receiptNumber });
     } catch (error) {
       next(error);
     }
@@ -357,7 +362,7 @@ export const ordersController = {
         orderId: existing.id,
         code: result.otpCode,
       });
-      res.json({ order: result.order, otp: result.otpCode });
+      res.json({ order: result.order, otp: result.otpCode, receipt_number: result.receiptNumber });
     } catch (error) {
       next(error);
     }
@@ -583,6 +588,58 @@ export const ordersController = {
         notes: parsed.data.notes,
       });
       res.json({ order });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/orders/:id/receipt
+   * Emissão manual do comprovante de venda (idempotente). A emissão normal
+   * acontece sozinha no despacho; aqui serve para imprimir antes disso.
+   */
+  async issueReceipt(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = req.user!;
+
+    try {
+      const existing = await loadOwnedOrder(req);
+      const { receipt, created } = await receiptService.issue(
+        existing.id,
+        receiptActorFromRole(user.sub, user.role)
+      );
+      res.status(created ? 201 : 200).json({
+        receipt: {
+          number: receipt.number,
+          issued_at: receipt.issued_at,
+          print_count: receipt.print_count,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/orders/:id/receipt.pdf?format=a4|thermal
+   * PDF do comprovante. Nunca emite: sem comprovante → 404. Cada chamada
+   * conta como impressão (2ª via a partir da segunda).
+   */
+  async getReceiptPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = req.user!;
+
+    try {
+      const { format } = parseOrThrow(receiptQuerySchema, req.query);
+      const existing = await loadOwnedOrder(req);
+
+      const receipts = await receiptService.loadForPrint(
+        [existing.id],
+        receiptActorFromRole(user.sub, user.role),
+        format
+      );
+      const receipt = receipts[0];
+      if (!receipt) throw new AppError("RECEIPT_NOT_ISSUED", "Comprovante ainda não emitido");
+
+      await sendReceiptsPdf(res, receipts, format, `comprovante-${formatReceiptNumber(receipt.number)}.pdf`);
     } catch (error) {
       next(error);
     }
