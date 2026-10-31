@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
-import { Building2, Pencil, Plus, Save, ShieldCheck, Truck, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Building2, FileText, Loader2, Pencil, Plus, Save, ShieldCheck, Truck, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,51 @@ interface DistributorListItem {
   allows_consumer_choice: boolean;
   is_active: boolean;
   mp_connected: boolean;
+  legal_name: string | null;
+  trade_name: string | null;
+  state_registration: string | null;
+  zip_code: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+}
+
+/** Dados do emitente impressos no comprovante de venda (todos opcionais). */
+const ISSUER_FIELD_KEYS = [
+  "legal_name",
+  "trade_name",
+  "state_registration",
+  "zip_code",
+  "street",
+  "number",
+  "complement",
+  "neighborhood",
+  "city",
+  "state",
+] as const;
+
+type IssuerFieldKey = (typeof ISSUER_FIELD_KEYS)[number];
+type IssuerDraft = Record<IssuerFieldKey, string>;
+
+const EMPTY_ISSUER_DRAFT: IssuerDraft = {
+  legal_name: "",
+  trade_name: "",
+  state_registration: "",
+  zip_code: "",
+  street: "",
+  number: "",
+  complement: "",
+  neighborhood: "",
+  city: "",
+  state: "",
+};
+
+/** Sem razão social ou endereço o comprovante sai só com o nome da distribuidora. */
+function isIssuerIncomplete(d: DistributorListItem): boolean {
+  return !d.legal_name || !d.street || !d.number || !d.city || !d.state || !d.zip_code;
 }
 
 /** Campos editáveis comuns entre criação e edição. */
@@ -37,6 +82,7 @@ interface DistributorCoreDraft {
   email: string;
   acceptance_sla_seconds: string;
   allows_consumer_choice: boolean;
+  issuer: IssuerDraft;
 }
 
 interface CreateDraft extends DistributorCoreDraft {
@@ -53,6 +99,7 @@ const EMPTY_CREATE_DRAFT: CreateDraft = {
   email: "",
   acceptance_sla_seconds: "",
   allows_consumer_choice: true,
+  issuer: { ...EMPTY_ISSUER_DRAFT },
   admin_name: "",
   admin_email: "",
   admin_phone: "",
@@ -68,6 +115,7 @@ const EMPTY_EDIT_DRAFT: EditDraft = {
   email: "",
   acceptance_sla_seconds: "",
   allows_consumer_choice: true,
+  issuer: { ...EMPTY_ISSUER_DRAFT },
 };
 
 /** Preenche o formulário de edição com os valores reais da distribuidora. */
@@ -80,6 +128,9 @@ function draftFromDistributor(d: DistributorListItem): EditDraft {
     acceptance_sla_seconds:
       d.acceptance_sla_seconds != null ? String(d.acceptance_sla_seconds) : "",
     allows_consumer_choice: d.allows_consumer_choice,
+    issuer: Object.fromEntries(
+      ISSUER_FIELD_KEYS.map((key) => [key, d[key] ?? ""])
+    ) as IssuerDraft,
   };
 }
 
@@ -93,6 +144,8 @@ function coreDraftToPayload(d: DistributorCoreDraft) {
       ? Number(d.acceptance_sla_seconds)
       : undefined,
     allows_consumer_choice: d.allows_consumer_choice,
+    // String vazia é enviada de propósito: o backend converte em null (limpa o campo).
+    ...Object.fromEntries(ISSUER_FIELD_KEYS.map((key) => [key, d.issuer[key].trim()])),
   };
 }
 
@@ -111,6 +164,9 @@ function validateCoreDraft(d: DistributorCoreDraft): string | null {
   if (!d.cnpj.trim()) return "Informe o CNPJ";
   if (!d.phone.trim()) return "Informe o telefone";
   if (!d.email.trim()) return "Informe o e-mail";
+  const zip = d.issuer.zip_code.replace(/\D/g, "");
+  if (zip && zip.length !== 8) return "CEP do emitente inválido";
+  if (d.issuer.state.trim() && !/^[A-Za-z]{2}$/.test(d.issuer.state.trim())) return "UF do emitente inválida";
   return null;
 }
 
@@ -224,6 +280,89 @@ function CoreFields<T extends DistributorCoreDraft>({
   );
 }
 
+/** Dados do emitente do comprovante de venda, com preenchimento pelo CEP. */
+function IssuerFields<T extends DistributorCoreDraft>({
+  draft,
+  onChange,
+}: {
+  draft: T;
+  onChange: (d: T) => void;
+}) {
+  const [cepLoading, setCepLoading] = useState(false);
+  const issuer = draft.issuer;
+  // A busca de CEP é assíncrona: o usuário segue digitando (ex.: o número)
+  // enquanto ela roda. O resultado precisa ser aplicado sobre o rascunho
+  // mais recente, não sobre o capturado quando a busca começou.
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
+
+  function setIssuer(patch: Partial<IssuerDraft>) {
+    const current = latestDraft.current;
+    onChange({ ...current, issuer: { ...current.issuer, ...patch } });
+  }
+
+  async function lookupCep() {
+    const clean = issuer.zip_code.replace(/\D/g, "");
+    if (clean.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`/api/distributor/cep/${clean}`);
+      if (!res.ok) throw new Error(await extractError(res, "CEP não encontrado"));
+      const data: { street: string; neighborhood: string; city: string; state: string } = await res.json();
+      const current = latestDraft.current.issuer;
+      setIssuer({
+        zip_code: clean,
+        street: data.street || current.street,
+        neighborhood: data.neighborhood || current.neighborhood,
+        city: data.city || current.city,
+        state: data.state || current.state,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "CEP não encontrado");
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
+  const input = (key: IssuerFieldKey, placeholder: string, extra?: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <Input
+      value={issuer[key]}
+      onChange={(e) => setIssuer({ [key]: e.target.value })}
+      placeholder={placeholder}
+      className="rounded-xl border-[#d9dde3] text-sm"
+      {...extra}
+    />
+  );
+
+  return (
+    <div>
+      <SectionHeader icon={FileText} title="Dados do emitente (comprovante de venda)" />
+      <p className="mt-1 text-[10px] text-muted-foreground/70">
+        Impressos no comprovante entregue ao cliente. Sem razão social, o comprovante usa o nome da distribuidora.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Razão social">{input("legal_name", "Ex: São Luiz Comércio de Água Ltda")}</Field>
+        <Field label="Nome fantasia">{input("trade_name", "Ex: Água São Luiz")}</Field>
+        <Field label="Inscrição estadual" hint="Número ou ISENTO">{input("state_registration", "Ex: 123.456.789.110")}</Field>
+        <Field label="CEP" hint={cepLoading ? "Buscando endereço..." : "Preenche rua, bairro, cidade e UF"}>
+          <div className="relative">
+            {input("zip_code", "00000-000", { onBlur: lookupCep, inputMode: "numeric" })}
+            {cepLoading && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        </Field>
+        <Field label="Rua">{input("street", "Ex: Rua das Flores")}</Field>
+        <Field label="Número">{input("number", "Ex: 123")}</Field>
+        <Field label="Complemento">{input("complement", "Ex: Galpão 2")}</Field>
+        <Field label="Bairro">{input("neighborhood", "Ex: Centro")}</Field>
+        <Field label="Cidade">{input("city", "Ex: São Paulo")}</Field>
+        <Field label="UF">{input("state", "SP", { maxLength: 2 })}</Field>
+      </div>
+    </div>
+  );
+}
+
 function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: CreateDraft) => void }) {
   return (
     <div className="space-y-5">
@@ -233,6 +372,8 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
           <CoreFields draft={draft} onChange={onChange} />
         </div>
       </div>
+
+      <IssuerFields draft={draft} onChange={onChange} />
 
       <div>
         <SectionHeader icon={UserPlus} title="Primeiro administrador" />
@@ -459,6 +600,12 @@ export default function OpsDistributorsPage() {
                     <p className="text-sm font-semibold font-heading leading-tight truncate">
                       {distributor.name}
                     </p>
+                    {isIssuerIncomplete(distributor) && (
+                      <p className="flex items-center gap-1 text-[10px] text-amber-600">
+                        <AlertTriangle className="h-3 w-3" />
+                        Dados do emitente incompletos
+                      </p>
+                    )}
                     {distributor.mp_connected && (
                       <p className="flex items-center gap-1 text-[10px] text-emerald-600">
                         <ShieldCheck className="h-3 w-3" />
@@ -481,6 +628,7 @@ export default function OpsDistributorsPage() {
               {isEditing ? (
                 <div className="space-y-4 pt-3 border-t border-[#e4e8f1]">
                   <CoreFields draft={editDraft} onChange={setEditDraft} />
+                  <IssuerFields draft={editDraft} onChange={setEditDraft} />
                   <div className="flex gap-2">
                     <Button
                       disabled={saving}

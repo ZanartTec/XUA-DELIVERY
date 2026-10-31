@@ -18,15 +18,52 @@ const cnpjField = z
   .transform(normalizeDocument)
   .refine(isValidCnpj, "CNPJ inválido");
 
-const distributorEditableFieldsSchema = z.object({
-  name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
-  cnpj: cnpjField,
-  phone: z.string().trim().min(8, "Telefone inválido"),
-  email: z.string().trim().min(1, "E-mail obrigatório").email("E-mail inválido"),
-  acceptance_sla_seconds: z.coerce.number().int().positive().optional(),
-  allows_consumer_choice: z.boolean().optional(),
-  is_active: z.boolean().optional(),
+// Campos opcionais do emitente (comprovante de venda). String vazia vira null
+// para permitir limpar o campo na edição; `undefined` não toca o valor salvo.
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Máximo de ${max} caracteres`)
+    .nullish()
+    .transform((value) => (value === "" ? null : value));
+
+const zipCodeField = z
+  .string()
+  .nullish()
+  .transform((value) => (typeof value === "string" ? value.replace(/\D/g, "") || null : value))
+  .refine((value) => value == null || value.length === 8, "CEP inválido");
+
+const stateField = z
+  .string()
+  .nullish()
+  .transform((value) => (typeof value === "string" ? value.trim().toUpperCase() || null : value))
+  .refine((value) => value == null || /^[A-Z]{2}$/.test(value), "UF inválida");
+
+const distributorIssuerFieldsSchema = z.object({
+  legal_name: optionalText(150),
+  trade_name: optionalText(150),
+  state_registration: optionalText(20),
+  zip_code: zipCodeField,
+  street: optionalText(150),
+  number: optionalText(20),
+  complement: optionalText(100),
+  neighborhood: optionalText(100),
+  city: optionalText(100),
+  state: stateField,
 });
+
+const distributorEditableFieldsSchema = z
+  .object({
+    name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
+    cnpj: cnpjField,
+    phone: z.string().trim().min(8, "Telefone inválido"),
+    email: z.string().trim().min(1, "E-mail obrigatório").email("E-mail inválido"),
+    acceptance_sla_seconds: z.coerce.number().int().positive().optional(),
+    allows_consumer_choice: z.boolean().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .extend(distributorIssuerFieldsSchema.shape);
 
 /**
  * Criação de distribuidora + primeiro admin (distributor_admin) numa transação única.

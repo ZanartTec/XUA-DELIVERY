@@ -229,6 +229,8 @@ export const AUDIT_EVENT_TYPE_VALUES = [
   "ZONE_UPDATED",
   "ZONE_TRANSFERRED",
   "ZONE_COVERAGE_CHANGED",
+  "RECEIPT_ISSUED",
+  "RECEIPT_PRINTED",
 ] as const;
 
 export const AuditEventType = {
@@ -275,6 +277,8 @@ export const AuditEventType = {
   ZONE_UPDATED: "ZONE_UPDATED",
   ZONE_TRANSFERRED: "ZONE_TRANSFERRED",
   ZONE_COVERAGE_CHANGED: "ZONE_COVERAGE_CHANGED",
+  RECEIPT_ISSUED: "RECEIPT_ISSUED",
+  RECEIPT_PRINTED: "RECEIPT_PRINTED",
 } as const;
 export type AuditEventType = EnumValue<typeof AuditEventType>;
 

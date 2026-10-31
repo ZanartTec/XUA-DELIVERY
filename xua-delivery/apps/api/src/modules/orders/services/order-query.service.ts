@@ -294,6 +294,7 @@ export const orderQueryService = {
       payments,
       otps,
       subscription_delivery_date: _subscriptionDeliveryDate,
+      sales_receipt,
       ...order
     } = result;
     const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -369,6 +370,14 @@ export const orderQueryService = {
         paid_at: payment.paid_at,
         created_at: payment.created_at,
       })),
+      // Comprovante de venda (sem valor fiscal) — null até a emissão.
+      receipt: sales_receipt
+        ? {
+            number: sales_receipt.number,
+            issued_at: sales_receipt.issued_at,
+            print_count: sales_receipt.print_count,
+          }
+        : null,
       otps: otps.map((otp) => ({
         id: otp.id,
         status: otp.status,

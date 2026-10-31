@@ -111,4 +111,13 @@ export const routeService = {
       groups,
     };
   },
+
+  /** Pedidos da rota na mesma ordem da tela (janela → zona → criação), para o lote de comprovantes. */
+  async getRouteOrderIds(distributorId: string, routeId: string) {
+    const route = await routeService.getDailyRoute(distributorId, routeId);
+    return {
+      date: route.date,
+      orderIds: route.groups.flatMap((group) => group.stops.map((stop) => stop.order_id)),
+    };
+  },
 };

@@ -97,6 +97,7 @@ export type OrderWithDetails = Order & {
   zone: Pick<Zone, "name">;
   time_slot: Pick<TimeSlot, "label" | "start_hour" | "start_minute" | "end_hour" | "end_minute"> | null;
   driver: Pick<Consumer, "name" | "phone"> | null;
+  sales_receipt: { number: number; issued_at: Date; print_count: number } | null;
   items: {
     quantity: number;
     unit_price_cents: number;
@@ -568,6 +569,7 @@ export const orderRepository = {
           },
         },
         subscription_delivery_date: newSubscriptionDeliveryInclude,
+        sales_receipt: { select: { number: true, issued_at: true, print_count: true } },
       },
     });
 

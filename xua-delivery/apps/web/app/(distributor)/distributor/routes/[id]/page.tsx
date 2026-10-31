@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/src/lib/utils";
+import { ReceiptPrintButton } from "@/src/components/shared/receipt-print-button";
+import { routeReceiptsUrl } from "@/src/lib/receipt";
 import type { DeliveryWindow } from "@xua/shared/enums";
 
 type RouteStop = {
@@ -119,6 +121,22 @@ export default function RouteDetailPage() {
           <p className="mt-1 text-3xl font-bold text-green-600">{route?.delivered_stops ?? 0}</p>
         </div>
       </div>
+
+      {route && route.total_stops > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#0b2a59]">Comprovantes de venda da rota</p>
+            <p className="text-xs text-muted-foreground">
+              Um PDF com os comprovantes já emitidos (pedidos despachados), na ordem da rota. Sem valor fiscal.
+            </p>
+          </div>
+          <ReceiptPrintButton
+            className="sm:w-64"
+            label="Imprimir comprovantes"
+            buildUrl={(format) => routeReceiptsUrl(id, format)}
+          />
+        </div>
+      ) : null}
 
       {!route || route.groups.length === 0 ? (
         <div className="rounded-2xl bg-white/95 p-6 text-center text-sm text-muted-foreground shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">

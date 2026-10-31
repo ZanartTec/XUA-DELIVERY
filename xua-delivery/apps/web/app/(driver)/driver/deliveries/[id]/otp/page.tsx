@@ -7,7 +7,8 @@ import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useOfflineSync } from "@/src/hooks/use-offline-sync";
 import { cn, formatCurrency } from "@/src/lib/utils";
-import { Banknote, WifiOff } from "lucide-react";
+import { Banknote, FileText, WifiOff } from "lucide-react";
+import { openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 const SUPPORT_PHONE_LABEL = "(11) 99001-1005";
@@ -329,6 +330,16 @@ export default function CompleteDeliveryPage() {
             Não foi possível concluir a entrega
           </Button>
         )}
+
+        {/* Comprovante de venda (sem valor fiscal) para entregar ao cliente */}
+        <Button
+          variant="outline"
+          className="w-full rounded-xl py-3"
+          onClick={() => openReceipt(orderReceiptUrl(id, readReceiptFormat("thermal")))}
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          Ver comprovante de venda
+        </Button>
 
         <Button
           className="w-full rounded-xl border-0 bg-[#e1e3e4] py-3 text-foreground hover:bg-[#d1d3d4]"
