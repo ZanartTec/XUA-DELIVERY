@@ -42,7 +42,15 @@ export interface OrderDetailAddress {
 }
 
 /** Pedido completo, retornado por GET /api/orders/:id — usado no modal da fila e na página de detalhe. */
+export interface OrderDetailReceipt {
+  number: number;
+  issued_at: string;
+  print_count: number;
+}
+
 export interface OrderDetail extends Order {
+  /** Comprovante de venda (sem valor fiscal); null até ser emitido. */
+  receipt?: OrderDetailReceipt | null;
   items: OrderDetailItem[];
   events: OrderDetailEvent[];
   payments: OrderDetailPayment[];

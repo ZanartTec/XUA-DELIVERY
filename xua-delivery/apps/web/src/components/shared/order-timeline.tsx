@@ -43,6 +43,8 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   CHECKLIST_COMPLETED:         { label: "Checklist concluído", color: "bg-teal-100 text-teal-700" },
   BOTTLE_EXCHANGE:             { label: "Troca de vasilhame registrada", color: "bg-amber-100 text-amber-700" },
   NON_COLLECTION:              { label: "Não coletado registrado", color: "bg-orange-100 text-orange-700" },
+  RECEIPT_ISSUED:              { label: "Comprovante de venda emitido", color: "bg-slate-100 text-slate-700" },
+  RECEIPT_PRINTED:             { label: "Comprovante de venda impresso", color: "bg-slate-100 text-slate-700" },
 };
 
 const ACTOR_LABELS: Record<string, string> = {

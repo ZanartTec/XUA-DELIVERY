@@ -56,6 +56,24 @@ router.get(
 );
 
 /**
+ * POST /api/orders/:id/receipt
+ * Emissão manual (idempotente) do comprovante de venda — sem valor fiscal.
+ */
+router.post("/:id/receipt", requireRole("distributor_admin"), ordersActionLimit, ordersController.issueReceipt);
+
+/**
+ * GET /api/orders/:id/receipt.pdf?format=a4|thermal
+ * PDF do comprovante. Ownership via orderPolicy (distribuidora dona, motorista
+ * atribuído, ops/suporte). Consumer fora: o documento é entregue impresso.
+ */
+router.get(
+  "/:id/receipt.pdf",
+  requireRole("distributor_admin", "driver", "ops", "support"),
+  rateLimitByUser("orders:receipt-read", RATE_LIMITS.receiptRead),
+  ordersController.getReceiptPdf
+);
+
+/**
  * PATCH /api/orders/:id/accept
  * Distribuidor aceita o pedido.
  */

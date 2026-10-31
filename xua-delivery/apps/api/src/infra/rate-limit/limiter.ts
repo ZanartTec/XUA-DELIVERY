@@ -79,6 +79,8 @@ export const RATE_LIMITS = {
   orderRating: { windowSeconds: 60, maxRequests: 5 },
   orderCreate: { windowSeconds: 60, maxRequests: 10 },
   orderDriverAction: { windowSeconds: 60, maxRequests: 20 },
+  // Cada leitura renderiza um PDF (CPU) e grava auditoria de impressão.
+  receiptRead: { windowSeconds: 60, maxRequests: 30 },
   catalogRead: { windowSeconds: 60, maxRequests: 120 },
   paymentCharge: {
     windowSeconds: numberFromEnv("PAYMENT_CHARGE_RATE_LIMIT_WINDOW_SECONDS", 60),

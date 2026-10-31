@@ -10,6 +10,7 @@ import { distributorRepository } from "../../distributor/repository/distributor.
 import { OrderServiceError } from "../errors.js";
 import { assertTransition, ASSIGNABLE_DRIVER_STATUSES } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import { receiptService } from "./receipt.service.js";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -112,12 +113,13 @@ export const dispatchOrderService = {
     orderId: string,
     distributorUserId: string,
     driverId: string
-  ): Promise<{ order: Order; otpCode: string }> {
+  ): Promise<{ order: Order; otpCode: string; receiptNumber: number }> {
     const distributorId = await resolveDistributorIdForUser(distributorUserId);
     await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
     let otpCode = "";
+    let receiptNumber = 0;
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
@@ -148,6 +150,15 @@ export const dispatchOrderService = {
       // pedido não fica OUT_FOR_DELIVERY sem nenhum OTP ativo.
       otpCode = await otpService.generateInTx(orderId, distributorUserId, tx);
 
+      // Comprovante de venda nasce no despacho, na mesma transação: não existe
+      // pedido em rota sem comprovante. Idempotente na reentrega.
+      const { receipt } = await receiptService.issueInTx(
+        orderId,
+        { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId, sourceApp: SourceApp.DISTRIBUTOR_WEB },
+        tx
+      );
+      receiptNumber = receipt.number;
+
       return updated;
     });
 
@@ -171,7 +182,7 @@ export const dispatchOrderService = {
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
 
-    return { order, otpCode };
+    return { order, otpCode, receiptNumber };
   },
 
   /**
@@ -182,12 +193,13 @@ export const dispatchOrderService = {
     orderId: string,
     distributorUserId: string,
     driverId: string
-  ): Promise<{ order: Order; otpCode: string }> {
+  ): Promise<{ order: Order; otpCode: string; receiptNumber: number }> {
     const distributorId = await resolveDistributorIdForUser(distributorUserId);
     await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
     let otpCode = "";
+    let receiptNumber = 0;
     const order = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
@@ -248,6 +260,15 @@ export const dispatchOrderService = {
       // pedido não fica OUT_FOR_DELIVERY sem nenhum OTP ativo.
       otpCode = await otpService.generateInTx(orderId, distributorUserId, tx);
 
+      // Comprovante de venda nasce no despacho, na mesma transação: não existe
+      // pedido em rota sem comprovante. Idempotente na reentrega.
+      const { receipt } = await receiptService.issueInTx(
+        orderId,
+        { type: ActorType.DISTRIBUTOR_USER, id: distributorUserId, sourceApp: SourceApp.DISTRIBUTOR_WEB },
+        tx
+      );
+      receiptNumber = receipt.number;
+
       return updated;
     });
 
@@ -270,6 +291,6 @@ export const dispatchOrderService = {
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
 
-    return { order, otpCode };
+    return { order, otpCode, receiptNumber };
   },
 };

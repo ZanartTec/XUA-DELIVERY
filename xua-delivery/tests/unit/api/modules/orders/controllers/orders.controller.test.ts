@@ -52,6 +52,8 @@ const mocks = await vi.hoisted(async () => {
       product: { findMany: vi.fn() },
     },
     otpService: { generate: vi.fn(), validate: vi.fn(), override: vi.fn() },
+    receiptService: { issue: vi.fn(), loadForPrint: vi.fn() },
+    sendReceiptsPdf: vi.fn(),
     socketEmit: vi.fn(),
     socketTo: vi.fn(),
     loggerError: vi.fn(),
@@ -89,12 +91,25 @@ vi.mock("@api/modules/driver/services/otp.service.js", () => ({
   OtpServiceError: mocks.OtpServiceError,
 }));
 
+// Isola o controller do serviço de comprovante e do renderer de PDF.
+vi.mock("@api/modules/orders/services/receipt.service.js", async () => {
+  const actual = await vi.importActual<typeof import("@api/modules/orders/services/receipt.service.js")>(
+    "@api/modules/orders/services/receipt.service.js"
+  );
+  return { receiptService: mocks.receiptService, receiptActorFromRole: actual.receiptActorFromRole };
+});
+
+vi.mock("@api/modules/orders/receipt-pdf/send-receipt-pdf.js", () => ({
+  sendReceiptsPdf: mocks.sendReceiptsPdf,
+}));
+
 vi.mock("@api/infra/socket/gateway.js", () => ({
   getIO: () => ({ to: mocks.socketTo }),
 }));
 
 vi.mock("@api/infra/logger/index.js", () => ({
   logger: { error: mocks.loggerError, warn: vi.fn(), info: vi.fn() },
+  createLogger: () => ({ error: mocks.loggerError, warn: vi.fn(), info: vi.fn() }),
 }));
 
 vi.mock("@api/infra/prisma/client.js", () => ({
@@ -836,5 +851,95 @@ describe("ordersController submitRating", () => {
       error: "Pedido já foi avaliado",
       code: "ALREADY_RATED",
     });
+  });
+});
+
+describe("ordersController receipt", () => {
+  const printable = {
+    order_id: orderId,
+    number: 7,
+    snapshot: {},
+    issued_at: new Date("2026-10-30T12:00:00.000Z"),
+    is_copy: false,
+    is_cancelled: false,
+    payment_status: null,
+  };
+
+  it("emite o comprovante manualmente com ator da distribuidora e responde 201", async () => {
+    mocks.receiptService.issue.mockResolvedValue({
+      receipt: { number: 7, issued_at: printable.issued_at, print_count: 0 },
+      created: true,
+    });
+    const response = res();
+
+    await call(ordersController.issueReceipt, req("distributor_admin", {}), response);
+
+    expect(mocks.receiptService.issue).toHaveBeenCalledWith(orderId, {
+      type: ActorType.DISTRIBUTOR_USER,
+      id: userId,
+      sourceApp: SourceApp.DISTRIBUTOR_WEB,
+    });
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(response.json).toHaveBeenCalledWith({
+      receipt: { number: 7, issued_at: printable.issued_at, print_count: 0 },
+    });
+  });
+
+  it("responde 200 quando o comprovante ja existia (idempotente)", async () => {
+    mocks.receiptService.issue.mockResolvedValue({
+      receipt: { number: 7, issued_at: printable.issued_at, print_count: 2 },
+      created: false,
+    });
+    const response = res();
+
+    await call(ordersController.issueReceipt, req("distributor_admin", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(200);
+  });
+
+  it("bloqueia PDF de pedido de outra distribuidora/motorista nao atribuido (403)", async () => {
+    mocks.orderPolicy.canAccess.mockResolvedValue(false);
+    const response = res();
+
+    await call(ordersController.getReceiptPdf, req("driver", {}, { format: "thermal" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(mocks.receiptService.loadForPrint).not.toHaveBeenCalled();
+    expect(mocks.sendReceiptsPdf).not.toHaveBeenCalled();
+  });
+
+  it("responde 404 quando o pedido ainda nao tem comprovante (GET nunca emite)", async () => {
+    mocks.receiptService.loadForPrint.mockResolvedValue([]);
+    const response = res();
+
+    await call(ordersController.getReceiptPdf, req("distributor_admin", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(mocks.receiptService.issue).not.toHaveBeenCalled();
+    expect(mocks.sendReceiptsPdf).not.toHaveBeenCalled();
+  });
+
+  it("rejeita formato desconhecido com 400", async () => {
+    const response = res();
+
+    await call(ordersController.getReceiptPdf, req("distributor_admin", {}, { format: "pdf" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.receiptService.loadForPrint).not.toHaveBeenCalled();
+  });
+
+  it("envia o PDF no formato pedido com nome do arquivo numerado", async () => {
+    mocks.receiptService.loadForPrint.mockResolvedValue([printable]);
+    mocks.sendReceiptsPdf.mockResolvedValue(undefined);
+    const response = res();
+
+    await call(ordersController.getReceiptPdf, req("driver", {}, { format: "thermal" }), response);
+
+    expect(mocks.receiptService.loadForPrint).toHaveBeenCalledWith(
+      [orderId],
+      { type: ActorType.DRIVER, id: userId, sourceApp: SourceApp.DRIVER_WEB },
+      "thermal"
+    );
+    expect(mocks.sendReceiptsPdf).toHaveBeenCalledWith(response, [printable], "thermal", "comprovante-000007.pdf");
   });
 });

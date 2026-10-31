@@ -7,6 +7,8 @@ import { cn } from "@/src/lib/utils";
 import { api } from "@/src/lib/api-client";
 import { useSocket } from "@/src/hooks/use-socket";
 import { OrderStatus } from "@xua/shared/enums";
+import { toast } from "sonner";
+import { formatReceiptNumber, openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 
 const CHECKLIST_ITEMS = [
   { key: "items_checked", label: "Itens do pedido separados e conferidos" },
@@ -86,7 +88,21 @@ export default function ChecklistPage() {
     setLoading(true);
     setError(null);
     try {
-      await api.patch(`/api/orders/${id}/dispatch-with-checklist`, { driver_id: selectedDriver });
+      const result = await api.patch<{ receipt_number?: number }>(
+        `/api/orders/${id}/dispatch-with-checklist`,
+        { driver_id: selectedDriver }
+      );
+
+      // O comprovante de venda nasce junto com o despacho.
+      if (result.receipt_number) {
+        toast.success(`Pedido despachado • Comprovante Nº ${formatReceiptNumber(result.receipt_number)} gerado`, {
+          duration: 15000,
+          action: {
+            label: "Imprimir",
+            onClick: () => openReceipt(orderReceiptUrl(id, readReceiptFormat())),
+          },
+        });
+      }
 
       router.push("/distributor/queue");
     } catch (err) {
