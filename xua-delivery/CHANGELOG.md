@@ -2,6 +2,12 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.1.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.0.0...v1.1.0) (2026-10-31)
+
+### Funcionalidades
+
+* **orders:** comprovante de venda e entrega em PDF (sem valor fiscal) ([0b9e601](https://github.com/ZanartTec/XUA-DELIVERY/commit/0b9e60159e773c9df2913f815ec4ba5f31c1fdae))
+
 ## 1.0.0 (2026-10-30)
 
 ### Funcionalidades
