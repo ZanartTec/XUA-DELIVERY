@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { formatCurrency } from "@/src/lib/utils";
 import { AlertCircle, CheckCircle2, Clock3, CreditCard, ShoppingCart } from "lucide-react";
-import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
 
 type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created" | "cash_pending";
 
@@ -35,7 +35,8 @@ function getViewStatus(data: PaymentStatusResponse | null, fallback: string | nu
     return "loading";
   }
 
-  if (isCashPaymentMethod(data.payment?.payment_method) && data.payment.status !== "CAPTURED") return "cash_pending";
+  // Pago na entrega (dinheiro ou cartão na maquininha): pedido já confirmado.
+  if (isOfflinePaymentMethod(data.payment?.payment_method) && data.payment.status !== "CAPTURED") return "cash_pending";
   if (data.payment?.status === "CAPTURED" || data.order.payment_status === "paid") return "approved";
   if (data.payment?.status === "FAILED" || data.order.payment_status === "failed") return "failed";
   if (data.payment?.status === "REFUNDED" || data.order.payment_status === "refunded") return "failed";
@@ -133,7 +134,9 @@ function ConfirmationContent() {
       : viewStatus === "failed"
         ? "Não recebemos a aprovação do Mercado Pago. Você pode acompanhar o pedido ou tentar novamente pelo suporte."
         : viewStatus === "cash_pending"
-          ? "O pedido foi enviado para a distribuidora. O pagamento em dinheiro será cobrado na entrega."
+          ? isCashPaymentMethod(statusData?.payment?.payment_method)
+            ? "O pedido foi enviado para a distribuidora. O pagamento em dinheiro será cobrado na entrega."
+            : "O pedido foi enviado para a distribuidora. O pagamento no cartão será feito na maquininha do entregador."
         : "Recebemos seu pedido e estamos aguardando a confirmação do Mercado Pago.";
   const canResumePayment = Boolean(orderId && viewStatus === "pending");
   const cashChangeForCents = statusData?.payment?.cash_change_for_cents ?? null;
@@ -149,7 +152,7 @@ function ConfirmationContent() {
         {orderId && (
           <p className="break-all text-xs text-muted-foreground">Pedido #{orderId}</p>
         )}
-        {viewStatus === "cash_pending" && statusData?.payment && (
+        {viewStatus === "cash_pending" && isCashPaymentMethod(statusData?.payment?.payment_method) && (
           <p className="text-xs font-semibold text-[#805300]">
             {cashChangeForCents == null
               ? "Pagamento em valor exato."

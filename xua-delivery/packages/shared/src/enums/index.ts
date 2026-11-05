@@ -326,6 +326,8 @@ export const INVENTORY_MOVEMENT_TYPE_VALUES = [
   "PURCHASE_IN",
   "DEPOSIT_LOAN_OUT",
   "DEPOSIT_RETURN_IN",
+  "BOTTLE_SALE_OUT",
+  "PARTIAL_DELIVERY_RETURN",
 ] as const;
 
 export const InventoryMovementType = {
@@ -340,6 +342,8 @@ export const InventoryMovementType = {
   PURCHASE_IN: "PURCHASE_IN",
   DEPOSIT_LOAN_OUT: "DEPOSIT_LOAN_OUT",
   DEPOSIT_RETURN_IN: "DEPOSIT_RETURN_IN",
+  BOTTLE_SALE_OUT: "BOTTLE_SALE_OUT",
+  PARTIAL_DELIVERY_RETURN: "PARTIAL_DELIVERY_RETURN",
 } as const;
 export type InventoryMovementType = EnumValue<typeof InventoryMovementType>;
 
@@ -387,6 +391,10 @@ export type InventoryReconciliationStatus = EnumValue<typeof InventoryReconcilia
 
 export const BOTTLE_CONDITION_VALUES = ["ok", "damaged", "dirty"] as const;
 export type BottleCondition = (typeof BOTTLE_CONDITION_VALUES)[number];
+
+/** Como o motorista resolve vazios faltantes de refil (regra de vasilhame na entrega). */
+export const BOTTLE_SHORTFALL_RESOLUTION_VALUES = ["charge", "partial"] as const;
+export type BottleShortfallResolution = (typeof BOTTLE_SHORTFALL_RESOLUTION_VALUES)[number];
 
 export const NON_COLLECTION_REASON_VALUES = [
   "client_absent",

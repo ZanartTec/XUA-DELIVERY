@@ -131,6 +131,7 @@ beforeEach(() => {
   mocks.depositSettlementService.settleDelivery.mockResolvedValue({
     loaned: 0,
     returnedFromLoan: 0,
+    settled: [],
   });
 });
 

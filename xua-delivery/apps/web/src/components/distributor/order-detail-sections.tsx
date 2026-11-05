@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { StatusPill } from "@/src/components/shared/status-pill";
 import { cn, formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
-import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
 import type { OrderDetail } from "@/src/types/order-detail";
 import {
   DELIVERY_STEPS,
@@ -172,6 +172,9 @@ export function OrderItemsSection({ order }: { order: OrderDetail }) {
 export function OrderPaymentSection({ order }: { order: OrderDetail }) {
   const latestPayment = order.payments[0] ?? null;
   const isCashPayment = isCashPaymentMethod(latestPayment?.payment_method);
+  const isDoorPayment = isOfflinePaymentMethod(latestPayment?.payment_method);
+  // Regra de vasilhame: antes da entrega, o valor pode subir até o teto se faltar vazio.
+  const bottleRulePending = order.max_bottle_charge_cents > 0 && order.bottle_step_recorded_at == null;
 
   return (
     <SectionCard className="bg-[#0d1b2f] text-white">
@@ -187,8 +190,15 @@ export function OrderPaymentSection({ order }: { order: OrderDetail }) {
         </div>
         {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents ? (
           <div className="flex items-center justify-between rounded bg-white/5 px-2.5 py-1.5 text-white/80">
-            <span>Vasilhames ({order.bottles_sold})</span>
+            <span>Vasilhames cobrados na entrega ({order.bottles_sold})</span>
             <span>{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
+          </div>
+        ) : null}
+        {bottleRulePending ? (
+          <div className="rounded bg-white/5 px-2.5 py-1.5 text-xs text-white/80">
+            Exige {order.bottles_full_ordered} vasilhame{order.bottles_full_ordered === 1 ? "" : "s"} vazio
+            {order.bottles_full_ordered === 1 ? "" : "s"} na entrega. Sem eles: + até{" "}
+            {formatCurrency(order.max_bottle_charge_cents)} ou entrega parcial.
           </div>
         ) : null}
         {order.bottles_loaned > 0 ? (
@@ -197,16 +207,18 @@ export function OrderPaymentSection({ order }: { order: OrderDetail }) {
             <span>{order.bottles_loaned}</span>
           </div>
         ) : null}
-        {isCashPayment ? (
+        {isDoorPayment ? (
           <div className="mt-1 rounded-md bg-white/10 px-2.5 py-2">
             <div className="flex items-start gap-2">
               <Banknote className="mt-0.5 h-4 w-4 shrink-0 text-[#ffe099]" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold">Dinheiro na entrega</p>
+                <p className="text-sm font-semibold">{isCashPayment ? "Dinheiro na entrega" : "Cartão na entrega"}</p>
                 <p className="mt-0.5 text-xs text-white/70">
-                  {latestPayment?.cash_change_for_cents == null
-                    ? "Motorista deve receber valor exato."
-                    : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
+                  {!isCashPayment
+                    ? "Motorista cobra na maquininha."
+                    : latestPayment?.cash_change_for_cents == null
+                      ? "Motorista deve receber valor exato."
+                      : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
                 </p>
               </div>
             </div>

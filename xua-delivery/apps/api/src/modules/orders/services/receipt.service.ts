@@ -116,6 +116,8 @@ export function buildReceiptSnapshot(order: SnapshotSource): ReceiptSnapshot {
       empty_provided: order.empty_bottles_provided,
       sold: order.bottles_sold,
       loaned: order.bottles_loaned,
+      max_charge_cents: order.max_bottle_charge_cents,
+      charged_cents: order.bottle_charge_cents,
     },
   };
 }

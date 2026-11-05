@@ -4,7 +4,6 @@ import {
   DepositMovementType,
   InventoryMovementType,
   InventoryReferenceType,
-  ProductKind,
   SourceApp,
 } from "@xua/shared/enums";
 import { auditRepository } from "../../audit/audit.repository.js";
@@ -71,8 +70,8 @@ export type BottleGroup = {
 };
 
 /**
- * Resolve os grupos de vasilhame de um pedido a partir do vínculo água→vasilhame
- * (Product.kind=WATER → bottle_product_id). 1 unidade de água demanda 1 vasilhame.
+ * Resolve os grupos de vasilhame de um pedido a partir dos produtos refil
+ * (requires_empty_return → bottle_product_id). 1 unidade de refil demanda 1 vazio.
  */
 export async function resolveBottleGroups(
   items: Array<{ product_id: string; quantity: number }>,
@@ -84,7 +83,7 @@ export async function resolveBottleGroups(
 
   const products = await client.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, kind: true, bottle_product_id: true },
+    select: { id: true, requires_empty_return: true, bottle_product_id: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -92,7 +91,8 @@ export async function resolveBottleGroups(
   const orderedByBottle = new Map<string, number>();
   for (const item of items) {
     const product = byId.get(item.product_id);
-    if (!product || product.kind !== ProductKind.WATER || !product.bottle_product_id) continue;
+    // Só o refil exige vazio; o combo (água + vasilhame) já inclui o vasilhame no preço.
+    if (!product || !product.requires_empty_return || !product.bottle_product_id) continue;
     orderedByBottle.set(
       product.bottle_product_id,
       (orderedByBottle.get(product.bottle_product_id) ?? 0) + item.quantity
@@ -243,15 +243,15 @@ export const depositSettlementService = {
       sourceApp: SourceApp;
     },
     tx: TxClient
-  ): Promise<{ loaned: number; returnedFromLoan: number }> {
+  ): Promise<{ loaned: number; returnedFromLoan: number; settled: BottleSettlement[] }> {
     const existing = await depositRepository.findMovementsByOrder(params.orderId, tx);
     if (existing.length > 0) {
       log.info({ orderId: params.orderId }, "Deposit settlement already applied (idempotent noop)");
-      return { loaned: 0, returnedFromLoan: 0 };
+      return { loaned: 0, returnedFromLoan: 0, settled: [] };
     }
 
     const groups = await resolveBottleGroups(params.items, tx);
-    if (groups.length === 0) return { loaned: 0, returnedFromLoan: 0 };
+    if (groups.length === 0) return { loaned: 0, returnedFromLoan: 0, settled: [] };
 
     // Aloca os vazios coletados (um total) entre os grupos, gulosamente por demanda.
     const emptiesByBottle = new Map<string, number>();
@@ -397,6 +397,8 @@ export const depositSettlementService = {
       { orderId: params.orderId, loaned: totalLoaned, returnedFromLoan: totalReturned },
       "Deposit settlement applied"
     );
-    return { loaned: totalLoaned, returnedFromLoan: totalReturned };
+    // `settled[].sold` = vazios que faltaram e não couberam na caução: o
+    // chamador decide cobrar na porta ou entregar parcial.
+    return { loaned: totalLoaned, returnedFromLoan: totalReturned, settled };
   },
 };

@@ -32,8 +32,10 @@ import {
   CASH_PAYMENT_METHOD,
   DEFAULT_ONLINE_PAYMENT_METHOD,
   isCashPaymentMethod,
+  isOfflinePaymentMethod,
   isOnlinePaymentMethod,
 } from "@xua/shared/mappers/payment";
+import { BottleExchangeNotice } from "@/src/components/consumer/bottle-exchange-notice";
 
 interface RetryOrderItem {
   product_name: string;
@@ -729,17 +731,8 @@ function PaymentContent() {
           </div>
         )}
 
-        {/* Aviso de troca de vasilhame (antes da finalização) */}
-        <div className="rounded-xl bg-[#5697E9]/10 p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-4 w-4 shrink-0 text-[#5697E9] mt-0.5" />
-            <p className="text-xs text-[#32466e] leading-relaxed">
-              Para a água <strong>sem galão incluso</strong>, tenha 1 vasilhame vazio de 20L,
-              em bom estado e dentro da validade, para entregar na troca de cada garrafão.
-              Vasilhame danificado, vencido ou ausente pode gerar cobrança adicional na entrega.
-            </p>
-          </div>
-        </div>
+        {/* Regra de vasilhame na entrega (antes da finalização; só com itens refil) */}
+        {!isRetryMode && <BottleExchangeNotice items={items} />}
 
         {/* CTA Button */}
         <Button
@@ -750,7 +743,7 @@ function PaymentContent() {
           {loading
             ? "Processando..."
             : mounted
-              ? `${isCashPayment ? "Confirmar pedido" : isRetryMode ? "Retomar pagamento" : "Finalizar pagamento"} de ${formatCurrency(totalCents)}`
+              ? `${isOfflinePaymentMethod(paymentMethod) ? "Confirmar pedido" : isRetryMode ? "Retomar pagamento" : "Finalizar pagamento"} de ${formatCurrency(totalCents)}`
               : "Carregando..."}
           {!loading && <ChevronRight className="h-5 w-5 ml-1" />}
         </Button>

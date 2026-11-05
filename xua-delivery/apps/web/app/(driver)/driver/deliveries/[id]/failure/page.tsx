@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
 
@@ -10,13 +10,18 @@ const FAILURE_REASONS = [
   { value: "Sem acesso ao local", label: "Sem acesso ao local" },
   { value: "Endereço incorreto", label: "Endereço incorreto" },
   { value: "Local inseguro", label: "Local inseguro" },
+  // Regra de vasilhame: cliente sem vazio para troca e sem querer pagar o vasilhame.
+  { value: "Sem vasilhame para troca", label: "Sem vasilhame para troca" },
   { value: "Outro", label: "Outro" },
 ] as const;
 
 export default function DriverFailurePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [reason, setReason] = useState<(typeof FAILURE_REASONS)[number]["value"] | "">("");
+  const searchParams = useSearchParams();
+  const [reason, setReason] = useState<(typeof FAILURE_REASONS)[number]["value"] | "">(
+    searchParams.get("motivo") === "sem-vasilhame" ? "Sem vasilhame para troca" : ""
+  );
   const [details, setDetails] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +69,7 @@ export default function DriverFailurePage() {
       <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white/95 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
         <h2 className="text-center text-lg font-bold font-heading">Registrar falha</h2>
         <p className="text-center text-sm text-muted-foreground">
-          Pedido #{id} — Informe o motivo para que suporte ou operações tratem a reentrega.
+          Pedido #{id.slice(0, 8).toUpperCase()} — Informe o motivo para que suporte ou operações tratem a reentrega.
         </p>
 
         <div className="space-y-1.5">

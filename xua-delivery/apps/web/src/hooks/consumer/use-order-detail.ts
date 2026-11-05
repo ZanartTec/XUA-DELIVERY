@@ -29,6 +29,7 @@ export interface OrderDetail extends Order {
   items: {
     product_name: string;
     qty: number;
+    original_qty?: number | null;
     unit_price_cents: number;
     subtotal_cents: number;
     image_url: string | null;

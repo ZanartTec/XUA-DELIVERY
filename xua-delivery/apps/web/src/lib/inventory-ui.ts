@@ -21,6 +21,10 @@ export const INVENTORY_MOVEMENT_LABEL: Record<string, string> = {
   MANUAL_CORRECTION: "Correção manual",
   LOSS_WRITE_OFF: "Baixa por perda",
   PURCHASE_IN: "Compra",
+  DEPOSIT_LOAN_OUT: "Saída em caução",
+  DEPOSIT_RETURN_IN: "Retorno de caução",
+  BOTTLE_SALE_OUT: "Vasilhame vendido na entrega",
+  PARTIAL_DELIVERY_RETURN: "Retorno de entrega parcial",
 };
 
 export function buildInventoryQuery(params: Record<string, string | undefined>) {

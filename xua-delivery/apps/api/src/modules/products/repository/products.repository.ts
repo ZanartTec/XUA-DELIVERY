@@ -11,6 +11,9 @@ const PRODUCT_SELECT = {
   price_cents: true,
   kind: true,
   bottle_product_id: true,
+  requires_empty_return: true,
+  base_product_id: true,
+  bottle_product: { select: { id: true, name: true, price_cents: true } },
   is_active: true,
   categories: {
     select: {
@@ -125,6 +128,8 @@ export const productsRepository = {
       price_cents: number;
       kind?: "WATER" | "BOTTLE" | "OTHER";
       bottle_product_id?: string | null;
+      requires_empty_return?: boolean;
+      base_product_id?: string | null;
     },
     tx?: TxClient
   ) {
@@ -140,6 +145,8 @@ export const productsRepository = {
       price_cents?: number;
       kind?: "WATER" | "BOTTLE" | "OTHER";
       bottle_product_id?: string | null;
+      requires_empty_return?: boolean;
+      base_product_id?: string | null;
       is_active?: boolean;
     },
     tx?: TxClient
