@@ -95,7 +95,7 @@ interface SessionDetailResponse {
 
 function EmptyState({ title }: { title: string }) {
   return (
-    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
       <PackageSearch className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
     </div>
@@ -165,7 +165,7 @@ export default function OpsInventoryReconciliationsPage() {
         </div>
       </div>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr]">
           <Select
             value={distributorId}
@@ -174,7 +174,7 @@ export default function OpsInventoryReconciliationsPage() {
               setOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Distribuidora" />
             </SelectTrigger>
             <SelectContent>
@@ -193,7 +193,7 @@ export default function OpsInventoryReconciliationsPage() {
               setOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -209,7 +209,7 @@ export default function OpsInventoryReconciliationsPage() {
               setStart(event.target.value);
               setOffset(0);
             }}
-            className="h-10 rounded-xl border-[#d9dde3]"
+            className="h-10 rounded-xl border-hairline"
           />
           <Input
             type="date"
@@ -218,14 +218,14 @@ export default function OpsInventoryReconciliationsPage() {
               setEnd(event.target.value);
               setOffset(0);
             }}
-            className="h-10 rounded-xl border-[#d9dde3]"
+            className="h-10 rounded-xl border-hairline"
           />
         </div>
 
         {sessionsQuery.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
+              <div key={index} className="h-16 animate-pulse rounded-xl bg-surface-low" />
             ))}
           </div>
         ) : sessionsQuery.isError ? (
@@ -242,7 +242,7 @@ export default function OpsInventoryReconciliationsPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-sm">
               <thead>
-                <tr className="border-b border-[#e1e3e4] text-left">
+                <tr className="border-b border-hairline text-left">
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuidora</th>
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura</th>
@@ -253,8 +253,8 @@ export default function OpsInventoryReconciliationsPage() {
               </thead>
               <tbody>
                 {sessions.map((session) => (
-                  <tr key={session.id} className="border-b border-[#e1e3e4] last:border-0">
-                    <td className="py-3 font-semibold text-[#0d1b2f]">{session.distributor_name}</td>
+                  <tr key={session.id} className="border-b border-hairline last:border-0">
+                    <td className="py-3 font-semibold text-ink">{session.distributor_name}</td>
                     <td className="py-3">
                       <span
                         className={cn(
@@ -315,7 +315,7 @@ export default function OpsInventoryReconciliationsPage() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-primary" />
           <h2 className="font-heading text-sm font-bold text-foreground">Detalhe da sessão</h2>
@@ -326,7 +326,7 @@ export default function OpsInventoryReconciliationsPage() {
         ) : detailQuery.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
+              <div key={index} className="h-16 animate-pulse rounded-xl bg-surface-low" />
             ))}
           </div>
         ) : detailQuery.isError ? (
@@ -340,17 +340,17 @@ export default function OpsInventoryReconciliationsPage() {
         ) : selectedSession ? (
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-[#e4e8f1] p-3">
+              <div className="rounded-xl border border-hairline p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuidora</p>
-                <p className="mt-1 font-semibold text-[#0d1b2f]">{selectedSession.distributor_name}</p>
+                <p className="mt-1 font-semibold text-ink">{selectedSession.distributor_name}</p>
               </div>
-              <div className="rounded-xl border border-[#e4e8f1] p-3">
+              <div className="rounded-xl border border-hairline p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
                 <p className={cn("mt-1 font-semibold", selectedSession.status === "OPEN" ? "text-amber-700" : "text-green-700")}>
                   {selectedSession.status === "OPEN" ? "Aberta" : "Fechada"}
                 </p>
               </div>
-              <div className="rounded-xl border border-[#e4e8f1] p-3">
+              <div className="rounded-xl border border-hairline p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Delta total</p>
                 <p className={cn("mt-1 font-semibold", selectedTotalDelta === 0 ? "text-green-700" : "text-red-600")}>
                   {selectedTotalDelta > 0 ? "+" : ""}{selectedTotalDelta.toLocaleString("pt-BR")}
@@ -359,16 +359,16 @@ export default function OpsInventoryReconciliationsPage() {
             </div>
 
             {selectedSession.justification ? (
-              <div className="rounded-xl border border-[#e4e8f1] p-3">
+              <div className="rounded-xl border border-hairline p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Justificativa</p>
-                <p className="mt-1 text-sm text-[#0d1b2f]">{selectedSession.justification}</p>
+                <p className="mt-1 text-sm text-ink">{selectedSession.justification}</p>
               </div>
             ) : null}
 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
-                  <tr className="border-b border-[#e1e3e4] text-left">
+                  <tr className="border-b border-hairline text-left">
                     <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</th>
                     <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</th>
                     <th className="py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Snapshot</th>
@@ -378,9 +378,9 @@ export default function OpsInventoryReconciliationsPage() {
                 </thead>
                 <tbody>
                   {selectedSession.items.map((item) => (
-                    <tr key={item.id} className="border-b border-[#e1e3e4] last:border-0">
+                    <tr key={item.id} className="border-b border-hairline last:border-0">
                       <td className="py-3">
-                        <p className="font-semibold text-[#0d1b2f]">{item.item.name}</p>
+                        <p className="font-semibold text-ink">{item.item.name}</p>
                         <p className="text-xs text-muted-foreground">{item.item.code}</p>
                       </td>
                       <td className="py-3 text-muted-foreground">{INVENTORY_ITEM_TYPE_LABEL[item.item.type]}</td>

@@ -1,7 +1,8 @@
 "use client";
 
 import { Info, Recycle } from "lucide-react";
-import { formatCurrency } from "@/src/lib/utils";
+import { formatCurrency, cn } from "@/src/lib/utils";
+import { plural } from "@/src/lib/format";
 
 interface BottleExchangeItem {
   quantity: number;
@@ -42,28 +43,28 @@ export function BottleExchangeNotice({
     unitPrices.size === 1 ? `${formatCurrency([...unitPrices][0])} por vasilhame` : "o valor do vasilhame";
 
   return (
-    <div className={`rounded-2xl bg-[#5697E9]/10 p-4 ${className ?? ""}`}>
+    <section aria-label="Troca de vasilhame" className={cn("rounded-2xl bg-sky/10 p-4", className)}>
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5697E9]/15">
-          <Recycle className="h-5 w-5 text-[#5697E9]" aria-hidden="true" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky/15">
+          <Recycle className="size-5 text-primary" aria-hidden="true" />
         </div>
         <div className="flex-1">
-          <h3 className="font-heading text-sm font-semibold text-[#191c1d]">
-            Tenha {requiredEmpties} {requiredEmpties === 1 ? "vasilhame vazio" : "vasilhames vazios"} para troca
+          <h3 className="font-heading text-sm font-semibold text-foreground">
+            Separe {plural(requiredEmpties, "vasilhame vazio", "vasilhames vazios")} para a troca
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-[#444]">
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             A água refil não inclui o vasilhame: para cada unidade, entregue ao motorista 1 vasilhame vazio do
             mesmo tipo, em bom estado e dentro da validade (3 anos).
           </p>
         </div>
       </div>
-      <div className="mt-3 flex items-start gap-1.5 border-t border-[#5697E9]/15 pt-3">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-        <p className="text-[11px] font-medium leading-tight text-amber-700">
+      <div className="mt-3 flex items-start gap-1.5 border-t border-sky/15 pt-3">
+        <Info className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden="true" />
+        <p className="text-xs leading-snug font-medium text-warning-foreground">
           Sem o vazio, o entregador cobra {unitLabel} na entrega (até {formatCurrency(maxChargeCents)}) ou
           entrega só as unidades com troca.
         </p>
       </div>
-    </div>
+    </section>
   );
 }

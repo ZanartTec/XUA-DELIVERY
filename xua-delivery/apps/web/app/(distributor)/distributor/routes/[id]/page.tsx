@@ -81,7 +81,7 @@ export default function RouteDetailPage() {
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className="animate-pulse rounded-2xl bg-white/90 p-5 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
-            <div className="h-4 w-48 rounded bg-[#e1e3e4]" />
+            <div className="h-4 w-48 rounded bg-surface-highest" />
           </div>
         ))}
       </div>
@@ -101,7 +101,7 @@ export default function RouteDetailPage() {
         </div>
         <Link
           href="/distributor/queue"
-          className="rounded-xl border border-[#d9dde3] px-3 py-2 text-sm text-[#0b2a59] transition-colors hover:bg-[#f5f6f7]"
+          className="rounded-xl border border-hairline px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-low"
         >
           Voltar para pedidos
         </Link>
@@ -110,7 +110,7 @@ export default function RouteDetailPage() {
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
           <p className="text-sm text-muted-foreground">Paradas totais</p>
-          <p className="mt-1 text-3xl font-bold text-[#0b2a59]">{route?.total_stops ?? 0}</p>
+          <p className="mt-1 text-3xl font-bold text-ink">{route?.total_stops ?? 0}</p>
         </div>
         <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
           <p className="text-sm text-muted-foreground">Pendentes</p>
@@ -125,7 +125,7 @@ export default function RouteDetailPage() {
       {route && route.total_stops > 0 ? (
         <div className="flex flex-col gap-3 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-[#0b2a59]">Comprovantes de venda da rota</p>
+            <p className="text-sm font-semibold text-ink">Comprovantes de venda da rota</p>
             <p className="text-xs text-muted-foreground">
               Um PDF com os comprovantes já emitidos (pedidos despachados), na ordem da rota. Sem valor fiscal.
             </p>
@@ -153,7 +153,7 @@ export default function RouteDetailPage() {
                 <p className="text-sm font-semibold font-heading">{group.zone_name}</p>
                 <p className="text-xs text-muted-foreground">Janela {windowLabel(group.delivery_window)}</p>
               </div>
-              <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-xs font-semibold text-[#1B4A9A]">
+              <span className="rounded-full bg-sky/10 px-3 py-1 text-xs font-semibold text-primary">
                 {group.stops.length} paradas
               </span>
             </div>
@@ -167,7 +167,7 @@ export default function RouteDetailPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-[#0b2a59]">{stop.consumer_name}</p>
+                        <p className="font-semibold text-ink">{stop.consumer_name}</p>
                         <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${toneClass(stop.status_tone)}`}>
                           {stop.status_label}
                         </span>
@@ -181,14 +181,14 @@ export default function RouteDetailPage() {
                     <div className="flex flex-col gap-2">
                       <Link
                         href={`/distributor/orders/${stop.order_id}`}
-                        className="rounded-xl border border-[#d9dde3] px-3 py-2 text-sm text-[#0b2a59] transition-colors hover:bg-[#f5f6f7]"
+                        className="rounded-xl border border-hairline px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-low"
                       >
                         Ver pedido
                       </Link>
                       <button
                         type="button"
                         onClick={() => window.open(stop.maps_url, "_blank", "noopener,noreferrer")}
-                        className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 px-3 py-2 text-sm font-semibold text-[#001735] transition-opacity active:scale-[0.98]"
+                        className="rounded-xl bg-cta hover:bg-cta/90 px-3 py-2 text-sm font-semibold text-cta-foreground transition-opacity active:scale-[0.98]"
                       >
                         Abrir no Google Maps
                       </button>

@@ -27,9 +27,9 @@ function HistorySkeleton() {
   return (
     <div className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
       <div className="space-y-2">
-        <div className="h-4 w-40 rounded-lg bg-[#e1e3e4]" />
-        <div className="h-3 w-56 rounded-lg bg-[#e1e3e4]" />
-        <div className="h-3 w-28 rounded-lg bg-[#e1e3e4]" />
+        <div className="h-4 w-40 rounded-lg bg-surface-highest" />
+        <div className="h-3 w-56 rounded-lg bg-surface-highest" />
+        <div className="h-3 w-28 rounded-lg bg-surface-highest" />
       </div>
     </div>
   );

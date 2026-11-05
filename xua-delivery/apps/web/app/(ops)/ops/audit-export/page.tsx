@@ -47,17 +47,17 @@ export default function AuditExportPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data início</label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data fim</label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
         </div>
 
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo de evento</label>
-          <select value={eventType} onChange={(e) => setEventType(e.target.value)} className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm">
+          <select value={eventType} onChange={(e) => setEventType(e.target.value)} className="w-full rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm">
             <option value="">Todos</option>
             {EVENT_TYPES.map((type) => (
               <option key={type} value={type}>{type}</option>
@@ -65,7 +65,7 @@ export default function AuditExportPage() {
           </select>
         </div>
 
-        <Button className="w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]" disabled={loading} onClick={handleExport}>
+        <Button className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]" disabled={loading} onClick={handleExport}>
           {loading ? "Exportando..." : "Baixar CSV"}
         </Button>
       </div>

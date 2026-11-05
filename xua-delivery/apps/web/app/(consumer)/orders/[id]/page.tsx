@@ -2,48 +2,56 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useSocket } from "@/src/hooks/use-socket";
-import { OrderTimeline } from "@/src/components/shared/order-timeline";
-import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
-import { StatusPill } from "@/src/components/shared/status-pill";
-import { formatCurrency, formatDate, formatTime } from "@/src/lib/utils";
-import { getRenderableProductImageUrl } from "@/src/lib/product-image";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { useParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
-  ArrowLeft,
-  Check,
-  Truck,
-  Home,
+  AlertTriangle,
+  Building2,
+  CalendarClock,
+  CreditCard,
   Droplets,
   MapPin,
-  Calendar,
-  Clock,
+  MessageCircle,
+  Phone,
+  Recycle,
   ShieldCheck,
-  Package,
-  Building2,
-  CreditCard,
+  Star,
   UserRound,
-  AlertTriangle,
 } from "lucide-react";
-import { getCheckoutPaymentMethodLabel, isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { useSocket } from "@/src/hooks/use-socket";
 import { useOrderDetail } from "@/src/hooks/consumer/use-order-detail";
 import { useSubmitRating } from "@/src/hooks/consumer/use-submit-rating";
-import { ApiError } from "@/src/lib/api-client";
+import { OrderTimeline } from "@/src/components/shared/order-timeline";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { OrderStepper } from "@/src/components/shared/order-stepper";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/src/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
+import { Card } from "@/src/components/ui/card";
+import { Separator } from "@/src/components/ui/separator";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Textarea } from "@/src/components/ui/textarea";
+import { ApiError, api } from "@/src/lib/api-client";
+import { formatCurrency, formatDate, formatTime, cn } from "@/src/lib/utils";
+import { plural, phoneHref, whatsappHref, formatPhone } from "@/src/lib/format";
+import { formatScheduledTime, formatShortOrderId } from "@/src/lib/order-detail-format";
+import { consumerOrderProgress } from "@/src/lib/order-status";
+import { getRenderableProductImageUrl as getProductImage } from "@/src/lib/product-image";
+import { getCheckoutPaymentMethodLabel, isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
+import { OrderStatus } from "@/src/types/enums";
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  CREATED: "Criado",
+  CREATED: "Aguardando",
   AUTHORIZED: "Autorizado",
   CAPTURED: "Pago",
-  FAILED: "Falhou",
+  FAILED: "Não aprovado",
   REFUNDED: "Reembolsado",
   EXPIRED: "Expirado",
-};
-
-const PAYMENT_KIND_LABELS: Record<string, string> = {
-  ORDER: "Pedido",
-  SUBSCRIPTION: "Assinatura",
 };
 
 const OTP_STATUS_LABELS: Record<string, string> = {
@@ -53,81 +61,41 @@ const OTP_STATUS_LABELS: Record<string, string> = {
   LOCKED: "Bloqueado",
 };
 
-/* -- helpers -- */
-function shortId(id: string) {
-  return id.slice(0, 8).toUpperCase();
-}
-
-function pad2(n: number) {
-  return n.toString().padStart(2, "0");
-}
-
-function formatOptional(value?: string | null) {
-  return value?.trim() ? value : "Não informado";
-}
+/** Antes do aceite da distribuidora o próprio cliente pode cancelar. */
+const CONSUMER_CANCELLABLE: readonly string[] = [
+  OrderStatus.CREATED,
+  OrderStatus.PAYMENT_PENDING,
+  OrderStatus.CONFIRMED,
+  OrderStatus.SENT_TO_DISTRIBUTOR,
+];
 
 function formatDateTime(date?: string | Date | null) {
-  if (!date) return "Não informado";
+  if (!date) return "—";
   return `${formatDate(date)} às ${formatTime(date)}`;
 }
 
-function labelFromMap(labels: Record<string, string>, value?: string | null) {
-  if (!value) return "Não informado";
-  return labels[value] ?? value.replaceAll("_", " ").toLowerCase();
-}
-
-/**
- * Exibe o horário de entrega priorizando o snapshot imutável gravado no pedido.
- * Fallback para janela genérica em pedidos antigos (pré-snapshot).
- */
-function formatDeliveryWindow(order: {
-  scheduled_time_label?: string | null;
-  scheduled_time_start_hour?: number | null;
-  scheduled_time_start_minute?: number | null;
-  scheduled_time_end_hour?: number | null;
-  scheduled_time_end_minute?: number | null;
-  delivery_window: string;
-}): string {
-  if (order.scheduled_time_label) return order.scheduled_time_label;
-  if (
-    order.scheduled_time_start_hour != null &&
-    order.scheduled_time_end_hour != null
-  ) {
-    const sm = order.scheduled_time_start_minute ?? 0;
-    const em = order.scheduled_time_end_minute ?? 0;
-    return `${pad2(order.scheduled_time_start_hour)}:${pad2(sm)}–${pad2(order.scheduled_time_end_hour)}:${pad2(em)}`;
-  }
-  return order.delivery_window === DeliveryWindow.MORNING
-    ? "Manhã (08:00–12:00)"
-    : "Tarde (13:00–18:00)";
-}
-
-function getProgress(status: string) {
-  const s = status as OrderStatus;
-  if (s === OrderStatus.DELIVERED) return { step: 3, pct: "w-full" };
-  if (
-    s === OrderStatus.OUT_FOR_DELIVERY ||
-    s === OrderStatus.ACCEPTED_BY_DISTRIBUTOR ||
-    s === OrderStatus.SENT_TO_DISTRIBUTOR
-  )
-    return { step: 2, pct: "w-2/3" };
-  return { step: 1, pct: "w-1/3" };
+function InfoRow({ icon: Icon, children }: { icon: typeof MapPin; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
 }
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const { order, isLoading: loading, error: loadErrorRaw } = useOrderDetail(id);
+  const queryClient = useQueryClient();
+  const { order, isLoading, error: loadErrorRaw, refetch } = useOrderDetail(id);
   const loadError = loadErrorRaw instanceof Error ? loadErrorRaw.message : null;
-  const [nps, setNps] = useState<number | null>(null);
-  const [npsComment, setNpsComment] = useState("");
-  const [npsSubmitted, setNpsSubmitted] = useState(false);
-  const [npsMessage, setNpsMessage] = useState("");
-  const [npsError, setNpsError] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const { on, off } = useSocket();
+
+  const [nps, setNps] = useState<number | null>(null);
+  const [npsComment, setNpsComment] = useState("");
+  const [npsMessage, setNpsMessage] = useState<string | null>(null);
+  const [npsError, setNpsError] = useState<string | null>(null);
   const submitRating = useSubmitRating();
-  const npsSubmitting = submitRating.isPending;
 
   useEffect(() => {
     const handler = (...args: unknown[]) => {
@@ -139,658 +107,431 @@ export default function OrderDetailPage() {
   }, [id, on, off]);
 
   async function submitNps() {
-    if (nps === null || npsSubmitting) return;
+    if (nps === null || submitRating.isPending) return;
     setNpsError(null);
     try {
       await submitRating.mutateAsync({ orderId: id, rating: nps, comment: npsComment.trim() || undefined });
-      setNpsMessage(
-        nps <= 2
-          ? "Sentimos muito! Abrimos um chamado de suporte."
-          : "Obrigado pela avaliação!"
-      );
-      setNpsSubmitted(true);
+      setNpsMessage(nps <= 2 ? "Sentimos muito! Abrimos um chamado de suporte para você." : "Obrigado pela avaliação!");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setNpsMessage("Você já avaliou este pedido.");
-        setNpsSubmitted(true);
         return;
       }
       setNpsError(err instanceof ApiError ? err.message : "Erro de conexão. Tente novamente.");
     }
   }
 
-  if (loading) {
+  async function cancelOrder() {
+    try {
+      await api.patch(`/api/orders/${encodeURIComponent(id)}/cancel`, { reason: "Cancelado pelo cliente" });
+      toast.success("Pedido cancelado");
+      await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["orders"] })]);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Não foi possível cancelar o pedido.");
+    }
+  }
+
+  if (isLoading) {
     return (
-      <div className="px-6 pt-6 space-y-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="animate-pulse rounded-2xl bg-white/80 shadow-[0_2px_12px_rgba(0,26,64,0.06)]"
-          >
-            <div className="p-6 space-y-3">
-              <div className="h-5 w-40 rounded-lg bg-[#e1e3e4]" />
-              <div className="h-3 w-56 rounded-lg bg-[#e1e3e4]" />
-            </div>
-          </div>
-        ))}
+      <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pt-4">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
-          <Droplets className="h-10 w-10 text-red-400" />
-        </div>
-        <p className="text-[#737688]">{loadError ?? "Pedido não encontrado."}</p>
-        <Button
-          variant="ghost"
-          className="mt-4 text-primary"
-          onClick={() => router.push("/orders")}
-        >
-          Voltar aos pedidos
-        </Button>
+      <div className="mx-auto w-full max-w-3xl">
+        <PageHeader back="/orders" title="Pedido" />
+        <EmptyState
+          icon={Droplets}
+          title={loadError ?? "Pedido não encontrado"}
+          action={
+            <Button asChild variant="outline">
+              <Link href="/orders">Voltar aos pedidos</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
-  const isDelivered = order.status === "DELIVERED";
+  const progress = consumerOrderProgress(order.status);
+  const isDelivered = order.status === OrderStatus.DELIVERED;
   const isPaymentExpired = order.payment_status === "expired";
   const latestPayment = order.payments[0];
   const isCashPayment = isCashPaymentMethod(latestPayment?.payment_method);
+  const paidOnline = latestPayment?.status === "CAPTURED" && !isOfflinePaymentMethod(latestPayment?.payment_method);
   const canResumePayment =
-    (order.status === "CREATED" || order.status === "PAYMENT_PENDING") &&
+    (order.status === OrderStatus.CREATED || order.status === OrderStatus.PAYMENT_PENDING) &&
     (!order.payment_status || order.payment_status.toLowerCase() === "pending") &&
     !isPaymentExpired &&
-    !isCashPayment;
-  const { step, pct } = getProgress(order.status);
+    !isOfflinePaymentMethod(latestPayment?.payment_method);
+  const canCancel = CONSUMER_CANCELLABLE.includes(order.status) && !paidOnline;
+  const otp = otpCode ?? order.otp_code;
   const latestOtp = order.otps[0];
+  const callHref = phoneHref(order.distributor_phone);
+  const chatHref = whatsappHref(order.distributor_phone);
+  const showRating = isDelivered && order.nps_score == null && !npsMessage;
+
   const hasDeliveryRecords = Boolean(
-    order.qty_20l_sent != null ||
-      order.qty_20l_returned != null ||
+    order.accepted_at ||
+      order.dispatched_at ||
+      order.delivered_at ||
       order.collected_empty_qty > 0 ||
       order.returned_empty_qty != null ||
       order.bottle_condition ||
       order.empty_not_collected_reason ||
-      order.empty_not_collected_notes ||
-      order.cancellation_reason ||
-      order.accepted_at ||
-      order.dispatched_at ||
-      order.delivered_at
+      order.empty_not_collected_notes,
   );
 
+  const hasBar = canResumePayment || canCancel || Boolean(callHref);
+
   return (
-    <div className="pb-6">
-      {/* Header */}
-      <div className="px-6 pt-4 pb-2 flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center hover:bg-[#e1e3e4] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 text-[#191c1d]" />
-        </button>
-        <div className="flex-1">
-          <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-primary">
-            Detalhes do Pedido
-          </p>
-          <h1 className="font-heading text-xl font-extrabold tracking-tight text-[#191c1d]">
-            #{shortId(order.id)}
-          </h1>
-        </div>
-        <StatusPill status={order.status} />
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader
+        back="/orders"
+        eyebrow="Pedido"
+        title={`#${formatShortOrderId(order.id)}`}
+        description={`Feito em ${formatDateTime(order.created_at)}`}
+      />
 
-      {/* -- Active order card with progress -- */}
-      <div className="mx-6 mt-4 bg-[#f3f4f5] rounded-3xl p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl" />
-
-        <div className="relative z-10">
-          {/* Product summary */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm">
-              <Droplets className="h-7 w-7 text-primary" />
+      <div className="space-y-4 px-4 pt-1 pb-4">
+        {/* Topo: o que importa agora — código de entrega, andamento e previsão */}
+        {otp ? (
+          <Card className="flex flex-col gap-3 rounded-2xl border-0 bg-linear-to-br from-primary to-sky p-5 text-primary-foreground shadow-lg">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-5" aria-hidden />
+              <p className="text-sm font-semibold">Mostre este código ao entregador</p>
             </div>
-            <div className="flex-1">
-              <h3 className="font-heading text-lg font-bold text-[#191c1d]">
-                {order.items.length === 1
-                  ? order.items[0].product_name
-                  : `${order.items.length} produtos`}
-              </h3>
-              <p className="text-sm text-[#737688] font-medium">
-                Pedido #{shortId(order.id)} •{" "}
-                <span className="text-primary">
-                  {formatCurrency(order.total_cents)}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Progress tracker */}
-          <div className="relative mt-6 pb-2">
-            <div className="absolute top-3.5 left-0 w-full h-1 bg-[#e1e3e4] rounded-full">
-              <div
-                className={`h-full bg-[#00E0FF] rounded-full transition-all ${pct}`}
-              />
-            </div>
-            <div className="relative flex justify-between">
-              <div className="flex flex-col items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
-                    step >= 1
-                      ? "bg-[#00E0FF] text-[#001735]"
-                      : "bg-[#e1e3e4] text-[#737688]"
-                  }`}
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </div>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 1 ? "text-[#001735]" : "text-[#737688]"
-                  }`}
-                >
-                  Confirmado
-                </span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
-                    step >= 2
-                      ? "bg-[#00E0FF] text-[#001735]"
-                      : "bg-[#e1e3e4] text-[#737688]"
-                  }`}
-                >
-                  <Truck className="h-3.5 w-3.5" />
-                </div>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 2 ? "text-[#001735]" : "text-[#737688]"
-                  }`}
-                >
-                  A caminho
-                </span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-[#f3f4f5]/80 ${
-                    step >= 3
-                      ? "bg-[#00E0FF] text-[#001735]"
-                      : "bg-[#e1e3e4] text-[#737688]"
-                  }`}
-                >
-                  <Home className="h-3.5 w-3.5" />
-                </div>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                    step >= 3 ? "text-[#001735]" : "text-[#737688]"
-                  }`}
-                >
-                  Entregue
-                </span>
-              </div>
-            </div>
-          </div>
-
-
-        </div>
-      </div>
-
-      {/* -- Payment Expired Banner -- */}
-      {isPaymentExpired && (
-        <div className="mx-6 mt-4 rounded-2xl border border-red-200 bg-red-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
-              <AlertTriangle className="h-4 w-4 text-red-700" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-red-900">Pagamento expirado</p>
-              <p className="mt-0.5 text-xs text-red-700">
-                {order.cancellation_reason || "Seu pedido foi cancelado automaticamente porque o prazo para pagamento expirou."}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* -- Resume Payment Banner -- */}
-      {canResumePayment && (
-        <div className="mx-6 mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-              <CreditCard className="h-4 w-4 text-amber-700" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-amber-900">Pagamento pendente</p>
-              <p className="mt-0.5 text-xs text-amber-700">
-                Este pedido aguarda confirmação do pagamento. Retome para concluir.
-              </p>
-            </div>
-          </div>
-          <Button
-            asChild
-            className="mt-4 h-11 w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-bold shadow-none transition-all active:scale-[0.98]"
-          >
-            <Link href={`/checkout/payment?orderId=${encodeURIComponent(order.id)}`}>
-              <CreditCard className="mr-2 h-4 w-4" /> Retomar pagamento
-            </Link>
-          </Button>
-        </div>
-      )}
-
-      {/* -- OTP Card -- */}
-      {(otpCode ?? order.otp_code) && (
-        <div className="mx-6 mt-4 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#1B4A9A_0%,#3670C0_50%,#5697E9_100%)] p-6 text-white shadow-[0_16px_40px_rgba(27,74,154,0.28)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
-              <ShieldCheck className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">Confirmação de entrega</p>
-              <p className="text-sm font-bold text-white">Mostre este código ao motorista</p>
-            </div>
-          </div>
-
-          <div className="rounded-[20px] bg-white/15 backdrop-blur px-4 py-5 text-center">
-            <p className="font-mono text-5xl font-black tracking-[0.35em] text-white drop-shadow-sm">
-              {otpCode ?? order.otp_code}
+            <p className="text-center font-mono text-5xl font-black tracking-[0.3em]" aria-label={`Código ${otp.split("").join(" ")}`}>
+              {otp}
             </p>
-          </div>
+            <p className="text-center text-xs text-primary-foreground/75">Ele digita o código para confirmar a entrega.</p>
+          </Card>
+        ) : null}
 
-          <p className="mt-3 text-center text-xs text-white/65">
-            O motorista irá inserir este código para confirmar a entrega.
-          </p>
-        </div>
-      )}
+        <Card className="flex flex-col gap-4 rounded-2xl border-hairline p-4">
+          <StatusBadge status={order.status} className="self-start" />
+          {progress.kind === "issue" ? (
+            <Alert variant="destructive" className="border-0 bg-danger-surface">
+              <AlertTriangle aria-hidden />
+              <AlertTitle>
+                {order.status === OrderStatus.CANCELLED
+                  ? "Pedido cancelado"
+                  : order.status === OrderStatus.REJECTED_BY_DISTRIBUTOR
+                    ? "A distribuidora recusou o pedido"
+                    : "Não foi possível entregar"}
+              </AlertTitle>
+              {order.cancellation_reason ? <AlertDescription>{order.cancellation_reason}</AlertDescription> : null}
+            </Alert>
+          ) : (
+            <OrderStepper status={order.status} />
+          )}
+          {progress.kind !== "issue" ? (
+          <InfoRow icon={CalendarClock}>
+            <p className="font-medium text-foreground">
+              {isDelivered && order.delivered_at ? `Entregue em ${formatDateTime(order.delivered_at)}` : `${formatDate(order.delivery_date)} · ${formatScheduledTime(order)}`}
+            </p>
+            {!isDelivered ? <p className="text-xs text-muted-foreground">Entrega prevista</p> : null}
+          </InfoRow>
+          ) : null}
+        </Card>
 
-      {/* -- Delivery Info -- */}
-      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Informações da entrega
-        </h3>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
-              <Package className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#191c1d]">
-                {formatDate(order.created_at)} às {formatTime(order.created_at)}
-              </p>
-              <p className="text-xs text-[#737688]">Pedido realizado</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#191c1d]">
-                {formatDate(order.delivery_date)}
-              </p>
-              <p className="text-xs text-[#737688]">Data da entrega</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#191c1d]">
-                {formatDeliveryWindow(order)}
-              </p>
-              <p className="text-xs text-[#737688]">Janela de entrega</p>
-            </div>
-          </div>
-        </div>
-      </div>
+        {isPaymentExpired ? (
+          <Alert variant="destructive">
+            <AlertTriangle aria-hidden />
+            <AlertTitle>Pagamento expirado</AlertTitle>
+            <AlertDescription>
+              {order.cancellation_reason || "O pedido foi cancelado porque o prazo para pagamento acabou."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {/* -- Delivery Address -- */}
-      {(order.address_line ?? order.address_details) && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-            Endereço de entrega
-          </h3>
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0 mt-0.5">
-              <MapPin className="h-4 w-4 text-[#5697E9]" />
+        {canResumePayment ? (
+          <Alert className="border-warning/30 bg-warning-surface">
+            <CreditCard aria-hidden className="text-warning-foreground" />
+            <AlertTitle className="text-warning-foreground">Pagamento pendente</AlertTitle>
+            <AlertDescription className="text-warning-foreground">
+              O pedido só vai para a distribuidora depois que o pagamento for confirmado.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {/* Vasilhame: antes da entrega o que separar; depois, o que foi trocado/cobrado */}
+        {order.max_bottle_charge_cents > 0 && (progress.kind !== "issue" || order.bottle_step_recorded_at != null) ? (
+          <Card className="flex flex-col flex-row items-start gap-3 rounded-2xl border-0 bg-sky/10 p-4 text-sm">
+            <Recycle className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+            {order.bottle_step_recorded_at == null ? (
+              <div>
+                <p className="font-semibold text-foreground">
+                  Separe {plural(order.bottles_full_ordered, "vasilhame vazio", "vasilhames vazios")} para a troca
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Sem eles, o entregador cobra o vasilhame na entrega (até {formatCurrency(order.max_bottle_charge_cents)}) ou
+                  entrega só o que tiver troca.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="font-semibold text-foreground">
+                  {plural(order.empty_bottles_provided, "vasilhame trocado", "vasilhames trocados")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {order.bottles_sold > 0
+                    ? `${plural(order.bottles_sold, "vasilhame cobrado", "vasilhames cobrados")} na entrega (${formatCurrency(order.bottle_charge_cents)})`
+                    : order.bottles_loaned > 0
+                      ? `${order.bottles_loaned} em caução`
+                      : "Sem cobrança de vasilhame"}
+                </p>
+              </div>
+            )}
+          </Card>
+        ) : null}
+
+        {/* Avaliação pós-entrega */}
+        {showRating ? (
+          <Card className="flex flex-col gap-3 rounded-2xl border-hairline p-4">
+            <p className="font-heading font-semibold text-foreground">Como foi a entrega?</p>
+            <div role="radiogroup" aria-label="Nota de 1 a 5" className="flex justify-between gap-2">
+              {[1, 2, 3, 4, 5].map((score) => (
+                <button
+                  key={score}
+                  type="button"
+                  role="radio"
+                  aria-checked={nps === score}
+                  aria-label={`${score} de 5`}
+                  disabled={submitRating.isPending}
+                  onClick={() => setNps(score)}
+                  className="flex size-12 items-center justify-center rounded-full transition-colors hover:bg-muted"
+                >
+                  <Star className={cn("size-7", nps !== null && score <= nps ? "fill-warning text-warning" : "text-muted-foreground")} aria-hidden />
+                </button>
+              ))}
             </div>
-            <div className="space-y-0.5">
+            {nps !== null ? (
+              <>
+                <Textarea
+                  placeholder="Conte mais (opcional)"
+                  value={npsComment}
+                  onChange={(e) => setNpsComment(e.target.value)}
+                  rows={2}
+                  className="resize-none text-base md:text-sm"
+                />
+                <Button variant="default" size="xl" onClick={submitNps} disabled={submitRating.isPending}>
+                  {submitRating.isPending ? "Enviando…" : "Enviar avaliação"}
+                </Button>
+              </>
+            ) : null}
+            {npsError ? <p className="text-sm font-medium text-destructive">{npsError}</p> : null}
+          </Card>
+        ) : null}
+        {npsMessage ? <p className="text-center text-sm font-medium text-success-foreground">{npsMessage}</p> : null}
+        {isDelivered && order.nps_score != null ? (
+          <Card className="flex flex-col flex-row items-center gap-2 rounded-2xl border-hairline p-4 text-sm">
+            <span className="text-muted-foreground">Sua avaliação</span>
+            <span className="flex">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} className={cn("size-4", s <= order.nps_score! ? "fill-warning text-warning" : "text-muted-foreground")} aria-hidden />
+              ))}
+            </span>
+            {order.nps_comment ? <span className="truncate text-muted-foreground italic">“{order.nps_comment}”</span> : null}
+          </Card>
+        ) : null}
+
+        {/* Meio: detalhes em seções recolhíveis */}
+        <Accordion type="multiple" defaultValue={["itens"]} className="overflow-hidden rounded-2xl border border-hairline bg-card px-4">
+          <AccordionItem value="itens">
+            <AccordionTrigger>
+              Itens · {formatCurrency(order.total_cents)}
+            </AccordionTrigger>
+            <AccordionContent className="space-y-3">
+              {order.items.map((item, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary/60">
+                    {getProductImage(item.image_url) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={getProductImage(item.image_url)!} alt="" className="size-full object-cover" />
+                    ) : (
+                      <Droplets className="size-4 text-primary" aria-hidden />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground">{item.product_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {plural(item.qty, "unidade", "unidades")}
+                      {item.original_qty != null && item.original_qty !== item.qty
+                        ? ` (pedido: ${item.original_qty}; sem vasilhame para troca)`
+                        : ""}
+                    </p>
+                  </div>
+                  <span className="font-semibold tabular-nums">{formatCurrency(item.subtotal_cents)}</span>
+                </div>
+              ))}
+              <Separator />
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span className="tabular-nums">{formatCurrency(order.subtotal_cents)}</span>
+                </div>
+                {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents ? (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Vasilhames ({order.bottles_sold})</span>
+                    <span className="tabular-nums">{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between font-semibold text-foreground">
+                  <span>Total</span>
+                  <span className="text-primary tabular-nums">{formatCurrency(order.total_cents)}</span>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="entrega">
+            <AccordionTrigger>Entrega</AccordionTrigger>
+            <AccordionContent className="space-y-4">
               {order.address_details ? (
-                <>
-                  <p className="text-sm font-semibold text-[#191c1d]">
+                <InfoRow icon={MapPin}>
+                  <p className="font-medium text-foreground">
                     {order.address_details.street}, {order.address_details.number}
                     {order.address_details.complement ? ` — ${order.address_details.complement}` : ""}
                   </p>
-                  <p className="text-xs text-[#737688]">
-                    {order.address_details.neighborhood} · {order.address_details.city}/{order.address_details.state}
+                  <p className="text-xs text-muted-foreground">
+                    {order.address_details.neighborhood} · {order.address_details.city}/{order.address_details.state} · CEP{" "}
+                    {order.address_details.zip_code}
                   </p>
-                  <p className="text-xs text-[#737688]">CEP: {order.address_details.zip_code}</p>
-                </>
-              ) : (
-                <p className="text-sm font-semibold text-[#191c1d]">{order.address_line}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                </InfoRow>
+              ) : order.address_line ? (
+                <InfoRow icon={MapPin}>
+                  <p className="font-medium text-foreground">{order.address_line}</p>
+                </InfoRow>
+              ) : null}
+              <InfoRow icon={Building2}>
+                <p className="font-medium text-foreground">{order.distributor_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {order.distributor_phone ? formatPhone(order.distributor_phone) : "Telefone não informado"}
+                </p>
+                {chatHref ? (
+                  <a href={chatHref} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                    <MessageCircle className="size-3.5" aria-hidden /> Conversar no WhatsApp
+                  </a>
+                ) : null}
+              </InfoRow>
+              <InfoRow icon={UserRound}>
+                <p className="font-medium text-foreground">{order.driver_name ?? "Entregador ainda não definido"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {order.driver_name
+                    ? order.driver_phone
+                      ? formatPhone(order.driver_phone)
+                      : "Telefone não informado"
+                    : "Aparece quando o pedido sair para entrega"}
+                </p>
+              </InfoRow>
+              {hasDeliveryRecords ? (
+                <div className="space-y-1 rounded-xl bg-surface-low p-3 text-xs text-muted-foreground">
+                  {order.accepted_at ? <p>Aceito em {formatDateTime(order.accepted_at)}</p> : null}
+                  {order.dispatched_at ? <p>Saiu para entrega em {formatDateTime(order.dispatched_at)}</p> : null}
+                  {order.delivered_at ? <p>Entregue em {formatDateTime(order.delivered_at)}</p> : null}
+                  {order.collected_empty_qty > 0 ? <p>Vasilhames coletados: {order.collected_empty_qty}</p> : null}
+                  {order.returned_empty_qty != null ? <p>Vasilhames devolvidos: {order.returned_empty_qty}</p> : null}
+                  {order.bottle_condition ? <p>Condição dos vasilhames: {order.bottle_condition}</p> : null}
+                  {order.empty_not_collected_reason ? <p>Vazio não coletado: {order.empty_not_collected_reason}</p> : null}
+                  {order.empty_not_collected_notes ? <p>Observações: {order.empty_not_collected_notes}</p> : null}
+                </div>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
 
-      {/* -- Operation -- */}
-      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Operação do pedido
-        </h3>
-        <div className="space-y-4 text-sm">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-              <Building2 className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[#191c1d]">{order.distributor_name}</p>
-              <p className="text-xs text-[#737688]">
-                {order.zone_name} • {formatOptional(order.distributor_phone)}
-              </p>
-              {order.distributor_email && (
-                <p className="text-xs text-[#737688] break-all">{order.distributor_email}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-              <UserRound className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[#191c1d]">
-                {order.driver_name ?? "Motorista ainda não atribuído"}
-              </p>
-              <p className="text-xs text-[#737688]">
-                {order.driver_name ? formatOptional(order.driver_phone) : "Será exibido quando o pedido for despachado"}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* -- Payment and bottles -- */}
-      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Pagamento e vasilhames
-        </h3>
-        <div className="space-y-4 text-sm">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-              <CreditCard className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div className="min-w-0 flex-1">
+          <AccordionItem value="pagamento">
+            <AccordionTrigger>Pagamento</AccordionTrigger>
+            <AccordionContent className="space-y-3">
               {latestPayment ? (
-                <>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#191c1d]">
-                      {labelFromMap(PAYMENT_KIND_LABELS, latestPayment.kind)} • {labelFromMap(PAYMENT_STATUS_LABELS, latestPayment.status)}
-                    </p>
-                    <span className="font-bold text-primary">{formatCurrency(latestPayment.amount_cents)}</span>
+                <InfoRow icon={CreditCard}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-foreground">{getCheckoutPaymentMethodLabel(latestPayment.payment_method)}</p>
+                    <StatusBadge
+                      label={PAYMENT_STATUS_LABELS[latestPayment.status] ?? latestPayment.status}
+                      tone={latestPayment.status === "CAPTURED" ? "success" : latestPayment.status === "FAILED" || latestPayment.status === "EXPIRED" ? "danger" : "warning"}
+                    />
                   </div>
-                  <p className="text-xs text-[#737688]">
-                    {getCheckoutPaymentMethodLabel(latestPayment.payment_method)} • {latestPayment.paid_at ? `Pago em ${formatDateTime(latestPayment.paid_at)}` : `Criado em ${formatDateTime(latestPayment.created_at)}`}
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrency(latestPayment.amount_cents)} ·{" "}
+                    {latestPayment.paid_at
+                      ? `pago em ${formatDateTime(latestPayment.paid_at)}`
+                      : isOfflinePaymentMethod(latestPayment.payment_method)
+                        ? "pago ao entregador"
+                        : `criado em ${formatDateTime(latestPayment.created_at)}`}
                   </p>
-                  {isCashPayment && (
-                    <p className="mt-1 text-xs font-semibold text-[#805300]">
+                  {isCashPayment ? (
+                    <p className="mt-1 text-xs font-medium text-warning-foreground">
                       {latestPayment.cash_change_for_cents == null
                         ? "Dinheiro em valor exato."
                         : `Troco para ${formatCurrency(latestPayment.cash_change_for_cents)}.`}
                     </p>
-                  )}
-                </>
+                  ) : null}
+                </InfoRow>
               ) : (
-                <>
-                  <p className="font-semibold text-[#191c1d]">
-                    {order.payment_status ? labelFromMap(PAYMENT_STATUS_LABELS, order.payment_status) : "Pagamento não registrado"}
-                  </p>
-                  <p className="text-xs text-[#737688]">Nenhum pagamento vinculado a este pedido no banco.</p>
-                </>
+                <p className="text-sm text-muted-foreground">Nenhum pagamento registrado.</p>
               )}
-            </div>
-          </div>
+              {latestOtp ? (
+                <InfoRow icon={ShieldCheck}>
+                  <p className="font-medium text-foreground">Código de entrega: {OTP_STATUS_LABELS[latestOtp.status] ?? latestOtp.status}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {plural(latestOtp.attempts, "tentativa", "tentativas")} · expira em {formatDateTime(latestOtp.expires_at)}
+                  </p>
+                </InfoRow>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
 
-          {/* Regra de vasilhame na entrega: antes da entrega mostra o que levar
-              e o teto; depois, o que foi trocado, cobrado ou ficou em caução. */}
-          {order.max_bottle_charge_cents > 0 && (
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-                <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                {order.bottle_step_recorded_at == null ? (
-                  <>
-                    <p className="font-semibold text-[#191c1d]">
-                      Separe {order.bottles_full_ordered} vasilhame{order.bottles_full_ordered === 1 ? "" : "s"} vazio
-                      {order.bottles_full_ordered === 1 ? "" : "s"} para troca
-                    </p>
-                    <p className="text-xs text-[#737688]">
-                      Sem eles, o entregador cobra o vasilhame na entrega (até{" "}
-                      {formatCurrency(order.max_bottle_charge_cents)}) ou entrega só o que tiver troca.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-semibold text-[#191c1d]">
-                      {order.empty_bottles_provided} vasilhame{order.empty_bottles_provided === 1 ? "" : "s"} trocado
-                      {order.empty_bottles_provided === 1 ? "" : "s"}
-                    </p>
-                    <p className="text-xs text-[#737688]">
-                      {order.bottles_sold > 0
-                        ? `${order.bottles_sold} cobrado(s) na entrega (${formatCurrency(order.bottle_charge_cents)})`
-                        : order.bottles_loaned > 0
-                          ? `${order.bottles_loaned} em caução`
-                          : "Sem cobrança de vasilhame"}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+          {order.events.length > 0 ? (
+            <AccordionItem value="historico" className="border-b-0">
+              <AccordionTrigger>Histórico</AccordionTrigger>
+              <AccordionContent>
+                <OrderTimeline events={order.events} />
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+        </Accordion>
       </div>
 
-      {/* -- OTP status -- */}
-      {latestOtp && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-            Código de confirmação
-          </h3>
-          <div className="flex items-start gap-3 text-sm">
-            <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-4 w-4 text-[#5697E9]" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[#191c1d]">{labelFromMap(OTP_STATUS_LABELS, latestOtp.status)}</p>
-              <p className="text-xs text-[#737688]">
-                {latestOtp.attempts} tentativa{latestOtp.attempts === 1 ? "" : "s"} • Expira em {formatDateTime(latestOtp.expires_at)}
-              </p>
-              {!order.otp_code && !otpCode && latestOtp.status === "ACTIVE" && (
-                <p className="mt-1 text-xs text-[#737688]">
-                  O código em claro é enviado em tempo real e não é salvo no banco por segurança.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* -- Delivery records -- */}
-      {hasDeliveryRecords && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-            Registros da entrega
-          </h3>
-          <div className="space-y-2 text-sm text-[#737688]">
-            {order.accepted_at && <p>Aceito em {formatDateTime(order.accepted_at)}</p>}
-            {order.dispatched_at && <p>Despachado em {formatDateTime(order.dispatched_at)}</p>}
-            {order.delivered_at && <p>Entregue em {formatDateTime(order.delivered_at)}</p>}
-            {order.qty_20l_sent != null && <p>Galões enviados: {order.qty_20l_sent}</p>}
-            {order.qty_20l_returned != null && <p>Galões retornados: {order.qty_20l_returned}</p>}
-            {order.collected_empty_qty > 0 && <p>Vasilhames coletados: {order.collected_empty_qty}</p>}
-            {order.returned_empty_qty != null && <p>Vasilhames devolvidos: {order.returned_empty_qty}</p>}
-            {order.bottle_condition && <p>Condição dos vasilhames: {order.bottle_condition}</p>}
-            {order.empty_not_collected_reason && <p>Motivo de não coleta: {order.empty_not_collected_reason}</p>}
-            {order.empty_not_collected_notes && <p>Observações: {order.empty_not_collected_notes}</p>}
-            {order.cancellation_reason && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Motivo do cancelamento: {order.cancellation_reason}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* -- Items -- */}
-      <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-          Itens do Pedido
-        </h3>
-        <div className="space-y-3 text-sm">
-          {order.items.map((item, i) => (
-            <div key={i} className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#f3f4f5] flex items-center justify-center overflow-hidden shrink-0">
-                  {getRenderableProductImageUrl(item.image_url) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={getRenderableProductImageUrl(item.image_url)!}
-                      alt={item.product_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Droplets className="h-4 w-4 text-primary" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-semibold text-[#191c1d]">{item.product_name}</p>
-                  <p className="text-xs text-[#737688]">
-                    Qtd: {item.qty}
-                    {item.original_qty != null && item.original_qty !== item.qty
-                      ? ` (pedido: ${item.original_qty} — sem vasilhame para troca)`
-                      : ""}
-                  </p>
-                </div>
-              </div>
-              <span className="font-heading font-bold text-[#191c1d]">
-                {formatCurrency(item.subtotal_cents)}
-              </span>
-            </div>
-          ))}
-
-          <div className="pt-3 mt-3 border-t border-[#e1e3e4] space-y-1.5">
-            <div className="flex justify-between text-[#737688]">
-              <span>Subtotal</span>
-              <span>{formatCurrency(order.subtotal_cents)}</span>
-            </div>
-            {order.bottles_sold > 0 && order.total_cents > order.subtotal_cents && (
-              <div className="flex justify-between text-[#737688]">
-                <span>Vasilhames ({order.bottles_sold})</span>
-                <span>{formatCurrency(order.total_cents - order.subtotal_cents)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-[#191c1d] pt-1.5 border-t border-[#e1e3e4]">
-              <span>Total</span>
-              <span className="text-primary">
-                {formatCurrency(order.total_cents)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* -- Timeline -- */}
-      {order.events.length > 0 && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-            Timeline
-          </h3>
-          <OrderTimeline events={order.events} />
-        </div>
-      )}
-
-      {/* -- NPS já avaliado -- */}
-      {isDelivered && order.nps_score != null && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-3">
-            Sua avaliação
-          </h3>
-          <div className="flex items-center gap-1.5">
-            {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
-              <div
-                key={score}
-                className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                  score <= order.nps_score!
-                    ? "bg-primary text-white"
-                    : "bg-[#f3f4f5] text-[#b0b3c6]"
-                }`}
-              >
-                {score}
-              </div>
-            ))}
-          </div>
-          {order.nps_comment && (
-            <p className="mt-3 text-sm text-[#737688] italic">{order.nps_comment}</p>
-          )}
-        </div>
-      )}
-
-      {/* -- NPS Rating (ainda não avaliado) -- */}
-      {isDelivered && order.nps_score == null && !npsSubmitted && (
-        <div className="mx-6 mt-4 bg-white rounded-2xl p-5 shadow-sm">
-          <h3 className="text-xs font-bold tracking-[0.15em] uppercase text-[#737688] mb-4">
-            Avalie sua entrega
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-center gap-1.5">
-              {Array.from({ length: 5 }, (_, i) => i + 1).map((score) => (
-                <button
-                  key={score}
-                  onClick={() => !npsSubmitting && setNps(score)}
-                  disabled={npsSubmitting}
-                  className={`h-11 w-11 rounded-full text-sm font-bold transition-all active:scale-95 ${
-                    nps === score
-                      ? "bg-linear-to-br from-primary to-primary-hover text-white shadow-[0_2px_8px_rgba(27,74,154,0.3)]"
-                      : "bg-[#f3f4f5] text-[#737688] hover:bg-[#e1e3e4]"
-                  } disabled:cursor-not-allowed disabled:opacity-50`}
-                >
-                  {score}
-                </button>
-              ))}
-            </div>
-            <Input
-              placeholder="Comentário (opcional)"
-              value={npsComment}
-              onChange={(e) => setNpsComment(e.target.value)}
-              disabled={npsSubmitting}
-              className="rounded-xl border-0 bg-[#f3f4f5]"
-            />
-            <Button
-              className="w-full rounded-xl bg-primary hover:bg-primary-hover font-bold shadow-lg hover:opacity-90 active:scale-[0.98]"
-              onClick={submitNps}
-              disabled={nps === null || npsSubmitting}
-            >
-              {npsSubmitting ? "Enviando..." : "Enviar avaliação"}
+      {/* Base: ação contextual */}
+      {hasBar ? (
+        <StickyActionBar>
+          {canResumePayment ? (
+            <Button asChild variant="cta" size="xl">
+              <Link href={`/checkout/payment?orderId=${encodeURIComponent(order.id)}`}>
+                <CreditCard /> Retomar pagamento
+              </Link>
             </Button>
-            {npsError && (
-              <p className="text-center text-sm font-medium text-red-500">{npsError}</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {npsSubmitted && (
-        <p
-          className={`mx-6 mt-4 text-center text-sm font-medium ${
-            nps !== null && nps <= 2 ? "text-red-500" : "text-green-600"
-          }`}
-        >
-          {npsMessage}
-        </p>
-      )}
+          ) : null}
+          {canCancel ? (
+            <ConfirmAction
+              trigger={
+                <Button variant="destructive-soft" size="xl">
+                  Cancelar pedido
+                </Button>
+              }
+              title="Cancelar este pedido?"
+              description="A distribuidora será avisada e o pedido não será entregue. Essa ação não pode ser desfeita."
+              confirmLabel="Cancelar pedido"
+              cancelLabel="Manter pedido"
+              destructive
+              onConfirm={cancelOrder}
+            />
+          ) : null}
+          {!canResumePayment && callHref ? (
+            <Button asChild variant={canCancel ? "outline" : "default"} size="xl">
+              <a href={callHref}>
+                <Phone /> {canCancel ? "Ligar" : "Ligar para a distribuidora"}
+              </a>
+            </Button>
+          ) : null}
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }

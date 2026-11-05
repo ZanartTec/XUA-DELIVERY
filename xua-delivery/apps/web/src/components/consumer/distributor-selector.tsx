@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/src/lib/api-client";
+import { Building2, CalendarDays, Star } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { isoDayToDate } from "@/src/lib/datetime";
 import { cn } from "@/src/lib/utils";
-import { Building2, Star, CalendarDays, Loader2 } from "lucide-react";
 
 interface AvailableDistributor {
   id: string;
@@ -16,153 +23,115 @@ interface DistributorSelectorProps {
   date?: string;
   window?: string;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  /** `null` quando a seleção atual deixou de valer (ex.: trocou o endereço). */
+  onSelect: (id: string | null) => void;
 }
 
-export function DistributorSelector({
-  zoneId,
-  date,
-  window: deliveryWindow,
-  selectedId,
-  onSelect,
-}: DistributorSelectorProps) {
-  const [distributors, setDistributors] = useState<AvailableDistributor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function formatNextDate(iso: string) {
+  return isoDayToDate(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+
+/**
+ * Quem entrega. Com uma única distribuidora atendendo, ela já vem escolhida e o
+ * card é só informativo (sem etapa extra para o cliente).
+ */
+export function DistributorSelector({ zoneId, date, window: deliveryWindow, selectedId, onSelect }: DistributorSelectorProps) {
+  const params = new URLSearchParams({ zone_id: zoneId });
+  if (date) params.set("date", date);
+  if (deliveryWindow) params.set("window", deliveryWindow);
+  const query = useQuery({
+    queryKey: ["distributors", zoneId, date ?? null, deliveryWindow ?? null],
+    queryFn: async () =>
+      (await api.get<{ distributors?: AvailableDistributor[] }>(`/api/distributors?${params}`)).distributors ?? [],
+  });
+  const distributors = query.data ?? [];
+  const loading = query.isLoading;
+  const error = query.error ? (query.error instanceof Error ? query.error.message : "Erro de conexão") : null;
+
+  // Mantém a seleção coerente com a lista carregada (única → escolhida; sumiu → limpa).
+  const reconcileSelection = useEffectEvent((list: AvailableDistributor[]) => {
+    if (list.length === 1) {
+      if (selectedId !== list[0].id) onSelect(list[0].id);
+    } else if (selectedId && !list.some((d) => d.id === selectedId)) {
+      onSelect(null);
+    }
+  });
 
   useEffect(() => {
-    let cancelled = false;
+    if (query.data) reconcileSelection(query.data);
+  }, [query.data]);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({
-          zone_id: zoneId,
-        });
-        if (date) params.set("date", date);
-        if (deliveryWindow) params.set("window", deliveryWindow);
-        const res = await fetch(`/api/distributors?${params}`);
-        if (!res.ok) {
-          const body = await res.json();
-          throw new Error(body.error || "Erro ao buscar distribuidoras");
-        }
-        const body = await res.json();
-        if (cancelled) return;
-
-        const list: AvailableDistributor[] = body.distributors ?? [];
-        setDistributors(list);
-
-        // Única distribuidora: apenas pré-seleciona (sem navegar). O card é
-        // exibido e o usuário confirma no botão "Continuar" — não pulamos a etapa.
-        if (list.length === 1) {
-          onSelect(list[0].id);
-        }
-        // list.length === 0: renderiza mensagem de erro inline (sem navegar)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Erro de conexão");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void load();
-    return () => { cancelled = true; };
-  }, [zoneId, date, deliveryWindow, onSelect]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return <Skeleton className="h-18 rounded-2xl" />;
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-red-50 p-4 mx-4">
-        <p className="text-sm text-red-600">{error}</p>
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
   if (distributors.length === 0) {
     return (
-      <div className="rounded-2xl bg-amber-50 p-4">
-        <p className="text-sm text-amber-700">
-          Nenhuma distribuidora disponível para este endereço. Tente outro endereço de entrega.
-        </p>
-      </div>
+      <Alert className="border-warning/30 bg-warning-surface text-warning-foreground">
+        <AlertDescription className="text-warning-foreground">
+          Nenhuma distribuidora atende este endereço agora. Tente outro endereço de entrega.
+        </AlertDescription>
+      </Alert>
     );
   }
 
+  if (distributors.length === 1) {
+    return <DistributorInfo distributor={distributors[0]} />;
+  }
+
   return (
-    <div className="space-y-3">
+    <RadioGroup value={selectedId ?? ""} onValueChange={(id) => onSelect(id)} aria-label="Distribuidoras">
       {distributors.map((d) => {
-        const isSelected = selectedId === d.id;
+        const checked = d.id === selectedId;
         return (
-          <button
+          <Label
             key={d.id}
-            type="button"
-            onClick={() => onSelect(d.id)}
+            htmlFor={`dist-${d.id}`}
             className={cn(
-              "flex w-full items-start gap-4 rounded-2xl p-4 transition-all active:scale-[0.98]",
-              isSelected
-                ? "bg-white border-2 border-[#00E0FF] shadow-[0_2px_12px_rgba(0,224,255,0.15)]"
-                : "bg-white border border-[#e1e3e4] hover:border-primary/30",
+              "flex min-h-16 cursor-pointer items-center gap-3 rounded-2xl border bg-card p-3 font-normal transition-colors",
+              checked ? "border-primary ring-1 ring-primary" : "border-hairline hover:border-primary/40",
             )}
           >
-            <div
-              className={cn(
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
-                isSelected ? "bg-[#00E0FF]/15" : "bg-[#5697E9]/15",
-              )}
-            >
-              <Building2
-                className={cn(
-                  "h-5 w-5",
-                  isSelected ? "text-[#001735]" : "text-[#5697E9]",
-                )}
-              />
-            </div>
-
-            <div className="flex-1 text-left min-w-0">
-              <p className="text-sm font-semibold text-[#191c1d]">{d.name}</p>
-
-              <div className="flex items-center gap-3 mt-1.5">
-                {d.avg_nps !== null && (
-                  <span className="flex items-center gap-1 text-xs text-[#737688]">
-                    <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-                    {d.avg_nps.toFixed(1)}
-                  </span>
-                )}
-                {d.next_available_date && (
-                  <span className="flex items-center gap-1 text-xs text-[#737688]">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {new Date(d.next_available_date + "T12:00:00").toLocaleDateString(
-                      "pt-BR",
-                      { day: "2-digit", month: "short" },
-                    )}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div
-              className={cn(
-                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors mt-1",
-                isSelected
-                  ? "border-[#00E0FF] bg-[#00E0FF]"
-                  : "border-[#c4c6cf] bg-transparent",
-              )}
-            >
-              {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
-            </div>
-          </button>
+            <DistributorInfo distributor={d} bare />
+            <RadioGroupItem id={`dist-${d.id}`} value={d.id} aria-label={d.name} />
+          </Label>
         );
       })}
-    </div>
+    </RadioGroup>
   );
+}
+
+function DistributorInfo({ distributor: d, bare = false }: { distributor: AvailableDistributor; bare?: boolean }) {
+  const content = (
+    <>
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+        <Building2 className="size-5 text-primary" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-foreground">{d.name}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {d.avg_nps !== null ? (
+            <span className="flex items-center gap-1">
+              <Star className="size-3.5 fill-warning text-warning" aria-hidden />
+              {d.avg_nps.toFixed(1)}
+            </span>
+          ) : null}
+          {d.next_available_date ? (
+            <span className="flex items-center gap-1">
+              <CalendarDays className="size-3.5" aria-hidden />
+              Próxima entrega {formatNextDate(d.next_available_date)}
+            </span>
+          ) : null}
+        </span>
+      </span>
+    </>
+  );
+  if (bare) return content;
+  return <div className="flex items-center gap-3 rounded-2xl border border-hairline bg-card p-3">{content}</div>;
 }

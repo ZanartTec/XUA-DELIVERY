@@ -133,31 +133,31 @@ export default function OtpOverridePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</label>
-            <Input placeholder="Maria Silva" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input placeholder="Maria Silva" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</label>
-            <Input placeholder="(11) 91234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input placeholder="(11) 91234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">E-mail</label>
-            <Input placeholder="maria@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input placeholder="maria@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">CPF</label>
-            <Input placeholder="123.456.789-00" value={cpf} onChange={(e) => setCpf(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input placeholder="123.456.789-00" value={cpf} onChange={(e) => setCpf(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ID do pedido</label>
-            <Input placeholder="Ex: abc-123" value={orderId} onChange={(e) => setOrderId(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input placeholder="Ex: abc-123" value={orderId} onChange={(e) => setOrderId(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de entrega</label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl border-0 bg-[#e1e3e4]" />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
           </div>
         </div>
         {searchError && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{searchError}</div>}
-        <Button type="submit" disabled={searchLoading} className="w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]">
+        <Button type="submit" disabled={searchLoading} className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]">
           {searchLoading ? "Buscando..." : "Buscar pedidos em rota"}
         </Button>
       </form>
@@ -193,7 +193,7 @@ export default function OtpOverridePage() {
                 Pedido #{selected.id} — {selected.consumer_phone} — {formatDate(selected.delivery_date)}
               </p>
             </div>
-            <Button onClick={() => setSelected(null)} className="rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4] text-xs h-8 px-3">
+            <Button onClick={() => setSelected(null)} className="rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest text-xs h-8 px-3">
               Trocar pedido
             </Button>
           </div>
@@ -207,7 +207,7 @@ export default function OtpOverridePage() {
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value as typeof reason)}
-              className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm"
+              className="w-full rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm"
             >
               <option value="">Selecione...</option>
               {REASONS.map((r) => (
@@ -224,7 +224,7 @@ export default function OtpOverridePage() {
               <Textarea
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
-                className="h-24 rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm resize-none"
+                className="h-24 rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm resize-none"
                 placeholder="Descreva o motivo do override..."
               />
             </div>
@@ -234,7 +234,7 @@ export default function OtpOverridePage() {
           {overrideResult && <div className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700">{overrideResult}</div>}
 
           <Button
-            className="w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]"
+            className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]"
             disabled={overrideLoading || !reason || (needsDetails && details.trim().length < 10)}
             onClick={handleOverride}
           >

@@ -276,7 +276,7 @@ export default function DistributorSchedulePage() {
 
   if (!distributorId) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh] text-sm text-[#737688]">
+      <div className="flex items-center justify-center min-h-[40vh] text-sm text-muted-foreground">
         {loading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
@@ -293,8 +293,8 @@ export default function DistributorSchedulePage() {
           <Calendar className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[#191c1d] font-heading">Agenda</h1>
-          <p className="text-xs text-[#737688]">
+          <h1 className="text-xl font-bold text-foreground font-heading">Agenda</h1>
+          <p className="text-xs text-muted-foreground">
             Configure os dias operacionais e datas bloqueadas
           </p>
         </div>
@@ -315,14 +315,14 @@ export default function DistributorSchedulePage() {
       )}
 
       {/* Weekdays grid */}
-      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4">
+      <section className="rounded-2xl border border-hairline bg-white p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#191c1d]">Dias operacionais</h2>
+          <h2 className="text-sm font-semibold text-foreground">Dias operacionais</h2>
           <Button
             size="sm"
             onClick={saveWeekdays}
             disabled={saving || loading}
-            className="bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
+            className="bg-cta hover:bg-cta/90 text-cta-foreground"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
           </Button>
@@ -331,7 +331,7 @@ export default function DistributorSchedulePage() {
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="h-12 rounded-lg bg-[#f0f2f4] animate-pulse" />
+              <div key={i} className="h-12 rounded-lg bg-surface-low animate-pulse" />
             ))}
           </div>
         ) : (
@@ -339,14 +339,14 @@ export default function DistributorSchedulePage() {
             {weekdays.map((w) => (
               <div
                 key={w.weekday}
-                className="flex items-center gap-3 rounded-lg border border-[#e1e3e4] p-3"
+                className="flex items-center gap-3 rounded-lg border border-hairline p-3"
               >
                 <button
                   type="button"
                   onClick={() => toggleActive(w.weekday)}
                   className={cn(
                     "relative h-6 w-11 rounded-full transition-colors",
-                    w.is_active ? "bg-primary" : "bg-[#c4c6cf]",
+                    w.is_active ? "bg-primary" : "bg-surface-highest",
                   )}
                   aria-label={`Toggle ${WEEKDAY_LABELS[w.weekday]}`}
                 >
@@ -357,13 +357,13 @@ export default function DistributorSchedulePage() {
                     )}
                   />
                 </button>
-                <span className="flex-1 text-sm font-medium text-[#191c1d]">
+                <span className="flex-1 text-sm font-medium text-foreground">
                   {WEEKDAY_LABELS[w.weekday]}
                 </span>
                 <div className="flex items-center gap-2">
                   <label
                     htmlFor={`lead-${w.weekday}`}
-                    className="text-[10px] uppercase tracking-wider text-[#737688]"
+                    className="text-[10px] uppercase tracking-wider text-muted-foreground"
                   >
                     Lead time (h)
                   </label>
@@ -375,7 +375,7 @@ export default function DistributorSchedulePage() {
                     value={w.lead_time_hours}
                     disabled={!w.is_active}
                     onChange={(e) => changeLeadTime(w.weekday, e.target.value)}
-                    className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm text-[#191c1d] disabled:bg-[#f0f2f4] disabled:text-[#c4c6cf] focus:outline-none focus:border-primary"
+                    className="w-16 rounded-md border border-hairline px-2 py-1 text-sm text-foreground disabled:bg-surface-low disabled:text-hairline focus:outline-none focus:border-primary"
                   />
                 </div>
               </div>
@@ -385,15 +385,15 @@ export default function DistributorSchedulePage() {
       </section>
 
       {/* Blocked dates */}
-      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4">
-        <h2 className="text-sm font-semibold text-[#191c1d] mb-3">Datas bloqueadas</h2>
+      <section className="rounded-2xl border border-hairline bg-white p-4">
+        <h2 className="text-sm font-semibold text-foreground mb-3">Datas bloqueadas</h2>
 
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <input
             type="date"
             value={newBlockDate}
             onChange={(e) => setNewBlockDate(e.target.value)}
-            className="rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+            className="rounded-lg border border-hairline px-3 py-2 text-sm focus:outline-none focus:border-primary"
           />
           <input
             type="text"
@@ -401,7 +401,7 @@ export default function DistributorSchedulePage() {
             value={newBlockReason}
             onChange={(e) => setNewBlockReason(e.target.value)}
             maxLength={200}
-            className="flex-1 rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+            className="flex-1 rounded-lg border border-hairline px-3 py-2 text-sm focus:outline-none focus:border-primary"
           />
           <Button
             size="sm"
@@ -421,21 +421,21 @@ export default function DistributorSchedulePage() {
         </div>
 
         {sortedBlocked.length === 0 ? (
-          <p className="text-xs text-[#737688]">Nenhuma data bloqueada</p>
+          <p className="text-xs text-muted-foreground">Nenhuma data bloqueada</p>
         ) : (
-          <ul className="divide-y divide-[#e1e3e4]">
+          <ul className="divide-y divide-hairline">
             {sortedBlocked.map((b) => (
               <li key={b.id} className="flex items-center gap-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#191c1d]">{b.blocked_date}</p>
+                  <p className="text-sm font-medium text-foreground">{b.blocked_date}</p>
                   {b.reason && (
-                    <p className="text-xs text-[#737688] truncate">{b.reason}</p>
+                    <p className="text-xs text-muted-foreground truncate">{b.reason}</p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => removeBlockedDate(b.blocked_date)}
-                  className="p-2 rounded-lg hover:bg-[#f0f2f4] text-[#737688] hover:text-red-500 transition-colors"
+                  className="p-2 rounded-lg hover:bg-surface-low text-muted-foreground hover:text-red-500 transition-colors"
                   aria-label="Remover bloqueio"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -447,11 +447,11 @@ export default function DistributorSchedulePage() {
       </section>
 
       {/* Time Slots */}
-      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4">
+      <section className="rounded-2xl border border-hairline bg-white p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-[#191c1d]">Horários de Entrega</h2>
+            <h2 className="text-sm font-semibold text-foreground">Horários de Entrega</h2>
           </div>
           <Button
             size="sm"
@@ -463,41 +463,41 @@ export default function DistributorSchedulePage() {
           </Button>
         </div>
 
-        <p className="text-xs text-[#737688] mb-3">
+        <p className="text-xs text-muted-foreground mb-3">
           Configure faixas de horário granulares. Se nenhum horário estiver configurado,
           o consumidor escolhe entre Manhã/Tarde.
         </p>
 
         {showSlotForm && (
-          <div className="rounded-lg border border-[#e1e3e4] p-3 mb-4 space-y-3">
+          <div className="rounded-lg border border-hairline p-3 mb-4 space-y-3">
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 placeholder="Nome (ex: Início da manhã)"
                 value={slotForm.label}
                 onChange={(e) => setSlotForm((f) => ({ ...f, label: e.target.value }))}
-                className="flex-1 rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                className="flex-1 rounded-lg border border-hairline px-3 py-2 text-sm focus:outline-none focus:border-primary"
               />
               <select
                 value={slotForm.window}
                 onChange={(e) => setSlotForm((f) => ({ ...f, window: e.target.value as DeliveryWindow }))}
-                className="rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                className="rounded-lg border border-hairline px-3 py-2 text-sm focus:outline-none focus:border-primary"
               >
                 <option value="MORNING">Manhã</option>
                 <option value="AFTERNOON">Tarde</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[#737688]">De</label>
+              <label className="text-xs text-muted-foreground">De</label>
               <input
                 type="number"
                 min={0}
                 max={23}
                 value={slotForm.start_hour}
                 onChange={(e) => setSlotForm((f) => ({ ...f, start_hour: Number(e.target.value) }))}
-                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+                className="w-16 rounded-md border border-hairline px-2 py-1 text-sm focus:outline-none focus:border-primary"
               />
-              <span className="text-xs text-[#737688]">:</span>
+              <span className="text-xs text-muted-foreground">:</span>
               <input
                 type="number"
                 min={0}
@@ -505,18 +505,18 @@ export default function DistributorSchedulePage() {
                 step={15}
                 value={slotForm.start_minute}
                 onChange={(e) => setSlotForm((f) => ({ ...f, start_minute: Number(e.target.value) }))}
-                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+                className="w-16 rounded-md border border-hairline px-2 py-1 text-sm focus:outline-none focus:border-primary"
               />
-              <label className="text-xs text-[#737688] ml-2">Até</label>
+              <label className="text-xs text-muted-foreground ml-2">Até</label>
               <input
                 type="number"
                 min={0}
                 max={23}
                 value={slotForm.end_hour}
                 onChange={(e) => setSlotForm((f) => ({ ...f, end_hour: Number(e.target.value) }))}
-                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+                className="w-16 rounded-md border border-hairline px-2 py-1 text-sm focus:outline-none focus:border-primary"
               />
-              <span className="text-xs text-[#737688]">:</span>
+              <span className="text-xs text-muted-foreground">:</span>
               <input
                 type="number"
                 min={0}
@@ -524,7 +524,7 @@ export default function DistributorSchedulePage() {
                 step={15}
                 value={slotForm.end_minute}
                 onChange={(e) => setSlotForm((f) => ({ ...f, end_minute: Number(e.target.value) }))}
-                className="w-16 rounded-md border border-[#e1e3e4] px-2 py-1 text-sm focus:outline-none focus:border-primary"
+                className="w-16 rounded-md border border-hairline px-2 py-1 text-sm focus:outline-none focus:border-primary"
               />
             </div>
             <div className="flex gap-2">
@@ -532,7 +532,7 @@ export default function DistributorSchedulePage() {
                 size="sm"
                 onClick={addTimeSlot}
                 disabled={!slotForm.label || savingSlot}
-                className="bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
+                className="bg-cta hover:bg-cta/90 text-cta-foreground"
               >
                 {savingSlot ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
               </Button>
@@ -548,7 +548,7 @@ export default function DistributorSchedulePage() {
         )}
 
         {timeSlots.length === 0 ? (
-          <p className="text-xs text-[#737688]">
+          <p className="text-xs text-muted-foreground">
             Nenhum horário configurado — usando Manhã/Tarde padrão
           </p>
         ) : (
@@ -558,7 +558,7 @@ export default function DistributorSchedulePage() {
                 key={slot.id}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border p-3",
-                  slot.is_active ? "border-[#e1e3e4]" : "border-[#e1e3e4] bg-[#f8f9fa] opacity-60",
+                  slot.is_active ? "border-hairline" : "border-hairline bg-background opacity-60",
                 )}
               >
                 <button
@@ -566,7 +566,7 @@ export default function DistributorSchedulePage() {
                   onClick={() => toggleSlot(slot.id, !slot.is_active)}
                   className={cn(
                     "relative h-6 w-11 rounded-full transition-colors",
-                    slot.is_active ? "bg-primary" : "bg-[#c4c6cf]",
+                    slot.is_active ? "bg-primary" : "bg-surface-highest",
                   )}
                 >
                   <span
@@ -577,8 +577,8 @@ export default function DistributorSchedulePage() {
                   />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#191c1d]">{slot.label}</p>
-                  <p className="text-xs text-[#737688]">
+                  <p className="text-sm font-medium text-foreground">{slot.label}</p>
+                  <p className="text-xs text-muted-foreground">
                     {String(slot.start_hour).padStart(2, "0")}:{String(slot.start_minute).padStart(2, "0")} –{" "}
                     {String(slot.end_hour).padStart(2, "0")}:{String(slot.end_minute).padStart(2, "0")}{" "}
                     ({slot.window === "MORNING" ? "Manhã" : "Tarde"})
@@ -587,7 +587,7 @@ export default function DistributorSchedulePage() {
                 <button
                   type="button"
                   onClick={() => deleteSlot(slot.id)}
-                  className="p-2 rounded-lg hover:bg-[#f0f2f4] text-[#737688] hover:text-red-500 transition-colors"
+                  className="p-2 rounded-lg hover:bg-surface-low text-muted-foreground hover:text-red-500 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

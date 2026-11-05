@@ -79,7 +79,7 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
         {/* Content over image */}
         <div className="relative z-10">
           {/* Tag */}
-          {slide.tag && (
+          {slide.tag?.trim() && (
             <span className="mb-2 inline-block rounded-full bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
               {slide.tag}
             </span>
@@ -106,7 +106,7 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
           {slide.cta_text && slide.cta_url && (
             <a
               href={slide.cta_url}
-              className="mt-3 inline-flex items-center rounded-lg bg-[#00E0FF] px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#001735] transition-colors hover:bg-[#00E0FF]/90"
+              className="mt-3 inline-flex items-center rounded-lg bg-cta px-4 py-2 text-xs font-bold uppercase tracking-wide text-cta-foreground transition-colors hover:bg-cta/90"
             >
               {slide.cta_text}
             </a>
@@ -119,11 +119,16 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
                 <button
                   key={i}
                   onClick={() => goTo(i)}
-                  aria-label={`Slide ${i + 1}`}
-                  className={`h-2 rounded-full transition-all ${
-                    i === current ? "w-6 bg-white" : "w-2 bg-white/40"
-                  }`}
-                />
+                  aria-label={`Ver banner ${i + 1} de ${slides.length}`}
+                  aria-current={i === current ? "true" : undefined}
+                  className="flex h-6 items-center"
+                >
+                  <span
+                    className={`h-2 rounded-full transition-all ${
+                      i === current ? "w-6 bg-white" : "w-2 bg-white/40"
+                    }`}
+                  />
+                </button>
               ))}
             </div>
           )}

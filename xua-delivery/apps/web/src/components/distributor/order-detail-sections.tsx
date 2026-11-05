@@ -31,7 +31,7 @@ import {
 
 function SectionCard({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <section className={cn("rounded-lg border border-[#dfe5ef] bg-white p-3.5", className)}>
+    <section className={cn("rounded-lg border border-hairline bg-white p-3.5", className)}>
       {children}
     </section>
   );
@@ -39,7 +39,7 @@ function SectionCard({ className, children }: { className?: string; children: Re
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">{children}</p>
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{children}</p>
   );
 }
 
@@ -51,10 +51,10 @@ export function OrderStatusHeader({ order }: { order: OrderDetail }) {
           <SectionLabel>Pedido #{formatShortOrderId(order.id)}</SectionLabel>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <StatusPill status={order.status} />
-            <span className="text-xs text-[#64748b]">Criado às {formatTime(order.created_at)}</span>
+            <span className="text-xs text-muted-foreground">Criado às {formatTime(order.created_at)}</span>
           </div>
         </div>
-        <p className="text-right font-heading text-xl font-extrabold text-[#0d1b2f]">
+        <p className="text-right font-heading text-xl font-extrabold text-ink">
           {formatCurrency(order.total_cents)}
         </p>
       </div>
@@ -66,17 +66,17 @@ export function OrderCustomerSection({ order }: { order: OrderDetail }) {
   return (
     <SectionCard>
       <SectionLabel>Cliente e entrega</SectionLabel>
-      <h3 className="mt-1 font-heading text-base font-bold text-[#0d1b2f]">{order.consumer_name}</h3>
+      <h3 className="mt-1 font-heading text-base font-bold text-ink">{order.consumer_name}</h3>
 
-      <div className="mt-3 grid gap-2 text-sm text-[#334155] sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
         <div className="flex items-start gap-2 sm:col-span-2">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#64748b]" />
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div>
-            <p className="font-medium text-[#0d1b2f]">
+            <p className="font-medium text-ink">
               {order.address_details.street}, {order.address_details.number}
               {order.address_details.complement ? ` • ${order.address_details.complement}` : ""}
             </p>
-            <p className="mt-0.5 text-xs text-[#64748b]">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {[
                 order.address_details.neighborhood,
                 `${order.address_details.city}/${order.address_details.state}`,
@@ -89,7 +89,7 @@ export function OrderCustomerSection({ order }: { order: OrderDetail }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 shrink-0 text-[#64748b]" />
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>
             {formatDate(order.delivery_date)} • {formatScheduledTime(order)}
           </span>
@@ -97,20 +97,20 @@ export function OrderCustomerSection({ order }: { order: OrderDetail }) {
 
         {order.consumer_phone ? (
           <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 shrink-0 text-[#64748b]" />
+            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span>{order.consumer_phone}</span>
           </div>
         ) : null}
 
         {order.consumer_email ? (
           <div className="flex items-center gap-2 sm:col-span-2">
-            <Mail className="h-4 w-4 shrink-0 text-[#64748b]" />
+            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="break-all">{order.consumer_email}</span>
           </div>
         ) : null}
 
         <div className="flex items-center gap-2">
-          <Truck className="h-4 w-4 shrink-0 text-[#64748b]" />
+          <Truck className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>{order.driver_name ? `Motorista: ${order.driver_name}` : "Sem motorista atribuído"}</span>
         </div>
       </div>
@@ -141,7 +141,7 @@ export function OrderItemsSection({ order }: { order: OrderDetail }) {
         <SectionLabel>
           Itens ({order.total_items_qty} {order.total_items_qty === 1 ? "item" : "itens"})
         </SectionLabel>
-        <span className="rounded bg-[#eef2f7] px-2 py-0.5 text-xs font-semibold text-[#475569]">
+        <span className="rounded bg-surface-low px-2 py-0.5 text-xs font-semibold text-muted-foreground">
           {order.items.length} produto{order.items.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -150,18 +150,18 @@ export function OrderItemsSection({ order }: { order: OrderDetail }) {
         {order.items.map((item, index) => (
           <div
             key={`${item.product_name}-${index}`}
-            className="flex items-center gap-2.5 rounded-md bg-[#f7f8fb] px-2.5 py-2"
+            className="flex items-center gap-2.5 rounded-md bg-surface-low px-2.5 py-2"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#5697E9]/15 text-[#1B4A9A]">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky/15 text-primary">
               <Package2 className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[#0d1b2f]">{item.product_name}</p>
-              <p className="text-xs text-[#64748b]">
+              <p className="truncate text-sm font-medium text-ink">{item.product_name}</p>
+              <p className="text-xs text-muted-foreground">
                 {item.qty}x {formatCurrency(item.unit_price_cents)}
               </p>
             </div>
-            <p className="text-sm font-semibold text-[#0d1b2f]">{formatCurrency(item.subtotal_cents)}</p>
+            <p className="text-sm font-semibold text-ink">{formatCurrency(item.subtotal_cents)}</p>
           </div>
         ))}
       </div>
@@ -177,7 +177,7 @@ export function OrderPaymentSection({ order }: { order: OrderDetail }) {
   const bottleRulePending = order.max_bottle_charge_cents > 0 && order.bottle_step_recorded_at == null;
 
   return (
-    <SectionCard className="bg-[#0d1b2f] text-white">
+    <SectionCard className="bg-ink text-white">
       <SectionLabel>
         <span className="text-white/60">Total do pedido</span>
       </SectionLabel>
@@ -241,24 +241,24 @@ export function OrderSubscriptionSection({ order }: { order: OrderDetail }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <SectionLabel>Origem</SectionLabel>
-          <h3 className="mt-1 font-heading text-base font-bold text-[#0d1b2f]">
+          <h3 className="mt-1 font-heading text-base font-bold text-ink">
             {fromSubscription ? "Assinatura" : "Carrinho"}
           </h3>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#edf4ff] text-[#0b2a59]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#edf4ff] text-ink">
           <OriginIcon className="h-4 w-4" />
         </div>
       </div>
 
       {fromSubscription ? (
-        <div className="mt-3 space-y-2 text-sm text-[#334155]">
-          <div className="rounded-md bg-[#f7f8fb] px-2.5 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Plano</p>
-            <p className="mt-0.5 font-medium text-[#0d1b2f]">{order.subscription_plan_name ?? "Assinatura"}</p>
+        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <div className="rounded-md bg-surface-low px-2.5 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Plano</p>
+            <p className="mt-0.5 font-medium text-ink">{order.subscription_plan_name ?? "Assinatura"}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5">
-            <div className="rounded-md bg-[#edf4ff] px-2 py-1.5 text-[#0b2a59]">
+            <div className="rounded-md bg-[#edf4ff] px-2 py-1.5 text-ink">
               <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#4d668a]">Atual</p>
               <p className="mt-0.5 font-heading text-base font-extrabold">{subscriptionProgress ?? "-"}</p>
             </div>
@@ -273,18 +273,18 @@ export function OrderSubscriptionSection({ order }: { order: OrderDetail }) {
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            <div className="rounded-md bg-[#f7f8fb] px-2.5 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Qtd. desta</p>
-              <p className="mt-0.5 font-medium text-[#0d1b2f]">{order.quantity_for_this_delivery ?? "-"}</p>
+            <div className="rounded-md bg-surface-low px-2.5 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Qtd. desta</p>
+              <p className="mt-0.5 font-medium text-ink">{order.quantity_for_this_delivery ?? "-"}</p>
             </div>
-            <div className="rounded-md bg-[#f7f8fb] px-2.5 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Status</p>
-              <p className="mt-0.5 font-medium text-[#0d1b2f]">{formatSubscriptionStatus(order.subscription_status)}</p>
+            <div className="rounded-md bg-surface-low px-2.5 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</p>
+              <p className="mt-0.5 font-medium text-ink">{formatSubscriptionStatus(order.subscription_status)}</p>
             </div>
           </div>
         </div>
       ) : (
-        <p className="mt-3 rounded-md bg-[#f7f8fb] px-2.5 py-2 text-sm font-medium text-[#4b5565]">
+        <p className="mt-3 rounded-md bg-surface-low px-2.5 py-2 text-sm font-medium text-muted-foreground">
           Compra avulsa feita pelo carrinho.
         </p>
       )}
@@ -311,7 +311,7 @@ export function OrderDeliveryStepsSection({ order }: { order: OrderDetail }) {
                 <span
                   className={cn(
                     "absolute left-[calc(50%+0.65rem)] right-[calc(-50%+0.65rem)] top-3 h-px",
-                    isDone ? "bg-primary" : "bg-[#d9dde6]"
+                    isDone ? "bg-primary" : "bg-surface-high"
                   )}
                 />
               ) : null}
@@ -321,24 +321,24 @@ export function OrderDeliveryStepsSection({ order }: { order: OrderDetail }) {
                   className={cn(
                     "flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold",
                     isDone
-                      ? "border-[#00E0FF] bg-[#00E0FF] text-[#001735]"
+                      ? "border-cta bg-cta text-cta-foreground"
                       : isCurrent
-                        ? "border-[#5697E9]/40 bg-[#5697E9]/10 text-[#1B4A9A]"
-                        : "border-[#d9dde6] bg-[#f7f8fb] text-[#8a91a1]"
+                        ? "border-sky/40 bg-sky/10 text-primary"
+                        : "border-hairline bg-surface-low text-[#8a91a1]"
                   )}
                 >
                   {index + 1}
                 </div>
-                <p className="mt-1 text-[10px] font-medium leading-tight text-[#4b5565]">{step.shortLabel}</p>
+                <p className="mt-1 text-[10px] font-medium leading-tight text-muted-foreground">{step.shortLabel}</p>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-3 rounded-md bg-[#f7f8fb] px-2.5 py-2 text-sm text-[#4b5565]">
+      <div className="mt-3 rounded-md bg-surface-low px-2.5 py-2 text-sm text-muted-foreground">
         <div className="flex items-start gap-2">
-          <Truck className="mt-0.5 h-4 w-4 shrink-0 text-[#64748b]" />
+          <Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <p>{getOperationalMessage(order.status)}</p>
         </div>
       </div>
@@ -357,13 +357,13 @@ export function OrderTimelineSection({ order }: { order: OrderDetail }) {
           <div key={`${event.status}-${event.timestamp}-${index}`} className="flex gap-2.5">
             <div className="flex flex-col items-center">
               <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-              {index < order.events.length - 1 ? <div className="mt-1 h-full w-px bg-[#d9dde6]" /> : null}
+              {index < order.events.length - 1 ? <div className="mt-1 h-full w-px bg-surface-high" /> : null}
             </div>
             <div className="pb-2.5">
-              <p className="text-sm font-medium text-[#0d1b2f]">
+              <p className="text-sm font-medium text-ink">
                 {formatEventLabel(event.status, event.payload)}
               </p>
-              <p className="mt-0.5 text-xs text-[#64748b]">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {formatDate(event.timestamp)} às {formatTime(event.timestamp)}
                 {event.actor_type ? ` • ${event.actor_type.toLowerCase()}` : ""}
               </p>

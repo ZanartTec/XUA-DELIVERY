@@ -20,7 +20,8 @@
   --secondary-foreground: #001735;
   --muted: #f3f4f5;
   --muted-foreground: #434656;
-  --accent: #00E0FF;
+  /* accent = realce suave de hover/foco (padrão shadcn). O ciano de conversão é --cta. */
+  --accent: #DAEEFF;
   --accent-foreground: #001735;
   --destructive: #ba1a1a;
   --border: #C0CDE4;
@@ -34,10 +35,21 @@
   /* Semântica de status — KPIs, semáforos e séries de gráfico */
   --success: #16a34a;
   --success-surface: #dcfce7;
+  --success-foreground: #166534;
   --warning: #d97706;
   --warning-surface: #fef3c7;
+  --warning-foreground: #7a4700;
   --danger-surface: #fee2e2;
   --radius: 1rem;
+
+  /* CTA de conversão do consumidor (ciano Xuá) — sempre via Button variant="cta" */
+  --cta: #00E0FF;
+  --cta-foreground: #001735;
+  /* Títulos/ênfase em azul-marinho e linhas divisórias suaves */
+  --ink: #0d1b2f;
+  --hairline: #e4e8f1;
+  /* Azul secundário da marca (chips, realces, ícones) */
+  --sky: #5697E9;
 
   /* Surface tokens (Stitch layers) */
   --surface: #f8f9fa;
@@ -80,9 +92,16 @@
   --color-chart-1: var(--chart-1);
   --color-success: var(--success);
   --color-success-surface: var(--success-surface);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
+  --color-warning-foreground: var(--warning-foreground);
   --color-danger-surface: var(--danger-surface);
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-ink: var(--ink);
+  --color-hairline: var(--hairline);
+  --color-sky: var(--sky);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -137,8 +156,8 @@ body {
   --secondary-foreground: #DAEEFF;
   --muted: #252730;
   --muted-foreground: #c3c5d9;
-  --accent: #00E0FF;
-  --accent-foreground: #001735;
+  --accent: #243C5E;
+  --accent-foreground: #DAEEFF;
   --destructive: #ffb4ab;
   --border: rgba(255,255,255,0.1);
   --input: rgba(255,255,255,0.15);
@@ -150,9 +169,16 @@ body {
   --chart-5: #DAEEFF;
   --success: #4ade80;
   --success-surface: rgba(74,222,128,0.16);
+  --success-foreground: #4ade80;
   --warning: #fbbf24;
   --warning-surface: rgba(251,191,36,0.16);
+  --warning-foreground: #fbbf24;
   --danger-surface: rgba(255,180,171,0.16);
+  --cta: #00E0FF;
+  --cta-foreground: #001735;
+  --ink: #e1e3e4;
+  --hairline: rgba(255,255,255,0.08);
+  --sky: #ADC6FF;
   --sidebar: #1a1c22;
   --sidebar-foreground: #e1e3e4;
   --sidebar-primary: #ADC6FF;

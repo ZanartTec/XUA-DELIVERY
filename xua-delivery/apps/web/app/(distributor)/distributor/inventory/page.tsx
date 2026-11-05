@@ -107,7 +107,7 @@ function createBatchId() {
 
 function EmptyState({ title }: { title: string }) {
   return (
-    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
       <PackageSearch className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
     </div>
@@ -120,7 +120,7 @@ function LoadingCards() {
       {Array.from({ length: 3 }).map((_, index) => (
         <div
           key={index}
-          className="h-28 animate-pulse rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]"
+          className="h-28 animate-pulse rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline"
         />
       ))}
     </div>
@@ -248,7 +248,7 @@ export default function DistributorInventoryPage() {
           <h1 className="text-lg font-bold font-heading text-foreground">Estoque</h1>
           <p className="text-sm text-muted-foreground">Saldos, alertas e movimentações</p>
         </div>
-        <Button asChild size="sm" className="rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90">
+        <Button asChild size="sm" className="rounded-xl bg-cta text-cta-foreground shadow-none hover:bg-cta/90">
           <Link href="/distributor/inventory/reconciliation">
             <SlidersHorizontal className="h-4 w-4" />
             Conciliar
@@ -268,15 +268,15 @@ export default function DistributorInventoryPage() {
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Itens com saldo</p>
-            <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{balancesQuery.data?.pagination.total ?? 0}</p>
+            <p className="mt-2 text-3xl font-bold text-ink">{balancesQuery.data?.pagination.total ?? 0}</p>
           </div>
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quantidade total</p>
-            <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{totalQuantity.toLocaleString("pt-BR")}</p>
+            <p className="mt-2 text-3xl font-bold text-ink">{totalQuantity.toLocaleString("pt-BR")}</p>
           </div>
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Baixo estoque</p>
             <p className={cn("mt-2 text-3xl font-bold", lowStockCount > 0 ? "text-red-600" : "text-green-600")}>
               {lowStockCount}
@@ -285,7 +285,7 @@ export default function DistributorInventoryPage() {
         </div>
       )}
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
         <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -296,7 +296,7 @@ export default function DistributorInventoryPage() {
                 setBalanceOffset(0);
               }}
               placeholder="Buscar item ou código"
-              className="rounded-xl border-[#d9dde3] pl-9"
+              className="rounded-xl border-hairline pl-9"
             />
           </div>
           <Select
@@ -306,7 +306,7 @@ export default function DistributorInventoryPage() {
               setBalanceOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -325,7 +325,7 @@ export default function DistributorInventoryPage() {
               setBalanceOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -344,7 +344,7 @@ export default function DistributorInventoryPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="border-b border-[#e1e3e4] text-left">
+                <tr className="border-b border-hairline text-left">
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</th>
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</th>
                   <th className="py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo</th>
@@ -355,9 +355,9 @@ export default function DistributorInventoryPage() {
               </thead>
               <tbody>
                 {balances.map((balance) => (
-                  <tr key={balance.id} className="border-b border-[#e1e3e4] last:border-0">
+                  <tr key={balance.id} className="border-b border-hairline last:border-0">
                     <td className="py-3">
-                      <p className="font-semibold text-[#0d1b2f]">{balance.item.name}</p>
+                      <p className="font-semibold text-ink">{balance.item.name}</p>
                       <p className="text-xs text-muted-foreground">{balance.item.code}</p>
                     </td>
                     <td className="py-3 text-muted-foreground">{INVENTORY_ITEM_TYPE_LABEL[balance.item.type]}</td>
@@ -422,7 +422,7 @@ export default function DistributorInventoryPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-primary" />
@@ -435,7 +435,7 @@ export default function DistributorInventoryPage() {
                 setMovementOffset(0);
               }}
             >
-              <SelectTrigger className="h-9 w-full rounded-xl border-[#d9dde3] sm:w-56">
+              <SelectTrigger className="h-9 w-full rounded-xl border-hairline sm:w-56">
                 <SelectValue placeholder="Item" />
               </SelectTrigger>
               <SelectContent>
@@ -452,7 +452,7 @@ export default function DistributorInventoryPage() {
           {movementsQuery.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
+                <div key={index} className="h-16 animate-pulse rounded-xl bg-surface-low" />
               ))}
             </div>
           ) : movements.length === 0 ? (
@@ -463,7 +463,7 @@ export default function DistributorInventoryPage() {
                 const positive = movement.quantity_delta > 0;
                 const DirectionIcon = positive ? ArrowUp : ArrowDown;
                 return (
-                  <div key={movement.id} className="flex items-start gap-3 rounded-xl border border-[#e4e8f1] p-3">
+                  <div key={movement.id} className="flex items-start gap-3 rounded-xl border border-hairline p-3">
                     <span
                       className={cn(
                         "mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
@@ -474,7 +474,7 @@ export default function DistributorInventoryPage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-[#0d1b2f]">{movement.item.name}</p>
+                        <p className="font-semibold text-ink">{movement.item.name}</p>
                         <p className={cn("font-bold", positive ? "text-green-700" : "text-red-700")}>
                           {positive ? "+" : ""}{formatInventoryQuantity(movement.quantity_delta, movement.item.unit_label)}
                         </p>
@@ -511,7 +511,7 @@ export default function DistributorInventoryPage() {
           </div>
         </div>
 
-        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <div className="flex items-center gap-2">
             <Plus className="h-4 w-4 text-primary" />
             <h2 className="font-heading text-sm font-bold text-foreground">Carga inicial</h2>
@@ -520,7 +520,7 @@ export default function DistributorInventoryPage() {
           {itemsQuery.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-12 animate-pulse rounded-xl bg-[#eef0f3]" />
+                <div key={index} className="h-12 animate-pulse rounded-xl bg-surface-low" />
               ))}
             </div>
           ) : items.length === 0 ? (
@@ -528,9 +528,9 @@ export default function DistributorInventoryPage() {
           ) : (
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {items.map((item) => (
-                <div key={item.id} className="grid grid-cols-[1fr_7rem] items-center gap-3 rounded-xl border border-[#e4e8f1] p-3">
+                <div key={item.id} className="grid grid-cols-[1fr_7rem] items-center gap-3 rounded-xl border border-hairline p-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#0d1b2f]">{item.name}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
                     <p className="text-xs text-muted-foreground">{item.code} · {INVENTORY_ITEM_TYPE_LABEL[item.type]}</p>
                   </div>
                   <Input
@@ -543,7 +543,7 @@ export default function DistributorInventoryPage() {
                       setLoadQuantities((current) => ({ ...current, [item.id]: event.target.value }))
                     }
                     placeholder="0"
-                    className="h-9 rounded-xl border-[#d9dde3] text-right"
+                    className="h-9 rounded-xl border-hairline text-right"
                   />
                 </div>
               ))}
@@ -554,12 +554,12 @@ export default function DistributorInventoryPage() {
             value={loadObservation}
             onChange={(event) => setLoadObservation(event.target.value)}
             placeholder="Observação"
-            className="min-h-20 rounded-xl border-[#d9dde3] bg-white text-sm"
+            className="min-h-20 rounded-xl border-hairline bg-white text-sm"
             maxLength={500}
           />
           <Button
             type="button"
-            className="w-full rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90"
+            className="w-full rounded-xl bg-cta text-cta-foreground shadow-none hover:bg-cta/90"
             disabled={initialLoadMutation.isPending || itemsQuery.isLoading}
             onClick={submitInitialLoad}
           >

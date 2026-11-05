@@ -6,7 +6,7 @@ const LEVEL_STYLES: Record<string, string> = {
   overdue: "bg-red-100 text-red-800",
   urgent: "bg-amber-100 text-amber-800",
   soon: "bg-yellow-50 text-yellow-800",
-  normal: "bg-[#eef2f7] text-[#475569]",
+  normal: "bg-surface-low text-muted-foreground",
 };
 
 const LEVEL_ICON = {

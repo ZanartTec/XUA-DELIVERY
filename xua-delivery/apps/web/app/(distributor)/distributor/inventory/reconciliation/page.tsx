@@ -204,7 +204,7 @@ export default function DistributorInventoryReconciliationPage() {
           size="sm"
           disabled={openMutation.isPending || openSessionsQuery.isLoading || Boolean(session && session.status === "OPEN")}
           onClick={() => openMutation.mutate()}
-          className="rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90"
+          className="rounded-xl bg-cta text-cta-foreground shadow-none hover:bg-cta/90"
         >
           {openMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
           Abrir sessão
@@ -222,28 +222,28 @@ export default function DistributorInventoryReconciliationPage() {
       ) : openSessionsQuery.isLoading || sessionQuery.isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-20 animate-pulse rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]" />
+            <div key={index} className="h-20 animate-pulse rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline" />
           ))}
         </div>
       ) : !session ? (
-        <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <Scale className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-semibold text-foreground">Nenhuma sessão aberta</p>
         </div>
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
               <p className={cn("mt-2 text-2xl font-bold", session.status === "OPEN" ? "text-amber-600" : "text-green-700")}>
                 {session.status === "OPEN" ? "Aberta" : "Fechada"}
               </p>
             </div>
-            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Itens</p>
-              <p className="mt-2 text-2xl font-bold text-[#0d1b2f]">{session.items.length}</p>
+              <p className="mt-2 text-2xl font-bold text-ink">{session.items.length}</p>
             </div>
-            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{deltaLabel}</p>
               <p className={cn("mt-2 text-2xl font-bold", totalDelta === 0 ? "text-green-700" : "text-red-600")}>
                 {totalDelta > 0 ? "+" : ""}{totalDelta.toLocaleString("pt-BR")}
@@ -251,7 +251,7 @@ export default function DistributorInventoryReconciliationPage() {
             </div>
           </div>
 
-          <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+          <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-heading text-sm font-bold text-foreground">Contagens</h2>
               <span className="text-xs text-muted-foreground">
@@ -262,7 +262,7 @@ export default function DistributorInventoryReconciliationPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
-                  <tr className="border-b border-[#e1e3e4] text-left">
+                  <tr className="border-b border-hairline text-left">
                     <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</th>
                     <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</th>
                     <th className="py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Snapshot</th>
@@ -272,9 +272,9 @@ export default function DistributorInventoryReconciliationPage() {
                 </thead>
                 <tbody>
                   {rows.map(({ item, displayDelta }) => (
-                    <tr key={item.id} className="border-b border-[#e1e3e4] last:border-0">
+                    <tr key={item.id} className="border-b border-hairline last:border-0">
                       <td className="py-3">
-                        <p className="font-semibold text-[#0d1b2f]">{item.item.name}</p>
+                        <p className="font-semibold text-ink">{item.item.name}</p>
                         <p className="text-xs text-muted-foreground">{item.item.code}</p>
                       </td>
                       <td className="py-3 text-muted-foreground">{INVENTORY_ITEM_TYPE_LABEL[item.item.type]}</td>
@@ -300,7 +300,7 @@ export default function DistributorInventoryReconciliationPage() {
                               };
                             });
                           }}
-                          className="ml-auto h-9 w-28 rounded-xl border-[#d9dde3] text-right"
+                          className="ml-auto h-9 w-28 rounded-xl border-hairline text-right"
                         />
                       </td>
                       <td className="py-3 text-right">
@@ -327,7 +327,7 @@ export default function DistributorInventoryReconciliationPage() {
             </div>
           </section>
 
-          <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+          <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
             <label className="block text-sm font-semibold font-heading text-foreground" htmlFor="justification">
               Justificativa
             </label>
@@ -337,7 +337,7 @@ export default function DistributorInventoryReconciliationPage() {
               disabled={session.status !== "OPEN"}
               onChange={(event) => setJustificationEdit({ sessionId: session.id, value: event.target.value })}
               placeholder="Motivo da divergência"
-              className="min-h-24 rounded-xl border-[#d9dde3] bg-white text-sm"
+              className="min-h-24 rounded-xl border-hairline bg-white text-sm"
               maxLength={500}
             />
             {hasDivergence && isOpenSession ? (
@@ -354,7 +354,7 @@ export default function DistributorInventoryReconciliationPage() {
 
           <Button
             type="button"
-            className="w-full rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90"
+            className="w-full rounded-xl bg-cta text-cta-foreground shadow-none hover:bg-cta/90"
             disabled={session.status !== "OPEN" || closeMutation.isPending}
             onClick={closeSession}
           >

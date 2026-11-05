@@ -2,91 +2,128 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/src/store/auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { FormField } from "@/src/components/shared/form-field";
+import { MaskedInput } from "@/src/components/shared/masked-input";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { useAuthStore } from "@/src/store/auth";
+import { normalizeUserRole } from "@/src/lib/role-utils";
+import { api, ApiError } from "@/src/lib/api-client";
+import { formatPhone, onlyDigits } from "@/src/lib/format";
+import type { Consumer } from "@/src/types";
 
 export default function ProfileEditPage() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const [consumerId, setConsumerId] = useState<string | null>(user?.id ?? null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "" });
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get<{ consumer: Consumer }>("/api/auth/me"),
+  });
+  const consumer = meQuery.data?.consumer;
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.consumer) {
-          setConsumerId(data.consumer.id);
-          setForm({
-            name: data.consumer.name,
-            email: data.consumer.email,
-            phone: data.consumer.phone,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  function update(field: string, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!consumerId) {
-      setError("Usuário não identificado. Recarregue a página.");
-      return;
+    if (consumer && !touched) {
+      setName(consumer.name ?? "");
+      setPhone(onlyDigits(consumer.phone));
     }
-    setLoading(true);
+  }, [consumer, touched]);
+
+  const nameError = touched && name.trim().length < 2 ? "Informe seu nome completo." : null;
+  const phoneError = touched && phone.length > 0 && phone.length < 10 ? "Telefone incompleto." : null;
+  const canSave = Boolean(consumer) && !nameError && !phoneError && name.trim().length >= 2 && !saving;
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setTouched(true);
+    if (!consumer || !canSave) return;
+    setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/consumers/${consumerId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+      const updated = await api.patch<Consumer>(`/api/consumers/${consumer.id}`, {
+        name: name.trim(),
+        ...(phone ? { phone: formatPhone(phone) } : {}),
       });
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.error || "Erro ao atualizar");
-        return;
-      }
+      queryClient.setQueryData(["me"], { consumer: { ...consumer, ...updated } });
+      setUser({ id: consumer.id, name: updated.name, role: normalizeUserRole(consumer.role, "consumer") });
+      toast.success("Dados atualizados");
       router.push("/profile");
-    } catch {
-      setError("Erro de conexão.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro de conexão. Tente novamente.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4 pb-4">
-      <div className="px-4 pt-4">
-        <h1 className="text-lg font-bold font-heading">Editar perfil</h1>
-      </div>
-      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <p className="mb-3 text-sm font-semibold font-heading">Dados pessoais</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-          <div className="space-y-1.5">
-            <label htmlFor="name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</label>
-            <Input id="name" value={form.name} onChange={(e) => update("name", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">E-mail</label>
-            <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</label>
-            <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required className="rounded-xl border-0 bg-[#e1e3e4]" />
-          </div>
-          <Button type="submit" className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" disabled={loading}>
-            {loading ? "Salvando..." : "Salvar alterações"}
-          </Button>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader back="/profile" title="Dados pessoais" />
+
+      {meQuery.isLoading ? (
+        <div className="space-y-4 px-4">
+          <Skeleton className="h-16 rounded-xl" />
+          <Skeleton className="h-16 rounded-xl" />
+          <Skeleton className="h-16 rounded-xl" />
+        </div>
+      ) : (
+        <form id="profile-form" onSubmit={handleSubmit} className="grid gap-4 px-4" noValidate>
+          <FormField label="Nome" error={nameError}>
+            {(field) => (
+              <Input
+                {...field}
+                value={name}
+                autoComplete="name"
+                onChange={(e) => {
+                  setTouched(true);
+                  setName(e.target.value);
+                }}
+                className="h-11 text-base md:text-sm"
+              />
+            )}
+          </FormField>
+          <FormField label="Telefone" error={phoneError}>
+            {(field) => (
+              <MaskedInput
+                {...field}
+                mask="phone"
+                value={phone}
+                onValueChange={(v) => {
+                  setTouched(true);
+                  setPhone(v);
+                }}
+                placeholder="(00) 00000-0000"
+                className="h-11 text-base md:text-sm"
+              />
+            )}
+          </FormField>
+          <FormField label="E-mail" hint="O e-mail é usado para entrar e não pode ser alterado aqui.">
+            {(field) => <Input {...field} value={consumer?.email ?? ""} readOnly disabled className="h-11 text-base md:text-sm" />}
+          </FormField>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
         </form>
-      </div>
+      )}
+
+      <StickyActionBar>
+        <Button type="submit" form="profile-form" variant="cta" size="xl" disabled={!canSave}>
+          {saving ? "Salvando…" : "Salvar alterações"}
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }

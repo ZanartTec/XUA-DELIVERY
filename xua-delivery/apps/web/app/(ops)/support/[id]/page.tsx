@@ -33,7 +33,7 @@ export default function SupportOrderDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"><div className="h-4 w-40 rounded-lg bg-[#e1e3e4]" /></div>)}</div>;
+  if (loading) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"><div className="h-4 w-40 rounded-lg bg-surface-highest" /></div>)}</div>;
   if (!order) return <p className="text-destructive">Pedido não encontrado.</p>;
 
   return (
@@ -84,7 +84,7 @@ export default function SupportOrderDetailPage() {
           <p className="text-sm font-semibold font-heading">Audit Trail</p>
           <div className="space-y-2 text-xs">
             {order.audit_events.map((evt) => (
-              <div key={evt.id} className="rounded-xl bg-[#e1e3e4]/50 p-2.5">
+              <div key={evt.id} className="rounded-xl bg-surface-highest/50 p-2.5">
                 <div className="flex justify-between">
                   <span className="font-semibold">{evt.event_type}</span>
                   <span className="text-muted-foreground/60">

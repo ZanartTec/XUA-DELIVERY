@@ -62,13 +62,13 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="text-center">
-        <h1 className="font-heading text-xl font-extrabold text-[#0d1b2f]">Link inválido</h1>
-        <p className="mt-2 text-sm text-[#7d8494]">
+        <h1 className="font-heading text-xl font-extrabold text-ink">Link inválido</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           Este link de redefinição é inválido ou está incompleto. Solicite um novo.
         </p>
         <Link
           href="/forgot-password"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#00E0FF] text-base font-semibold text-[#001735] transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98]"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-cta text-base font-semibold text-cta-foreground transition-all hover:bg-cta/90 active:scale-[0.98]"
         >
           Solicitar novo link
         </Link>
@@ -79,9 +79,9 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <div className="text-center">
-        <CheckCircle2 className="mx-auto h-12 w-12 text-[#00E0FF]" />
-        <h1 className="mt-3 font-heading text-xl font-extrabold text-[#0d1b2f]">Senha redefinida!</h1>
-        <p className="mt-2 text-sm text-[#7d8494]">
+        <CheckCircle2 className="mx-auto h-12 w-12 text-cta" />
+        <h1 className="mt-3 font-heading text-xl font-extrabold text-ink">Senha redefinida!</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           Sua senha foi atualizada. Redirecionando para o login...
         </p>
       </div>
@@ -90,10 +90,10 @@ function ResetPasswordForm() {
 
   return (
     <>
-      <h1 className="font-heading text-xl font-extrabold leading-tight text-[#0d1b2f]">
+      <h1 className="font-heading text-xl font-extrabold leading-tight text-ink">
         Criar nova senha
       </h1>
-      <p className="mt-0.5 text-sm text-[#7d8494]">
+      <p className="mt-0.5 text-sm text-muted-foreground">
         Escolha uma nova senha para sua conta. Mínimo de 8 caracteres.
       </p>
 
@@ -107,7 +107,7 @@ function ResetPasswordForm() {
         <div className="space-y-1">
           <label
             htmlFor="password"
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
           >
             Nova senha
           </label>
@@ -115,7 +115,7 @@ function ResetPasswordForm() {
             id="password"
             type="password"
             placeholder="••••••••"
-            className="h-11 rounded-xl border border-[#e8eaf0] bg-white shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+            className="h-11 rounded-xl border border-hairline bg-white shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
             {...register("password")}
           />
           {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
@@ -124,7 +124,7 @@ function ResetPasswordForm() {
         <div className="space-y-1">
           <label
             htmlFor="confirm"
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
           >
             Confirmar senha
           </label>
@@ -132,7 +132,7 @@ function ResetPasswordForm() {
             id="confirm"
             type="password"
             placeholder="••••••••"
-            className="h-11 rounded-xl border border-[#e8eaf0] bg-white shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+            className="h-11 rounded-xl border border-hairline bg-white shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
             {...register("confirm")}
           />
           {errors.confirm && <p className="text-xs text-red-500">{errors.confirm.message}</p>}
@@ -141,7 +141,7 @@ function ResetPasswordForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-base font-semibold text-[#001735] transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98] disabled:opacity-60"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-cta text-base font-semibold text-cta-foreground transition-all hover:bg-cta/90 active:scale-[0.98] disabled:opacity-60"
         >
           {isSubmitting ? "Salvando..." : "Redefinir senha"}
           {!isSubmitting && <ArrowRight className="h-4 w-4" />}
@@ -153,14 +153,14 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#f8f9fa] px-6 py-10">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-6 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-transparent.png" alt="Xuá Água Mineral" className="h-20 w-auto" />
         </div>
         <div className="rounded-2xl bg-white p-6 shadow-lg shadow-black/5">
-          <Suspense fallback={<p className="text-center text-sm text-[#7d8494]">Carregando...</p>}>
+          <Suspense fallback={<p className="text-center text-sm text-muted-foreground">Carregando...</p>}>
             <ResetPasswordForm />
           </Suspense>
         </div>

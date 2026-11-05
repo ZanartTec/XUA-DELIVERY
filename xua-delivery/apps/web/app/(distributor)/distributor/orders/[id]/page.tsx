@@ -39,16 +39,16 @@ function getApiErrorMessage(error: unknown) {
 function DetailSkeleton() {
   return (
     <div className="space-y-3">
-      <div className="h-14 animate-pulse rounded-lg bg-[#eef0f3]" />
+      <div className="h-14 animate-pulse rounded-lg bg-surface-low" />
       <div className="grid gap-3 xl:grid-cols-[1fr_340px]">
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-32 animate-pulse rounded-lg bg-[#eef0f3]" />
+            <div key={index} className="h-32 animate-pulse rounded-lg bg-surface-low" />
           ))}
         </div>
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-lg bg-[#eef0f3]" />
+            <div key={index} className="h-24 animate-pulse rounded-lg bg-surface-low" />
           ))}
         </div>
       </div>
@@ -100,16 +100,16 @@ export default function DistributorOrderDetailPage() {
 
   return (
     <div className="min-w-0 space-y-3">
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-[#d8e0eb] bg-white px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-white px-3 py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
         <button
           type="button"
           onClick={() => router.push("/distributor/queue")}
-          className="inline-flex items-center gap-2 rounded-md bg-[#f3f4f5] px-3 py-1.5 text-sm font-medium text-[#425066] transition-colors hover:bg-[#e7eaef]"
+          className="inline-flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-sm font-medium text-[#425066] transition-colors hover:bg-[#e7eaef]"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar para fila
         </button>
-        <p className="text-sm text-[#64748b]">Pedido da operação • consulta completa</p>
+        <p className="text-sm text-muted-foreground">Pedido da operação • consulta completa</p>
       </div>
 
       {actionMutation.error ? (
@@ -129,9 +129,9 @@ export default function DistributorOrderDetailPage() {
 
         <div className="space-y-3 xl:sticky xl:top-3">
           {hasAnyAction ? (
-            <section className="rounded-lg border border-[#dfe5ef] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">Ações operacionais</p>
-              <p className="mt-1.5 text-sm text-[#4b5565]">{getOperationalMessage(order.status)}</p>
+            <section className="rounded-lg border border-hairline bg-white p-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ações operacionais</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">{getOperationalMessage(order.status)}</p>
 
               <div className="mt-3 space-y-2">
                 {canAccept ? (
@@ -147,7 +147,7 @@ export default function DistributorOrderDetailPage() {
 
                 {canProceedToChecklist ? (
                   <Button
-                    className="h-9 w-full rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]"
+                    className="h-9 w-full rounded-md bg-ink text-white hover:bg-ink"
                     onClick={() => router.push(`/distributor/orders/${id}/checklist`)}
                   >
                     <Route className="h-4 w-4" />
@@ -157,7 +157,7 @@ export default function DistributorOrderDetailPage() {
 
                 {canReject ? (
                   <div className="space-y-2 rounded-md bg-[#fafbfc] p-2.5">
-                    <p className="text-xs font-semibold text-[#0d1b2f]">Se recusar, informe o motivo</p>
+                    <p className="text-xs font-semibold text-ink">Se recusar, informe o motivo</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {REJECT_REASON_OPTIONS.map((option) => {
                         const active = rejectReason === option.value;
@@ -169,8 +169,8 @@ export default function DistributorOrderDetailPage() {
                             className={cn(
                               "rounded-md border px-2 py-1.5 text-left text-xs transition-all",
                               active
-                                ? "border-[#5697E9] bg-[#5697E9]/10 text-[#0b2a59]"
-                                : "border-[#e1e3e4] bg-white text-[#334155] hover:border-[#bfd2ff]"
+                                ? "border-sky bg-sky/10 text-ink"
+                                : "border-hairline bg-white text-muted-foreground hover:border-[#bfd2ff]"
                             )}
                           >
                             {option.label}
@@ -184,7 +184,7 @@ export default function DistributorOrderDetailPage() {
                         placeholder="Descreva o motivo da recusa"
                         value={rejectDetails}
                         onChange={(event) => setRejectDetails(event.target.value)}
-                        className="min-h-20 rounded-md border-[#d9dde3] bg-white text-sm"
+                        className="min-h-20 rounded-md border-hairline bg-white text-sm"
                       />
                     ) : null}
 

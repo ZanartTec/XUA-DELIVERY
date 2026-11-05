@@ -116,12 +116,12 @@ export default function DepositProgramPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <header className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5697E9]/15">
-          <Recycle className="h-5 w-5 text-[#5697E9]" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky/15">
+          <Recycle className="h-5 w-5 text-sky" />
         </div>
         <div>
-          <h1 className="font-heading text-xl font-bold text-[#191c1d]">Programa de Caução</h1>
-          <p className="text-sm text-[#737688]">
+          <h1 className="font-heading text-xl font-bold text-foreground">Programa de Caução</h1>
+          <p className="text-sm text-muted-foreground">
             Empréstimo de vasilhames a consumidores selecionados.
           </p>
         </div>
@@ -129,13 +129,13 @@ export default function DepositProgramPage() {
 
       {/* Busca por CPF/CNPJ */}
       <section className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-bold text-[#191c1d]">Habilitar consumidor</h2>
+        <h2 className="mb-3 text-sm font-bold text-foreground">Habilitar consumidor</h2>
         <div className="flex gap-2">
           <input
             value={document}
             onChange={(e) => setDocument(e.target.value)}
             placeholder="CPF ou CNPJ"
-            className="flex-1 rounded-xl border border-[#e1e3e4] px-3 py-2 text-sm"
+            className="flex-1 rounded-xl border border-hairline px-3 py-2 text-sm"
           />
           <Button onClick={handleLookup} disabled={searching || document.trim().length < 11}>
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -144,29 +144,29 @@ export default function DepositProgramPage() {
         {lookupError && <p className="mt-2 text-sm text-destructive">{lookupError}</p>}
 
         {lookup && (
-          <div className="mt-3 rounded-xl bg-[#f8f9fa] p-3">
-            <p className="font-semibold text-[#191c1d]">{lookup.consumer.name}</p>
-            <p className="text-xs text-[#737688]">{maskDocument(lookup.consumer.document)}</p>
+          <div className="mt-3 rounded-xl bg-background p-3">
+            <p className="font-semibold text-foreground">{lookup.consumer.name}</p>
+            <p className="text-xs text-muted-foreground">{maskDocument(lookup.consumer.document)}</p>
             {lookup.already_linked && (
               <p className="mt-1 text-xs text-amber-600">
                 Já vinculado ({lookup.is_enabled ? "ativo" : "inativo"}). Salvar irá reabilitar.
               </p>
             )}
             <div className="mt-3 flex items-center gap-2">
-              <label className="text-xs text-[#737688]">Limite de vasilhames</label>
+              <label className="text-xs text-muted-foreground">Limite de vasilhames</label>
               <input
                 type="number"
                 min={0}
                 value={maxBottles}
                 onChange={(e) => setMaxBottles(e.target.value)}
-                className="w-20 rounded-lg border border-[#e1e3e4] px-2 py-1 text-sm"
+                className="w-20 rounded-lg border border-hairline px-2 py-1 text-sm"
               />
               <Button onClick={handleEnroll} disabled={saving} className="ml-auto">
                 <UserPlus className="mr-1 h-4 w-4" />
                 Habilitar
               </Button>
             </div>
-            <p className="mt-2 text-[11px] text-[#737688]">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Limite 0 bloqueia a caução (todo vasilhame faltante será vendido).
             </p>
           </div>
@@ -175,18 +175,18 @@ export default function DepositProgramPage() {
 
       {/* Programas */}
       <section className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-bold text-[#191c1d]">Consumidores habilitados</h2>
+        <h2 className="mb-3 text-sm font-bold text-foreground">Consumidores habilitados</h2>
         {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-[#737688]" />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : programs.length === 0 ? (
-          <p className="text-sm text-[#737688]">Nenhum consumidor no programa.</p>
+          <p className="text-sm text-muted-foreground">Nenhum consumidor no programa.</p>
         ) : (
-          <ul className="divide-y divide-[#e1e3e4]">
+          <ul className="divide-y divide-hairline">
             {programs.map((p) => (
               <li key={p.id} className="flex items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-[#191c1d]">{p.consumer.name}</p>
-                  <p className="text-xs text-[#737688]">
+                  <p className="truncate font-semibold text-foreground">{p.consumer.name}</p>
+                  <p className="text-xs text-muted-foreground">
                     {maskDocument(p.consumer.document ?? p.consumer_document_snapshot)}
                   </p>
                 </div>
@@ -198,7 +198,7 @@ export default function DepositProgramPage() {
                     const v = Number(e.target.value) || 0;
                     if (v !== p.max_bottles) void updateLimit(p, v);
                   }}
-                  className="w-16 rounded-lg border border-[#e1e3e4] px-2 py-1 text-sm"
+                  className="w-16 rounded-lg border border-hairline px-2 py-1 text-sm"
                   title="Limite de vasilhames"
                 />
                 <button
@@ -206,7 +206,7 @@ export default function DepositProgramPage() {
                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
                     p.is_enabled
                       ? "bg-emerald-100 text-emerald-700"
-                      : "bg-[#e1e3e4] text-[#737688]"
+                      : "bg-surface-highest text-muted-foreground"
                   }`}
                 >
                   {p.is_enabled ? "Ativo" : "Inativo"}
@@ -219,15 +219,15 @@ export default function DepositProgramPage() {
 
       {/* Saldos */}
       <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-bold text-[#191c1d]">Vasilhames em caução (em aberto)</h2>
+        <h2 className="mb-3 text-sm font-bold text-foreground">Vasilhames em caução (em aberto)</h2>
         {balances.length === 0 ? (
-          <p className="text-sm text-[#737688]">Nenhum vasilhame caucionado em aberto.</p>
+          <p className="text-sm text-muted-foreground">Nenhum vasilhame caucionado em aberto.</p>
         ) : (
-          <ul className="divide-y divide-[#e1e3e4]">
+          <ul className="divide-y divide-hairline">
             {balances.map((b, i) => (
               <li key={i} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-[#191c1d]">{b.consumer.name}</span>
-                <span className="text-[#737688]">
+                <span className="text-foreground">{b.consumer.name}</span>
+                <span className="text-muted-foreground">
                   {b.bottles_on_loan} × {b.inventory_item.name}
                 </span>
               </li>

@@ -10,21 +10,26 @@ interface LogoutButtonProps {
   className?: string;
 }
 
+/** Encerra a sessão (revoga o token), limpa o estado local e volta ao login. */
+export async function logout() {
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    });
+  } finally {
+    localStorage.clear();
+    window.location.replace("/login");
+  }
+}
+
 export function LogoutButton({ variant = "icon", className }: LogoutButtonProps) {
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
     setLoading(true);
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } finally {
-      localStorage.clear();
-      window.location.replace("/login");
-    }
+    await logout();
   }
 
   if (variant === "nav") {

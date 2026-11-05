@@ -46,13 +46,13 @@ function cashChangeLabel(delivery: Delivery) {
 
 function DeliverySkeleton() {
   return (
-    <div className="animate-pulse rounded-[28px] bg-white p-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
+    <div className="animate-pulse rounded-[28px] bg-white p-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-hairline">
       <div className="flex items-center gap-4">
-        <div className="h-12 w-12 rounded-2xl bg-[#eef0f3]" />
+        <div className="h-12 w-12 rounded-2xl bg-surface-low" />
         <div className="flex-1 space-y-2">
-          <div className="h-4 w-36 rounded-full bg-[#e1e3e4]" />
-          <div className="h-3 w-52 rounded-full bg-[#eef0f3]" />
-          <div className="h-3 w-28 rounded-full bg-[#eef0f3]" />
+          <div className="h-4 w-36 rounded-full bg-surface-highest" />
+          <div className="h-3 w-52 rounded-full bg-surface-low" />
+          <div className="h-3 w-28 rounded-full bg-surface-low" />
         </div>
       </div>
     </div>
@@ -141,12 +141,12 @@ export default function DeliveriesPage() {
           {Array.from({ length: 3 }).map((_, i) => <DeliverySkeleton key={i} />)}
         </div>
       ) : deliveries.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#5697E9]/15 text-[#5697E9]">
+        <div className="rounded-[28px] bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-hairline">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-sky/15 text-sky">
             <PackageOpen className="h-8 w-8" />
           </div>
-          <h2 className="mt-4 font-heading text-xl font-extrabold text-[#0d1b2f]">Nenhuma entrega</h2>
-          <p className="mt-2 text-sm text-[#5d6473]">Quando um pedido for despachado para você, aparecerá aqui.</p>
+          <h2 className="mt-4 font-heading text-xl font-extrabold text-ink">Nenhuma entrega</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Quando um pedido for despachado para você, aparecerá aqui.</p>
         </div>
       ) : (
         <>
@@ -155,29 +155,29 @@ export default function DeliveriesPage() {
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Em rota</p>
-                  <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">Aguardando entrega</h2>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Em rota</p>
+                  <h2 className="mt-1 font-heading text-xl font-extrabold text-ink">Aguardando entrega</h2>
                 </div>
-                <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
+                <span className="rounded-full bg-sky/10 px-3 py-1 text-sm font-semibold text-primary">
                   {pending.length}
                 </span>
               </div>
 
               {pending.map((d) => (
                 <Link key={d.order_id} href={`/driver/deliveries/${d.order_id}/otp`} className="group block">
-                  <article className="rounded-[28px] bg-white px-4 py-4 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(0,26,64,0.12)]">
+                  <article className="rounded-[28px] bg-white px-4 py-4 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-hairline transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(0,26,64,0.12)]">
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#1B4A9A]">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky/15 text-primary">
                         <span className="font-heading text-lg font-extrabold">{d.sequence}</span>
                       </div>
 
                       <div className="flex-1 min-w-0 space-y-1">
-                        <p className="font-semibold text-[#0d1b2f] truncate">{d.consumer_name}</p>
-                        <p className="text-xs text-[#5d6473] truncate flex items-center gap-1">
+                        <p className="font-semibold text-ink truncate">{d.consumer_name}</p>
+                        <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
                           <MapPin className="h-3 w-3 shrink-0" />
                           {d.address_line}
                         </p>
-                        <div className="flex items-center gap-3 text-xs text-[#7d8494]">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span className="inline-flex items-center gap-1">
                             <Droplets className="h-3 w-3" />
                             {itemsLabel(d.total_items_qty)}
@@ -194,7 +194,7 @@ export default function DeliveriesPage() {
                         </div>
                       </div>
 
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#5697E9] transition-transform duration-200 group-hover:translate-x-0.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky/15 text-sky transition-transform duration-200 group-hover:translate-x-0.5">
                         <ChevronRight className="h-5 w-5" />
                       </div>
                     </div>
@@ -230,8 +230,8 @@ export default function DeliveriesPage() {
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Histórico do dia</p>
-                  <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">Concluídas</h2>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Histórico do dia</p>
+                  <h2 className="mt-1 font-heading text-xl font-extrabold text-ink">Concluídas</h2>
                 </div>
                 <span className="rounded-full bg-[#e7f7ef] px-3 py-1 text-sm font-semibold text-[#166534]">
                   {done.length}
@@ -239,19 +239,19 @@ export default function DeliveriesPage() {
               </div>
 
               {done.map((d) => (
-                <article key={d.order_id} className="rounded-[28px] bg-white px-4 py-4 opacity-75 shadow-[0_8px_24px_rgba(0,26,64,0.05)] ring-1 ring-[#e4e8f1]">
+                <article key={d.order_id} className="rounded-[28px] bg-white px-4 py-4 opacity-75 shadow-[0_8px_24px_rgba(0,26,64,0.05)] ring-1 ring-hairline">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e7f7ef] text-[#166534]">
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
 
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="font-semibold text-[#0d1b2f] truncate">{d.consumer_name}</p>
-                      <p className="text-xs text-[#5d6473] truncate flex items-center gap-1">
+                      <p className="font-semibold text-ink truncate">{d.consumer_name}</p>
+                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
                         <MapPin className="h-3 w-3 shrink-0" />
                         {d.address_line}
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-[#7d8494]">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <Droplets className="h-3 w-3" />
                           {itemsLabel(d.total_items_qty)}

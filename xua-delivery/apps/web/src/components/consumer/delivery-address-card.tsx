@@ -1,6 +1,7 @@
 "use client";
 
-import { Home } from "lucide-react";
+import { Home, MapPin } from "lucide-react";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/lib/utils";
 import type { Address } from "@/src/types";
 
@@ -15,61 +16,54 @@ interface DeliveryAddressCardProps {
   onClick: () => void;
 }
 
+/** Endereço de entrega com ação "Trocar" (o card inteiro é o alvo de toque). */
 export function DeliveryAddressCard({
   address,
   loading = false,
-  label = "Entregando em",
-  actionLabel = "Alterar",
-  emptyTitle = "Selecionar endereço",
-  emptyDescription = "Toque para adicionar",
+  label = "Entregar em",
+  actionLabel = "Trocar",
+  emptyTitle = "Adicionar endereço",
+  emptyDescription = "Toque para cadastrar onde vai receber",
   className,
   onClick,
 }: DeliveryAddressCardProps) {
   return (
-    <div className={cn("space-y-2", className)}>
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
-          {label}
-        </p>
-        <button
-          type="button"
-          onClick={onClick}
-          className="text-xs font-semibold text-primary hover:underline"
-        >
-          {actionLabel}
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex w-full items-center gap-3 rounded-2xl border border-[#e1e3e4] bg-white p-4 text-left transition-all active:scale-[0.98] hover:border-primary/30"
-      >
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5697E9]/15">
-          <Home className="h-5 w-5 text-primary" />
-        </div>
-        {loading ? (
-          <div className="flex-1 space-y-2 animate-pulse">
-            <div className="h-3 w-24 rounded bg-[#e1e3e4]" />
-            <div className="h-2.5 w-40 rounded bg-[#e1e3e4]" />
-          </div>
-        ) : address ? (
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#191c1d]">
-              {address.label || "Endereço"}
-            </p>
-            <p className="text-xs text-[#737688] truncate">
-              {address.street}, {address.number}
-              {address.complement ? ` — ${address.complement}` : ""}
-            </p>
-          </div>
-        ) : (
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-primary">{emptyTitle}</p>
-            <p className="text-xs text-[#737688]">{emptyDescription}</p>
-          </div>
-        )}
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={address ? `${label}: ${address.street}, ${address.number}. ${actionLabel}` : emptyTitle}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:border-primary/40",
+        className,
+      )}
+    >
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+        {address ? <Home className="size-5 text-primary" aria-hidden /> : <MapPin className="size-5 text-primary" aria-hidden />}
+      </span>
+      {loading ? (
+        <span className="flex-1 space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-40" />
+        </span>
+      ) : address ? (
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs text-muted-foreground">{label}</span>
+          <span className="block truncate text-sm font-semibold text-foreground">
+            {address.label ? `${address.label} · ` : ""}
+            {address.street}, {address.number}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {address.complement ? `${address.complement} · ` : ""}
+            {address.neighborhood}
+          </span>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-primary">{emptyTitle}</span>
+          <span className="block text-xs text-muted-foreground">{emptyDescription}</span>
+        </span>
+      )}
+      <span className="shrink-0 text-sm font-semibold text-primary">{address ? actionLabel : null}</span>
+    </button>
   );
 }

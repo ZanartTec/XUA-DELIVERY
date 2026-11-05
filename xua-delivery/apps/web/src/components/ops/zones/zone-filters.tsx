@@ -60,7 +60,7 @@ export function ZoneFiltersBar({
       <div
         role="group"
         aria-label="Filtrar por status"
-        className="flex shrink-0 rounded-xl bg-[#e1e3e4]/60 p-0.5"
+        className="flex shrink-0 rounded-xl bg-surface-highest/60 p-0.5"
       >
         {STATUS_OPTIONS.map((option) => (
           <button

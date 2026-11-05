@@ -273,7 +273,7 @@ export default function CompleteDeliveryPage() {
                 onClick={() => setCollectedQty(qty)}
                 className={cn(
                   "h-12 rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  collectedQty === qty ? "bg-accent text-accent-foreground" : "bg-muted text-foreground hover:bg-muted/70"
+                  collectedQty === qty ? "bg-cta text-cta-foreground" : "bg-muted text-foreground hover:bg-muted/70"
                 )}
               >
                 {qty}
@@ -342,7 +342,7 @@ export default function CompleteDeliveryPage() {
                       onClick={() => setExtraMethod(option.value)}
                       className={cn(
                         "h-10 rounded-xl text-sm font-semibold",
-                        extraMethod === option.value ? "bg-accent text-accent-foreground" : "bg-white text-foreground"
+                        extraMethod === option.value ? "bg-cta text-cta-foreground" : "bg-white text-foreground"
                       )}
                     >
                       {option.label}
@@ -377,7 +377,7 @@ export default function CompleteDeliveryPage() {
                   onClick={() => setCondition(item.value)}
                   className={cn(
                     "h-10 flex-1 rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    condition === item.value ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                    condition === item.value ? "bg-cta text-cta-foreground" : "bg-muted text-muted-foreground"
                   )}
                 >
                   {item.label}

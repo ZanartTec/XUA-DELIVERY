@@ -131,7 +131,7 @@ export default function DistributorPaymentConfigPage() {
 
   if (!distributorId) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh] text-sm text-[#737688]">
+      <div className="flex items-center justify-center min-h-[40vh] text-sm text-muted-foreground">
         {loading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
@@ -148,8 +148,8 @@ export default function DistributorPaymentConfigPage() {
           <Wallet className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[#191c1d] font-heading">Pagamento</h1>
-          <p className="text-xs text-[#737688]">
+          <h1 className="text-xl font-bold text-foreground font-heading">Pagamento</h1>
+          <p className="text-xs text-muted-foreground">
             Escolha os métodos aceitos e conecte sua conta do Mercado Pago
           </p>
         </div>
@@ -168,11 +168,11 @@ export default function DistributorPaymentConfigPage() {
       )}
 
       {/* Métodos aceitos */}
-      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-[#191c1d]">Métodos aceitos</h2>
+      <section className="rounded-2xl border border-hairline bg-white p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">Métodos aceitos</h2>
         {loading ? (
           <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-[#737688]" />
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
           METHOD_LABELS.map(({ key, label, hint, online }) => (
@@ -182,19 +182,19 @@ export default function DistributorPaymentConfigPage() {
               onClick={() => toggle(key)}
               className={cn(
                 "flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors",
-                methods[key] ? "border-primary bg-primary/5" : "border-[#e1e3e4] bg-white",
+                methods[key] ? "border-primary bg-primary/5" : "border-hairline bg-white",
               )}
             >
               <div>
-                <p className="font-semibold text-[#191c1d] text-sm">
+                <p className="font-semibold text-foreground text-sm">
                   {label}
                   {online && (
-                    <span className="ml-2 rounded-full bg-[#d8e2ff] px-2 py-0.5 text-[10px] font-medium text-[#32466e]">
+                    <span className="ml-2 rounded-full bg-[#d8e2ff] px-2 py-0.5 text-[10px] font-medium text-ink">
                       Mercado Pago
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-[#737688]">{hint}</p>
+                <p className="text-xs text-muted-foreground">{hint}</p>
               </div>
               <span
                 className={cn(
@@ -211,10 +211,10 @@ export default function DistributorPaymentConfigPage() {
 
       {/* Credenciais do gateway (só quando aceita método online) */}
       {wantsOnline && (
-        <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4 space-y-3">
+        <section className="rounded-2xl border border-hairline bg-white p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-[#191c1d]">Credenciais do Mercado Pago</h2>
+            <h2 className="text-sm font-semibold text-foreground">Credenciais do Mercado Pago</h2>
           </div>
 
           {mpConnected ? (
@@ -224,45 +224,45 @@ export default function DistributorPaymentConfigPage() {
               branco para manter.
             </div>
           ) : (
-            <p className="text-xs text-[#737688]">
+            <p className="text-xs text-muted-foreground">
               Para aceitar Pix ou cartão no app, informe as credenciais da sua conta do Mercado
               Pago. Elas são guardadas de forma criptografada e nunca exibidas novamente.
             </p>
           )}
 
           <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Access token</span>
+            <span className="text-xs font-medium text-muted-foreground">Access token</span>
             <input
               type="password"
               autoComplete="off"
               value={accessToken}
               onChange={(e) => setAccessToken(e.target.value)}
               placeholder={mpConnected ? "•••• (manter atual)" : "APP_USR-..."}
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
+              className="w-full rounded-lg border border-hairline px-3 py-2 text-sm outline-none focus:border-primary"
             />
           </label>
 
           <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Webhook secret</span>
+            <span className="text-xs font-medium text-muted-foreground">Webhook secret</span>
             <input
               type="password"
               autoComplete="off"
               value={webhookSecret}
               onChange={(e) => setWebhookSecret(e.target.value)}
               placeholder={mpConnected ? "•••• (manter atual)" : "Assinatura secreta do webhook"}
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
+              className="w-full rounded-lg border border-hairline px-3 py-2 text-sm outline-none focus:border-primary"
             />
           </label>
 
           <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Public key (opcional)</span>
+            <span className="text-xs font-medium text-muted-foreground">Public key (opcional)</span>
             <input
               type="text"
               autoComplete="off"
               value={publicKey}
               onChange={(e) => setPublicKey(e.target.value)}
               placeholder="APP_USR-public-..."
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
+              className="w-full rounded-lg border border-hairline px-3 py-2 text-sm outline-none focus:border-primary"
             />
           </label>
 
@@ -277,7 +277,7 @@ export default function DistributorPaymentConfigPage() {
       <Button
         onClick={save}
         disabled={saving || loading || missingGateway}
-        className="w-full bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
+        className="w-full bg-cta hover:bg-cta/90 text-cta-foreground"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar configuração"}
       </Button>

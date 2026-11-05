@@ -39,16 +39,16 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
   if (!receipt && !ISSUABLE_STATUSES.has(order.status)) return null;
 
   return (
-    <section className="rounded-lg border border-[#dfe5ef] bg-white p-3.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+    <section className="rounded-lg border border-hairline bg-white p-3.5">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         <FileText className="h-3.5 w-3.5" />
         Comprovante de venda
       </p>
 
       {receipt ? (
         <>
-          <p className="mt-1.5 text-sm font-semibold text-[#0d1b2f]">Nº {formatReceiptNumber(receipt.number)}</p>
-          <p className="text-xs text-[#64748b]">
+          <p className="mt-1.5 text-sm font-semibold text-ink">Nº {formatReceiptNumber(receipt.number)}</p>
+          <p className="text-xs text-muted-foreground">
             Emitido em {formatDate(receipt.issued_at)}
             {receipt.print_count > 0 ? ` • impresso ${receipt.print_count}x (próximas saem como 2ª via)` : ""}
           </p>
@@ -56,7 +56,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
         </>
       ) : (
         <>
-          <p className="mt-1.5 text-sm text-[#4b5565]">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             O comprovante é gerado automaticamente no despacho. Gere agora se quiser imprimir antes.
           </p>
           {issueMutation.error ? (

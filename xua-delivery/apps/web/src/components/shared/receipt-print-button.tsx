@@ -42,7 +42,7 @@ export function ReceiptPrintButton({
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      <div className="grid grid-cols-2 gap-1 rounded-md bg-[#f3f4f5] p-1" role="radiogroup" aria-label="Formato de impressão">
+      <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1" role="radiogroup" aria-label="Formato de impressão">
         {FORMATS.map((option) => (
           <button
             key={option}
@@ -52,7 +52,7 @@ export function ReceiptPrintButton({
             onClick={() => selectFormat(option)}
             className={cn(
               "rounded px-2 py-1 text-xs font-medium transition-colors",
-              format === option ? "bg-white text-[#0d1b2f] shadow-sm" : "text-[#64748b] hover:text-[#0d1b2f]"
+              format === option ? "bg-white text-ink shadow-sm" : "text-muted-foreground hover:text-ink"
             )}
           >
             {RECEIPT_FORMAT_LABELS[option]}
@@ -61,7 +61,7 @@ export function ReceiptPrintButton({
       </div>
       <Button
         type="button"
-        className="h-9 w-full rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]"
+        className="h-9 w-full rounded-md bg-ink text-white hover:bg-ink"
         onClick={() => openReceipt(buildUrl(format))}
       >
         <Printer className="h-4 w-4" />

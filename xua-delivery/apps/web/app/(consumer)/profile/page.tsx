@@ -2,396 +2,231 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { LucideIcon } from "lucide-react";
 import {
-  User,
-  MapPin,
+  Building2,
+  CheckCircle2,
   ChevronRight,
+  Download,
   HelpCircle,
   Info,
-  Truck,
-  Building2,
-  Download,
-  CheckCircle2,
+  LogOut,
+  MapPin,
+  Pencil,
+  ReceiptText,
 } from "lucide-react";
 import { useAuthStore } from "@/src/store/auth";
-import { LogoutButton } from "@/src/components/shared/logout-button";
+import { normalizeUserRole } from "@/src/lib/role-utils";
 import { usePwa } from "@/src/hooks/use-pwa";
+import { useAddresses } from "@/src/hooks/consumer/use-addresses";
+import { api, ApiError } from "@/src/lib/api-client";
+import { formatPhone, plural } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { Button } from "@/src/components/ui/button";
+import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Switch } from "@/src/components/ui/switch";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { logout } from "@/src/components/shared/logout-button";
 import { PwaIosInstructionsSheet } from "@/src/components/shared/pwa-ios-instructions-sheet";
+import type { Consumer } from "@/src/types";
 
-import type { Consumer, Address } from "@/src/types";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+
+function initials(name?: string | null) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
+}
+
+function MenuRow({
+  icon: Icon,
+  label,
+  hint,
+  href,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint?: string;
+  href?: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10 text-primary">
+        <Icon className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-foreground">{label}</span>
+        {hint ? <span className="block truncate text-xs text-muted-foreground">{hint}</span> : null}
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+    </>
+  );
+  const className = "flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted";
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
+  );
+}
 
 export default function ProfilePage() {
   const setUser = useAuthStore((s) => s.setUser);
-  const [consumer, setConsumer] = useState<Consumer | null>(null);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [assignToggleLoading, setAssignToggleLoading] = useState(false);
-
-  // Instalação do PWA — mesma lógica compartilhada do card (ver usePwa)
+  const queryClient = useQueryClient();
+  const { data: addresses } = useAddresses();
   const { status: pwaStatus, canInstall, promptInstall } = usePwa();
   const [pwaIosSheetOpen, setPwaIosSheetOpen] = useState(false);
+  const [assignSaving, setAssignSaving] = useState(false);
+
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get<{ consumer: Consumer }>("/api/auth/me"),
+  });
+  const consumer = meQuery.data?.consumer ?? null;
 
   useEffect(() => {
-    let cancelled = false;
+    if (consumer) setUser({ id: consumer.id, name: consumer.name, role: normalizeUserRole(consumer.role, "consumer") });
+  }, [consumer, setUser]);
 
-    async function loadProfile() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const meRes = await fetch("/api/auth/me");
-        const meData = await meRes.json();
-
-        if (!meRes.ok || !meData.consumer) {
-          throw new Error(meData.error || "Não foi possível carregar seu perfil.");
-        }
-
-        if (cancelled) return;
-
-        setConsumer(meData.consumer);
-        setUser({
-          id: meData.consumer.id,
-          name: meData.consumer.name,
-          role: meData.consumer.role,
-        });
-
-        const addrRes = await fetch(`/api/consumers/${meData.consumer.id}/addresses`);
-        const addrData = await addrRes.json();
-
-        if (!addrRes.ok) {
-          throw new Error(addrData.error || "Não foi possível carregar seus endereços.");
-        }
-
-        if (!cancelled) {
-          setAddresses(addrData.addresses ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Não foi possível carregar seu perfil.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+  async function toggleAutoAssign(next: boolean) {
+    if (!consumer) return;
+    setAssignSaving(true);
+    try {
+      const updated = await api.patch<Consumer>(`/api/consumers/${consumer.id}/assign-mode`, {
+        auto_assign_distributor: next,
+      });
+      queryClient.setQueryData(["me"], { consumer: { ...consumer, auto_assign_distributor: updated.auto_assign_distributor } });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Não foi possível salvar a preferência.");
+    } finally {
+      setAssignSaving(false);
     }
+  }
 
-    void loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [setUser]);
-
-  if (loading) {
+  if (meQuery.isLoading) {
     return (
-      <div className="space-y-4 px-6 pt-6">
-        <div className="flex flex-col items-center">
-          <div className="w-28 h-28 animate-pulse rounded-3xl bg-[#e1e3e4]" />
-          <div className="mt-5 h-7 w-48 animate-pulse rounded-lg bg-[#e1e3e4]" />
-          <div className="mt-2 h-4 w-56 animate-pulse rounded-lg bg-[#e1e3e4]" />
-        </div>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="animate-pulse rounded-2xl bg-white shadow-sm">
-            <div className="p-5">
-              <div className="h-5 w-36 rounded-lg bg-[#e1e3e4]" />
-            </div>
+      <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pt-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="size-16 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-56" />
           </div>
-        ))}
+        </div>
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     );
   }
 
+  const addressCount = addresses?.length ?? 0;
+
   return (
-    <div className="pb-6">
-      {/* -- User Header -- */}
-      <section className="px-6 pt-6 pb-8 text-center">
-        {/* Avatar */}
-        <div className="relative inline-block mb-5">
-          <div className="w-28 h-28 mx-auto rounded-3xl overflow-hidden shadow-2xl bg-linear-to-br from-primary to-primary-hover flex items-center justify-center transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-            <User className="h-14 w-14 text-white" />
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-6 pb-6">
+      {meQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>Não foi possível carregar seu perfil.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/* Identificação compacta (antes o avatar ocupava 1/4 da tela) */}
+      {consumer ? (
+        <section className="flex items-center gap-4">
+          <Avatar className="size-16">
+            <AvatarFallback className="bg-linear-to-br from-primary to-sky font-heading text-xl font-bold text-primary-foreground">
+              {initials(consumer.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-heading text-xl font-bold text-ink">{consumer.name}</h1>
+            <p className="truncate text-sm text-muted-foreground">{consumer.email}</p>
+            {consumer.phone ? <p className="text-sm text-muted-foreground">{formatPhone(consumer.phone)}</p> : null}
           </div>
-        </div>
-
-        {consumer && (
-          <div className="mt-2">
-            <h1 className="text-3xl font-extrabold tracking-tight text-[#191c1d] font-heading">
-              {consumer.name}
-            </h1>
-            <p className="text-[#4a5e87] font-medium mt-1">{consumer.email}</p>
-            {consumer.phone && (
-              <p className="text-[#737688] text-sm mt-0.5">{consumer.phone}</p>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 rounded-2xl bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
-      </section>
-
-      {/* -- Quick Access: Next Delivery Card -- */}
-      <section className="px-6 mb-8">
-        <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#737688] mb-3">
-          Acesso Rápido
-        </h2>
-
-        {/* Next delivery placeholder */}
-        <Link href="/orders">
-          <div className="bg-[#f3f4f5] rounded-3xl p-5 relative overflow-hidden">
-            <Truck className="h-5 w-5 text-primary mb-3" />
-            <h3 className="text-lg font-bold text-[#191c1d] font-heading mb-0.5">
-              Próxima Entrega
-            </h3>
-            <p className="text-sm text-[#4a5e87]">Ver meus pedidos ativos</p>
-          </div>
-        </Link>
-      </section>
-
-      {/* -- Account Settings -- */}
-      <section className="px-6 mb-8">
-        <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#737688] mb-4">
-          Configurações da Conta
-        </h2>
-
-        <div className="space-y-2">
-          {/* Addresses */}
-          <Link
-            href="/profile/addresses"
-            className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
-                <MapPin className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-[#191c1d]">Endereços Salvos</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
-          </Link>
-
-          {/* Edit profile */}
-          <Link
-            href="/profile/edit"
-            className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
-                <User className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-[#191c1d]">Editar Perfil</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
-          </Link>
-
-          {/* Auto-assign distributor toggle */}
-          {consumer && (
-            <div className="flex items-center justify-between p-4 bg-white rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <span className="font-semibold text-[#191c1d] block text-sm">
-                    Distribuidora automática
-                  </span>
-                  <span className="text-xs text-[#737688]">
-                    {consumer.auto_assign_distributor
-                      ? "Sistema escolhe a melhor"
-                      : "Você escolhe manualmente"}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={assignToggleLoading}
-                onClick={async () => {
-                  if (!consumer) return;
-                  setAssignToggleLoading(true);
-                  try {
-                    const res = await fetch(
-                      `/api/consumers/${consumer.id}/assign-mode`,
-                      {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          auto_assign_distributor:
-                            !consumer.auto_assign_distributor,
-                        }),
-                      },
-                    );
-                    if (res.ok) {
-                      const updated = await res.json();
-                      setConsumer((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              auto_assign_distributor:
-                                updated.auto_assign_distributor,
-                            }
-                          : prev,
-                      );
-                    }
-                  } catch {
-                    // silently fail
-                  } finally {
-                    setAssignToggleLoading(false);
-                  }
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  consumer.auto_assign_distributor
-                    ? "bg-[#00E0FF]"
-                    : "bg-[#c4c6cf]"
-                } ${assignToggleLoading ? "opacity-50" : ""}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    consumer.auto_assign_distributor
-                      ? "translate-x-6"
-                      : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-          )}
-
-          {/* Instalar aplicativo (PWA) — alternativa caso o card tenha sido dispensado.
-              Usa a mesma lógica do card (usePwa). Oculto quando não há instalação possível. */}
-          {pwaStatus === "installed" ? (
-            <div className="flex items-center justify-between p-4 bg-white rounded-2xl cursor-default">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#00E0FF]/15 text-[#0094a8]">
-                  <CheckCircle2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <span className="font-semibold text-[#191c1d] block text-sm">
-                    Aplicativo instalado
-                  </span>
-                  <span className="text-xs text-[#737688]">
-                    Você já está usando o app instalado
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : canInstall ? (
-            <button
-              type="button"
-              onClick={
-                pwaStatus === "ios" ? () => setPwaIosSheetOpen(true) : promptInstall
-              }
-              className="flex w-full items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
-                  <Download className="h-5 w-5" />
-                </div>
-                <div>
-                  <span className="font-semibold text-[#191c1d] block text-sm">
-                    Instalar aplicativo
-                  </span>
-                  <span className="text-xs text-[#737688]">
-                    Acesso rápido e uso offline
-                  </span>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
-            </button>
-          ) : null}
-
-          {/* Help */}
-          <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
-                <HelpCircle className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-[#191c1d]">Ajuda e Suporte</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
-          </div>
-
-          {/* About */}
-          <div className="flex items-center justify-between p-4 bg-white rounded-2xl hover:bg-[#f3f4f5] transition-all duration-300 group cursor-default">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5697E9]/15 text-primary group-hover:scale-110 transition-transform">
-                <Info className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-[#191c1d]">Sobre Nós</span>
-            </div>
-            <ChevronRight className="h-5 w-5 text-[#c3c5d9]" />
-          </div>
-
-
-        </div>
-      </section>
-
-      {/* -- Addresses Preview -- */}
-      {addresses.length > 0 && (
-        <section className="px-6 mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#737688]">
-              Endereços
-            </h2>
-            <Link
-              href="/profile/addresses"
-              className="text-primary text-xs font-bold uppercase tracking-widest hover:underline"
-            >
-              Ver todos
+          <Button asChild variant="ghost" size="icon-touch" aria-label="Editar perfil">
+            <Link href="/profile/edit">
+              <Pencil />
             </Link>
-          </div>
-          <div className="space-y-2">
-            {addresses.slice(0, 2).map((addr) => (
-              <div
-                key={addr.id}
-                className="bg-white rounded-2xl p-4 shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#5697E9]/15 flex items-center justify-center shrink-0 mt-0.5">
-                    <MapPin className="h-4 w-4 text-[#5697E9]" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm text-[#191c1d]">
-                      {addr.street}, {addr.number}
-                    </p>
-                    <p className="text-xs text-[#737688]">
-                      {addr.neighborhood} — {addr.city}/{addr.state} — CEP{" "}
-                      {addr.zip_code}
-                    </p>
-                    {addr.is_default && (
-                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#00E0FF]/20 text-[#001735] text-[10px] font-bold uppercase tracking-wider rounded-full">
-                        Principal
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          </Button>
         </section>
-      )}
+      ) : null}
 
-      {/* -- Logout -- */}
-      <section className="px-6 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <LogoutButton
-            variant="full"
-            className="gap-3 px-4 py-4 rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-700 font-semibold"
+      <nav aria-label="Minha conta" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+        <MenuRow icon={ReceiptText} label="Meus pedidos" href="/orders" />
+        <MenuRow
+          icon={MapPin}
+          label="Meus endereços"
+          hint={addressCount ? plural(addressCount, "endereço salvo", "endereços salvos") : "Cadastre onde quer receber"}
+          href="/profile/addresses"
+        />
+        <MenuRow icon={Pencil} label="Dados pessoais" hint="Nome, e-mail e telefone" href="/profile/edit" />
+      </nav>
+
+      {consumer ? (
+        <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10 text-primary">
+            <Building2 className="size-5" aria-hidden />
+          </span>
+          <Label htmlFor="auto-assign" className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5">
+            <span className="text-sm font-semibold text-foreground">Distribuidora automática</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {consumer.auto_assign_distributor ? "O app escolhe a melhor para você" : "Você escolhe a cada pedido"}
+            </span>
+          </Label>
+          <Switch
+            id="auto-assign"
+            checked={consumer.auto_assign_distributor}
+            disabled={assignSaving}
+            onCheckedChange={toggleAutoAssign}
           />
         </div>
-      </section>
+      ) : null}
 
-      {/* -- Footer -- */}
-      <div className="text-center pb-6 px-6">
-        <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#c3c5d9]">
-          XUÁ Delivery v1.0.0
-        </p>
-        <p className="text-[10px] text-[#737688] mt-1 italic">
-          Água pura, entrega certa.
-        </p>
-      </div>
+      <nav aria-label="Ajuda" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+        <MenuRow icon={HelpCircle} label="Ajuda e suporte" hint="Perguntas frequentes e contato" href="/profile/help" />
+        <MenuRow icon={Info} label="Sobre o Xuá" href="/profile/help#sobre" />
+        {pwaStatus === "installed" ? (
+          <div className="flex min-h-16 items-center gap-3 px-4 py-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success-surface text-success-foreground">
+              <CheckCircle2 className="size-5" aria-hidden />
+            </span>
+            <span className="text-sm font-semibold text-foreground">Aplicativo instalado</span>
+          </div>
+        ) : canInstall ? (
+          <MenuRow
+            icon={Download}
+            label="Instalar aplicativo"
+            hint="Acesso rápido pela tela inicial"
+            onClick={pwaStatus === "ios" ? () => setPwaIosSheetOpen(true) : promptInstall}
+          />
+        ) : null}
+      </nav>
 
-      {/* Instruções de instalação no iOS — mesmo Sheet usado pelo card */}
+      <ConfirmAction
+        trigger={
+          <Button variant="destructive-soft" size="xl" className={cn("w-full")}>
+            <LogOut /> Sair da conta
+          </Button>
+        }
+        title="Sair da conta?"
+        description="Você vai precisar entrar de novo para fazer pedidos."
+        confirmLabel="Sair"
+        cancelLabel="Ficar"
+        destructive
+        onConfirm={logout}
+      />
+
+      <p className="text-center text-xs text-muted-foreground">
+        Xuá Delivery{APP_VERSION ? ` · versão ${APP_VERSION}` : ""}
+      </p>
+
       <PwaIosInstructionsSheet open={pwaIosSheetOpen} onOpenChange={setPwaIosSheetOpen} />
     </div>
   );

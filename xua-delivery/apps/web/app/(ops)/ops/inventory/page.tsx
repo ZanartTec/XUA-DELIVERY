@@ -105,7 +105,7 @@ function dateInput(daysAgo: number) {
 
 function EmptyState({ title }: { title: string }) {
   return (
-    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
       <PackageSearch className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
     </div>
@@ -204,15 +204,15 @@ export default function OpsInventoryPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldos filtrados</p>
-          <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{balancesQuery.data?.pagination.total ?? 0}</p>
+          <p className="mt-2 text-3xl font-bold text-ink">{balancesQuery.data?.pagination.total ?? 0}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuidoras</p>
-          <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{distributorCount}</p>
+          <p className="mt-2 text-3xl font-bold text-ink">{distributorCount}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Alertas</p>
           <p className={cn("mt-2 text-3xl font-bold", lowStockCount > 0 ? "text-red-600" : "text-green-600")}>
             {lowStockCount}
@@ -220,7 +220,7 @@ export default function OpsInventoryPage() {
         </div>
       </div>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
         <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -231,7 +231,7 @@ export default function OpsInventoryPage() {
                 setBalanceOffset(0);
               }}
               placeholder="Buscar item ou código"
-              className="rounded-xl border-[#d9dde3] pl-9"
+              className="rounded-xl border-hairline pl-9"
             />
           </div>
           <Select
@@ -242,7 +242,7 @@ export default function OpsInventoryPage() {
               setMovementOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Distribuidora" />
             </SelectTrigger>
             <SelectContent>
@@ -262,7 +262,7 @@ export default function OpsInventoryPage() {
               setMovementOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Item" />
             </SelectTrigger>
             <SelectContent>
@@ -281,7 +281,7 @@ export default function OpsInventoryPage() {
               setBalanceOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -300,7 +300,7 @@ export default function OpsInventoryPage() {
               setBalanceOffset(0);
             }}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
+            <SelectTrigger className="h-10 w-full rounded-xl border-hairline">
               <SelectValue placeholder="Alerta" />
             </SelectTrigger>
             <SelectContent>
@@ -314,7 +314,7 @@ export default function OpsInventoryPage() {
         {balancesQuery.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
+              <div key={index} className="h-16 animate-pulse rounded-xl bg-surface-low" />
             ))}
           </div>
         ) : balancesQuery.isError ? (
@@ -331,7 +331,7 @@ export default function OpsInventoryPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-sm">
               <thead>
-                <tr className="border-b border-[#e1e3e4] text-left">
+                <tr className="border-b border-hairline text-left">
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribuidora</th>
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</th>
                   <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</th>
@@ -342,10 +342,10 @@ export default function OpsInventoryPage() {
               </thead>
               <tbody>
                 {balances.map((balance) => (
-                  <tr key={balance.id} className="border-b border-[#e1e3e4] last:border-0">
-                    <td className="py-3 font-semibold text-[#0d1b2f]">{balance.distributor_name}</td>
+                  <tr key={balance.id} className="border-b border-hairline last:border-0">
+                    <td className="py-3 font-semibold text-ink">{balance.distributor_name}</td>
                     <td className="py-3">
-                      <p className="font-semibold text-[#0d1b2f]">{balance.item.name}</p>
+                      <p className="font-semibold text-ink">{balance.item.name}</p>
                       <p className="text-xs text-muted-foreground">{balance.item.code}</p>
                     </td>
                     <td className="py-3 text-muted-foreground">{INVENTORY_ITEM_TYPE_LABEL[balance.item.type]}</td>
@@ -400,7 +400,7 @@ export default function OpsInventoryPage() {
         </div>
       </section>
 
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-hairline">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-primary" />
@@ -414,7 +414,7 @@ export default function OpsInventoryPage() {
                 setStart(event.target.value);
                 setMovementOffset(0);
               }}
-              className="h-9 rounded-xl border-[#d9dde3]"
+              className="h-9 rounded-xl border-hairline"
             />
             <Input
               type="date"
@@ -423,7 +423,7 @@ export default function OpsInventoryPage() {
                 setEnd(event.target.value);
                 setMovementOffset(0);
               }}
-              className="h-9 rounded-xl border-[#d9dde3]"
+              className="h-9 rounded-xl border-hairline"
             />
           </div>
         </div>
@@ -431,7 +431,7 @@ export default function OpsInventoryPage() {
         {movementsQuery.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
+              <div key={index} className="h-16 animate-pulse rounded-xl bg-surface-low" />
             ))}
           </div>
         ) : movementsQuery.isError ? (
@@ -450,7 +450,7 @@ export default function OpsInventoryPage() {
               const positive = movement.quantity_delta > 0;
               const DirectionIcon = positive ? ArrowUp : ArrowDown;
               return (
-                <div key={movement.id} className="grid gap-3 rounded-xl border border-[#e4e8f1] p-3 md:grid-cols-[2fr_1fr_1fr] md:items-center">
+                <div key={movement.id} className="grid gap-3 rounded-xl border border-hairline p-3 md:grid-cols-[2fr_1fr_1fr] md:items-center">
                   <div className="flex min-w-0 items-start gap-3">
                     <span
                       className={cn(
@@ -461,7 +461,7 @@ export default function OpsInventoryPage() {
                       <DirectionIcon className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                      <p className="font-semibold text-[#0d1b2f]">{movement.item.name}</p>
+                      <p className="font-semibold text-ink">{movement.item.name}</p>
                       <p className="text-xs text-muted-foreground">{movement.distributor_name} · {movement.item.code}</p>
                     </div>
                   </div>

@@ -558,18 +558,18 @@ e mantido no desktop. Badge "Operacoes" sem acento. Suporte tem 2 itens (Suporte
 | C-03 | ✅ | cliente/motorista | ~~Total do checkout ≠ total cobrado~~ — resolvido pela regra de vasilhame na entrega (seção 9) | — |
 | S-02 | 🔴 | suporte | `/support/[id]` quebra (TypeError `audit_events`) | `support/[id]/page.tsx:82` |
 | S-01 | 🔴 | suporte | Busca retorna 500 para e-mail/telefone/nº curto; UI mostra "nenhum resultado" | `GET /api/orders?scope=support` |
-| C-05 | 🟠 | cliente/KPIs | "Hoje" calculado em UTC (21h29 de 04/11 → "Hoje 5 Nov") | agendamento, gráficos |
+| C-05 | ✅/🟠 | cliente/KPIs | ~~"Hoje" em UTC~~ no agendamento do cliente (`lib/datetime.ts`); gráficos/KPIs ainda pendentes | gráficos |
 | D-04 | 🟠 | dist./ops | Taxa de aceite 200% | KPIs |
 | O-01/D-05 | 🟠 | dist./ops | SLA de aceite diverge (0% vs 100%) | KPIs |
-| C-06 | 🟠 | cliente | "Ver planos" → `/subscription` 404 | `orders/page.tsx:293` |
+| C-06 | ✅ | cliente | ~~"Ver planos" → 404~~ — aponta para `/subscription/create` e só aparece com plano ativo | — |
 | O-02 | 🟠 | cliente | Banners prometem cupom e frete grátis inexistentes | banners × checkout |
 | O-03 | 🟠 | ops/cliente | Sem plano possível sem MP; tela não explica → assinatura morta | `subscription-plans` |
-| C-07/D-02 | 🟡 | cliente/dist. | Stepper de status mostra etapa errada | detalhe/lista de pedidos |
+| C-07/D-02 | ✅/🟡 | cliente/dist. | ~~Stepper errado~~ no cliente (`OrderStepper`); distribuidora (D-02) pendente | dist. |
 | M-01/M-02 | 🟡 | motorista | "garrafãoões"; contagem soma vasilhames e 10L como garrafões | `driver/deliveries/page.tsx` |
 | D-03 | 🟡 | dist. | Agenda: switches sobrepõem textos | `distributor/schedule` |
-| D-01 | 🟡 | dist. | Dois itens ativos no bottom nav | `role-app-shell.tsx` |
-| C-01/C-02 | 🟡 | cliente | Endereço não auto-seleciona; sem editar/excluir | endereços |
-| C-08 | 🟡 | cliente | "Ajuda e Suporte"/"Sobre Nós" sem ação | `profile/page.tsx` |
+| D-01 | ✅ | dist. | ~~Dois itens ativos no bottom nav~~ — ativo = prefixo mais longo | — |
+| C-01/C-02 | ✅ | cliente | ~~Endereço não auto-seleciona; sem editar/excluir~~ — PATCH/DELETE (arquiva) + 1º endereço principal | — |
+| C-08 | ✅ | cliente | ~~"Ajuda e Suporte"/"Sobre Nós" sem ação~~ — `/profile/help` (FAQ + sobre + versão real) | — |
 | A-01 | 🟡 | auth | Foto de fundo do cadastro não aparece | `register/page.tsx` |
 | — | 🟡 | todos | Nenhuma confirmação em ações destrutivas | ops, dist. |
 | — | ⚪ | todos | Textos sem acento / em inglês / enums crus | vários |
@@ -602,6 +602,21 @@ sticky, checklist com itens reais, estoque em `DataList`, agenda corrigida. Corr
 fila de atenção. Corrigir S-01, S-02, O-01..03.
 
 Cada etapa: branch própria, PR por módulo, validação navegando de novo com os mesmos usuários de teste.
+
+### Andamento (05/11/2026)
+- **Etapa 0 — feita**: tokens `cta`/`ink`/`hairline`/`sky`/`*-foreground` (codemod trocou ~1.217 hex no app todo;
+  `accent` virou realce suave e o ciano é só `cta`); `Button` `cta`/`soft`/`destructive-soft` + tamanhos `xl`/`icon-touch`;
+  shadcn `alert-dialog`, `accordion`, `collapsible`, `toggle-group`; compostos em `src/components/shared`
+  (`PageHeader`, `StickyActionBar`, `ResponsiveDialog`, `ConfirmAction`, `StatusBadge`, `OrderStepper`, `EmptyState`,
+  `QuantityStepper`, `FormField`, `MaskedInput`); `lib/datetime.ts`, `lib/format.ts`, `lib/order-status.ts`;
+  `RoleAppShell` com bottom nav ≤5 + "Mais" e sidebar no desktop (vale para os 4 módulos).
+  Pendente da Etapa 0: `DataList`/`DataTable`, `sidebar`/`table`/`chart`/`command` do shadcn (entram com Distribuidora/Ops).
+- **Etapa 1 — Cliente feita**: catálogo, carrinho, checkout em 3 etapas (Entrega = endereço + distribuidora + data;
+  `/checkout/distributor` redireciona), pagamento, confirmação, pedidos (lista/detalhe com cancelar, ligar/WhatsApp,
+  acordeão, histórico traduzido), perfil, endereços, dados pessoais, ajuda, assinaturas (gerenciar/criar com saída sem plano).
+  Auth (login/cadastro) ainda não foi refeita.
+- Achados no caminho: header "sticky" não grudava (`overflow-x-hidden` na raiz → `overflow-x-clip`); apelido do endereço
+  era descartado pela API; e-mail na edição de perfil não era salvo (schema não aceita) → agora somente leitura.
 
 ---
 

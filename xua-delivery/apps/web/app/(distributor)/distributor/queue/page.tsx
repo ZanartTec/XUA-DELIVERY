@@ -342,11 +342,11 @@ function QueueSkeleton() {
   return (
     <div className="grid gap-3 xl:grid-cols-3">
       {Array.from({ length: 3 }).map((_, column) => (
-        <div key={column} className="rounded-lg border border-[#dfe5ef] bg-white p-2">
-          <div className="h-9 animate-pulse rounded-md bg-[#eef0f3]" />
+        <div key={column} className="rounded-lg border border-hairline bg-white p-2">
+          <div className="h-9 animate-pulse rounded-md bg-surface-low" />
           <div className="mt-2 space-y-2">
             {Array.from({ length: 5 }).map((__, row) => (
-              <div key={row} className="h-[104px] animate-pulse rounded-md bg-[#f4f6f8]" />
+              <div key={row} className="h-[104px] animate-pulse rounded-md bg-surface-low" />
             ))}
           </div>
         </div>
@@ -398,7 +398,7 @@ function OrderMiniCard({
     <article
       className={cn(
         "relative h-[104px] rounded-md border bg-white px-2.5 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition-colors hover:border-[#b8c7dd] hover:bg-[#fbfcfe]",
-        selected ? "border-[#5697E9] ring-2 ring-[#5697E9]/20" : "border-[#dfe5ef]",
+        selected ? "border-sky ring-2 ring-sky/20" : "border-hairline",
         URGENCY_CARD_TINT[urgency.level]
       )}
     >
@@ -412,37 +412,37 @@ function OrderMiniCard({
       <div className="grid h-full grid-cols-[minmax(0,1fr)_76px] gap-2">
         <button type="button" className="min-w-0 text-left" onClick={() => onSelect(order)}>
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xs font-bold text-[#0d1b2f]">#{formatShortOrderId(order.id)}</span>
+            <span className="font-mono text-xs font-bold text-ink">#{formatShortOrderId(order.id)}</span>
             <span className="shrink-0 text-[10px] text-[#94a3b8]">· {formatRelativeShort(order.created_at)}</span>
-            <span className="truncate text-sm font-semibold text-[#0d1b2f]">{order.consumer_name}</span>
+            <span className="truncate text-sm font-semibold text-ink">{order.consumer_name}</span>
             <DeliveryUrgencyBadge urgency={urgency} className="ml-auto" />
-            <span className="hidden items-center gap-1 rounded bg-[#f3f6fb] px-1.5 py-0.5 text-[10px] font-semibold text-[#5d6473] 2xl:inline-flex">
+            <span className="hidden items-center gap-1 rounded bg-[#f3f6fb] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground 2xl:inline-flex">
               <OriginIcon className="h-3 w-3" />
               {fromSubscription ? "Ass." : "Cart."}
             </span>
           </div>
 
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-            <p className="truncate text-xs font-medium text-[#334155]">{order.item_summary}</p>
-            <p className="text-xs font-bold text-[#0d1b2f]">{formatCurrency(order.total_cents)}</p>
+            <p className="truncate text-xs font-medium text-muted-foreground">{order.item_summary}</p>
+            <p className="text-xs font-bold text-ink">{formatCurrency(order.total_cents)}</p>
           </div>
 
-          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-[11px] text-[#64748b]">
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-[11px] text-muted-foreground">
             <span className="inline-flex min-w-0 items-center gap-1 truncate">
               <MapPin className="h-3 w-3 shrink-0" />
               {shortAddress(order.address_summary)}
             </span>
-            <span className="font-medium text-[#475569]">
+            <span className="font-medium text-muted-foreground">
               {formatDateShort(order.delivery_date)} · {formatScheduledTime(order)}
             </span>
           </div>
 
           <div className="mt-1 flex items-center gap-2">
-            <span className="rounded bg-[#eef2f7] px-1.5 py-0.5 text-[10px] font-semibold text-[#475569]">
+            <span className="rounded bg-surface-low px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
               {getOrderStageLabel(order)}
             </span>
             {order.driver_name ? (
-              <span className="truncate text-[11px] text-[#64748b]">{order.driver_name}</span>
+              <span className="truncate text-[11px] text-muted-foreground">{order.driver_name}</span>
             ) : (
               <span className="text-[11px] font-medium text-amber-700">Sem motorista</span>
             )}
@@ -516,7 +516,7 @@ function KanbanColumn({
   const [containerRef, virtual] = useVirtualSlice(orders);
 
   return (
-    <section className="min-h-0 rounded-lg border border-[#d8e0eb] bg-[#f7f9fc]">
+    <section className="min-h-0 rounded-lg border border-hairline bg-[#f7f9fc]">
       <div className={cn("flex h-11 items-center justify-between rounded-t-lg border-b px-3", tone)}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -530,7 +530,7 @@ function KanbanColumn({
 
       <div ref={containerRef} onScroll={virtual.onScroll} className="h-[64vh] min-h-[360px] max-h-[680px] overflow-y-auto p-2">
         {orders.length === 0 ? (
-          <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-[#ccd6e3] bg-white text-xs text-[#64748b]">
+          <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-[#ccd6e3] bg-white text-xs text-muted-foreground">
             Sem pedidos nesta etapa
           </div>
         ) : (
@@ -593,7 +593,7 @@ function OrderDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[560px] max-w-[calc(100vw-2rem)] gap-0 overflow-y-auto bg-[#f8fafc] p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b bg-white p-4">
-          <SheetTitle className="font-heading text-xl font-extrabold text-[#0d1b2f]">
+          <SheetTitle className="font-heading text-xl font-extrabold text-ink">
             Pedido #{formatShortOrderId(order.id)}
           </SheetTitle>
           <SheetDescription>
@@ -607,11 +607,11 @@ function OrderDetailSheet({
           ) : null}
 
           {canAssign ? (
-            <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Motorista</p>
+            <section className="rounded-lg border border-hairline bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Motorista</p>
               <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <Select value={selectedDriver || undefined} onValueChange={onDriverChange}>
-                  <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white">
+                  <SelectTrigger className="h-9 rounded-md border-hairline bg-white">
                     <SelectValue placeholder="Selecionar motorista" />
                   </SelectTrigger>
                   <SelectContent>
@@ -628,8 +628,8 @@ function OrderDetailSheet({
             </section>
           ) : null}
 
-          <section className="rounded-lg border border-[#dfe5ef] bg-white p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#64748b]">Acoes rapidas</p>
+          <section className="rounded-lg border border-hairline bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Acoes rapidas</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {canAccept ? (
                 <Button className="h-9 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" disabled={actionLoading} onClick={onAccept}>
@@ -644,7 +644,7 @@ function OrderDetailSheet({
                 </Button>
               ) : null}
               {canChecklist ? (
-                <Button asChild className="h-9 rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]">
+                <Button asChild className="h-9 rounded-md bg-ink text-white hover:bg-ink">
                   <Link href={`/distributor/orders/${order.id}/checklist`}>
                     <Route className="h-4 w-4" />
                     Checklist
@@ -652,7 +652,7 @@ function OrderDetailSheet({
                 </Button>
               ) : null}
               {canDispatch ? (
-                <Button className="h-9 rounded-md bg-[#0d1b2f] text-white hover:bg-[#17253c]" disabled={!selectedDriver || actionLoading} onClick={onDispatch}>
+                <Button className="h-9 rounded-md bg-ink text-white hover:bg-ink" disabled={!selectedDriver || actionLoading} onClick={onDispatch}>
                   <Route className="h-4 w-4" />
                   Despachar
                 </Button>
@@ -666,7 +666,7 @@ function OrderDetailSheet({
           {detailQuery.isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-24 animate-pulse rounded-lg bg-[#eef0f3]" />
+                <div key={index} className="h-24 animate-pulse rounded-lg bg-surface-low" />
               ))}
             </div>
           ) : detailQuery.isError ? (
@@ -732,8 +732,8 @@ function RejectDialog({
               className={cn(
                 "rounded-md border px-3 py-2 text-left text-sm font-medium",
                 reason === option.value
-                  ? "border-[#5697E9] bg-[#edf4ff] text-[#0b2a59]"
-                  : "border-[#dfe5ef] bg-white text-[#334155] hover:bg-[#f8fafc]"
+                  ? "border-sky bg-[#edf4ff] text-ink"
+                  : "border-hairline bg-white text-muted-foreground hover:bg-[#f8fafc]"
               )}
             >
               {option.label}
@@ -746,7 +746,7 @@ function RejectDialog({
             value={details}
             onChange={(event) => onDetailsChange(event.target.value)}
             placeholder="Descreva o motivo da recusa"
-            className="min-h-24 rounded-md border-[#dfe5ef]"
+            className="min-h-24 rounded-md border-hairline"
           />
         ) : null}
 
@@ -958,13 +958,13 @@ function DistributorQueueContent() {
 
   return (
     <div className="min-w-0 space-y-3">
-      <section className="rounded-lg border border-[#d8e0eb] bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+      <section className="rounded-lg border border-hairline bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.8fr)_minmax(320px,1fr)_auto] xl:items-center">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748b]">Operacao da distribuidora</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Operacao da distribuidora</p>
             <div className="mt-1 flex items-center gap-3">
-              <h1 className="font-heading text-2xl font-extrabold leading-none text-[#0d1b2f]">Fila de pedidos</h1>
-              <span className="rounded bg-[#eef2f7] px-2 py-1 text-xs font-semibold text-[#475569]">{syncLabel}</span>
+              <h1 className="font-heading text-2xl font-extrabold leading-none text-ink">Fila de pedidos</h1>
+              <span className="rounded bg-surface-low px-2 py-1 text-xs font-semibold text-muted-foreground">{syncLabel}</span>
             </div>
           </div>
 
@@ -976,7 +976,7 @@ function DistributorQueueContent() {
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" className="h-9 rounded-md border-[#dfe5ef]" disabled={queueQuery.isFetching} onClick={() => void queueQuery.refetch()}>
+            <Button variant="outline" className="h-9 rounded-md border-hairline" disabled={queueQuery.isFetching} onClick={() => void queueQuery.refetch()}>
               {queueQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Atualizar
             </Button>
@@ -984,31 +984,31 @@ function DistributorQueueContent() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-[#d8e0eb] bg-white p-2 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+      <section className="rounded-lg border border-hairline bg-white p-2 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
         <div className="grid gap-2 xl:grid-cols-[minmax(260px,1fr)_170px_180px_180px_auto] xl:items-center">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Pedido, cliente, telefone, item ou bairro"
-              className="h-9 rounded-md border-[#dfe5ef] pl-8 text-sm"
+              className="h-9 rounded-md border-hairline pl-8 text-sm"
             />
           </div>
 
           <div className="relative">
-            <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748b]" />
+            <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="date"
               value={deliveryDate}
               onChange={(event) => updateQuery({ deliveryDate: event.target.value || null }, true)}
-              className="h-9 rounded-md border-[#dfe5ef] pl-8 text-sm"
+              className="h-9 rounded-md border-hairline pl-8 text-sm"
             />
           </div>
 
           <Select value={driverId} onValueChange={(value) => updateQuery({ driverId: value }, true)}>
-            <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white text-sm">
-              <UserRound className="h-4 w-4 text-[#64748b]" />
+            <SelectTrigger className="h-9 rounded-md border-hairline bg-white text-sm">
+              <UserRound className="h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Motorista" />
             </SelectTrigger>
             <SelectContent>
@@ -1021,8 +1021,8 @@ function DistributorQueueContent() {
           </Select>
 
           <Select value={sort} onValueChange={(value) => updateQuery({ sort: value }, true)}>
-            <SelectTrigger className="h-9 rounded-md border-[#dfe5ef] bg-white text-sm">
-              <ArrowUpDown className="h-4 w-4 text-[#64748b]" />
+            <SelectTrigger className="h-9 rounded-md border-hairline bg-white text-sm">
+              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1040,16 +1040,16 @@ function DistributorQueueContent() {
           <div className="flex items-center justify-end gap-2">
             <FilterChips options={ORIGIN_OPTIONS} value={origin} onChange={(value) => updateQuery({ origin: value }, true)} />
             {hasActiveFilters ? (
-              <Button type="button" variant="ghost" size="icon-sm" onClick={clearFilters} className="rounded-md text-[#64748b]">
+              <Button type="button" variant="ghost" size="icon-sm" onClick={clearFilters} className="rounded-md text-muted-foreground">
                 <X className="h-4 w-4" />
               </Button>
             ) : null}
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b]">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <Tabs value={activeTab} onValueChange={(value) => updateQuery({ stage: value }, true)}>
-            <TabsList className="h-8 rounded-md bg-[#eef2f7] p-0.5">
+            <TabsList className="h-8 rounded-md bg-surface-low p-0.5">
               {TAB_CONFIG.map((tab) => {
                 const count =
                   tab.value === "history"
@@ -1086,7 +1086,7 @@ function DistributorQueueContent() {
       ) : null}
 
       {activeTab === "history" && !deliveryDate ? (
-        <div className="rounded-md border border-[#dfe5ef] bg-[#f7f9fc] px-3 py-2 text-xs text-[#64748b]">
+        <div className="rounded-md border border-hairline bg-[#f7f9fc] px-3 py-2 text-xs text-muted-foreground">
           Mostrando os últimos 30 dias. Use o filtro de data para outros períodos.
         </div>
       ) : null}
@@ -1094,11 +1094,11 @@ function DistributorQueueContent() {
       {queueQuery.isLoading ? (
         <QueueSkeleton />
       ) : activeTab !== "history" && summary.active === 0 && !hasActiveFilters ? (
-        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-[#64748b]">
+        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-muted-foreground">
           Nenhum pedido ativo agora.
         </div>
       ) : orders.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-[#64748b]">
+        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-white px-6 py-10 text-center text-sm text-muted-foreground">
           Nenhum pedido encontrado para os filtros atuais.
         </div>
       ) : activeTab === "all" ? (
@@ -1155,7 +1155,7 @@ function DistributorQueueContent() {
       )}
 
       {total > 0 ? (
-        <footer className="flex items-center justify-between rounded-lg border border-[#d8e0eb] bg-white px-3 py-2 text-sm text-[#64748b]">
+        <footer className="flex items-center justify-between rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-muted-foreground">
           <span>{limit} pedidos por pagina - {totalPages} pagina{totalPages === 1 ? "" : "s"}</span>
           <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => updateQuery({ page: String(nextPage) }, false)} />
         </footer>

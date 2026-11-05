@@ -184,7 +184,7 @@ function ProductForm({
             <Label
               key={mode.value}
               htmlFor={`mode-${editingId ?? "new"}-${mode.value}`}
-              className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d9dde3] p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-hairline p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
             >
               <RadioGroupItem id={`mode-${editingId ?? "new"}-${mode.value}`} value={mode.value} className="mt-0.5" />
               <span className="space-y-0.5">
@@ -242,14 +242,14 @@ function ProductForm({
       )}
 
       {draft.mode === "refil" && bottle && priceCents > 0 && (
-        <p className="rounded-xl bg-[#5697E9]/10 px-3 py-2 text-xs text-[#32466e] sm:col-span-2">
+        <p className="rounded-xl bg-sky/10 px-3 py-2 text-xs text-ink sm:col-span-2">
           Cliente paga {formatCurrency(priceCents)} por unidade. Sem o vazio na entrega, o motorista cobra
           + {formatCurrency(bottle.price_cents)} (total {formatCurrency(priceCents + bottle.price_cents)}),
           entrega parcial ou cancela.
         </p>
       )}
       {draft.mode === "combo" && base && bottle && (
-        <p className="rounded-xl bg-[#5697E9]/10 px-3 py-2 text-xs text-[#32466e] sm:col-span-2">
+        <p className="rounded-xl bg-sky/10 px-3 py-2 text-xs text-ink sm:col-span-2">
           Referência: {base.name} {formatCurrency(base.price_cents)} + {bottle.name}{" "}
           {formatCurrency(bottle.price_cents)} = {formatCurrency(base.price_cents + bottle.price_cents)}.
         </p>
@@ -260,7 +260,7 @@ function ProductForm({
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="Nome do produto"
-          className="rounded-xl border-[#d9dde3] text-sm"
+          className="rounded-xl border-hairline text-sm"
         />
       </Field>
       <Field label="Descrição">
@@ -268,7 +268,7 @@ function ProductForm({
           value={draft.description}
           onChange={(e) => onChange({ ...draft, description: e.target.value })}
           placeholder="Descrição opcional"
-          className="rounded-xl border-[#d9dde3] text-sm"
+          className="rounded-xl border-hairline text-sm"
         />
       </Field>
       <Field label="Preço (R$) *">
@@ -279,7 +279,7 @@ function ProductForm({
           value={draft.price_cents}
           onChange={(e) => onChange({ ...draft, price_cents: e.target.value })}
           placeholder="0.00"
-          className="rounded-xl border-[#d9dde3] text-sm"
+          className="rounded-xl border-hairline text-sm"
         />
       </Field>
       <div className="sm:col-span-2">
@@ -289,7 +289,7 @@ function ProductForm({
             value={draft.image_url}
             onChange={(e) => onChange({ ...draft, image_url: e.target.value })}
             placeholder="https://exemplo.com/imagem.jpg"
-            className="rounded-xl border-[#d9dde3] text-sm"
+            className="rounded-xl border-hairline text-sm"
           />
         </Field>
       </div>
@@ -393,7 +393,7 @@ export default function OpsProductsPage() {
             key={i}
             className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"
           >
-            <div className="h-4 w-48 rounded-lg bg-[#e1e3e4]" />
+            <div className="h-4 w-48 rounded-lg bg-surface-highest" />
           </div>
         ))}
       </div>
@@ -411,7 +411,7 @@ export default function OpsProductsPage() {
               setCreating(true);
               setEditId(null);
             }}
-            className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none active:scale-[0.98]"
+            className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1" />
             Novo produto
@@ -441,7 +441,7 @@ export default function OpsProductsPage() {
             size="sm"
             disabled={saving}
             onClick={handleCreate}
-            className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none active:scale-[0.98]"
+            className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
           >
             <Save className="h-3.5 w-3.5 mr-1" />
             {saving ? "Salvando..." : "Criar produto"}
@@ -480,7 +480,7 @@ export default function OpsProductsPage() {
                   size="sm"
                   disabled={saving}
                   onClick={() => handleUpdate(product.id)}
-                  className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none active:scale-[0.98]"
+                  className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
                 >
                   <Save className="h-3.5 w-3.5 mr-1" />
                   {saving ? "Salvando..." : "Salvar"}
@@ -492,7 +492,7 @@ export default function OpsProductsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3">
                     {/* Preview da imagem */}
-                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-[#e1e3e4] flex items-center justify-center shrink-0">
+                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-surface-highest flex items-center justify-center shrink-0">
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -540,7 +540,7 @@ export default function OpsProductsPage() {
                       setEditDraft(draftFromProduct(product));
                       setCreating(false);
                     }}
-                    className="h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"
+                    className="h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
                   >
                     <Pencil className="h-3 w-3 mr-1" />
                     Editar
@@ -549,8 +549,8 @@ export default function OpsProductsPage() {
                     size="sm"
                     className={
                       product.is_active
-                        ? "h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"
-                        : "h-7 text-xs rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none active:scale-[0.98]"
+                        ? "h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
+                        : "h-7 text-xs rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
                     }
                     onClick={() => toggleActive(product)}
                   >

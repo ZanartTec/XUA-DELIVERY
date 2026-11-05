@@ -42,9 +42,9 @@ export default function SupportPage() {
           placeholder="Buscar por telefone, e-mail ou ID do pedido"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1 rounded-xl border-0 bg-[#e1e3e4]"
+          className="flex-1 rounded-xl border-0 bg-surface-highest"
         />
-        <Button type="submit" disabled={loading} className="rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none active:scale-[0.98]">
+        <Button type="submit" disabled={loading} className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]">
           {loading ? "..." : "Buscar"}
         </Button>
       </form>

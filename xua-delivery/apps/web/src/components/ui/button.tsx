@@ -20,6 +20,12 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         accent: "bg-accent text-accent-foreground hover:bg-accent/90 focus-visible:ring-accent/50",
+        /** CTA de conversão do consumidor (ciano Xuá). */
+        cta: "bg-cta font-semibold text-cta-foreground shadow-sm hover:bg-cta/90 focus-visible:ring-cta/50",
+        /** Ação secundária com fundo suave da marca. */
+        soft: "bg-sky/10 text-primary hover:bg-sky/20 aria-expanded:bg-sky/20",
+        "destructive-soft":
+          "bg-danger-surface text-destructive hover:bg-destructive/15 focus-visible:ring-destructive/20",
       },
       size: {
         default:
@@ -27,12 +33,16 @@ const buttonVariants = cva(
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        /** Alvo de toque confortável (48px) para ações primárias no mobile. */
+        xl: "h-12 gap-2 rounded-xl px-5 text-base [&_svg:not([class*='size-'])]:size-5",
         icon: "size-8",
         "icon-xs":
           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        /** Botão só-ícone com alvo de toque de 44px. */
+        "icon-touch": "size-11 rounded-xl [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

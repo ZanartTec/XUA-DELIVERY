@@ -110,7 +110,7 @@ function DistributorSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={className ?? "w-full rounded-xl border border-[#d9dde3] bg-white px-3 py-2 text-sm"}
+      className={className ?? "w-full rounded-xl border border-hairline bg-white px-3 py-2 text-sm"}
     >
       <option value="">{placeholder}</option>
       {distributors.map((d) => (
@@ -175,10 +175,10 @@ function DriverCard({
         <div className="flex items-center gap-3 min-w-0">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-              isOrphan ? "bg-amber-100" : "bg-[#5697E9]/15"
+              isOrphan ? "bg-amber-100" : "bg-sky/15"
             }`}
           >
-            <UserCog className={`h-5 w-5 ${isOrphan ? "text-amber-600" : "text-[#5697E9]"}`} />
+            <UserCog className={`h-5 w-5 ${isOrphan ? "text-amber-600" : "text-sky"}`} />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold font-heading leading-tight truncate">{driver.name}</p>
@@ -200,7 +200,7 @@ function DriverCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge className={driver.is_active ? "bg-primary text-white" : "bg-[#e1e3e4] text-muted-foreground"}>
+          <Badge className={driver.is_active ? "bg-primary text-white" : "bg-surface-highest text-muted-foreground"}>
             {driver.is_active ? "Ativo" : "Inativo"}
           </Badge>
           {isOrphan && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Órfão</Badge>}
@@ -208,20 +208,20 @@ function DriverCard({
       </div>
 
       {isEditing ? (
-        <div className="space-y-4 pt-3 border-t border-[#e4e8f1]">
+        <div className="space-y-4 pt-3 border-t border-hairline">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nome" hint="Em branco = manter atual">
               <Input
                 value={editDraft.name}
                 onChange={(e) => onChangeEditDraft({ ...editDraft, name: e.target.value })}
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
             <Field label="Telefone" hint="Em branco = manter atual">
               <Input
                 value={editDraft.phone}
                 onChange={(e) => onChangeEditDraft({ ...editDraft, phone: e.target.value })}
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
           </div>
@@ -229,7 +229,7 @@ function DriverCard({
             <Button
               disabled={saving}
               onClick={onSave}
-              className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
+              className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
             >
               <Save className="mr-1 h-4 w-4" />
               {saving ? "Salvando..." : "Salvar"}
@@ -243,7 +243,7 @@ function DriverCard({
         <div className="flex flex-wrap gap-2 pt-1">
           <Button
             size="sm"
-            className="h-7 text-xs rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]"
+            className="h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
             onClick={onStartEdit}
           >
             <Pencil className="h-3 w-3 mr-1" />
@@ -254,7 +254,7 @@ function DriverCard({
             className={
               driver.is_active
                 ? "h-7 text-xs rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
-                : "h-7 text-xs rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none"
+                : "h-7 text-xs rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none"
             }
             variant={driver.is_active ? "ghost" : "default"}
             onClick={onToggleActive}
@@ -270,13 +270,13 @@ function DriverCard({
             value={linkSelection}
             onChange={setLinkSelection}
             distributors={distributors}
-            className="min-w-0 flex-1 rounded-xl border border-[#d9dde3] bg-white px-3 py-2 text-sm mt-2"
+            className="min-w-0 flex-1 rounded-xl border border-hairline bg-white px-3 py-2 text-sm mt-2"
           />
           <Button
             size="sm"
             disabled={linking}
             onClick={handleLinkClick}
-            className="mt-2 shrink-0 rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
+            className="mt-2 shrink-0 rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
           >
             <Link2 className="mr-1 h-4 w-4" />
             {linking ? "Vinculando..." : "Vincular"}
@@ -421,7 +421,7 @@ export default function OpsDriversPage() {
         <h1 className="text-lg font-bold font-heading text-foreground">Motoristas</h1>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="h-4 w-48 rounded-lg bg-[#e1e3e4]" />
+            <div className="h-4 w-48 rounded-lg bg-surface-highest" />
           </div>
         ))}
       </div>
@@ -443,7 +443,7 @@ export default function OpsDriversPage() {
         {!creating && (
           <Button
             size="sm"
-            className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
+            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
             onClick={() => {
               setCreating(true);
               setEditId(null);
@@ -476,7 +476,7 @@ export default function OpsDriversPage() {
                 value={createDraft.name}
                 onChange={(e) => setCreateDraft({ ...createDraft, name: e.target.value })}
                 placeholder="Nome completo"
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
             <Field label="E-mail *">
@@ -485,7 +485,7 @@ export default function OpsDriversPage() {
                 value={createDraft.email}
                 onChange={(e) => setCreateDraft({ ...createDraft, email: e.target.value })}
                 placeholder="motorista@exemplo.com"
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
             <Field label="Telefone">
@@ -493,7 +493,7 @@ export default function OpsDriversPage() {
                 value={createDraft.phone}
                 onChange={(e) => setCreateDraft({ ...createDraft, phone: e.target.value })}
                 placeholder="(11) 98888-7777"
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
             <Field label="Senha inicial *" hint="Mínimo 8 caracteres. O motorista pode trocar depois.">
@@ -502,7 +502,7 @@ export default function OpsDriversPage() {
                 value={createDraft.password}
                 onChange={(e) => setCreateDraft({ ...createDraft, password: e.target.value })}
                 placeholder="••••••••"
-                className="rounded-xl border-[#d9dde3] text-sm"
+                className="rounded-xl border-hairline text-sm"
               />
             </Field>
             <Field label="Distribuidora *" hint="Motorista já é criado vinculado a esta distribuidora">
@@ -516,7 +516,7 @@ export default function OpsDriversPage() {
           <Button
             disabled={saving}
             onClick={handleCreate}
-            className="rounded-xl bg-[#00E0FF] text-[#001735] hover:bg-[#00E0FF]/90 shadow-none font-semibold"
+            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
           >
             <Save className="mr-1 h-4 w-4" />
             {saving ? "Salvando..." : "Cadastrar motorista"}
@@ -564,8 +564,8 @@ export default function OpsDriversPage() {
 
         {visibleDrivers.length === 0 && !creating && (
           <div className="rounded-2xl bg-white/95 px-6 py-10 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#5697E9]/15">
-              <Truck className="h-7 w-7 text-[#5697E9]" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky/15">
+              <Truck className="h-7 w-7 text-sky" />
             </div>
             <h2 className="mt-3 text-sm font-semibold font-heading text-foreground">
               Nenhum motorista cadastrado

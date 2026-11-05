@@ -16,6 +16,7 @@ import {
   Truck,
   Droplets,
   Loader2,
+  Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/src/store/auth";
@@ -33,6 +34,9 @@ import {
   hiddenCheckoutMethods,
 } from "@/src/hooks/use-distributor-payment-methods";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
+import Link from "next/link";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { EmptyState } from "@/src/components/shared/empty-state";
 import type { Address } from "@/src/types";
 import {
   CARD_ON_DELIVERY_PAYMENT_METHOD,
@@ -115,7 +119,7 @@ function StepIndicator({
               ? "w-6 bg-primary"
               : i < current
               ? "w-3 bg-primary/40"
-              : "w-3 bg-[#d9dde3]"
+              : "w-3 bg-surface-high"
           )}
         />
       ))}
@@ -426,20 +430,22 @@ export default function SubscriptionCreatePage() {
 
   function renderHeader() {
     return (
-      <div className="sticky top-0 z-10 bg-[#f4f6f8] pb-2 pt-4">
-        <div className="flex items-center gap-3 mb-3">
-          <button
-            type="button"
+      <div className="sticky top-(--app-header-h) z-10 bg-background pb-2 pt-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            className="-ml-2"
+            aria-label={step > 0 ? "Voltar à etapa anterior" : "Voltar"}
             onClick={() => (step > 0 ? back() : router.back())}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm"
           >
-            <ArrowLeft className="h-4 w-4 text-[#191c1d]" />
-          </button>
+            <ArrowLeft />
+          </Button>
           <div className="flex-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {STEPS[step]}
             </p>
-            <h1 className="font-heading font-bold text-xl text-[#191c1d] leading-tight">
+            <h1 className="font-heading font-bold text-xl text-foreground leading-tight">
               {stepTitle()}
             </h1>
           </div>
@@ -473,9 +479,16 @@ export default function SubscriptionCreatePage() {
     }
     if (plans.length === 0) {
       return (
-        <p className="text-center text-sm text-muted-foreground py-16">
-          Nenhum plano disponível no momento.
-        </p>
+        <EmptyState
+          icon={Repeat}
+          title="Nenhum plano disponível agora"
+          description="Assim que houver planos na sua região eles aparecem aqui. Enquanto isso, faça um pedido avulso."
+          action={
+            <Button asChild variant="cta" size="xl">
+              <Link href="/catalog">Fazer pedido avulso</Link>
+            </Button>
+          }
+        />
       );
     }
     return (
@@ -490,16 +503,16 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "relative w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.98]",
                 selected
-                  ? "border-2 border-primary bg-white shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
-                  : "border border-[#d9dde3] bg-white hover:border-primary/40"
+                  ? "border-2 border-primary bg-card shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
+                  : "border border-hairline bg-card hover:border-primary/40"
               )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <p className="font-bold text-[#191c1d]">{plan.name}</p>
+                    <p className="font-bold text-foreground">{plan.name}</p>
                     {plan.discount_percentage > 0 && (
-                      <Badge className="bg-[#00E0FF] text-[#001735] text-[10px] font-bold">
+                      <Badge className="bg-cta text-cta-foreground text-[10px] font-bold">
                         {plan.discount_percentage}% OFF
                       </Badge>
                     )}
@@ -565,14 +578,14 @@ export default function SubscriptionCreatePage() {
               className={cn(
                 "relative flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all active:scale-[0.98]",
                 selected
-                  ? "border-2 border-primary bg-white shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
-                  : "border border-[#d9dde3] bg-white hover:border-primary/40"
+                  ? "border-2 border-primary bg-card shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
+                  : "border border-hairline bg-card hover:border-primary/40"
               )}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8eef8]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky/10">
                 <Truck className="h-5 w-5 text-primary" />
               </div>
-              <p className="flex-1 font-semibold text-[#191c1d]">
+              <p className="flex-1 font-semibold text-foreground">
                 {distributor.name}
               </p>
               {selected && (
@@ -641,7 +654,7 @@ export default function SubscriptionCreatePage() {
         </p>
 
         {/* Progress indicator */}
-        <div className="rounded-2xl bg-white border border-[#d9dde3] p-3 space-y-2">
+        <div className="rounded-2xl bg-card border border-hairline p-3 space-y-2">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Produtos distribuídos</span>
             <span
@@ -657,7 +670,7 @@ export default function SubscriptionCreatePage() {
               {totalAssigned} / {selectedPlan.quantity}
             </span>
           </div>
-          <div className="h-1.5 rounded-full bg-[#e8eef8] overflow-hidden">
+          <div className="h-1.5 rounded-full bg-sky/10 overflow-hidden">
             <div
               className={cn(
                 "h-full rounded-full transition-all",
@@ -720,11 +733,11 @@ export default function SubscriptionCreatePage() {
                   return (
                     <div
                       key={date}
-                      className="rounded-xl border border-[#d9dde3] bg-white p-3 space-y-3"
+                      className="rounded-xl border border-hairline bg-card p-3 space-y-3"
                     >
                       <div className="flex items-center gap-3">
                         <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
-                        <p className="flex-1 text-sm font-medium text-[#191c1d]">
+                        <p className="flex-1 text-sm font-medium text-foreground">
                           {formatIsoDate(date)}
                         </p>
                       </div>
@@ -750,7 +763,7 @@ export default function SubscriptionCreatePage() {
                             const val = Math.max(1, parseInt(e.target.value, 10) || 1);
                             setQuantityForDate(date, val);
                           }}
-                          className="w-16 rounded-lg border border-[#d9dde3] bg-white px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-16 rounded-lg border border-hairline bg-card px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                         <span className="text-xs text-muted-foreground">
                           {selectedPlan.product.name}
@@ -773,30 +786,30 @@ export default function SubscriptionCreatePage() {
     return (
       <div className="space-y-5">
         {selectedPlan && (
-          <div className="rounded-2xl bg-white border border-[#d9dde3] p-4 space-y-1">
+          <div className="rounded-2xl bg-card border border-hairline p-4 space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
               Resumo
             </p>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Plano</span>
-              <span className="font-medium text-[#191c1d]">{selectedPlan.name}</span>
+              <span className="font-medium text-foreground">{selectedPlan.name}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Produtos</span>
-              <span className="font-medium text-[#191c1d]">
+              <span className="font-medium text-foreground">
                 {selectedPlan.quantity}× {selectedPlan.product.name}
               </span>
             </div>
             {selectedAddress && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Endereço</span>
-                <span className="font-medium text-[#191c1d] truncate max-w-[180px] text-right">
+                <span className="font-medium text-foreground truncate max-w-[180px] text-right">
                   {selectedAddress.street}, {selectedAddress.number}
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-sm border-t border-[#d9dde3] pt-2 mt-2">
-              <span className="font-semibold text-[#191c1d]">Total</span>
+            <div className="flex justify-between text-sm border-t border-hairline pt-2 mt-2">
+              <span className="font-semibold text-foreground">Total</span>
               <span className="font-bold text-primary text-base">
                 {formatCurrency(totalCents)}
               </span>
@@ -819,10 +832,10 @@ export default function SubscriptionCreatePage() {
   // Main render
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#f4f6f8]">
+    <div className="bg-background">
       <div className="mx-auto max-w-lg px-4">
         {renderHeader()}
-        <div className="pb-48 pt-2">
+        <div className="pt-2">
           {step === 0 && renderPlanStep()}
           {step === 1 && renderDistributorStep()}
           {step === 2 && renderAddressStep()}
@@ -831,12 +844,13 @@ export default function SubscriptionCreatePage() {
         </div>
       </div>
 
-      {/* Bottom CTA — sits above the app nav bar (~56px) */}
-      <div className="fixed bottom-14 left-0 right-0 z-30 border-t border-[#e1e3e4] bg-white px-4 py-3">
-        <div className="mx-auto max-w-lg">
+      {/* Ação primária na zona do polegar, acima do bottom nav */}
+      {step === 0 && !loadingPlans && plans.length === 0 ? null : (
+      <StickyActionBar>
           {step < 4 ? (
             <Button
-              className="w-full rounded-2xl h-12 text-base font-bold gap-2"
+              variant="cta"
+              size="xl"
               disabled={!canAdvance()}
               onClick={advance}
             >
@@ -845,7 +859,8 @@ export default function SubscriptionCreatePage() {
             </Button>
           ) : (
             <Button
-              className="w-full rounded-2xl h-12 text-base font-bold gap-2"
+              variant="cta"
+              size="xl"
               disabled={submitting || !canAdvance()}
               onClick={handleSubmit}
             >
@@ -856,14 +871,14 @@ export default function SubscriptionCreatePage() {
                 </>
               ) : (
                 <>
-                  Confirmar e Pagar
+                  Confirmar e pagar
                   <Check className="h-4 w-4" />
                 </>
               )}
             </Button>
           )}
-        </div>
-      </div>
+      </StickyActionBar>
+      )}
     </div>
   );
 }

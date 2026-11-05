@@ -116,9 +116,9 @@ export default function ChecklistPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-bold font-heading">Checklist — Pedido #{id}</h1>
 
-      <div className="w-full bg-[#e1e3e4] rounded-full h-2">
+      <div className="w-full bg-surface-highest rounded-full h-2">
         <div
-          className="bg-[#00E0FF] h-2 rounded-full transition-all"
+          className="bg-cta h-2 rounded-full transition-all"
           style={{ width: `${(progress / CHECKLIST_ITEMS.length) * 100}%` }}
         />
       </div>
@@ -136,7 +136,7 @@ export default function ChecklistPage() {
               "w-full flex items-center gap-3 rounded-xl p-3 text-sm text-left transition-all",
               checks[item.key]
                 ? "bg-green-50 shadow-[0_2px_8px_rgba(34,197,94,0.15)]"
-                : "bg-[#e1e3e4]/50 hover:bg-[#e1e3e4]"
+                : "bg-surface-highest/50 hover:bg-surface-highest"
             )}
           >
             <span
@@ -160,7 +160,7 @@ export default function ChecklistPage() {
           value={selectedDriver}
           onChange={(e) => setSelectedDriver(e.target.value)}
           disabled={blockedByStatus}
-          className="w-full rounded-xl border border-[#e1e3e4] bg-[#f5f6f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full rounded-xl border border-hairline bg-surface-low px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="">Selecione o motorista...</option>
           {drivers.map((d) => (
@@ -187,7 +187,7 @@ export default function ChecklistPage() {
       )}
 
       <Button
-        className="w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
+        className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
         disabled={!canDispatch || loading}
         onClick={handleDispatch}
       >

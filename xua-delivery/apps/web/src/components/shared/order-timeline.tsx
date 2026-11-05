@@ -2,7 +2,7 @@
 
 import { cn } from "@/src/lib/utils";
 import { useIsClient } from "@/src/hooks/use-is-client";
-import { resolveEventType } from "@/src/lib/order-detail-format";
+import { formatEventLabel, resolveEventType } from "@/src/lib/order-detail-format";
 
 export interface TimelineEvent {
   status: string;
@@ -19,58 +19,59 @@ interface OrderTimelineProps {
 }
 
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
-  ORDER_CREATED:               { label: "Pedido criado", color: "bg-blue-100 text-blue-700" },
-  ORDER_DRAFT_CREATED:         { label: "Pedido iniciado", color: "bg-gray-100 text-gray-600" },
-  PAYMENT_PENDING:             { label: "Aguardando pagamento", color: "bg-yellow-100 text-yellow-700" },
-  PAYMENT_CAPTURED:            { label: "Pagamento confirmado", color: "bg-green-100 text-green-700" },
-  PAYMENT_FAILED:              { label: "Falha no pagamento", color: "bg-red-100 text-red-700" },
-  ORDER_CONFIRMED:             { label: "Pedido confirmado", color: "bg-green-100 text-green-700" },
-  ORDER_RECEIVED_BY_DISTRIBUTOR: { label: "Recebido pelo distribuidor", color: "bg-indigo-100 text-indigo-700" },
-  ORDER_ACCEPTED_BY_DISTRIBUTOR: { label: "Aceito pelo distribuidor", color: "bg-emerald-100 text-emerald-700" },
-  ORDER_REJECTED_BY_DISTRIBUTOR: { label: "Rejeitado pelo distribuidor", color: "bg-red-100 text-red-700" },
-  ORDER_PICKING:               { label: "Em separação", color: "bg-orange-100 text-orange-700" },
-  ORDER_READY_FOR_DISPATCH:    { label: "Pronto para despacho", color: "bg-teal-100 text-teal-700" },
-  ORDER_DISPATCHED:            { label: "Despachado ao motorista", color: "bg-purple-100 text-purple-700" },
-  ORDER_OUT_FOR_DELIVERY:      { label: "Em rota de entrega", color: "bg-purple-100 text-purple-700" },
-  ORDER_DELIVERED:             { label: "Entregue com sucesso", color: "bg-green-100 text-green-800" },
-  ORDER_DELIVERY_FAILED:       { label: "Falha na entrega", color: "bg-red-100 text-red-700" },
-  REDELIVERY_REQUIRED:         { label: "Falha na entrega", color: "bg-red-100 text-red-700" },
-  REDELIVERY_SCHEDULED:        { label: "Reentrega agendada", color: "bg-amber-100 text-amber-700" },
-  ORDER_CANCELLED:             { label: "Pedido cancelado", color: "bg-gray-200 text-gray-600" },
-  OTP_GENERATED:               { label: "Código de confirmação gerado", color: "bg-blue-100 text-blue-700" },
-  OTP_VALIDATED:               { label: "Código de confirmação validado", color: "bg-green-100 text-green-700" },
-  OTP_FAILED:                  { label: "Tentativa inválida de código", color: "bg-red-100 text-red-700" },
-  CHECKLIST_COMPLETED:         { label: "Checklist concluído", color: "bg-teal-100 text-teal-700" },
-  BOTTLE_EXCHANGE:             { label: "Troca de vasilhame registrada", color: "bg-amber-100 text-amber-700" },
-  NON_COLLECTION:              { label: "Não coletado registrado", color: "bg-orange-100 text-orange-700" },
-  RECEIPT_ISSUED:              { label: "Comprovante de venda emitido", color: "bg-slate-100 text-slate-700" },
-  RECEIPT_PRINTED:             { label: "Comprovante de venda impresso", color: "bg-slate-100 text-slate-700" },
+  ORDER_CREATED:               { label: "Pedido criado", color: "bg-secondary text-primary" },
+  ORDER_DRAFT_CREATED:         { label: "Pedido iniciado", color: "bg-surface-high text-muted-foreground" },
+  PAYMENT_PENDING:             { label: "Aguardando pagamento", color: "bg-warning-surface text-warning-foreground" },
+  PAYMENT_CAPTURED:            { label: "Pagamento confirmado", color: "bg-success-surface text-success-foreground" },
+  PAYMENT_FAILED:              { label: "Falha no pagamento", color: "bg-danger-surface text-destructive" },
+  ORDER_CONFIRMED:             { label: "Pedido confirmado", color: "bg-success-surface text-success-foreground" },
+  ORDER_RECEIVED_BY_DISTRIBUTOR: { label: "Recebido pelo distribuidor", color: "bg-secondary text-primary" },
+  ORDER_ACCEPTED_BY_DISTRIBUTOR: { label: "Aceito pelo distribuidor", color: "bg-success-surface text-success-foreground" },
+  ORDER_REJECTED_BY_DISTRIBUTOR: { label: "Rejeitado pelo distribuidor", color: "bg-danger-surface text-destructive" },
+  ORDER_PICKING:               { label: "Em separação", color: "bg-warning-surface text-warning-foreground" },
+  ORDER_READY_FOR_DISPATCH:    { label: "Pronto para despacho", color: "bg-sky/15 text-primary" },
+  ORDER_DISPATCHED:            { label: "Despachado ao motorista", color: "bg-sky/15 text-primary" },
+  ORDER_OUT_FOR_DELIVERY:      { label: "Em rota de entrega", color: "bg-sky/15 text-primary" },
+  ORDER_DELIVERED:             { label: "Entregue com sucesso", color: "bg-success-surface text-success-foreground" },
+  ORDER_DELIVERY_FAILED:       { label: "Falha na entrega", color: "bg-danger-surface text-destructive" },
+  REDELIVERY_REQUIRED:         { label: "Falha na entrega", color: "bg-danger-surface text-destructive" },
+  REDELIVERY_SCHEDULED:        { label: "Reentrega agendada", color: "bg-warning-surface text-warning-foreground" },
+  ORDER_CANCELLED:             { label: "Pedido cancelado", color: "bg-surface-high text-muted-foreground" },
+  OTP_GENERATED:               { label: "Código de confirmação gerado", color: "bg-secondary text-primary" },
+  OTP_VALIDATED:               { label: "Código de confirmação validado", color: "bg-success-surface text-success-foreground" },
+  OTP_FAILED:                  { label: "Tentativa inválida de código", color: "bg-danger-surface text-destructive" },
+  CHECKLIST_COMPLETED:         { label: "Checklist concluído", color: "bg-sky/15 text-primary" },
+  BOTTLE_EXCHANGE:             { label: "Troca de vasilhame registrada", color: "bg-warning-surface text-warning-foreground" },
+  NON_COLLECTION:              { label: "Não coletado registrado", color: "bg-warning-surface text-warning-foreground" },
+  RECEIPT_ISSUED:              { label: "Comprovante de venda emitido", color: "bg-surface-high text-muted-foreground" },
+  RECEIPT_PRINTED:             { label: "Comprovante de venda impresso", color: "bg-surface-high text-muted-foreground" },
 };
 
 const ACTOR_LABELS: Record<string, string> = {
-  "payment-gateway": "Gateway de pagamento",
-  "system":          "Sistema",
-  "mock-gateway":    "Gateway de pagamento",
+  "payment-gateway": "Mercado Pago",
+  "mock-gateway":    "Mercado Pago",
 };
 
+/**
+ * Só mostra o ator quando ele diz algo a quem lê (ex.: "Mercado Pago").
+ * UUIDs e identificadores técnicos ("system", "pay-on-delivery") ficam ocultos.
+ */
 function formatActor(actor: string): string {
   if (ACTOR_LABELS[actor]) return ACTOR_LABELS[actor];
-  // UUID — oculta, sem contexto útil para o consumidor
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(actor)) return "";
+  if (/^[a-z0-9_-]+$/i.test(actor)) return "";
   return actor;
 }
 
 export function OrderTimeline({ events, className }: OrderTimelineProps) {
   const isClient = useIsClient();
   return (
-    <ol className={cn("relative border-l border-[#e1e3e4] ml-3", className)}>
+    <ol className={cn("relative border-l border-hairline ml-3", className)}>
       {events.map((event, i) => {
         const isLast = i === events.length - 1;
         const eventType = resolveEventType(event.status, event.payload);
         const config = EVENT_LABELS[eventType] ?? {
-          label: eventType.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
-          color: "bg-gray-100 text-gray-600",
+          label: formatEventLabel(event.status, event.payload).replace(/^\w/, (c) => c.toUpperCase()),
+          color: "bg-surface-high text-muted-foreground",
         };
         const actor = event.actor ? formatActor(event.actor) : "";
 
@@ -78,19 +79,19 @@ export function OrderTimeline({ events, className }: OrderTimelineProps) {
           <li key={`${event.status}-${event.timestamp}`} className="mb-6 ml-6 last:mb-0">
             <span
               className={cn(
-                "absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-white",
-                isLast ? "bg-primary" : "bg-[#c7cbd4]"
+                "absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full ring-4 ring-card",
+                isLast ? "bg-primary" : "bg-surface-highest"
               )}
             />
             <div className="flex flex-col gap-1">
               <span className={cn("inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", config.color)}>
                 {config.label}
               </span>
-              <time className="text-xs text-[#737688]">
+              <time className="text-xs text-muted-foreground">
                 {isClient ? new Date(event.timestamp).toLocaleString("pt-BR") : ""}
               </time>
               {actor && (
-                <span className="text-xs text-[#9fa6b2]">{actor}</span>
+                <span className="text-xs text-muted-foreground">{actor}</span>
               )}
             </div>
           </li>

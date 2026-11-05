@@ -148,7 +148,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
           {isLoadingCoverage ? (
             <div className="flex flex-wrap gap-1.5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-5 w-24 animate-pulse rounded-lg bg-[#e1e3e4]" />
+                <div key={i} className="h-5 w-24 animate-pulse rounded-lg bg-surface-highest" />
               ))}
             </div>
           ) : coverage.length === 0 ? (
@@ -160,7 +160,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
               {coverage.map((item) => (
                 <span
                   key={item.id}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[#e1e3e4]/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg bg-surface-highest/60 px-2 py-0.5 text-[11px] text-muted-foreground"
                 >
                   {coverageLabel(item)}
                   <button
@@ -208,7 +208,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
       )}
 
       {mode === "single" && (
-        <div className="space-y-2 border-t border-[#e4e8f1] pt-2">
+        <div className="space-y-2 border-t border-hairline pt-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
               autoFocus
@@ -246,7 +246,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
       )}
 
       {mode === "bulk" && (
-        <div className="space-y-2 border-t border-[#e4e8f1] pt-2">
+        <div className="space-y-2 border-t border-hairline pt-2">
           <label htmlFor={`bulk-${zone.id}`} className={OPS_FIELD_LABEL}>
             Uma cobertura por linha
           </label>
@@ -317,7 +317,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
 /** Resultado da análise: o que entra, o que é bloqueado e o que só avisa. */
 function PreviewSummary({ preview }: { preview: CoveragePreview }) {
   return (
-    <div className="space-y-2 rounded-xl bg-[#e1e3e4]/40 p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-xl bg-surface-highest/40 p-2.5 text-[11px]">
       <p className="font-semibold text-foreground">
         {preview.accepted_count} de {preview.total} serão importadas
         {preview.duplicates_in_payload > 0 &&

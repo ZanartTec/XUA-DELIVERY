@@ -77,7 +77,7 @@ export default function DriverFailurePage() {
           <select
             value={reason}
             onChange={(event) => setReason(event.target.value as (typeof FAILURE_REASONS)[number]["value"] | "")}
-            className="w-full rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm"
+            className="w-full rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm"
           >
             <option value="">Selecione...</option>
             {FAILURE_REASONS.map((item) => (
@@ -93,7 +93,7 @@ export default function DriverFailurePage() {
           <Textarea
             value={details}
             onChange={(event) => setDetails(event.target.value)}
-            className="h-24 rounded-xl border-0 bg-[#e1e3e4] px-3 py-2 text-sm resize-none"
+            className="h-24 rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm resize-none"
             placeholder={needsDetails ? "Descreva o ocorrido..." : "Opcional"}
           />
         </div>
@@ -108,7 +108,7 @@ export default function DriverFailurePage() {
           {loading ? "Registrando..." : "Registrar falha"}
         </Button>
 
-        <Button className="w-full rounded-xl border-0 bg-[#e1e3e4] text-foreground hover:bg-[#d1d3d4]" onClick={() => router.back()}>
+        <Button className="w-full rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest" onClick={() => router.back()}>
           Voltar
         </Button>
       </div>

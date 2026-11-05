@@ -56,7 +56,7 @@ export function TimeSlotOptions({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-sm font-medium text-gray-700">{label}</p>
+      <p className="text-sm font-medium text-foreground">{label}</p>
       <div className={cn("grid gap-2", columns === 1 ? "grid-cols-1" : "grid-cols-2")}>
         {slots.map((slot) => {
           const isSelected = selectedSlotId === slot.id;
@@ -66,13 +66,13 @@ export function TimeSlotOptions({
               type="button"
               onClick={() => onSelectSlot(slot.id, slot)}
               className={cn(
-                "rounded-lg border px-3 py-3 text-center text-sm font-medium transition-colors",
+                "min-h-11 rounded-xl border px-3 py-3 text-center text-sm font-medium transition-colors",
                 isSelected
-                  ? "border-blue-600 bg-blue-50 text-blue-700"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-blue-300",
+                  ? "border-primary bg-secondary text-primary"
+                  : "border-hairline bg-card text-foreground hover:border-primary/40",
               )}
             >
-              <span className="block text-xs text-gray-500">{formatTimeSlot(slot)}</span>
+              <span className="block text-xs text-muted-foreground">{formatTimeSlot(slot)}</span>
               <span className="block">
                 {formatHour(slot.start_hour, slot.start_minute)} -{" "}
                 {formatHour(slot.end_hour, slot.end_minute)}

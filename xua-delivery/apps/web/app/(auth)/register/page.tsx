@@ -43,7 +43,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-[#f8f9fa] lg:bg-white lg:h-screen lg:overflow-hidden">
+    <div className="relative min-h-dvh overflow-x-hidden bg-background lg:bg-white lg:h-screen lg:overflow-hidden">
       {/* Imagem de fundo fixa (apenas mobile/tablet) */}
       <div className="fixed inset-0 -z-20 lg:hidden">
         <Image
@@ -83,10 +83,10 @@ export default function RegisterPage() {
 
           {/* Formulário na parte inferior (ou painel desktop centralizado) */}
           <div className="mt-auto lg:my-auto w-full max-w-sm mx-auto rounded-2xl bg-white/70 backdrop-blur-md p-5 shadow-lg shadow-black/5 lg:bg-transparent lg:backdrop-blur-none lg:p-0 lg:shadow-none">
-            <h1 className="font-heading text-xl lg:text-2xl font-extrabold leading-tight text-[#0d1b2f]">
+            <h1 className="font-heading text-xl lg:text-2xl font-extrabold leading-tight text-ink">
               Crie sua conta
             </h1>
-            <p className="mt-0.5 text-xs lg:text-sm text-[#7d8494]">
+            <p className="mt-0.5 text-xs lg:text-sm text-muted-foreground">
               Preencha seus dados para continuar
             </p>
 
@@ -101,7 +101,7 @@ export default function RegisterPage() {
               <div className="space-y-1">
                 <label
                   htmlFor="name"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
                 >
                   Nome Completo
                 </label>
@@ -109,7 +109,7 @@ export default function RegisterPage() {
                   id="name"
                   type="text"
                   placeholder="Seu nome completo"
-                  className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
                   {...register("name")}
                 />
                 {errors.name && (
@@ -121,7 +121,7 @@ export default function RegisterPage() {
               <div className="space-y-1">
                 <label
                   htmlFor="email"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
                 >
                   Email
                 </label>
@@ -129,7 +129,7 @@ export default function RegisterPage() {
                   id="email"
                   type="email"
                   placeholder="nome@exemplo.com"
-                  className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
                   {...register("email")}
                 />
                 {errors.email && (
@@ -141,7 +141,7 @@ export default function RegisterPage() {
               <div className="space-y-1">
                 <label
                   htmlFor="phone"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
                 >
                   Telefone
                 </label>
@@ -149,7 +149,7 @@ export default function RegisterPage() {
                   id="phone"
                   type="tel"
                   placeholder="(11) 99999-0000"
-                  className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
                   {...register("phone")}
                 />
                 {errors.phone && (
@@ -161,7 +161,7 @@ export default function RegisterPage() {
               <div className="space-y-1">
                 <label
                   htmlFor="password"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
                 >
                   Senha
                 </label>
@@ -169,7 +169,7 @@ export default function RegisterPage() {
                   id="password"
                   type="password"
                   placeholder="No mínimo 8 caracteres"
-                  className="h-11 rounded-xl border border-[#e8eaf0] bg-white/80 shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
+                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
                   {...register("password")}
                 />
                 {errors.password && (
@@ -180,16 +180,16 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-[#001735] text-base font-semibold transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98] disabled:opacity-60 mt-4"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-cta text-cta-foreground text-base font-semibold transition-all hover:bg-cta/90 active:scale-[0.98] disabled:opacity-60 mt-4"
               >
                 {isSubmitting ? "Criando..." : "Criar Conta"}
                 {!isSubmitting && <ArrowRight className="h-4 w-4" />}
               </button>
             </form>
 
-            <p className="mt-5 text-center text-sm text-[#7d8494]">
+            <p className="mt-5 text-center text-sm text-muted-foreground">
               Já tem uma conta?{" "}
-              <Link href="/login" className="font-semibold text-[#1B4A9A]">
+              <Link href="/login" className="font-semibold text-primary">
                 Entrar
               </Link>
             </p>
@@ -220,7 +220,7 @@ export default function RegisterPage() {
           {/* Conteúdo flutuante com design premium */}
           <div className="absolute inset-0 flex flex-col justify-between p-12 text-white">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#00E0FF] animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-cta animate-pulse" />
               <span className="text-sm font-semibold uppercase tracking-wider text-white/95">
                 Xuá Delivery
               </span>
@@ -236,11 +236,11 @@ export default function RegisterPage() {
 
               <div className="pt-2 flex gap-6 border-t border-white/15">
                 <div>
-                  <p className="text-2xl font-bold text-[#00E0FF]">100%</p>
+                  <p className="text-2xl font-bold text-cta">100%</p>
                   <p className="text-[10px] uppercase font-semibold text-white/70">Mineral Natural</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-[#00E0FF]">Express</p>
+                  <p className="text-2xl font-bold text-cta">Express</p>
                   <p className="text-[10px] uppercase font-semibold text-white/70">Entrega Ágil</p>
                 </div>
 
