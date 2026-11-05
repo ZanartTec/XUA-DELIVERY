@@ -292,6 +292,8 @@ model Address {
   zip_code     String
   zone_id      String?  @db.Uuid
   is_default   Boolean  @default(false)
+  /// Excluído pelo consumidor. Mantido para o histórico de pedidos/assinaturas.
+  archived_at  DateTime?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 

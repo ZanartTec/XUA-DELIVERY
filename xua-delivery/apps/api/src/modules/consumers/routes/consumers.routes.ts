@@ -46,5 +46,7 @@ router.get("/:id/deposit/balance", consumerRead, depositController.consumerBalan
 // Addresses
 router.get("/:id/addresses", consumerRead, consumersController.listAddresses);
 router.post("/:id/addresses", consumerWrite, consumersController.createAddress);
+router.patch("/:id/addresses/:addressId", consumerWrite, consumersController.updateAddress);
+router.delete("/:id/addresses/:addressId", consumerWrite, consumersController.deleteAddress);
 
 export { router as consumersRoutes };

@@ -349,9 +349,9 @@ export const userSubscriptionsService = {
     });
     const address = await prisma.address.findUnique({
       where: { id: data.address_id },
-      select: { consumer_id: true, zone_id: true },
+      select: { consumer_id: true, zone_id: true, archived_at: true },
     });
-    if (!address || address.consumer_id !== data.consumer_id) {
+    if (!address || address.consumer_id !== data.consumer_id || address.archived_at) {
       throw new UserSubscriptionError("ADDRESS_NOT_FOUND", "Endereço não encontrado");
     }
     if (!address.zone_id) {
