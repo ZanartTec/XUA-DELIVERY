@@ -11,6 +11,7 @@ import {
   Building2,
   CalendarDays,
   ChevronDown,
+  CircleUser,
   ClipboardList,
   FileText,
   Headphones,
@@ -88,6 +89,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       // Venda simples (sem caução): entrada oculta até a feature Comodato B2B.
       // Tela continua acessível por rota direta (/distributor/deposit-program).
       { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
+      { href: "/distributor/account", label: "Conta", icon: CircleUser },
     ],
   },
   driver: {
@@ -95,6 +97,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     navItems: [
       { href: "/driver/deliveries", label: "Entregas", icon: Truck },
       { href: "/driver/history", label: "Histórico", icon: History },
+      { href: "/driver/account", label: "Conta", icon: CircleUser },
     ],
   },
   ops: {
@@ -111,6 +114,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       { href: "/ops/drivers", label: "Motoristas", icon: UserCog },
       { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
       { href: "/ops/audit-export", label: "Auditoria", icon: FileText },
+      { href: "/ops/account", label: "Conta", icon: CircleUser },
     ],
   },
   support: {
@@ -118,6 +122,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     navItems: [
       { href: "/support", label: "Suporte", icon: Headphones },
       { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
+      { href: "/support/account", label: "Conta", icon: CircleUser },
     ],
   },
 };
@@ -250,12 +255,7 @@ export function RoleAppShell({
                 {config.badgeLabel}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              {firstName ? (
-                <span className="hidden max-w-28 truncate text-sm text-muted-foreground sm:block">Olá, {firstName}</span>
-              ) : null}
-              <LogoutButton />
-            </div>
+            {firstName ? <span className="max-w-32 truncate text-sm text-muted-foreground">Olá, {firstName}</span> : null}
           </div>
         )}
       </header>

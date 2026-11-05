@@ -1,117 +1,111 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Clock3, MapPin, PackageOpen, Phone, TriangleAlert } from "lucide-react";
-import { StatusPill } from "@/src/components/shared/status-pill";
-import type { DeliveryWindow } from "@xua/shared/enums";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ChevronRight, History } from "lucide-react";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { api } from "@/src/lib/api-client";
+import { APP_TIME_ZONE, toIsoDay, todayIso, addDaysIso, isoDayToDate } from "@/src/lib/datetime";
+import { plural } from "@/src/lib/format";
+import { formatCurrency } from "@/src/lib/utils";
+import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface DriverHistoryItem {
   order_id: string;
   consumer_name: string;
-  consumer_phone: string | null;
   address_line: string;
   status: string;
-  delivery_window: DeliveryWindow;
   total_items_qty: number;
+  total_cents: number;
   occurred_at: string;
   failure_reason: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
 }
 
-function formatOccurrence(value: string) {
-  return format(new Date(value), "dd 'de' MMM • HH:mm", { locale: ptBR });
+function dayTitle(iso: string) {
+  const today = todayIso();
+  if (iso === today) return "Hoje";
+  if (iso === addDaysIso(today, -1)) return "Ontem";
+  return isoDayToDate(iso).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 }
 
-function HistorySkeleton() {
-  return (
-    <div className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
-      <div className="space-y-2">
-        <div className="h-4 w-40 rounded-lg bg-surface-highest" />
-        <div className="h-3 w-56 rounded-lg bg-surface-highest" />
-        <div className="h-3 w-28 rounded-lg bg-surface-highest" />
-      </div>
-    </div>
-  );
+function timeOf(value: string) {
+  return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: APP_TIME_ZONE });
 }
 
 export default function DriverHistoryPage() {
-  const [history, setHistory] = useState<DriverHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const query = useQuery({
+    queryKey: ["driver-history"],
+    queryFn: async () => (await api.get<{ deliveries?: DriverHistoryItem[] }>("/api/driver/deliveries/history")).deliveries ?? [],
+  });
+  const items = query.data ?? [];
 
-  useEffect(() => {
-    fetch("/api/driver/deliveries/history")
-      .then((response) => response.json())
-      .then((data) => setHistory(data.deliveries ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  // Agrupa por dia (fuso da operação) para o motorista conferir o que recebeu.
+  const groups = new Map<string, DriverHistoryItem[]>();
+  for (const item of items) {
+    const day = toIsoDay(new Date(item.occurred_at));
+    groups.set(day, [...(groups.get(day) ?? []), item]);
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold font-heading text-foreground">Historico de entregas</h1>
-          <p className="text-sm text-muted-foreground">Entregas concluídas e falhas registradas pelo motorista.</p>
-        </div>
-        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-          {history.length} registro(s)
-        </span>
-      </div>
-
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, index) => <HistorySkeleton key={index} />)}
-        </div>
-      ) : history.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <PackageOpen className="h-10 w-10 text-primary/40" />
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Histórico" description="Entregas concluídas e ocorrências." />
+      <div className="space-y-6 px-4 pb-6">
+        {query.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-24 rounded-2xl" />
+            <Skeleton className="h-24 rounded-2xl" />
           </div>
-          <p className="text-muted-foreground">Nenhum registro encontrado.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {history.map((item) => (
-            <div key={item.order_id} className="space-y-3 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{item.consumer_name}</p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {formatOccurrence(item.occurred_at)} • {item.delivery_window === "MORNING" ? "Manhã" : "Tarde"}
+        ) : items.length === 0 ? (
+          <EmptyState icon={History} title="Nada por aqui ainda" description="As entregas concluídas aparecem neste histórico." />
+        ) : (
+          [...groups.entries()].map(([day, list]) => {
+            const delivered = list.filter((i) => i.status === "DELIVERED");
+            const cash = delivered
+              .filter((i) => isCashPaymentMethod(i.payment_method))
+              .reduce((sum, i) => sum + (i.total_cents ?? 0), 0);
+            return (
+              <section key={day} aria-label={dayTitle(day)} className="space-y-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-foreground first-letter:uppercase">{dayTitle(day)}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {plural(delivered.length, "entrega", "entregas")}
+                    {cash > 0 ? ` · ${formatCurrency(cash)} em dinheiro` : ""}
                   </p>
                 </div>
-                <StatusPill status={item.status} />
-              </div>
-
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p className="flex items-start gap-1">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>{item.address_line}</span>
-                </p>
-                <p>{item.total_items_qty} garrafão(ões)</p>
-                {item.consumer_phone && (
-                  <p className="flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5" />
-                    {item.consumer_phone}
-                  </p>
-                )}
-              </div>
-
-              {item.failure_reason && (
-                <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
-                  <p className="flex items-center gap-2 font-medium">
-                    <TriangleAlert className="h-4 w-4" />
-                    Motivo da falha
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed">{item.failure_reason}</p>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                  {list.map((item) => (
+                    <li key={item.order_id}>
+                      <Link href={`/driver/deliveries/${item.order_id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted">
+                        <span className="w-12 shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">{timeOf(item.occurred_at)}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <span className="truncate">{item.consumer_name}</span>
+                            <StatusBadge status={item.status} className="h-5 shrink-0 px-2 text-[11px]" />
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {plural(item.total_items_qty, "item", "itens")} · {item.address_line}
+                          </p>
+                          {item.failure_reason ? (
+                            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-destructive">
+                              <AlertTriangle className="size-3 shrink-0" aria-hidden /> {item.failure_reason}
+                            </p>
+                          ) : null}
+                        </div>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

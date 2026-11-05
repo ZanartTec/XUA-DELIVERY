@@ -1,117 +1,136 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
+import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Textarea } from "@/src/components/ui/textarea";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { cn } from "@/src/lib/utils";
 
 const FAILURE_REASONS = [
-  { value: "Cliente ausente", label: "Cliente ausente" },
-  { value: "Sem acesso ao local", label: "Sem acesso ao local" },
-  { value: "Endereço incorreto", label: "Endereço incorreto" },
-  { value: "Local inseguro", label: "Local inseguro" },
+  "Cliente ausente",
+  "Sem acesso ao local",
+  "Endereço incorreto",
+  "Local inseguro",
   // Regra de vasilhame: cliente sem vazio para troca e sem querer pagar o vasilhame.
-  { value: "Sem vasilhame para troca", label: "Sem vasilhame para troca" },
-  { value: "Outro", label: "Outro" },
+  "Sem vasilhame para troca",
+  "Outro",
 ] as const;
+type Reason = (typeof FAILURE_REASONS)[number];
 
-export default function DriverFailurePage() {
+function FailureContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const [reason, setReason] = useState<(typeof FAILURE_REASONS)[number]["value"] | "">(
-    searchParams.get("motivo") === "sem-vasilhame" ? "Sem vasilhame para troca" : ""
+  const [reason, setReason] = useState<Reason | "">(
+    searchParams.get("motivo") === "sem-vasilhame" ? "Sem vasilhame para troca" : "",
   );
   const [details, setDetails] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsDetails = reason === "Outro";
+  const detailsOk = !needsDetails || details.trim().length >= 10;
 
   async function handleSubmit() {
-    if (!reason) {
-      setError("Selecione um motivo.");
-      return;
-    }
-
-    if (needsDetails && details.trim().length < 10) {
-      setError("Descreva o motivo com ao menos 10 caracteres.");
-      return;
-    }
-
+    if (!reason || !detailsOk) return;
     setLoading(true);
     setError(null);
-
     try {
-      const finalReason = needsDetails ? `${reason}: ${details.trim()}` : reason;
+      const extra = details.trim();
+      const finalReason = extra ? `${reason}: ${extra}` : reason;
       const response = await fetch(`/api/orders/${id}/delivery-failed`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: finalReason }),
       });
-
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Não foi possível registrar a falha.");
+        setError(body.error || "Não foi possível registrar.");
         return;
       }
-
-      router.push("/driver/history");
+      toast.success("Ocorrência registrada. A distribuidora vai reagendar.");
+      await queryClient.invalidateQueries({ queryKey: ["driver-deliveries"] });
+      router.push("/driver/deliveries");
     } catch {
-      setError("Erro de conexão.");
+      setError("Sem conexão. Tente de novo.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white/95 p-6 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <h2 className="text-center text-lg font-bold font-heading">Registrar falha</h2>
-        <p className="text-center text-sm text-muted-foreground">
-          Pedido #{id.slice(0, 8).toUpperCase()} — Informe o motivo para que suporte ou operações tratem a reentrega.
-        </p>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader
+        back={`/driver/deliveries/${id}`}
+        eyebrow={`Pedido #${id.slice(0, 8).toUpperCase()}`}
+        title="Não consegui entregar"
+        description="Escolha o motivo. A distribuidora usa isso para reagendar."
+      />
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo *</label>
-          <select
-            value={reason}
-            onChange={(event) => setReason(event.target.value as (typeof FAILURE_REASONS)[number]["value"] | "")}
-            className="w-full rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm"
-          >
-            <option value="">Selecione...</option>
-            {FAILURE_REASONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="space-y-4 px-4">
+        <RadioGroup value={reason} onValueChange={(v) => setReason(v as Reason)} aria-label="Motivo">
+          {FAILURE_REASONS.map((item) => (
+            <Label
+              key={item}
+              htmlFor={`reason-${item}`}
+              className={cn(
+                "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border bg-card px-4 text-base font-medium",
+                reason === item ? "border-primary ring-1 ring-primary" : "border-hairline",
+              )}
+            >
+              {item}
+              <RadioGroupItem id={`reason-${item}`} value={item} aria-label={item} />
+            </Label>
+          ))}
+        </RadioGroup>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalhes</label>
-          <Textarea
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
-            className="h-24 rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm resize-none"
-            placeholder={needsDetails ? "Descreva o ocorrido..." : "Opcional"}
-          />
-        </div>
+        {reason ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="details">
+              {needsDetails ? "Descreva o que aconteceu" : "Detalhes"}{" "}
+              {!needsDetails ? <span className="font-normal text-muted-foreground">(opcional)</span> : null}
+            </Label>
+            <Textarea
+              id="details"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={3}
+              className="resize-none rounded-xl text-base md:text-sm"
+              placeholder={needsDetails ? "Ao menos 10 caracteres" : "Ex.: portaria fechada, interfone sem resposta"}
+            />
+          </div>
+        ) : null}
 
-        {error && <p className="text-center text-sm text-destructive">{error}</p>}
-
-        <Button
-          className="w-full rounded-xl bg-linear-to-r from-[#b42318] to-[#d92d20] font-semibold shadow-none hover:opacity-90 active:scale-[0.98]"
-          disabled={loading || !reason || (needsDetails && details.trim().length < 10)}
-          onClick={handleSubmit}
-        >
-          {loading ? "Registrando..." : "Registrar falha"}
-        </Button>
-
-        <Button className="w-full rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest" onClick={() => router.back()}>
-          Voltar
-        </Button>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
       </div>
+
+      <StickyActionBar>
+        <Button variant="destructive" size="xl" disabled={loading || !reason || !detailsOk} onClick={handleSubmit}>
+          {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {loading ? "Registrando…" : "Registrar ocorrência"}
+        </Button>
+      </StickyActionBar>
     </div>
+  );
+}
+
+export default function DriverFailurePage() {
+  return (
+    <Suspense fallback={null}>
+      <FailureContent />
+    </Suspense>
   );
 }

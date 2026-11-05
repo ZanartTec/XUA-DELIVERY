@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { Banknote, CreditCard, FileText, Loader2, Phone, WifiOff } from "lucide-react";
 import { OtpInput } from "@/src/components/shared/driver/otp-input";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { useOfflineSync } from "@/src/hooks/use-offline-sync";
 import { useIsClient } from "@/src/hooks/use-is-client";
 import { cn, formatCurrency } from "@/src/lib/utils";
-import { Banknote, CreditCard, FileText, WifiOff } from "lucide-react";
+import { phoneHref, plural } from "@/src/lib/format";
 import { openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
-
-const SUPPORT_PHONE_LABEL = "(11) 99001-1005";
-const SUPPORT_PHONE_LINK = "tel:+5511990011005";
 
 const CONDITIONS = [
   { value: "ok", label: "OK" },
@@ -43,6 +45,8 @@ interface BottleGroup {
 }
 
 interface OrderDetail {
+  consumer_name?: string;
+  distributor_phone?: string | null;
   total_cents: number;
   total_items_qty?: number;
   payments: PaymentSummary[];
@@ -215,259 +219,253 @@ export default function CompleteDeliveryPage() {
     }
   }
 
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white/95 p-5 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <div className="space-y-1 text-center">
-          <h2 className="font-heading text-lg font-bold">Concluir entrega</h2>
-          <p className="text-sm text-muted-foreground">
-            Pedido #{id.slice(0, 8).toUpperCase()} — registre os vazios e confirme com o código do cliente.
-          </p>
-        </div>
+  const distributorTel = phoneHref(orderDetail?.distributor_phone);
 
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader
+        back={`/driver/deliveries/${id}`}
+        eyebrow={`Pedido #${id.slice(0, 8).toUpperCase()}`}
+        title="Concluir entrega"
+        description={orderDetail?.consumer_name ?? undefined}
+      />
+
+      <div className="space-y-4 px-4 pb-4">
         {/* Valor a receber (atualiza conforme os vazios e a escolha do motorista) */}
-        {orderDetail && (doorPayment || onlineExtraCents > 0) && (
-          <div className="rounded-2xl border border-[#ffe099] bg-[#fff8e6] px-4 py-3 text-[#7a4700]">
-            <div className="flex items-start gap-3">
-              {isCash || (paidOnline && extraMethod === "cash") ? (
-                <Banknote className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              ) : (
-                <CreditCard className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-bold">
-                  {paidOnline
-                    ? `Cobrar ${formatCurrency(onlineExtraCents)} do vasilhame`
-                    : `Cobrar ${formatCurrency(dueCents)} ${isCash ? "em dinheiro" : "no cartão"}`}
-                </p>
-                <p className="mt-1 text-xs font-medium text-[#805300]">
-                  {paidOnline
-                    ? "Pedido já pago no app. Receba só o valor do vasilhame."
-                    : isCash
-                      ? cashChangeForCents == null
-                        ? "Receba o valor exato antes de confirmar."
-                        : `Troco para ${formatCurrency(cashChangeForCents)}. Troco estimado: ${formatCurrency(Math.max(cashChangeForCents - dueCents, 0))}.`
-                      : "Passe na maquininha antes de confirmar."}
-                </p>
-              </div>
+        {orderDetail && (doorPayment || onlineExtraCents > 0) ? (
+          <section className="flex items-start gap-3 rounded-2xl bg-warning-surface p-4 text-warning-foreground" aria-live="polite">
+            {isCash || (paidOnline && extraMethod === "cash") ? (
+              <Banknote className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
+            ) : (
+              <CreditCard className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
+            )}
+            <div className="min-w-0">
+              <p className="font-heading text-lg font-bold">
+                {paidOnline
+                  ? `Cobrar ${formatCurrency(onlineExtraCents)} do vasilhame`
+                  : `Cobrar ${formatCurrency(dueCents)} ${isCash ? "em dinheiro" : "no cartão"}`}
+              </p>
+              <p className="text-sm">
+                {paidOnline
+                  ? "Pedido já pago no app. Receba só o valor do vasilhame."
+                  : isCash
+                    ? cashChangeForCents == null
+                      ? "Receba o valor exato antes de confirmar."
+                      : `Troco para ${formatCurrency(cashChangeForCents)} · devolver ${formatCurrency(Math.max(cashChangeForCents - dueCents, 0))}.`
+                    : "Passe na maquininha antes de confirmar."}
+              </p>
             </div>
-          </div>
-        )}
+          </section>
+        ) : orderDetail ? (
+          <section className="flex items-center gap-3 rounded-2xl bg-success-surface p-4 text-success-foreground">
+            <CreditCard className="size-5 shrink-0" aria-hidden="true" />
+            <p className="font-semibold">Pedido pago no app · nada a cobrar</p>
+          </section>
+        ) : null}
 
         {/* Passo 1 — vazios recebidos */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Vasilhames vazios recebidos
-          </p>
-          {requiredEmpties > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Este pedido exige {pluralVasilhame(requiredEmpties)} vazio{requiredEmpties === 1 ? "" : "s"} para troca.
-            </p>
-          )}
-          <div className="grid grid-cols-4 gap-2">
+        <section aria-labelledby="passo-vazios" className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+          <div>
+            <h2 id="passo-vazios" className="text-sm font-semibold text-foreground">
+              1. Quantos vasilhames vazios você recebeu?
+            </h2>
+            {requiredEmpties > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                O pedido pede {pluralVasilhame(requiredEmpties)} para troca.
+              </p>
+            ) : null}
+          </div>
+          <ToggleGroup
+            type="single"
+            value={collectedQty === null ? "" : String(collectedQty)}
+            onValueChange={(v) => v !== "" && setCollectedQty(Number(v))}
+            aria-label="Vazios recebidos"
+            className="grid w-full grid-cols-4 gap-2"
+            spacing={2}
+          >
             {quantityOptions.map((qty) => (
-              <button
+              <ToggleGroupItem
                 key={qty}
-                type="button"
-                aria-pressed={collectedQty === qty}
-                onClick={() => setCollectedQty(qty)}
-                className={cn(
-                  "h-12 rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  collectedQty === qty ? "bg-cta text-cta-foreground" : "bg-muted text-foreground hover:bg-muted/70"
-                )}
+                value={String(qty)}
+                className="h-12 rounded-xl bg-surface-low font-heading text-lg font-bold data-[state=on]:bg-cta data-[state=on]:text-cta-foreground"
               >
                 {qty}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
-        </div>
+          </ToggleGroup>
 
-        {/* Vazios faltaram: como resolver */}
-        {hasShortfall && (
-          <div className="space-y-2 rounded-xl bg-amber-50 p-3">
-            <p className="text-sm font-semibold text-amber-900">
-              {shortfall.missing === 1 ? "Faltou" : "Faltaram"} {pluralVasilhame(shortfall.missing)}. Como resolver?
-            </p>
-            <RadioGroup
-              value={resolution ?? ""}
-              onValueChange={(value) => setResolution(value as ShortfallResolution)}
-              className="gap-2"
-            >
-              <Label
-                htmlFor="resolution-charge"
-                className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 has-[[data-state=checked]]:border-primary"
+          {collectedQty !== null && collectedQty > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Estado dos vazios</p>
+              <ToggleGroup
+                type="single"
+                value={condition}
+                onValueChange={(v) => v && setCondition(v as Condition)}
+                aria-label="Estado dos vazios"
+                className="grid w-full grid-cols-3"
+                spacing={2}
               >
-                <RadioGroupItem id="resolution-charge" value="charge" className="mt-0.5" />
-                <span className="space-y-0.5">
-                  <span className="block text-sm font-semibold">
-                    Cobrar vasilhame (+ {formatCurrency(shortfall.chargeCents)})
-                  </span>
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    Entrega tudo e o cliente fica com o vasilhame.
-                  </span>
-                </span>
-              </Label>
-              {canPartial && (
+                {CONDITIONS.map((item) => (
+                  <ToggleGroupItem
+                    key={item.value}
+                    value={item.value}
+                    className="h-11 rounded-xl bg-surface-low data-[state=on]:bg-secondary data-[state=on]:font-semibold data-[state=on]:text-primary"
+                  >
+                    {item.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+          ) : null}
+
+          {/* Vazios faltaram: como resolver */}
+          {hasShortfall ? (
+            <div className="space-y-2 rounded-xl bg-warning-surface p-3">
+              <p className="text-sm font-semibold text-warning-foreground">
+                {shortfall.missing === 1 ? "Faltou" : "Faltaram"} {pluralVasilhame(shortfall.missing)}. Como resolver?
+              </p>
+              <RadioGroup
+                value={resolution ?? ""}
+                onValueChange={(value) => setResolution(value as ShortfallResolution)}
+                className="gap-2"
+              >
                 <Label
-                  htmlFor="resolution-partial"
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 has-[[data-state=checked]]:border-primary"
+                  htmlFor="resolution-charge"
+                  className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-card p-3 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-primary"
                 >
-                  <RadioGroupItem id="resolution-partial" value="partial" className="mt-0.5" />
+                  <RadioGroupItem id="resolution-charge" value="charge" className="mt-0.5" />
                   <span className="space-y-0.5">
-                    <span className="block text-sm font-semibold">
-                      Entregar só o que tem troca (− {formatCurrency(shortfall.removedCents)})
-                    </span>
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      Volta com {shortfall.missing} unidade{shortfall.missing === 1 ? "" : "s"} para a distribuidora.
-                    </span>
+                    <span className="block text-sm font-semibold">Cobrar o vasilhame (+ {formatCurrency(shortfall.chargeCents)})</span>
+                    <span className="block text-xs text-muted-foreground">Entrega tudo e o cliente fica com o vasilhame.</span>
                   </span>
                 </Label>
-              )}
-            </RadioGroup>
+                {canPartial ? (
+                  <Label
+                    htmlFor="resolution-partial"
+                    className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-card p-3 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:ring-1 has-[[data-state=checked]]:ring-primary"
+                  >
+                    <RadioGroupItem id="resolution-partial" value="partial" className="mt-0.5" />
+                    <span className="space-y-0.5">
+                      <span className="block text-sm font-semibold">
+                        Entregar só o que tem troca (− {formatCurrency(shortfall.removedCents)})
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Volta com {plural(shortfall.missing, "unidade", "unidades")} para a distribuidora.
+                      </span>
+                    </span>
+                  </Label>
+                ) : null}
+              </RadioGroup>
 
-            {resolution === "charge" && paidOnline && (
-              <div className="space-y-1.5 pt-1">
-                <p className="text-xs font-semibold text-amber-900">Recebido em</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      { value: "cash", label: "Dinheiro" },
-                      { value: "card_on_delivery", label: "Cartão" },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={extraMethod === option.value}
-                      onClick={() => setExtraMethod(option.value)}
-                      className={cn(
-                        "h-10 rounded-xl text-sm font-semibold",
-                        extraMethod === option.value ? "bg-cta text-cta-foreground" : "bg-white text-foreground"
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+              {resolution === "charge" && paidOnline ? (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs font-semibold text-warning-foreground">Recebido em</p>
+                  <ToggleGroup
+                    type="single"
+                    value={extraMethod}
+                    onValueChange={(v) => v && setExtraMethod(v as ExtraPaymentMethod)}
+                    className="grid w-full grid-cols-2"
+                    spacing={2}
+                  >
+                    <ToggleGroupItem value="cash" className="h-11 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+                      Dinheiro
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="card_on_delivery" className="h-11 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+                      Cartão
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
-              </div>
-            )}
+              ) : null}
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full text-sm text-red-700 hover:bg-red-50 hover:text-red-800"
-              onClick={() => router.push(`/driver/deliveries/${id}/failure?motivo=sem-vasilhame`)}
-            >
-              Cliente não quer pagar — cancelar entrega
-            </Button>
-          </div>
-        )}
-
-        {collectedQty !== null && collectedQty > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Condição dos vazios
-            </p>
-            <div className="flex gap-2">
-              {CONDITIONS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  aria-pressed={condition === item.value}
-                  onClick={() => setCondition(item.value)}
-                  className={cn(
-                    "h-10 flex-1 rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    condition === item.value ? "bg-cta text-cta-foreground" : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto w-full py-1 text-sm text-destructive"
+                onClick={() => router.push(`/driver/deliveries/${id}/failure?motivo=sem-vasilhame`)}
+              >
+                Cliente não quer pagar — cancelar a entrega
+              </Button>
             </div>
-          </div>
-        )}
+          ) : null}
+        </section>
 
-        {/* Passo 2 — código do cliente */}
-        <div className="space-y-1.5 border-t border-border pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Código do cliente
-          </p>
-          {!bottleStepReady && (
+        {/* Passo 2 — código do cliente (na zona do polegar) */}
+        <section
+          aria-labelledby="passo-codigo"
+          className={cn("space-y-3 rounded-2xl border border-hairline bg-card p-4", !bottleStepReady && "opacity-60")}
+        >
+          <div>
+            <h2 id="passo-codigo" className="text-sm font-semibold text-foreground">
+              2. Código do cliente
+            </h2>
             <p className="text-xs text-muted-foreground">
               {collectedQty === null
-                ? "Informe os vazios recebidos para liberar a confirmação."
-                : "Escolha como resolver os vasilhames que faltaram."}
-            </p>
-          )}
-          <div className={cn(shake && "animate-shake", !bottleStepReady && "opacity-50")}>
-            <OtpInput
-              key={inputKey}
-              onComplete={handleComplete}
-              disabled={loading || locked || !bottleStepReady || !isOnline}
-            />
-          </div>
-        </div>
-
-        {!isOnline && (
-          <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-800">
-            <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <p>
-              Sem conexão. A confirmação por código precisa de internet — se não voltar, avise a
-              central para liberar a entrega pelo painel.
+                ? "Informe os vazios para liberar o código."
+                : !bottleStepReady
+                  ? "Escolha como resolver os vasilhames que faltaram."
+                  : "O cliente vê o código no app, na tela do pedido. A entrega conclui ao digitar os 6 números."}
             </p>
           </div>
-        )}
-
-        {attempts > 0 && !locked && (
-          <p className="text-center text-xs text-muted-foreground">
-            Tentativa {attempts} de {maxAttempts}
-          </p>
-        )}
-
-        {error && (
-          <p role="alert" className="text-center text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        {locked && (
-          <div className="space-y-2 rounded-xl bg-amber-50 px-3 py-3 text-center text-sm text-amber-800">
-            <p>Código bloqueado. Contate o suporte para override.</p>
-            <a href={SUPPORT_PHONE_LINK} className="font-semibold underline underline-offset-2">
-              Ligar para suporte: {SUPPORT_PHONE_LABEL}
-            </a>
+          <div className={cn(shake && "animate-shake")}>
+            <OtpInput key={inputKey} onComplete={handleComplete} disabled={loading || locked || !bottleStepReady || !isOnline} />
           </div>
-        )}
 
-        {loading && <p className="text-center text-sm text-muted-foreground">Confirmando...</p>}
+          {loading ? (
+            <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="size-4 animate-spin" aria-hidden /> Confirmando…
+            </p>
+          ) : null}
+          {attempts > 0 && !locked ? (
+            <p className="text-center text-xs text-muted-foreground">
+              Tentativa {attempts} de {maxAttempts}
+            </p>
+          ) : null}
+          {error ? (
+            <p role="alert" className="text-center text-sm font-medium text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </section>
 
-        {/* Comprovante de venda (sem valor fiscal) para entregar ao cliente */}
-        <Button
-          variant="outline"
-          className="h-11 w-full rounded-xl"
-          onClick={() => openReceipt(orderReceiptUrl(id, readReceiptFormat("thermal")))}
-        >
-          <FileText className="h-4 w-4" aria-hidden="true" />
-          Ver comprovante de venda
-        </Button>
+        {!isOnline ? (
+          <Alert className="border-warning/30 bg-warning-surface">
+            <WifiOff className="text-warning-foreground" aria-hidden="true" />
+            <AlertDescription className="text-warning-foreground">
+              Sem conexão. A confirmação por código precisa de internet. Se não voltar, avise a distribuidora para liberar a
+              entrega pela central.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {locked ? (
+          <Alert variant="destructive">
+            <AlertDescription className="space-y-2">
+              <p>Código bloqueado após várias tentativas. A distribuidora pede a liberação à central.</p>
+              {distributorTel ? (
+                <Button asChild variant="destructive-soft" size="lg">
+                  <a href={distributorTel}>
+                    <Phone /> Ligar para a distribuidora
+                  </a>
+                </Button>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-2">
           <Button
-            variant="secondary"
-            className="h-11 rounded-xl"
-            onClick={() => router.push("/driver/deliveries")}
+            variant="outline"
+            size="xl"
+            className="px-2"
+            onClick={() => openReceipt(orderReceiptUrl(id, readReceiptFormat("thermal")))}
           >
-            Voltar
+            <FileText aria-hidden="true" /> Comprovante
           </Button>
-          {!locked && (
-            <Button
-              variant="ghost"
-              className="h-11 rounded-xl text-red-700 hover:bg-red-50 hover:text-red-800"
-              onClick={() => router.push(`/driver/deliveries/${id}/failure`)}
-            >
-              Não consegui entregar
+          {!locked ? (
+            <Button asChild variant="outline" size="xl" className="px-2 text-destructive">
+              <Link href={`/driver/deliveries/${id}/failure`}>Não entreguei</Link>
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
