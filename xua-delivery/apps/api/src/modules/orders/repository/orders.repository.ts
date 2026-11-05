@@ -99,7 +99,10 @@ export type OrderWithDetails = Order & {
   driver: Pick<Consumer, "name" | "phone"> | null;
   sales_receipt: { number: number; issued_at: Date; print_count: number } | null;
   items: {
+    product_id: string;
     quantity: number;
+    /** Entrega parcial: quantidade pedida originalmente (null = integral). */
+    original_quantity: number | null;
     unit_price_cents: number;
     subtotal_cents: number;
     product_name: string;
@@ -526,7 +529,9 @@ export const orderRepository = {
         },
         items: {
           select: {
+            product_id: true,
             quantity: true,
+            original_quantity: true,
             unit_price_cents: true,
             subtotal_cents: true,
             product_name: true,

@@ -12,6 +12,7 @@ import { distributorRepository } from "../../distributor/repository/distributor.
 import { orderRepository, type OrderForQueue } from "../repository/orders.repository.js";
 import { OrderServiceError } from "../errors.js";
 import { buildDistributorOrderOriginContext } from "./order-presentation.service.js";
+import { depositSettlementService } from "../../deposits/services/deposit-settlement.service.js";
 import redis from "../../../infra/redis/client.js";
 
 const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, OrderStatus[]> = {
@@ -89,6 +90,34 @@ function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, 
     items: undefined,
     subscription_delivery_date: undefined,
   };
+}
+
+/**
+ * Regra de vasilhame na entrega: vazios exigidos por vasilhame, preço cobrado
+ * por vazio faltante e os itens refil de cada grupo (na ordem do pedido) —
+ * o motorista calcula na tela o valor a receber em cada desfecho.
+ */
+async function describeBottleGroups(
+  items: Array<{ product_id: string; quantity: number; unit_price_cents: number }>
+) {
+  const groups = await depositSettlementService.resolveBottleGroups(items);
+  if (groups.length === 0) return [];
+
+  const products = await getPrisma().product.findMany({
+    where: { id: { in: items.map((item) => item.product_id) }, requires_empty_return: true },
+    select: { id: true, bottle_product_id: true },
+  });
+  const bottleByProduct = new Map(products.map((p) => [p.id, p.bottle_product_id]));
+
+  return groups.map((g) => ({
+    bottle_product_id: g.bottleProductId,
+    bottle_name: g.bottleProductName,
+    unit_price_cents: g.bottleUnitPriceCents,
+    required_empties: g.bottlesOrdered,
+    refil_items: items
+      .filter((item) => bottleByProduct.get(item.product_id) === g.bottleProductId)
+      .map((item) => ({ quantity: item.quantity, unit_price_cents: item.unit_price_cents })),
+  }));
 }
 
 /**
@@ -298,6 +327,11 @@ export const orderQueryService = {
       ...order
     } = result;
     const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    // Regra de vasilhame na entrega: vazios exigidos e preço de cada vasilhame
+    // faltante, para o motorista calcular o valor a cobrar na porta.
+    // `refil_items` (na ordem dos itens) permite simular a entrega parcial.
+    // Só pedidos criados sob a regra (teto > 0); os anteriores já cobraram o vasilhame.
+    const bottleGroups = order.max_bottle_charge_cents > 0 ? await describeBottleGroups(items) : [];
     const addressParts = [
       `${address.street}, ${address.number}`,
       address.complement,
@@ -313,6 +347,7 @@ export const orderQueryService = {
     return {
       ...order,
       ...subscriptionContext,
+      bottle_groups: bottleGroups,
       subscription_delivery_date: undefined,
       consumer_name: consumer.name,
       consumer_email: consumer.email,
@@ -347,6 +382,8 @@ export const orderQueryService = {
       items: items.map((i) => ({
         product_name: i.product_name,
         qty: i.quantity,
+        // Entrega parcial (sem vazio para troca): quantidade pedida originalmente.
+        original_qty: i.original_quantity,
         unit_price_cents: i.unit_price_cents,
         subtotal_cents: i.subtotal_cents,
         image_url: i.product.image_url ?? null,

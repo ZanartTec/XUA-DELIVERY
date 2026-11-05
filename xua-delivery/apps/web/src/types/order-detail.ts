@@ -26,6 +26,7 @@ export interface OrderDetailPayment {
 export interface OrderDetailItem {
   product_name: string;
   qty: number;
+  original_qty?: number | null;
   unit_price_cents: number;
   subtotal_cents: number;
   image_url?: string | null;

@@ -7,7 +7,7 @@ import { StatusPill } from "@/src/components/shared/status-pill";
 import { formatCurrency } from "@/src/lib/utils";
 import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2, Banknote } from "lucide-react";
 import type { DeliveryWindow } from "@xua/shared/enums";
-import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
 
 interface Delivery {
   order_id: string;
@@ -22,6 +22,13 @@ interface Delivery {
   payment_method?: string | null;
   payment_status?: string | null;
   cash_change_for_cents?: number | null;
+  /** Regra de vasilhame: vazios exigidos e teto da cobrança na porta. */
+  bottles_full_ordered?: number;
+  max_bottle_charge_cents?: number;
+}
+
+function itemsLabel(qty: number) {
+  return `${qty} ${qty === 1 ? "item" : "itens"}`;
 }
 
 function canAdvanceToOtp(status: string) {
@@ -173,7 +180,7 @@ export default function DeliveriesPage() {
                         <div className="flex items-center gap-3 text-xs text-[#7d8494]">
                           <span className="inline-flex items-center gap-1">
                             <Droplets className="h-3 w-3" />
-                            {d.total_items_qty} garrafão{d.total_items_qty !== 1 ? "ões" : ""}
+                            {itemsLabel(d.total_items_qty)}
                           </span>
                           {d.consumer_phone && (
                             <span className="inline-flex items-center gap-1">
@@ -191,12 +198,25 @@ export default function DeliveriesPage() {
                         <ChevronRight className="h-5 w-5" />
                       </div>
                     </div>
-                    {isCashPaymentMethod(d.payment_method) && (
+                    {(isOfflinePaymentMethod(d.payment_method) || (d.max_bottle_charge_cents ?? 0) > 0) && (
                       <div className="mt-3 rounded-2xl bg-[#fff8e6] px-3 py-2 text-[#7a4700] ring-1 ring-[#ffe099]">
-                        <p className="flex items-center gap-1.5 text-xs font-bold">
-                          <Banknote className="h-3.5 w-3.5" /> Cobrar {formatCurrency(d.total_cents)} em dinheiro
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-medium text-[#805300]">{cashChangeLabel(d)}</p>
+                        {isOfflinePaymentMethod(d.payment_method) ? (
+                          <p className="flex items-center gap-1.5 text-xs font-bold">
+                            <Banknote className="h-3.5 w-3.5" /> Cobrar {formatCurrency(d.total_cents)}{" "}
+                            {isCashPaymentMethod(d.payment_method) ? "em dinheiro" : "no cartão"}
+                          </p>
+                        ) : (
+                          <p className="text-xs font-bold">Pedido pago no app</p>
+                        )}
+                        {isCashPaymentMethod(d.payment_method) && (
+                          <p className="mt-0.5 text-[11px] font-medium text-[#805300]">{cashChangeLabel(d)}</p>
+                        )}
+                        {(d.max_bottle_charge_cents ?? 0) > 0 && (
+                          <p className="mt-0.5 text-[11px] font-medium text-[#805300]">
+                            Recolher {d.bottles_full_ordered} vazio{d.bottles_full_ordered === 1 ? "" : "s"} · sem eles, + até{" "}
+                            {formatCurrency(d.max_bottle_charge_cents ?? 0)}
+                          </p>
+                        )}
                       </div>
                     )}
                   </article>
@@ -234,7 +254,7 @@ export default function DeliveriesPage() {
                       <div className="flex items-center gap-3 text-xs text-[#7d8494]">
                         <span className="inline-flex items-center gap-1">
                           <Droplets className="h-3 w-3" />
-                          {d.total_items_qty} garrafão{d.total_items_qty !== 1 ? "ões" : ""}
+                          {itemsLabel(d.total_items_qty)}
                         </span>
                         {isCashPaymentMethod(d.payment_method) && (
                           <span className="inline-flex items-center gap-1 text-[#7a4700]">

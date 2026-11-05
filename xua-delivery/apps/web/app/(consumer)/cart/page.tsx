@@ -14,9 +14,8 @@ import {
   Trash2,
   ArrowRight,
   Droplets,
-  Recycle,
-  Info,
 } from "lucide-react";
+import { BottleExchangeNotice } from "@/src/components/consumer/bottle-exchange-notice";
 
 export default function CartPage() {
   const mounted = useSyncExternalStore(
@@ -144,30 +143,8 @@ export default function CartPage() {
             ))}
           </div>
 
-          {/* Aviso sobre a troca de vasilhame */}
-          <div className="mx-4 mt-4 rounded-2xl bg-[#5697E9]/10 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5697E9]/15">
-                <Recycle className="h-5 w-5 text-[#5697E9]" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-sm text-[#191c1d] font-heading">
-                  Troca de vasilhame
-                </h3>
-                <p className="text-xs text-[#444] mt-1 leading-relaxed">
-                  Na compra da água sem galão incluso, é necessário entregar 1 vasilhame
-                  vazio de 20L, em bom estado e dentro da validade(3 anos), para cada garrafão pedido.
-                </p>
-              </div>  
-            </div>
-            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
-              <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              <p className="text-[11px] text-amber-600 leading-tight font-medium">
-                Vasilhame danificado, vencido ou ausente na entrega pode gerar cobrança
-                adicional do valor do galão.
-              </p>
-            </div>
-          </div>
+          {/* Regra de vasilhame na entrega (só aparece com itens refil) */}
+          <BottleExchangeNotice items={items} className="mx-4 mt-4" />
 
           {/* Cost Breakdown */}
           <div className="mx-4 mt-4 rounded-2xl bg-white p-4 shadow-[0_1px_8px_rgba(0,26,64,0.07)]">

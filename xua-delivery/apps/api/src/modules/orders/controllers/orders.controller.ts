@@ -56,6 +56,8 @@ function toBottleStep(input: BottleStepInput): BottleStep {
       collectedQty: input.collected_empty_qty ?? input.returned_empty_qty,
       returnedQty: input.returned_empty_qty,
       condition: input.bottle_condition,
+      shortfallResolution: input.shortfall_resolution,
+      extraPaymentMethod: input.extra_payment_method,
     };
   }
   return { kind: "not_collected", reason: input.reason, notes: input.notes };
@@ -384,7 +386,16 @@ export const ordersController = {
       const parsed = completeDeliverySchema.safeParse(req.body);
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
-      const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub);
+      // Antes de consumir o código: um passo de vasilhame incompleto recusado
+      // depois da validação deixaria o motorista sem código para concluir.
+      const bottleStep = toBottleStep(parsed.data.bottle_step);
+      await orderService.precheckBottleStep(existing.id, bottleStep);
+
+      // Confere o código sem consumi-lo: ele só é marcado como usado depois que
+      // a entrega concluir, para uma conclusão recusada não queimar o código.
+      const validation = await otpService.validate(existing.id, parsed.data.code, req.user!.sub, {
+        consume: false,
+      });
       if (!validation.isValid) {
         // Só na transição para bloqueado. Reemitir a cada tentativa contra um
         // OTP já bloqueado viraria ruído numa sala que recebe o tráfego de
@@ -411,8 +422,9 @@ export const ordersController = {
       const updatedOrder = await orderService.deliverOrder(
         existing.id,
         driverDeliveryActor(req.user!.sub),
-        toBottleStep(parsed.data.bottle_step)
+        bottleStep
       );
+      await otpService.consume(existing.id);
       res.json({ order: updatedOrder });
     } catch (error) {
       next(error);

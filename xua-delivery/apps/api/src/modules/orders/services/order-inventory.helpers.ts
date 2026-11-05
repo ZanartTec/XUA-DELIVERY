@@ -56,11 +56,52 @@ function aggregateOrderItems(order: OrderWithItems): Array<{
   return [...byProduct.values()];
 }
 
+type AggregatedLine = ReturnType<typeof aggregateOrderItems>[number];
+
+/**
+ * Combo "água + vasilhame" não tem estoque próprio: cada unidade consome 1 da
+ * água-base (base_product_id) e 1 do vasilhame (bottle_product_id).
+ */
+async function expandComboLines(lines: AggregatedLine[], tx: TxClient): Promise<AggregatedLine[]> {
+  const products = await tx.product.findMany({
+    where: { id: { in: lines.map((line) => line.productId) }, base_product_id: { not: null } },
+    select: {
+      id: true,
+      base_product_id: true,
+      bottle_product_id: true,
+      base_product: { select: { name: true } },
+      bottle_product: { select: { name: true } },
+    },
+  });
+  if (products.length === 0) return lines;
+
+  const comboById = new Map(products.map((p) => [p.id, p]));
+  const byProduct = new Map<string, AggregatedLine>();
+  const add = (productId: string, productName: string, quantity: number) => {
+    const current = byProduct.get(productId);
+    if (current) current.quantity += quantity;
+    else byProduct.set(productId, { productId, productName, quantity });
+  };
+
+  for (const line of lines) {
+    const combo = comboById.get(line.productId);
+    if (!combo?.base_product_id) {
+      add(line.productId, line.productName, line.quantity);
+      continue;
+    }
+    add(combo.base_product_id, combo.base_product?.name ?? line.productName, line.quantity);
+    if (combo.bottle_product_id) {
+      add(combo.bottle_product_id, combo.bottle_product?.name ?? "Vasilhame", line.quantity);
+    }
+  }
+  return [...byProduct.values()];
+}
+
 export async function resolveOrderInventoryLines(
   order: OrderWithItems,
   tx: TxClient
 ): Promise<OrderInventoryLine[]> {
-  const lines = aggregateOrderItems(order);
+  const lines = await expandComboLines(aggregateOrderItems(order), tx);
   if (lines.length === 0) {
     throw new OrderServiceError("ORDER_ITEM_NOT_FOUND", "Pedido sem itens para movimentar estoque");
   }

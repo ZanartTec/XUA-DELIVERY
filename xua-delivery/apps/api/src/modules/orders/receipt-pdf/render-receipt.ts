@@ -307,12 +307,31 @@ function writeReceipt(writer: ReceiptWriter, spec: FormatSpec, receipt: Renderab
   });
 
   // ── Vasilhames ───────────────────────────────────────────
-  if (bottles.full_ordered > 0 || bottles.sold > 0 || bottles.loaned > 0) {
+  const maxChargeCents = bottles.max_charge_cents ?? 0;
+  const bottleRulePending =
+    bottles.full_ordered > 0 && maxChargeCents > 0 && bottles.sold === 0 && bottles.empty_provided === 0;
+  if (bottleRulePending) {
+    // Emitido antes da entrega (no despacho): explica a regra de troca e deixa
+    // o motorista anotar o que recebeu.
+    writer.heading("Troca de vasilhame");
+    writer.text(`Vazios a recolher: ${bottles.full_ordered}`, { bold: true });
+    writer.text(
+      `Sem o vazio: + ${formatCents(Math.round(maxChargeCents / bottles.full_ordered))} por vasilhame ` +
+        `(até ${formatCents(maxChargeCents)}) ou entrega só das unidades com troca.`,
+      { size: size.small }
+    );
+    writer.text("Vazios recebidos: ______   Vasilhame cobrado: R$ ________", { size: size.small });
+  } else if (bottles.full_ordered > 0 || bottles.sold > 0 || bottles.loaned > 0) {
     writer.heading("Vasilhames");
     writer.text(
       `Cheios entregues: ${bottles.full_ordered}   Vazios devolvidos: ${bottles.empty_provided}\n` +
         `Vendidos: ${bottles.sold}   Em comodato: ${bottles.loaned}`
     );
+    if ((bottles.charged_cents ?? 0) > 0) {
+      writer.text(`Vasilhame cobrado na entrega: ${formatCents(bottles.charged_cents ?? 0)}`, {
+        size: size.small,
+      });
+    }
     if (bottles.loaned > 0) {
       writer.text("Vasilhames em comodato continuam sendo propriedade da distribuidora.", { size: size.small });
     }

@@ -41,7 +41,10 @@ export default function CatalogPage() {
       product_name: product.name,
       unit_price_cents: product.price_cents,
       image_url: product.image_url,
-      bottle_product_id: product.kind === "WATER" ? product.bottle_product_id : null,
+      bottle_product_id: product.requires_empty_return ? product.bottle_product_id : null,
+      bottle_charge_cents: product.requires_empty_return
+        ? (product.bottle_product?.price_cents ?? null)
+        : null,
     });
     toast.success(`${product.name} adicionado ao carrinho`);
   }

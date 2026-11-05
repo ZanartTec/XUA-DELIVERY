@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/ui/badge";
+import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { Droplets, Pencil, Plus, Save, X } from "lucide-react";
 import { formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
@@ -18,16 +27,43 @@ interface ProductItem {
   price_cents: number;
   kind: ProductKind;
   bottle_product_id: string | null;
+  requires_empty_return: boolean;
+  base_product_id: string | null;
   is_active: boolean;
 }
+
+/**
+ * Regra de vasilhame do produto (ver Product no schema):
+ * - simple: produto comum, sem vasilhame;
+ * - refil: água que exige 1 vazio por unidade na entrega; sem ele, cobra o vasilhame;
+ * - combo: água + vasilhame, preço já inclui o vasilhame (consome estoque da água-base + vasilhame);
+ * - bottle: o próprio vasilhame (preço usado na cobrança do refil).
+ */
+type BottleMode = "simple" | "refil" | "combo" | "bottle";
+
+const BOTTLE_MODES: { value: BottleMode; label: string; hint: string }[] = [
+  {
+    value: "refil",
+    label: "Água refil (troca de vasilhame)",
+    hint: "Cliente devolve 1 vazio por unidade. Sem o vazio, o motorista cobra o vasilhame na entrega.",
+  },
+  {
+    value: "combo",
+    label: "Água + vasilhame",
+    hint: "Preço já inclui o vasilhame. Nada a devolver nem cobrar na entrega.",
+  },
+  { value: "bottle", label: "Vasilhame", hint: "Valor cobrado quando falta o vazio do refil." },
+  { value: "simple", label: "Produto comum", hint: "Sem regra de vasilhame (ex.: acessórios)." },
+];
 
 interface ProductDraft {
   name: string;
   description: string;
   image_url: string;
   price_cents: string;
-  kind: ProductKind;
+  mode: BottleMode;
   bottle_product_id: string;
+  base_product_id: string;
 }
 
 const EMPTY_DRAFT: ProductDraft = {
@@ -35,9 +71,17 @@ const EMPTY_DRAFT: ProductDraft = {
   description: "",
   image_url: "",
   price_cents: "",
-  kind: "OTHER",
+  mode: "simple",
   bottle_product_id: "",
+  base_product_id: "",
 };
+
+function modeFromProduct(p: ProductItem): BottleMode {
+  if (p.kind === "BOTTLE") return "bottle";
+  if (p.base_product_id) return "combo";
+  if (p.requires_empty_return) return "refil";
+  return "simple";
+}
 
 function draftFromProduct(p: ProductItem): ProductDraft {
   return {
@@ -45,20 +89,54 @@ function draftFromProduct(p: ProductItem): ProductDraft {
     description: p.description ?? "",
     image_url: p.image_url ?? "",
     price_cents: (p.price_cents / 100).toFixed(2),
-    kind: p.kind ?? "OTHER",
+    mode: modeFromProduct(p),
     bottle_product_id: p.bottle_product_id ?? "",
+    base_product_id: p.base_product_id ?? "",
   };
 }
 
 function draftToPayload(d: ProductDraft) {
+  const water = d.mode === "refil" || d.mode === "combo";
   return {
     name: d.name,
     description: d.description || null,
     image_url: d.image_url || null,
     price_cents: Math.round(parseFloat(d.price_cents || "0") * 100),
-    kind: d.kind,
-    bottle_product_id: d.kind === "WATER" ? d.bottle_product_id || null : null,
+    kind: (water ? "WATER" : d.mode === "bottle" ? "BOTTLE" : "OTHER") as ProductKind,
+    bottle_product_id: water ? d.bottle_product_id || null : null,
+    requires_empty_return: d.mode === "refil",
+    base_product_id: d.mode === "combo" ? d.base_product_id || null : null,
   };
+}
+
+/** Mensagem de bloqueio do formulário, ou null se pode salvar. */
+function validateDraft(d: ProductDraft): string | null {
+  if (!d.name.trim()) return "Informe o nome do produto";
+  if (!d.price_cents || parseFloat(d.price_cents) <= 0) return "Informe um preço válido";
+  if ((d.mode === "refil" || d.mode === "combo") && !d.bottle_product_id) {
+    return "Selecione o vasilhame vinculado";
+  }
+  if (d.mode === "combo" && !d.base_product_id) return "Selecione a água-base do combo";
+  return null;
+}
+
+function bottleRuleLabel(p: ProductItem, byId: Map<string, ProductItem>): string | null {
+  const bottle = p.bottle_product_id ? byId.get(p.bottle_product_id) : undefined;
+  switch (modeFromProduct(p)) {
+    case "refil":
+      return `Refil · sem vazio cobra ${bottle ? formatCurrency(bottle.price_cents) : "o vasilhame"}`;
+    case "combo":
+      return "Vasilhame incluso";
+    case "bottle":
+      return "Vasilhame";
+    default:
+      return null;
+  }
+}
+
+async function errorMessage(res: Response, fallback: string) {
+  const body = await res.json().catch(() => ({}));
+  return typeof body.error === "string" ? body.error : fallback;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -75,15 +153,108 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ProductForm({
   draft,
   onChange,
+  products,
+  editingId,
 }: {
   draft: ProductDraft;
   onChange: (d: ProductDraft) => void;
+  products: ProductItem[];
+  editingId?: string;
 }) {
-  // Venda simples: campos de caução (Tipo, Vasilhame vinculado) saíram da UI.
-  // kind fica OTHER p/ produto novo (EMPTY_DRAFT) e é preservado ao editar
-  // produto existente; o backend segue aceitando os campos (Comodato B2B).
+  const bottles = products.filter((p) => p.kind === "BOTTLE" && p.id !== editingId);
+  const refilWaters = products.filter(
+    (p) => p.requires_empty_return && p.id !== editingId
+  );
+  const bottle = bottles.find((b) => b.id === draft.bottle_product_id);
+  const base = refilWaters.find((w) => w.id === draft.base_product_id);
+  const priceCents = Math.round(parseFloat(draft.price_cents || "0") * 100);
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-2 sm:col-span-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Regra de vasilhame *
+        </p>
+        <RadioGroup
+          value={draft.mode}
+          onValueChange={(value) => onChange({ ...draft, mode: value as BottleMode })}
+          className="grid gap-2 sm:grid-cols-2"
+        >
+          {BOTTLE_MODES.map((mode) => (
+            <Label
+              key={mode.value}
+              htmlFor={`mode-${editingId ?? "new"}-${mode.value}`}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d9dde3] p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+            >
+              <RadioGroupItem id={`mode-${editingId ?? "new"}-${mode.value}`} value={mode.value} className="mt-0.5" />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-semibold">{mode.label}</span>
+                <span className="block text-xs font-normal text-muted-foreground">{mode.hint}</span>
+              </span>
+            </Label>
+          ))}
+        </RadioGroup>
+      </div>
+
+      {draft.mode === "combo" && (
+        <Field label="Água-base (estoque consumido) *">
+          <Select
+            value={draft.base_product_id}
+            onValueChange={(value) => onChange({ ...draft, base_product_id: value })}
+          >
+            <SelectTrigger className="w-full rounded-xl">
+              <SelectValue placeholder="Selecione a água refil" />
+            </SelectTrigger>
+            <SelectContent>
+              {refilWaters.map((water) => (
+                <SelectItem key={water.id} value={water.id}>
+                  {water.name} · {formatCurrency(water.price_cents)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+
+      {(draft.mode === "refil" || draft.mode === "combo") && (
+        <Field
+          label={draft.mode === "refil" ? "Vasilhame cobrado se faltar o vazio *" : "Vasilhame incluso *"}
+        >
+          <Select
+            value={draft.bottle_product_id}
+            onValueChange={(value) => onChange({ ...draft, bottle_product_id: value })}
+          >
+            <SelectTrigger className="w-full rounded-xl">
+              <SelectValue placeholder="Selecione o vasilhame" />
+            </SelectTrigger>
+            <SelectContent>
+              {bottles.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name} · {formatCurrency(item.price_cents)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {bottles.length === 0 && (
+            <p className="text-xs text-amber-700">Cadastre antes um produto do tipo “Vasilhame”.</p>
+          )}
+        </Field>
+      )}
+
+      {draft.mode === "refil" && bottle && priceCents > 0 && (
+        <p className="rounded-xl bg-[#5697E9]/10 px-3 py-2 text-xs text-[#32466e] sm:col-span-2">
+          Cliente paga {formatCurrency(priceCents)} por unidade. Sem o vazio na entrega, o motorista cobra
+          + {formatCurrency(bottle.price_cents)} (total {formatCurrency(priceCents + bottle.price_cents)}),
+          entrega parcial ou cancela.
+        </p>
+      )}
+      {draft.mode === "combo" && base && bottle && (
+        <p className="rounded-xl bg-[#5697E9]/10 px-3 py-2 text-xs text-[#32466e] sm:col-span-2">
+          Referência: {base.name} {formatCurrency(base.price_cents)} + {bottle.name}{" "}
+          {formatCurrency(bottle.price_cents)} = {formatCurrency(base.price_cents + bottle.price_cents)}.
+        </p>
+      )}
+
       <Field label="Nome *">
         <Input
           value={draft.name}
@@ -134,6 +305,7 @@ export default function OpsProductsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ProductDraft>({ ...EMPTY_DRAFT });
   const [saving, setSaving] = useState(false);
+  const productsById = new Map(products.map((p) => [p.id, p]));
 
   useEffect(() => {
     fetch("/api/products/all")
@@ -144,12 +316,9 @@ export default function OpsProductsPage() {
   }, []);
 
   async function handleCreate() {
-    if (!draft.name.trim()) {
-      toast.error("Informe o nome do produto");
-      return;
-    }
-    if (!draft.price_cents || parseFloat(draft.price_cents) <= 0) {
-      toast.error("Informe um preço válido");
+    const invalid = validateDraft(draft);
+    if (invalid) {
+      toast.error(invalid);
       return;
     }
     setSaving(true);
@@ -159,26 +328,23 @@ export default function OpsProductsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draftToPayload(draft)),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errorMessage(res, "Erro ao criar produto"));
       const data = await res.json();
       setProducts((prev) => [...prev, data.product]);
       setDraft({ ...EMPTY_DRAFT });
       setCreating(false);
       toast.success("Produto criado");
-    } catch {
-      toast.error("Erro ao criar produto");
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : "Erro ao criar produto");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleUpdate(id: string) {
-    if (!editDraft.name.trim()) {
-      toast.error("Informe o nome do produto");
-      return;
-    }
-    if (!editDraft.price_cents || parseFloat(editDraft.price_cents) <= 0) {
-      toast.error("Informe um preço válido");
+    const invalid = validateDraft(editDraft);
+    if (invalid) {
+      toast.error(invalid);
       return;
     }
     setSaving(true);
@@ -188,13 +354,13 @@ export default function OpsProductsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draftToPayload(editDraft)),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errorMessage(res, "Erro ao atualizar produto"));
       const data = await res.json();
       setProducts((prev) => prev.map((p) => (p.id === id ? data.product : p)));
       setEditId(null);
       toast.success("Produto atualizado");
-    } catch {
-      toast.error("Erro ao atualizar produto");
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : "Erro ao atualizar produto");
     } finally {
       setSaving(false);
     }
@@ -270,7 +436,7 @@ export default function OpsProductsPage() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <ProductForm draft={draft} onChange={setDraft} />
+          <ProductForm draft={draft} onChange={setDraft} products={products} />
           <Button
             size="sm"
             disabled={saving}
@@ -304,7 +470,12 @@ export default function OpsProductsPage() {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <ProductForm draft={editDraft} onChange={setEditDraft} />
+                <ProductForm
+                  draft={editDraft}
+                  onChange={setEditDraft}
+                  products={products}
+                  editingId={product.id}
+                />
                 <Button
                   size="sm"
                   disabled={saving}
@@ -345,6 +516,11 @@ export default function OpsProductsPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatCurrency(product.price_cents)}
                       </p>
+                      {bottleRuleLabel(product, productsById) && (
+                        <Badge variant="secondary" className="mt-1.5 font-medium">
+                          {bottleRuleLabel(product, productsById)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

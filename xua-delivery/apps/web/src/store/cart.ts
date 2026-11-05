@@ -8,8 +8,10 @@ interface CartItem {
   unit_price_cents: number;
   quantity: number;
   image_url?: string | null;
-  // Vasilhame vinculado (apenas itens de água kind=WATER). Usado no settlement de caução.
+  // Vasilhame vinculado (apenas itens refil). Usado no settlement de caução.
   bottle_product_id?: string | null;
+  // Refil: preço do vasilhame cobrado na entrega se faltar o vazio.
+  bottle_charge_cents?: number | null;
 }
 
 interface CartState {

@@ -95,7 +95,7 @@ const opsUserId = "3f9a1c40-1111-4a00-9000-000000000006";
 const paymentId = "3f9a1c40-1111-4a00-9000-000000000007";
 
 const tx = {
-  payment: { findFirst: vi.fn(), update: vi.fn() },
+  payment: { findMany: vi.fn(), update: vi.fn() },
 };
 
 const driverActor = {
@@ -162,7 +162,7 @@ function givenOrder(current: ReturnType<typeof order> | null) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.transaction.mockImplementation(async (callback: any) => callback(tx));
-  tx.payment.findFirst.mockResolvedValue(null);
+  tx.payment.findMany.mockResolvedValue([]);
   mocks.orderRepository.updateStatus.mockImplementation(async (_id, status, extra) => ({
     ...order(),
     status,
@@ -231,7 +231,7 @@ describe("deliverOrderService.deliverOrder", () => {
 
   it("captura pagamento em dinheiro pendente e audita PAYMENT_CAPTURED", async () => {
     givenOrder(order());
-    tx.payment.findFirst.mockResolvedValue(cashPayment());
+    tx.payment.findMany.mockResolvedValue([cashPayment()]);
 
     await deliverOrderService.deliverOrder(orderId, driverActor, bottleStep);
 
@@ -250,7 +250,7 @@ describe("deliverOrderService.deliverOrder", () => {
 
   it("recusa entrega quando o pagamento em dinheiro está em status inválido", async () => {
     givenOrder(order());
-    tx.payment.findFirst.mockResolvedValue(cashPayment({ status: PaymentStatus.REFUNDED }));
+    tx.payment.findMany.mockResolvedValue([cashPayment({ status: PaymentStatus.REFUNDED })]);
 
     await expect(deliverOrderService.deliverOrder(orderId, driverActor, bottleStep)).rejects.toThrow(
       OrderServiceError
@@ -394,7 +394,7 @@ describe("deliverOrderService.deliverOrder", () => {
 
   it("propaga o ator real também para a captura do pagamento em dinheiro", async () => {
     givenOrder(order());
-    tx.payment.findFirst.mockResolvedValue(cashPayment());
+    tx.payment.findMany.mockResolvedValue([cashPayment()]);
 
     await deliverOrderService.deliverOrder(orderId, {
       type: ActorType.SUPPORT,
