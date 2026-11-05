@@ -25,7 +25,7 @@ export default async function DriverLayout({
     <RoleAppShell
       role={role}
       userName={requestHeaders.get("x-user-name")}
-      contentClassName="p-4 pb-24 md:p-6 md:pb-28"
+      contentClassName="pb-24 md:px-4 md:pb-28"
     >
       {children}
     </RoleAppShell>

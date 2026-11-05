@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import {
   Select,
@@ -13,8 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Droplets, Pencil, Plus, Save, X } from "lucide-react";
-import { formatCurrency } from "@/src/lib/utils";
+import { Droplets, Eye, EyeOff, Loader2, MoreVertical, Pencil, Plus, Search } from "lucide-react";
+import { cn, formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
 
 type ProductKind = "WATER" | "BOTTLE" | "OTHER";
@@ -142,9 +155,7 @@ async function errorMessage(res: Response, fallback: string) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </label>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
     </div>
   );
@@ -172,9 +183,7 @@ function ProductForm({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-2 sm:col-span-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Regra de vasilhame *
-        </p>
+        <p className="text-sm font-medium text-foreground">Regra de vasilhame</p>
         <RadioGroup
           value={draft.mode}
           onValueChange={(value) => onChange({ ...draft, mode: value as BottleMode })}
@@ -197,12 +206,12 @@ function ProductForm({
       </div>
 
       {draft.mode === "combo" && (
-        <Field label="Água-base (estoque consumido) *">
+        <Field label="Água-base (estoque consumido)">
           <Select
             value={draft.base_product_id}
             onValueChange={(value) => onChange({ ...draft, base_product_id: value })}
           >
-            <SelectTrigger className="w-full rounded-xl">
+            <SelectTrigger className="h-11 w-full rounded-xl">
               <SelectValue placeholder="Selecione a água refil" />
             </SelectTrigger>
             <SelectContent>
@@ -218,13 +227,13 @@ function ProductForm({
 
       {(draft.mode === "refil" || draft.mode === "combo") && (
         <Field
-          label={draft.mode === "refil" ? "Vasilhame cobrado se faltar o vazio *" : "Vasilhame incluso *"}
+          label={draft.mode === "refil" ? "Vasilhame cobrado se faltar o vazio" : "Vasilhame incluso"}
         >
           <Select
             value={draft.bottle_product_id}
             onValueChange={(value) => onChange({ ...draft, bottle_product_id: value })}
           >
-            <SelectTrigger className="w-full rounded-xl">
+            <SelectTrigger className="h-11 w-full rounded-xl">
               <SelectValue placeholder="Selecione o vasilhame" />
             </SelectTrigger>
             <SelectContent>
@@ -236,7 +245,7 @@ function ProductForm({
             </SelectContent>
           </Select>
           {bottles.length === 0 && (
-            <p className="text-xs text-amber-700">Cadastre antes um produto do tipo “Vasilhame”.</p>
+            <p className="text-xs text-warning-foreground">Cadastre antes um produto do tipo “Vasilhame”.</p>
           )}
         </Field>
       )}
@@ -255,12 +264,12 @@ function ProductForm({
         </p>
       )}
 
-      <Field label="Nome *">
+      <Field label="Nome">
         <Input
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="Nome do produto"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
       <Field label="Descrição">
@@ -268,10 +277,10 @@ function ProductForm({
           value={draft.description}
           onChange={(e) => onChange({ ...draft, description: e.target.value })}
           placeholder="Descrição opcional"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="Preço (R$) *">
+      <Field label="Preço (R$)">
         <Input
           type="number"
           step="0.01"
@@ -279,7 +288,7 @@ function ProductForm({
           value={draft.price_cents}
           onChange={(e) => onChange({ ...draft, price_cents: e.target.value })}
           placeholder="0.00"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
       <div className="sm:col-span-2">
@@ -289,7 +298,7 @@ function ProductForm({
             value={draft.image_url}
             onChange={(e) => onChange({ ...draft, image_url: e.target.value })}
             placeholder="https://exemplo.com/imagem.jpg"
-            className="rounded-xl border-hairline text-sm"
+            className="h-11 rounded-xl"
           />
         </Field>
       </div>
@@ -297,14 +306,17 @@ function ProductForm({
   );
 }
 
+type StatusFilter = "active" | "inactive" | "all";
+
 export default function OpsProductsPage() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("active");
+  const [form, setForm] = useState<{ mode: "new" } | { mode: "edit"; product: ProductItem } | null>(null);
   const [draft, setDraft] = useState<ProductDraft>({ ...EMPTY_DRAFT });
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<ProductDraft>({ ...EMPTY_DRAFT });
   const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState<ProductItem | null>(null);
   const productsById = new Map(products.map((p) => [p.id, p]));
 
   useEffect(() => {
@@ -315,7 +327,13 @@ export default function OpsProductsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCreate() {
+  function openForm(next: { mode: "new" } | { mode: "edit"; product: ProductItem }) {
+    setDraft(next.mode === "edit" ? draftFromProduct(next.product) : { ...EMPTY_DRAFT });
+    setForm(next);
+  }
+
+  async function handleSave() {
+    if (!form) return;
     const invalid = validateDraft(draft);
     if (invalid) {
       toast.error(invalid);
@@ -323,245 +341,152 @@ export default function OpsProductsPage() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/products", {
-        method: "POST",
+      const editing = form.mode === "edit";
+      const res = await fetch(editing ? `/api/products/${form.product.id}` : "/api/products", {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draftToPayload(draft)),
       });
-      if (!res.ok) throw new Error(await errorMessage(res, "Erro ao criar produto"));
+      if (!res.ok) throw new Error(await errorMessage(res, "Erro ao salvar produto"));
       const data = await res.json();
-      setProducts((prev) => [...prev, data.product]);
-      setDraft({ ...EMPTY_DRAFT });
-      setCreating(false);
-      toast.success("Produto criado");
+      setProducts((prev) => (editing ? prev.map((p) => (p.id === data.product.id ? data.product : p)) : [...prev, data.product]));
+      setForm(null);
+      toast.success(editing ? "Produto atualizado" : "Produto criado");
     } catch (error) {
-      toast.error(error instanceof Error && error.message ? error.message : "Erro ao criar produto");
+      toast.error(error instanceof Error && error.message ? error.message : "Erro ao salvar produto");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleUpdate(id: string) {
-    const invalid = validateDraft(editDraft);
-    if (invalid) {
-      toast.error(invalid);
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/products/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftToPayload(editDraft)),
-      });
-      if (!res.ok) throw new Error(await errorMessage(res, "Erro ao atualizar produto"));
-      const data = await res.json();
-      setProducts((prev) => prev.map((p) => (p.id === id ? data.product : p)));
-      setEditId(null);
-      toast.success("Produto atualizado");
-    } catch (error) {
-      toast.error(error instanceof Error && error.message ? error.message : "Erro ao atualizar produto");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggleActive(product: ProductItem) {
+  async function setActive(product: ProductItem, isActive: boolean) {
     try {
       const res = await fetch(`/api/products/${product.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !product.is_active }),
+        body: JSON.stringify({ is_active: isActive }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setProducts((prev) =>
-        prev.map((p) => (p.id === product.id ? data.product : p))
-      );
-      toast.success(data.product.is_active ? "Produto ativado" : "Produto desativado");
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? data.product : p)));
+      toast.success(isActive ? "Produto voltou ao catálogo" : "Produto saiu do catálogo");
     } catch {
       toast.error("Erro ao alterar status");
     }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        <h1 className="text-lg font-bold font-heading text-foreground">Produtos</h1>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"
-          >
-            <div className="h-4 w-48 rounded-lg bg-surface-highest" />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const term = search.trim().toLowerCase();
+  const visible = products.filter(
+    (p) =>
+      (status === "all" || (status === "active" ? p.is_active : !p.is_active)) &&
+      (!term || p.name.toLowerCase().includes(term) || (p.description ?? "").toLowerCase().includes(term)),
+  );
+  const inactiveCount = products.filter((p) => !p.is_active).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold font-heading text-foreground">Produtos</h1>
-        {!creating && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setCreating(true);
-              setEditId(null);
-            }}
-            className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Novo produto
-          </Button>
+    <div className="mx-auto w-full max-w-4xl">
+      <PageHeader title="Produtos" description="O que aparece no catálogo do cliente." sticky>
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto" aria-label="Buscar produto" className="h-11 rounded-xl pl-9" />
+          </div>
+          <ToggleGroup type="single" value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} spacing={2} className="justify-start">
+            <ToggleGroupItem value="active" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">No catálogo</ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Fora ({inactiveCount})</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Todos</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      </PageHeader>
+
+      <div className="px-4 pb-4">
+        {loading ? (
+          <Skeleton className="h-64 rounded-2xl" />
+        ) : visible.length === 0 ? (
+          <EmptyState icon={Droplets} title={term ? "Nenhum produto encontrado" : "Nenhum produto aqui"} />
+        ) : (
+          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            {visible.map((product) => {
+              const rule = bottleRuleLabel(product, productsById);
+              return (
+                <li key={product.id} className={cn("flex items-center gap-3 px-4 py-3", !product.is_active && "bg-surface-low")}>
+                  <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-secondary/60">
+                    {product.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={product.image_url} alt="" className="size-full object-cover" />
+                    ) : (
+                      <Droplets className="size-6 text-sky" aria-hidden />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("truncate font-semibold", product.is_active ? "text-foreground" : "text-muted-foreground")}>{product.name}</p>
+                    <p className="text-sm font-semibold text-primary tabular-nums">{formatCurrency(product.price_cents)}</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {rule ? <StatusBadge label={rule} tone="info" className="h-5 px-2 text-[11px]" /> : null}
+                      {!product.is_active ? <StatusBadge label="Fora do catálogo" tone="neutral" className="h-5 px-2 text-[11px]" /> : null}
+                    </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-touch" aria-label={`Ações de ${product.name}`}>
+                        <MoreVertical />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onSelect={() => openForm({ mode: "edit", product })}>
+                        <Pencil /> Editar
+                      </DropdownMenuItem>
+                      {product.is_active ? (
+                        <DropdownMenuItem variant="destructive" onSelect={() => setDeactivating(product)}>
+                          <EyeOff /> Tirar do catálogo
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onSelect={() => setActive(product, true)}>
+                          <Eye /> Voltar ao catálogo
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 
-      {/* Formulário de criação */}
-      {creating && (
-        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold font-heading">Novo produto</p>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setCreating(false);
-                setDraft({ ...EMPTY_DRAFT });
-              }}
-              className="h-7 w-7 p-0 rounded-xl"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <ProductForm draft={draft} onChange={setDraft} products={products} />
-          <Button
-            size="sm"
-            disabled={saving}
-            onClick={handleCreate}
-            className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
-          >
-            <Save className="h-3.5 w-3.5 mr-1" />
-            {saving ? "Salvando..." : "Criar produto"}
-          </Button>
-        </div>
-      )}
+      <StickyActionBar>
+        <Button variant="cta" size="xl" onClick={() => openForm({ mode: "new" })}>
+          <Plus aria-hidden /> Novo produto
+        </Button>
+      </StickyActionBar>
 
-      {/* Lista de produtos */}
-      <div className="space-y-3">
-        {products.map((product) => (
-          <div
-            key={product.id}
-            className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3"
-          >
-            {editId === product.id ? (
-              /* Modo edição */
-              <>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold font-heading">Editando produto</p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditId(null)}
-                    className="h-7 w-7 p-0 rounded-xl"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <ProductForm
-                  draft={editDraft}
-                  onChange={setEditDraft}
-                  products={products}
-                  editingId={product.id}
-                />
-                <Button
-                  size="sm"
-                  disabled={saving}
-                  onClick={() => handleUpdate(product.id)}
-                  className="rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
-                >
-                  <Save className="h-3.5 w-3.5 mr-1" />
-                  {saving ? "Salvando..." : "Salvar"}
-                </Button>
-              </>
-            ) : (
-              /* Modo visualização */
-              <>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-3">
-                    {/* Preview da imagem */}
-                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-surface-highest flex items-center justify-center shrink-0">
-                      {product.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Droplets className="h-6 w-6 text-muted-foreground/40" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold font-heading leading-tight">
-                        {product.name}
-                      </p>
-                      {product.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {product.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatCurrency(product.price_cents)}
-                      </p>
-                      {bottleRuleLabel(product, productsById) && (
-                        <Badge variant="secondary" className="mt-1.5 font-medium">
-                          {bottleRuleLabel(product, productsById)}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      variant={product.is_active ? "default" : "secondary"}
-                      className={product.is_active ? "bg-primary text-white" : ""}
-                    >
-                      {product.is_active ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditId(product.id);
-                      setEditDraft(draftFromProduct(product));
-                      setCreating(false);
-                    }}
-                    className="h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    className={
-                      product.is_active
-                        ? "h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
-                        : "h-7 text-xs rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground shadow-none active:scale-[0.98]"
-                    }
-                    onClick={() => toggleActive(product)}
-                  >
-                    {product.is_active ? "Desativar" : "Ativar"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+      <ResponsiveDialog
+        open={form !== null}
+        onOpenChange={(open) => !open && setForm(null)}
+        title={form?.mode === "edit" ? "Editar produto" : "Novo produto"}
+        className="sm:max-w-2xl"
+        footer={
+          <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
+            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {form?.mode === "edit" ? "Salvar alterações" : "Criar produto"}
+          </Button>
+        }
+      >
+        <ProductForm draft={draft} onChange={setDraft} products={products} editingId={form?.mode === "edit" ? form.product.id : undefined} />
+      </ResponsiveDialog>
+
+      <ConfirmAction
+        open={deactivating !== null}
+        onOpenChange={(open) => !open && setDeactivating(null)}
+        title={`Tirar “${deactivating?.name ?? ""}” do catálogo?`}
+        description="Clientes deixam de ver e pedir este produto. Pedidos já feitos não mudam. Dá para voltar depois."
+        confirmLabel="Tirar do catálogo"
+        destructive
+        onConfirm={async () => {
+          if (deactivating) await setActive(deactivating, false);
+          setDeactivating(null);
+        }}
+      />
     </div>
   );
 }

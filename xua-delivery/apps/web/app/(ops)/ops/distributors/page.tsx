@@ -3,8 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
-import { AlertTriangle, Building2, FileText, Loader2, Pencil, Plus, Save, ShieldCheck, Truck, UserPlus, X } from "lucide-react";
+import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Switch } from "@/src/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PasswordInput } from "@/src/components/shared/password-input";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { formatPhone } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
+import { Building2, FileText, Loader2, MoreVertical, Pencil, Plus, Power, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -149,6 +166,13 @@ function coreDraftToPayload(d: DistributorCoreDraft) {
   };
 }
 
+/** Na edição, envia só o que mudou: dados antigos (ex.: CNPJ de cadastro legado) não travam outras alterações. */
+function changedFields(original: DistributorListItem, draft: EditDraft) {
+  const before = coreDraftToPayload(draftFromDistributor(original)) as Record<string, unknown>;
+  const after = coreDraftToPayload(draft) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(after).filter(([key, value]) => before[key] !== value));
+}
+
 function createDraftToPayload(d: CreateDraft) {
   return {
     ...coreDraftToPayload(d),
@@ -193,11 +217,9 @@ async function extractError(res: Response, fallback: string): Promise<string> {
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </label>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
-      {hint && <p className="text-[10px] text-muted-foreground/70">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -223,59 +245,64 @@ function CoreFields<T extends DistributorCoreDraft>({
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field label="Nome *">
+      <Field label="Nome">
         <Input
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="Ex: Distribuidora São Luiz"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="CNPJ *">
+      <Field label="CNPJ">
         <Input
           value={draft.cnpj}
           onChange={(e) => onChange({ ...draft, cnpj: e.target.value })}
           placeholder="00.000.000/0000-00"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="Telefone *">
+      <Field label="Telefone">
         <Input
           value={draft.phone}
           onChange={(e) => onChange({ ...draft, phone: e.target.value })}
           placeholder="(11) 98888-7777"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="E-mail *">
+      <Field label="E-mail">
         <Input
           type="email"
           value={draft.email}
           onChange={(e) => onChange({ ...draft, email: e.target.value })}
           placeholder="contato@distribuidora.com"
-          className="rounded-xl border-hairline text-sm"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="SLA de aceite (segundos)" hint="Tempo máximo para aceitar um pedido novo. Padrão do sistema se vazio.">
+      <Field label="Prazo para aceitar pedido (minutos)" hint="A distribuidora vê esse prazo na fila e o indicador mede contra ele. Vazio = padrão do sistema (3 min).">
         <Input
           type="number"
           min="1"
-          value={draft.acceptance_sla_seconds}
-          onChange={(e) => onChange({ ...draft, acceptance_sla_seconds: e.target.value })}
-          placeholder="Ex: 300"
-          className="rounded-xl border-hairline text-sm"
+          step="1"
+          inputMode="numeric"
+          value={draft.acceptance_sla_seconds ? String(Math.round(Number(draft.acceptance_sla_seconds) / 60)) : ""}
+          onChange={(e) =>
+            onChange({ ...draft, acceptance_sla_seconds: e.target.value ? String(Math.max(1, Number(e.target.value)) * 60) : "" })
+          }
+          placeholder="Ex.: 5"
+          className="h-11 rounded-xl"
         />
       </Field>
-      <Field label="Escolha de distribuidora pelo consumidor" hint="Se o consumidor pode escolher esta distribuidora manualmente no checkout">
-        <select
-          value={draft.allows_consumer_choice ? "sim" : "nao"}
-          onChange={(e) => onChange({ ...draft, allows_consumer_choice: e.target.value === "sim" })}
-          className="w-full rounded-xl border border-hairline bg-white px-3 py-2 text-sm"
-        >
-          <option value="sim">Sim</option>
-          <option value="nao">Não</option>
-        </select>
-      </Field>
+      <div className="flex items-start gap-3 rounded-xl border border-hairline p-3">
+        <Switch
+          id="allows-choice"
+          checked={draft.allows_consumer_choice}
+          onCheckedChange={(v) => onChange({ ...draft, allows_consumer_choice: v })}
+        />
+        <Label htmlFor="allows-choice" className="flex-col items-start gap-0.5">
+          <span className="text-sm font-medium">Cliente pode escolher esta distribuidora</span>
+          <span className="text-xs font-normal text-muted-foreground">Aparece como opção no checkout quando há mais de uma na região.</span>
+        </Label>
+      </div>
     </div>
   );
 }
@@ -329,7 +356,7 @@ function IssuerFields<T extends DistributorCoreDraft>({
       value={issuer[key]}
       onChange={(e) => setIssuer({ [key]: e.target.value })}
       placeholder={placeholder}
-      className="rounded-xl border-hairline text-sm"
+      className="h-11 rounded-xl"
       {...extra}
     />
   );
@@ -378,38 +405,37 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
       <div>
         <SectionHeader icon={UserPlus} title="Primeiro administrador" />
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Nome *">
+          <Field label="Nome">
             <Input
               value={draft.admin_name}
               onChange={(e) => onChange({ ...draft, admin_name: e.target.value })}
               placeholder="Nome completo"
-              className="rounded-xl border-hairline text-sm"
+              className="h-11 rounded-xl"
             />
           </Field>
-          <Field label="E-mail *">
+          <Field label="E-mail">
             <Input
               type="email"
               value={draft.admin_email}
               onChange={(e) => onChange({ ...draft, admin_email: e.target.value })}
               placeholder="admin@distribuidora.com"
-              className="rounded-xl border-hairline text-sm"
+              className="h-11 rounded-xl"
             />
           </Field>
-          <Field label="Telefone *">
+          <Field label="Telefone">
             <Input
               value={draft.admin_phone}
               onChange={(e) => onChange({ ...draft, admin_phone: e.target.value })}
               placeholder="(11) 98888-6666"
-              className="rounded-xl border-hairline text-sm"
+              className="h-11 rounded-xl"
             />
           </Field>
-          <Field label="Senha inicial *" hint="Mínimo 8 caracteres. O admin pode trocar depois.">
-            <Input
-              type="password"
+          <Field label="Senha inicial" hint="Mínimo de 8 caracteres. O admin troca depois em Conta.">
+            <PasswordInput
               value={draft.admin_password}
               onChange={(e) => onChange({ ...draft, admin_password: e.target.value })}
-              placeholder="••••••••"
-              className="rounded-xl border-hairline text-sm"
+              autoComplete="new-password"
+              className="h-11 rounded-xl"
             />
           </Field>
         </div>
@@ -425,13 +451,12 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
 export default function OpsDistributorsPage() {
   const [distributors, setDistributors] = useState<DistributorListItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState<{ mode: "new" } | { mode: "edit"; distributor: DistributorListItem } | null>(null);
   const [createDraft, setCreateDraft] = useState<CreateDraft>({ ...EMPTY_CREATE_DRAFT });
-  const [saving, setSaving] = useState(false);
-
-  const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>({ ...EMPTY_EDIT_DRAFT });
+  const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState<DistributorListItem | null>(null);
 
   function loadDistributors() {
     return fetch("/api/distributor/all")
@@ -445,256 +470,162 @@ export default function OpsDistributorsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCreate() {
-    const err = validateCreate(createDraft);
+  function openForm(next: { mode: "new" } | { mode: "edit"; distributor: DistributorListItem }) {
+    if (next.mode === "edit") setEditDraft(draftFromDistributor(next.distributor));
+    else setCreateDraft({ ...EMPTY_CREATE_DRAFT });
+    setForm(next);
+  }
+
+  async function handleSave() {
+    if (!form) return;
+    const editing = form.mode === "edit";
+    const err = editing ? validateCoreDraft(editDraft) : validateCreate(createDraft);
     if (err) {
       toast.error(err);
       return;
     }
+    if (editing && Object.keys(changedFields(form.distributor, editDraft)).length === 0) {
+      setForm(null);
+      return;
+    }
     setSaving(true);
     try {
-      const res = await fetch("/api/distributor", {
-        method: "POST",
+      const res = await fetch(editing ? `/api/distributor/${form.distributor.id}` : "/api/distributor", {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createDraftToPayload(createDraft)),
+        body: JSON.stringify(editing ? changedFields(form.distributor, editDraft) : createDraftToPayload(createDraft)),
       });
-      if (!res.ok) throw new Error(await extractError(res, "Erro ao criar distribuidora"));
+      if (!res.ok) throw new Error(await extractError(res, "Erro ao salvar distribuidora"));
       await loadDistributors();
-      setCreateDraft({ ...EMPTY_CREATE_DRAFT });
-      setCreating(false);
-      toast.success("Distribuidora e administrador criados");
+      setForm(null);
+      toast.success(editing ? "Distribuidora atualizada" : "Distribuidora e administrador criados");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao criar distribuidora");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar distribuidora");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleUpdate(id: string) {
-    const err = validateCoreDraft(editDraft);
-    if (err) {
-      toast.error(err);
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/distributor/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(coreDraftToPayload(editDraft)),
-      });
-      if (!res.ok) throw new Error(await extractError(res, "Erro ao atualizar distribuidora"));
-      await loadDistributors();
-      setEditId(null);
-      toast.success("Distribuidora atualizada");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao atualizar distribuidora");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /** Ativa/desativa — a listagem já inclui inativas, então não precisa de estado paralelo em memória. */
-  async function handleToggleActive(distributor: DistributorListItem) {
-    const nextActive = !distributor.is_active;
+  async function setActive(distributor: DistributorListItem, isActive: boolean) {
     try {
       const res = await fetch(`/api/distributor/${distributor.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: nextActive }),
+        body: JSON.stringify({ is_active: isActive }),
       });
-      if (!res.ok)
-        throw new Error(
-          await extractError(
-            res,
-            nextActive ? "Erro ao reativar distribuidora" : "Erro ao desativar distribuidora"
-          )
-        );
+      if (!res.ok) throw new Error(await extractError(res, "Erro ao alterar status"));
       await loadDistributors();
-      toast.success(nextActive ? "Distribuidora reativada" : "Distribuidora desativada");
+      toast.success(isActive ? "Distribuidora reativada" : "Distribuidora desativada");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao alterar status da distribuidora");
     }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        <h1 className="text-lg font-bold font-heading text-foreground">Distribuidoras</h1>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="h-4 w-48 rounded-lg bg-surface-highest" />
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const term = search.trim().toLowerCase();
+  const visible = distributors
+    .filter((d) => !term || d.name.toLowerCase().includes(term) || d.cnpj.includes(term) || (d.city ?? "").toLowerCase().includes(term))
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold font-heading text-foreground">Distribuidoras</h1>
-          <p className="text-xs text-muted-foreground">
-            Cadastro de distribuidoras e do primeiro administrador de cada uma
-          </p>
+    <div className="mx-auto w-full max-w-4xl">
+      <PageHeader title="Distribuidoras" description="Quem atende os pedidos em cada região." sticky>
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, CNPJ ou cidade" aria-label="Buscar distribuidora" className="h-11 rounded-xl pl-9" />
         </div>
-        {!creating && (
-          <Button
-            size="sm"
-            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-            onClick={() => {
-              setCreating(true);
-              setEditId(null);
-            }}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Nova
-          </Button>
+      </PageHeader>
+
+      <div className="px-4 pb-4">
+        {loading ? (
+          <Skeleton className="h-48 rounded-2xl" />
+        ) : visible.length === 0 ? (
+          <EmptyState icon={Building2} title={term ? "Nenhuma distribuidora encontrada" : "Nenhuma distribuidora cadastrada"} />
+        ) : (
+          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            {visible.map((d) => (
+              <li key={d.id} className={cn("flex items-center gap-3 px-4 py-3", !d.is_active && "bg-surface-low")}>
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+                  <Building2 className="size-5 text-primary" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={cn("truncate font-semibold", d.is_active ? "text-foreground" : "text-muted-foreground")}>{d.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[d.city && d.state ? `${d.city}/${d.state}` : null, d.cnpj, d.phone ? formatPhone(d.phone) : null].filter(Boolean).join(" · ")}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {!d.is_active ? <StatusBadge label="Desativada" tone="neutral" className="h-5 px-2 text-[11px]" /> : null}
+                    <StatusBadge label={d.mp_connected ? "Mercado Pago conectado" : "Sem Mercado Pago"} tone={d.mp_connected ? "success" : "neutral"} className="h-5 px-2 text-[11px]" />
+                    {isIssuerIncomplete(d) ? <StatusBadge label="Dados do comprovante incompletos" tone="warning" className="h-5 px-2 text-[11px]" /> : null}
+                  </div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-touch" aria-label={`Ações de ${d.name}`}>
+                      <MoreVertical />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onSelect={() => openForm({ mode: "edit", distributor: d })}>
+                      <Pencil /> Editar
+                    </DropdownMenuItem>
+                    {d.is_active ? (
+                      <DropdownMenuItem variant="destructive" onSelect={() => setDeactivating(d)}>
+                        <Power /> Desativar
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => setActive(d, true)}>
+                        <Power /> Reativar
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
-      {creating && (
-        <div className="rounded-2xl bg-white/95 p-5 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold font-heading">Nova distribuidora</p>
-            <button
-              type="button"
-              onClick={() => {
-                setCreating(false);
-                setCreateDraft({ ...EMPTY_CREATE_DRAFT });
-              }}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
+      <StickyActionBar>
+        <Button variant="cta" size="xl" onClick={() => openForm({ mode: "new" })}>
+          <Plus aria-hidden /> Nova distribuidora
+        </Button>
+      </StickyActionBar>
+
+      <ResponsiveDialog
+        open={form !== null}
+        onOpenChange={(open) => !open && setForm(null)}
+        title={form?.mode === "edit" ? `Editar ${form.distributor.name}` : "Nova distribuidora"}
+        description={form?.mode === "new" ? "Cria a distribuidora e o primeiro acesso de administrador." : undefined}
+        className="sm:max-w-2xl"
+        footer={
+          <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
+            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {form?.mode === "edit" ? "Salvar alterações" : "Criar distribuidora"}
+          </Button>
+        }
+      >
+        {form?.mode === "edit" ? (
+          <div className="space-y-5">
+            <CoreFields draft={editDraft} onChange={setEditDraft} />
+            <IssuerFields draft={editDraft} onChange={setEditDraft} />
           </div>
+        ) : form ? (
           <CreateForm draft={createDraft} onChange={setCreateDraft} />
-          <Button
-            disabled={saving}
-            onClick={handleCreate}
-            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-          >
-            <Save className="mr-1 h-4 w-4" />
-            {saving ? "Salvando..." : "Criar distribuidora"}
-          </Button>
-        </div>
-      )}
+        ) : null}
+      </ResponsiveDialog>
 
-      <div className="space-y-3">
-        {distributors.map((distributor) => {
-          const isEditing = editId === distributor.id;
-          return (
-            <div
-              key={distributor.id}
-              className={`rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3 ${
-                distributor.is_active ? "" : "opacity-60"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky/15">
-                    <Building2 className="h-5 w-5 text-sky" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold font-heading leading-tight truncate">
-                      {distributor.name}
-                    </p>
-                    {isIssuerIncomplete(distributor) && (
-                      <p className="flex items-center gap-1 text-[10px] text-amber-600">
-                        <AlertTriangle className="h-3 w-3" />
-                        Dados do emitente incompletos
-                      </p>
-                    )}
-                    {distributor.mp_connected && (
-                      <p className="flex items-center gap-1 text-[10px] text-emerald-600">
-                        <ShieldCheck className="h-3 w-3" />
-                        Gateway Mercado Pago conectado
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Badge
-                  className={
-                    distributor.is_active
-                      ? "bg-primary text-white shrink-0"
-                      : "bg-surface-highest text-muted-foreground shrink-0"
-                  }
-                >
-                  {distributor.is_active ? "Ativa" : "Inativa"}
-                </Badge>
-              </div>
-
-              {isEditing ? (
-                <div className="space-y-4 pt-3 border-t border-hairline">
-                  <CoreFields draft={editDraft} onChange={setEditDraft} />
-                  <IssuerFields draft={editDraft} onChange={setEditDraft} />
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={saving}
-                      onClick={() => handleUpdate(distributor.id)}
-                      className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-                    >
-                      <Save className="mr-1 h-4 w-4" />
-                      {saving ? "Salvando..." : "Salvar"}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setEditId(null)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
-                    onClick={() => {
-                      setEditId(distributor.id);
-                      setEditDraft(draftFromDistributor(distributor));
-                      setCreating(false);
-                    }}
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Editar
-                  </Button>
-                  {distributor.is_active ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => handleToggleActive(distributor)}
-                    >
-                      Desativar
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none"
-                      onClick={() => handleToggleActive(distributor)}
-                    >
-                      Reativar
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {distributors.length === 0 && !creating && (
-          <div className="rounded-2xl bg-white/95 px-6 py-10 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky/15">
-              <Truck className="h-7 w-7 text-sky" />
-            </div>
-            <h2 className="mt-3 text-sm font-semibold font-heading text-foreground">
-              Nenhuma distribuidora cadastrada
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Crie a primeira distribuidora e seu administrador inicial.
-            </p>
-          </div>
-        )}
-      </div>
+      <ConfirmAction
+        open={deactivating !== null}
+        onOpenChange={(open) => !open && setDeactivating(null)}
+        title={`Desativar ${deactivating?.name ?? ""}?`}
+        description="Ela para de receber pedidos novos e some do checkout. Pedidos em andamento continuam. Dá para reativar depois."
+        confirmLabel="Desativar"
+        destructive
+        onConfirm={async () => {
+          if (deactivating) await setActive(deactivating, false);
+          setDeactivating(null);
+        }}
+      />
     </div>
   );
 }

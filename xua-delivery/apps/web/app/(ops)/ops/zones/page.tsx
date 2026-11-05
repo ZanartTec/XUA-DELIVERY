@@ -9,6 +9,7 @@ import { ZoneTable } from "@/src/components/ops/zones/zone-table";
 import { OPS_CARD, OPS_TITLE } from "@/src/components/ops/zones/styles";
 import { useOpsDistributors } from "@/src/hooks/ops/use-ops-zones";
 import { cn } from "@/src/lib/utils";
+import { PageHeader } from "@/src/components/shared/page-header";
 
 /**
  * Painel de zonas de atendimento (ops).
@@ -34,9 +35,9 @@ export default function ZonesPage() {
 
   if (isError) {
     return (
-      <div className="space-y-3">
-        <h1 className={OPS_TITLE}>Zonas de Atendimento</h1>
-        <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-600">
+      <div className="space-y-3 p-4">
+        <h1 className={OPS_TITLE}>Zonas de atendimento</h1>
+        <div className="rounded-2xl bg-danger-surface p-4 text-sm text-destructive">
           Erro ao carregar as distribuidoras.
         </div>
       </div>
@@ -44,17 +45,15 @@ export default function ZonesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className={OPS_TITLE}>Zonas de Atendimento</h1>
-        <p className="text-xs text-muted-foreground">
-          Cada zona pertence a uma distribuidora e define, por bairro e CEP, onde ela
-          entrega.
-        </p>
-      </div>
+    <div className="space-y-4 px-4">
+      <PageHeader
+        className="px-0"
+        title="Zonas de atendimento"
+        description="Onde cada distribuidora entrega, por bairro e CEP."
+      />
 
       <div className="grid gap-4 md:grid-cols-[minmax(220px,280px)_1fr]">
-        <div className={cn(hasSelection && "hidden md:block")}>
+        <div className={cn("min-w-0", hasSelection && "hidden md:block")}>
           <DistributorPicker
             distributors={distributors}
             selectedId={effectiveSelectedId}
@@ -63,7 +62,7 @@ export default function ZonesPage() {
           />
         </div>
 
-        <div className={cn(!hasSelection && "hidden md:block")}>
+        <div className={cn("min-w-0", !hasSelection && "hidden md:block")}>
           {hasSelection ? (
             <ZoneTable
               key={effectiveSelectedId}

@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { AlertTriangle, ListPlus, Plus, Search, X } from "lucide-react";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -53,6 +54,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
   const addBulk = useAddCoverageBulk();
   const previewCoverage = usePreviewCoverage();
   const removeCoverage = useRemoveCoverage();
+  const [removing, setRemoving] = useState<{ id: string; label: string } | null>(null);
 
   const parsedLines = useMemo(() => parseCoverageList(bulkText), [bulkText]);
   const invalidLines = parsedLines.filter((line) => line.error);
@@ -130,6 +132,18 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
 
   return (
     <div className="space-y-2">
+      <ConfirmAction
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={`Remover ${removing?.label ?? ""}?`}
+        description={`${zone.name} deixa de atender esse endereço. Pedidos novos dali podem ficar sem distribuidora.`}
+        confirmLabel="Remover"
+        destructive
+        onConfirm={async () => {
+          if (removing) await handleRemove(removing.id);
+          setRemoving(null);
+        }}
+      />
       {zone._count.coverage > 0 && (
         <div className="space-y-2">
           <div className="relative max-w-xs">
@@ -166,11 +180,11 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
                   <button
                     type="button"
                     disabled={removeCoverage.isPending}
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => setRemoving({ id: item.id, label: coverageLabel(item) })}
                     aria-label={`Remover cobertura ${coverageLabel(item)}`}
-                    className="text-muted-foreground/60 hover:text-red-600 disabled:opacity-50"
+                    className="-my-1 -mr-1.5 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-danger-surface hover:text-destructive disabled:opacity-50"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="size-3.5" />
                   </button>
                 </span>
               ))}
@@ -238,7 +252,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
             >
               {addCoverage.isPending ? "Salvando..." : "Adicionar"}
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 rounded-xl text-xs" onClick={resetForms}>
+            <Button size="sm" variant="ghost" className="h-9 rounded-xl text-xs" onClick={resetForms}>
               Cancelar
             </Button>
           </div>
@@ -304,7 +318,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
                   : `Importar ${preview.accepted_count} linha(s)`}
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="h-7 rounded-xl text-xs" onClick={resetForms}>
+            <Button size="sm" variant="ghost" className="h-9 rounded-xl text-xs" onClick={resetForms}>
               Cancelar
             </Button>
           </div>

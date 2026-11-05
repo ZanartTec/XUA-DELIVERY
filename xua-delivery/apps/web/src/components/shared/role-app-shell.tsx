@@ -50,6 +50,8 @@ interface RoleNavItem {
   label: string;
   icon: LucideIcon;
   match?: string[];
+  /** Título de seção na sidebar (desktop); itens seguidos do mesmo grupo ficam juntos. */
+  group?: string;
 }
 
 interface RoleShellConfig {
@@ -102,18 +104,18 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
   ops: {
     badgeLabel: "Operações",
     navItems: [
-      { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
-      { href: "/support", label: "Suporte", icon: Headphones },
-      { href: "/ops/zones", label: "Zonas", icon: MapPin },
-      { href: "/ops/inventory", label: "Estoque", icon: Boxes, match: ["/ops/inventory"] },
-      { href: "/ops/products", label: "Produtos", icon: Package },
-      { href: "/ops/banners", label: "Banners", icon: Image },
-      { href: "/ops/subscription-plans", label: "Planos", icon: Repeat },
-      { href: "/ops/distributors", label: "Distribuidoras", icon: Building2 },
-      { href: "/ops/drivers", label: "Motoristas", icon: UserCog },
-      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound },
-      { href: "/ops/audit-export", label: "Auditoria", icon: FileText },
-      { href: "/ops/account", label: "Conta", icon: CircleUser },
+      { href: "/support", label: "Suporte", icon: Headphones, group: "Operação" },
+      { href: "/ops/kpis", label: "Indicadores", icon: BarChart3, group: "Operação" },
+      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound, group: "Operação" },
+      { href: "/ops/distributors", label: "Distribuidoras", icon: Building2, group: "Rede" },
+      { href: "/ops/zones", label: "Zonas", icon: MapPin, group: "Rede" },
+      { href: "/ops/drivers", label: "Motoristas", icon: UserCog, group: "Rede" },
+      { href: "/ops/inventory", label: "Estoque", icon: Boxes, match: ["/ops/inventory"], group: "Rede" },
+      { href: "/ops/products", label: "Produtos", icon: Package, group: "Catálogo" },
+      { href: "/ops/subscription-plans", label: "Planos", icon: Repeat, group: "Catálogo" },
+      { href: "/ops/banners", label: "Banners", icon: Image, group: "Catálogo" },
+      { href: "/ops/audit-export", label: "Auditoria", icon: FileText, group: "Sistema" },
+      { href: "/ops/account", label: "Conta", icon: CircleUser, group: "Sistema" },
     ],
   },
   support: {
@@ -195,7 +197,8 @@ export function RoleAppShell({
       className={cn(
         "flex min-h-screen flex-col overflow-x-clip bg-background",
         "[--bottom-nav-h:calc(4rem+env(safe-area-inset-bottom))] md:[--app-sidebar-w:15rem] md:[--bottom-nav-h:0px]",
-        isConsumer ? "[--app-header-h:4rem]" : "[--app-header-h:3.5rem]",
+        // Operacionais não têm header no desktop (a sidebar faz o papel); o PageHeader gruda no topo.
+        isConsumer ? "[--app-header-h:4rem]" : "[--app-header-h:3.5rem] md:[--app-header-h:0px]",
       )}
     >
       <OfflineBanner />
@@ -212,11 +215,17 @@ export function RoleAppShell({
         </div>
         <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-3 py-2">
           <ul className="grid gap-1">
-            {config.navItems.map((item) => {
+            {config.navItems.map((item, index) => {
               const active = item.href === activeHref;
               const Icon = item.icon;
+              const startsGroup = item.group && item.group !== config.navItems[index - 1]?.group;
               return (
                 <li key={item.href}>
+                  {startsGroup ? (
+                    <p className={cn("px-3 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", index > 0 && "pt-3")}>
+                      {item.group}
+                    </p>
+                  ) : null}
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
@@ -259,7 +268,11 @@ export function RoleAppShell({
         )}
       </header>
 
-      <main className={cn("flex-1 pb-(--bottom-nav-h) md:pl-(--app-sidebar-w)", contentClassName)}>{children}</main>
+      {/* O padding do layout fica num wrapper interno: no <main> o twMerge deixaria
+          `md:p-6` sobrescrever o recuo da sidebar e o conteúdo ficaria por baixo dela. */}
+      <main className="flex-1 pb-(--bottom-nav-h) md:pl-(--app-sidebar-w)">
+        <div className={contentClassName}>{children}</div>
+      </main>
 
       {/* Bottom nav (mobile, zona do polegar) */}
       <nav

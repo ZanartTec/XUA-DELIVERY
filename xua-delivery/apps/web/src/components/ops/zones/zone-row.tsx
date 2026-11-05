@@ -103,7 +103,7 @@ export function ZoneRow({
           </button>
         </td>
 
-        <td className={cn(CELL, "font-medium")}>
+        <td className={cn(CELL, "font-medium whitespace-nowrap")}>
           <button
             type="button"
             onClick={onToggleExpand}
@@ -120,10 +120,10 @@ export function ZoneRow({
         <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
           {zone._count.coverage}
         </td>
-        <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
+        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.addresses}
         </td>
-        <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
+        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.orders}
         </td>
 
@@ -160,7 +160,7 @@ export function ZoneRow({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 rounded-xl text-xs text-red-600 hover:bg-red-50"
+                className="h-9 rounded-xl text-xs text-destructive hover:bg-danger-surface"
                 onClick={() => onDeactivateOpenChange(true)}
               >
                 Desativar
@@ -169,7 +169,7 @@ export function ZoneRow({
               <Button
                 size="sm"
                 disabled={updateZone.isPending}
-                className="h-7 rounded-xl bg-cta text-xs font-semibold text-cta-foreground shadow-none hover:bg-cta/90"
+                className="h-9 rounded-xl bg-cta text-xs font-semibold text-cta-foreground shadow-none hover:bg-cta/90"
                 onClick={() => handleToggleActive(true)}
               >
                 Reativar
