@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@api/infra/prisma/client.js", () => ({
   getPrisma: () => ({
     consumer: { findMany: vi.fn(async () => []) },
+    distributor: { findUnique: vi.fn(async () => ({ acceptance_sla_seconds: 180 })) },
   }),
 }));
 
@@ -183,5 +184,24 @@ describe("orderQueryService.listDistributorQueue — aba Histórico", () => {
     });
 
     expect(result.summary.overdue).toBe(4);
+  });
+});
+
+describe("acceptanceDeadline (D-05)", () => {
+  it("usa o SLA da distribuidora a partir da entrada na fila", async () => {
+    const { acceptanceDeadline } = await import("@api/modules/orders/services/order-query.service.js");
+    const deadline = acceptanceDeadline(
+      { status: OrderStatus.SENT_TO_DISTRIBUTOR, created_at: "2026-11-05T10:00:00.000Z", updated_at: "2026-11-05T10:04:00.000Z" },
+      180,
+    );
+    // Pedido pago online entrou na fila 4 min depois de criado: o prazo conta dali.
+    expect(deadline).toBe("2026-11-05T10:07:00.000Z");
+  });
+
+  it("não há prazo fora da etapa de aceite", async () => {
+    const { acceptanceDeadline } = await import("@api/modules/orders/services/order-query.service.js");
+    expect(
+      acceptanceDeadline({ status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR, created_at: "2026-11-05T10:00:00.000Z", updated_at: "2026-11-05T10:01:00.000Z" }, 180),
+    ).toBeNull();
   });
 });

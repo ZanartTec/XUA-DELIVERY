@@ -93,7 +93,7 @@ export type OrderWithItems = Order & {
 export type OrderWithDetails = Order & {
   consumer: Pick<Consumer, "name" | "email" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
-  distributor: Pick<Distributor, "name" | "phone" | "email">;
+  distributor: Pick<Distributor, "name" | "phone" | "email" | "acceptance_sla_seconds">;
   zone: Pick<Zone, "name">;
   time_slot: Pick<TimeSlot, "label" | "start_hour" | "start_minute" | "end_hour" | "end_minute"> | null;
   driver: Pick<Consumer, "name" | "phone"> | null;
@@ -502,7 +502,7 @@ export const orderRepository = {
           select: { name: true, email: true, phone: true },
         },
         distributor: {
-          select: { name: true, phone: true, email: true },
+          select: { name: true, phone: true, email: true, acceptance_sla_seconds: true },
         },
         zone: {
           select: { name: true },
