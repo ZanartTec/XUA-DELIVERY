@@ -1,254 +1,174 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { registerSchema, type RegisterInput } from "@/src/schemas/auth";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { ArrowRight } from "lucide-react";
+import { FormField } from "@/src/components/shared/form-field";
+import { MaskedInput } from "@/src/components/shared/masked-input";
+import { PasswordInput } from "@/src/components/shared/password-input";
+import { AuthShell } from "@/src/components/auth/auth-shell";
+import { formatPhone } from "@/src/lib/format";
+
+/** Força simples só para orientar (a regra real continua sendo mínimo de 8). */
+function passwordHint(pw: string): { label: string; tone: string } | null {
+  if (!pw) return null;
+  if (pw.length < 8) return { label: `Faltam ${8 - pw.length} caracteres`, tone: "text-muted-foreground" };
+  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(pw)).length;
+  if (pw.length >= 12 && variety >= 3) return { label: "Senha forte", tone: "text-success-foreground" };
+  if (variety >= 2) return { label: "Senha boa", tone: "text-success-foreground" };
+  return { label: "Senha fraca: misture letras e números", tone: "text-warning-foreground" };
+}
 
 export default function RegisterPage() {
   const [serverError, setServerError] = useState<string | null>(null);
+  const [emailTaken, setEmailTaken] = useState(false);
 
   const {
     register,
+    control,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
+    // Valida ao sair do campo: a mensagem não fica gritando enquanto a pessoa digita.
+    mode: "onTouched",
+    defaultValues: { name: "", email: "", phone: "", password: "" },
   });
+  const hint = passwordHint(watch("password"));
 
   async function onSubmit(data: RegisterInput) {
     setServerError(null);
+    setEmailTaken(false);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, phone: formatPhone(data.phone) }),
       });
-
       if (!res.ok) {
-        const body = await res.json();
-        setServerError(body.error || "Erro ao cadastrar");
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          setEmailTaken(true);
+          return;
+        }
+        setServerError(body.error || "Não foi possível criar a conta.");
         return;
       }
-
       window.location.replace("/");
     } catch {
-      setServerError("Erro de conexão. Tente novamente.");
+      setServerError("Sem conexão. Verifique a internet e tente de novo.");
     }
   }
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-background lg:bg-white lg:h-screen lg:overflow-hidden">
-      {/* Imagem de fundo fixa (apenas mobile/tablet) */}
-      <div className="fixed inset-0 -z-20 lg:hidden">
-        <Image
-          src="/woman-water2.webp"
-          alt=""
-          aria-hidden
-          fill
-          priority
-          quality={70}
-          sizes="100vw"
-          className="object-cover object-top"
-        />
-      </div>
-
-      {/* Gradiente fixo (apenas mobile/tablet) */}
-      <div
-        className="fixed inset-0 -z-10 lg:hidden"
-        style={{
-          background:
-            "linear-gradient(to bottom, transparent 20%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.35) 65%, rgba(255,255,255,0.50) 100%)",
-        }}
-      />
-
-      {/* Grid principal para suportar o split-screen no desktop */}
-      <div className="relative z-10 grid min-h-dvh w-full grid-cols-12 lg:h-full lg:overflow-hidden">
-        {/* Painel do Formulário (Esquerda) */}
-        <div className="col-span-12 flex min-h-dvh flex-col justify-between px-6 pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:mx-auto sm:max-w-md sm:w-full sm:pt-8 sm:pb-6 lg:col-span-5 lg:max-w-none lg:w-full lg:mx-0 lg:px-12 lg:py-10 lg:bg-white lg:shadow-[4px_0_24px_rgba(0,0,0,0.05)] lg:h-full lg:overflow-y-auto xl:col-span-4 xl:px-16">
-          {/* Logo no topo */}
-          <div className="flex justify-center lg:justify-start lg:mb-4 shrink-0 mb-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo-transparent.png"
-              alt="Xuá Água Mineral"
-              className="h-24 lg:h-20 w-auto drop-shadow-[0_4px_24px_rgba(0,0,0,0.25)] lg:drop-shadow-none"
-            />
-          </div>
-
-          {/* Formulário na parte inferior (ou painel desktop centralizado) */}
-          <div className="mt-auto lg:my-auto w-full max-w-sm mx-auto rounded-2xl bg-white/70 backdrop-blur-md p-5 shadow-lg shadow-black/5 lg:bg-transparent lg:backdrop-blur-none lg:p-0 lg:shadow-none">
-            <h1 className="font-heading text-xl lg:text-2xl font-extrabold leading-tight text-ink">
-              Crie sua conta
-            </h1>
-            <p className="mt-0.5 text-xs lg:text-sm text-muted-foreground">
-              Preencha seus dados para continuar
-            </p>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3">
-              {serverError && (
-                <div className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600 text-center">
-                  {serverError}
-                </div>
-              )}
-
-              {/* Nome */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="name"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Nome Completo
-                </label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Seu nome completo"
-                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-xs text-red-500">{errors.name.message}</p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="email"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="nome@exemplo.com"
-                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
-                  {...register("email")}
-                />
-                {errors.email && (
-                  <p className="text-xs text-red-500">{errors.email.message}</p>
-                )}
-              </div>
-
-              {/* Telefone */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="phone"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Telefone
-                </label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="(11) 99999-0000"
-                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
-                  {...register("phone")}
-                />
-                {errors.phone && (
-                  <p className="text-xs text-red-500">{errors.phone.message}</p>
-                )}
-              </div>
-
-              {/* Senha */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="password"
-                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Senha
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="No mínimo 8 caracteres"
-                  className="h-11 rounded-xl border border-hairline bg-white/80 shadow-none focus-visible:border-cta focus-visible:ring-1 focus-visible:ring-cta/60"
-                  {...register("password")}
-                />
-                {errors.password && (
-                  <p className="text-xs text-red-500">{errors.password.message}</p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-cta text-cta-foreground text-base font-semibold transition-all hover:bg-cta/90 active:scale-[0.98] disabled:opacity-60 mt-4"
-              >
-                {isSubmitting ? "Criando..." : "Criar Conta"}
-                {!isSubmitting && <ArrowRight className="h-4 w-4" />}
-              </button>
-            </form>
-
-            <p className="mt-5 text-center text-sm text-muted-foreground">
-              Já tem uma conta?{" "}
-              <Link href="/login" className="font-semibold text-primary">
+    <AuthShell
+      title="Criar conta"
+      description="Leva menos de um minuto."
+      footer={
+        <>
+          Já tem conta?{" "}
+          <Link href="/login" className="font-semibold text-primary">
+            Entrar
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" noValidate>
+        {serverError ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{serverError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {emailTaken ? (
+          <Alert role="alert" className="border-primary/30 bg-secondary">
+            <AlertDescription className="text-foreground">
+              Este e-mail já tem conta no Xuá.{" "}
+              <Link href="/login" className="font-semibold text-primary underline-offset-2 hover:underline">
                 Entrar
+              </Link>{" "}
+              ou{" "}
+              <Link href="/forgot-password" className="font-semibold text-primary underline-offset-2 hover:underline">
+                recuperar a senha
               </Link>
-            </p>
-          </div>
-        </div>
+              .
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-        {/* Coluna Direta (Painel de Marketing do Desktop) */}
-        <div className="hidden lg:block lg:col-span-7 xl:col-span-8 relative h-full">
-          <Image
-            src="/woman-water2.webp"
-            alt=""
-            aria-hidden
-            fill
-            priority
-            quality={85}
-            sizes="(max-width: 1024px) 0px, 60vw"
-            className="object-cover object-top"
-          />
-          {/* Degradê/Overlay de cores da nova identidade */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(27,74,154,0.45) 0%, rgba(0,224,255,0.2) 100%)",
-            }}
-          />
+        <FormField label="Nome completo" error={errors.name?.message}>
+          {(field) => (
+            <Input {...field} autoComplete="name" placeholder="Como devemos te chamar" className="h-11 rounded-xl" {...register("name")} />
+          )}
+        </FormField>
 
-          {/* Conteúdo flutuante com design premium */}
-          <div className="absolute inset-0 flex flex-col justify-between p-12 text-white">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-cta animate-pulse" />
-              <span className="text-sm font-semibold uppercase tracking-wider text-white/95">
-                Xuá Delivery
-              </span>
+        <FormField label="E-mail" error={errors.email?.message}>
+          {(field) => (
+            <Input
+              {...field}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="nome@exemplo.com"
+              className="h-11 rounded-xl"
+              {...register("email")}
+            />
+          )}
+        </FormField>
+
+        <FormField label="Celular" hint="Usado pelo entregador para falar com você." error={errors.phone?.message}>
+          {(field) => (
+            <Controller
+              control={control}
+              name="phone"
+              render={({ field: f }) => (
+                <MaskedInput
+                  {...field}
+                  mask="phone"
+                  value={f.value}
+                  onValueChange={f.onChange}
+                  onBlur={f.onBlur}
+                  name={f.name}
+                  placeholder="(00) 00000-0000"
+                  className="h-11 rounded-xl"
+                />
+              )}
+            />
+          )}
+        </FormField>
+
+        <FormField label="Senha" error={errors.password?.message}>
+          {(field) => (
+            <div className="grid gap-1">
+              <PasswordInput
+                {...field}
+                autoComplete="new-password"
+                placeholder="Mínimo de 8 caracteres"
+                className="h-11 rounded-xl"
+                {...register("password")}
+              />
+              {hint && !errors.password ? <p className={`text-xs ${hint.tone}`}>{hint.label}</p> : null}
             </div>
+          )}
+        </FormField>
 
-            <div className="max-w-lg space-y-4 bg-black/10 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-2xl">
-              <h2 className="text-3xl xl:text-4xl font-extrabold font-heading tracking-tight leading-tight">
-                A pureza que te move em cada gota.
-              </h2>
-              <p className="text-base text-white/90">
-                Peça sua água mineral de forma simples, rápida e receba no conforto da sua casa ou empresa.
-              </p>
+        <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
+          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? "Criando conta…" : "Criar conta"}
+          {!isSubmitting ? <ArrowRight aria-hidden /> : null}
+        </Button>
 
-              <div className="pt-2 flex gap-6 border-t border-white/15">
-                <div>
-                  <p className="text-2xl font-bold text-cta">100%</p>
-                  <p className="text-[10px] uppercase font-semibold text-white/70">Mineral Natural</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-cta">Express</p>
-                  <p className="text-[10px] uppercase font-semibold text-white/70">Entrega Ágil</p>
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        <p className="text-center text-xs text-muted-foreground">
+          Ao criar a conta, você concorda com os termos de uso e a política de privacidade do Xuá.
+        </p>
+      </form>
+    </AuthShell>
   );
 }

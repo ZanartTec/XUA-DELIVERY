@@ -12,6 +12,7 @@ import {
   Download,
   HelpCircle,
   Info,
+  KeyRound,
   LogOut,
   MapPin,
   Pencil,
@@ -167,6 +168,7 @@ export default function ProfilePage() {
           href="/profile/addresses"
         />
         <MenuRow icon={Pencil} label="Dados pessoais" hint="Nome, e-mail e telefone" href="/profile/edit" />
+        <MenuRow icon={KeyRound} label="Alterar senha" href="/profile/password" />
       </nav>
 
       {consumer ? (
