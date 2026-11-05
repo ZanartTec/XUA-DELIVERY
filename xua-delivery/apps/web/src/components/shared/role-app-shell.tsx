@@ -111,7 +111,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
       { href: "/ops/subscription-plans", label: "Planos", icon: Repeat },
       { href: "/ops/distributors", label: "Distribuidoras", icon: Building2 },
       { href: "/ops/drivers", label: "Motoristas", icon: UserCog },
-      { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
+      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound },
       { href: "/ops/audit-export", label: "Auditoria", icon: FileText },
       { href: "/ops/account", label: "Conta", icon: CircleUser },
     ],
@@ -120,7 +120,7 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
     badgeLabel: "Suporte",
     navItems: [
       { href: "/support", label: "Suporte", icon: Headphones },
-      { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
+      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound },
       { href: "/support/account", label: "Conta", icon: CircleUser },
     ],
   },

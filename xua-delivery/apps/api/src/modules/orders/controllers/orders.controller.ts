@@ -115,7 +115,15 @@ export const ordersController = {
           }
         }
 
-        const hasFilter = textFields.some(([, value]) => value.length >= 3) || !!dateParam;
+        // Fila de atenção do suporte: status que pedem ação podem ser listados
+        // sozinhos (o resultado já é limitado a 50 pelo repositório).
+        const attentionStatus =
+          statusParamRaw === OrderStatus.DELIVERY_FAILED ||
+          statusParamRaw === OrderStatus.REDELIVERY_SCHEDULED ||
+          statusParamRaw === OrderStatus.PAYMENT_PENDING ||
+          statusParamRaw === OrderStatus.SENT_TO_DISTRIBUTOR ||
+          statusParamRaw === OrderStatus.OUT_FOR_DELIVERY;
+        const hasFilter = textFields.some(([, value]) => value.length >= 3) || !!dateParam || attentionStatus;
         if (!hasFilter) {
           throw badRequest("Informe ao menos um campo de busca com 3+ caracteres ou uma data");
         }

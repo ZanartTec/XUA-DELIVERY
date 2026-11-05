@@ -60,6 +60,9 @@ export interface OrderDetail extends Order {
   consumer_email?: string | null;
   consumer_phone?: string | null;
   driver_name?: string | null;
+  distributor_name?: string | null;
+  distributor_phone?: string | null;
+  distributor_email?: string | null;
   driver_phone?: string | null;
   sla_deadline?: string | null;
   total_items_qty: number;

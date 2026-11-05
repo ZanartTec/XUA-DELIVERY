@@ -1,12 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { StatusPill } from "@/src/components/shared/status-pill";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { KeyRound, Loader2, Search, Truck } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { Textarea } from "@/src/components/ui/textarea";
-import { formatDate } from "@/src/lib/utils";
-import { OrderStatus } from "@/src/types/enums";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { ApiError, api } from "@/src/lib/api-client";
+import { formatPhone } from "@/src/lib/format";
+import { formatShortOrderId } from "@/src/lib/order-detail-format";
+import { cn, formatDate } from "@/src/lib/utils";
 import type { Order } from "@/src/types";
 
 interface SearchResult extends Order {
@@ -16,232 +28,183 @@ interface SearchResult extends Order {
 }
 
 const REASONS = [
-  { value: "elderly_no_smartphone", label: "Cliente idoso sem smartphone" },
-  { value: "browser_technical_issue", label: "Problema técnico no navegador" },
-  { value: "confirmed_by_phone", label: "Cliente confirmou por telefone" },
-  { value: "other", label: "Outro" },
+  { value: "confirmed_by_phone", label: "Cliente confirmou o recebimento por telefone" },
+  { value: "elderly_no_smartphone", label: "Cliente sem celular para ver o código" },
+  { value: "browser_technical_issue", label: "Problema técnico no app do cliente" },
+  { value: "other", label: "Outro motivo" },
 ] as const;
+type Reason = (typeof REASONS)[number]["value"];
 
-export default function OtpOverridePage() {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [orderId, setOrderId] = useState("");
-  const [date, setDate] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
+function OtpOverrideContent() {
+  const queryClient = useQueryClient();
+  const preselected = useSearchParams().get("order");
+  const [input, setInput] = useState(preselected ?? "");
+  const [q, setQ] = useState(preselected ?? "");
   const [selected, setSelected] = useState<SearchResult | null>(null);
-  const [reason, setReason] = useState<(typeof REASONS)[number]["value"] | "">("");
+  const [reason, setReason] = useState<Reason | "">("");
   const [details, setDetails] = useState("");
-  const [overrideLoading, setOverrideLoading] = useState(false);
-  const [overrideError, setOverrideError] = useState<string | null>(null);
-  const [overrideResult, setOverrideResult] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Sem busca: lista todas as entregas em rota (são poucas por vez).
+  const query = useQuery({
+    queryKey: ["otp-override", q],
+    queryFn: async () => {
+      const params = new URLSearchParams({ scope: "support", status: "OUT_FOR_DELIVERY" });
+      if (q.length >= 3) params.set("q", q);
+      return (await api.get<{ orders?: SearchResult[] }>(`/api/orders?${params}`)).orders ?? [];
+    },
+  });
 
   const needsDetails = reason === "other";
+  const ready = reason !== "" && (!needsDetails || details.trim().length >= 10);
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const fields = { name, phone, email, document: cpf, id: orderId };
-    const hasField = Object.values(fields).some((v) => v.trim().length >= 3);
-    if (!hasField && !date) {
-      setSearchError("Preencha ao menos um campo com 3+ caracteres ou uma data.");
-      return;
-    }
-    setSearchLoading(true);
-    setSearchError(null);
-    setSelected(null);
-    setOverrideResult(null);
+  async function confirm() {
+    if (!selected || !ready) return;
+    setSaving(true);
     try {
-      const params = new URLSearchParams({ scope: "support", status: OrderStatus.OUT_FOR_DELIVERY });
-      for (const [key, value] of Object.entries(fields)) {
-        if (value.trim()) params.set(key, value.trim());
-      }
-      if (date) params.set("date", date);
-      const res = await fetch(`/api/orders?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setSearchError(data.error || "Erro ao buscar pedidos.");
-        return;
-      }
-      setResults(data.orders ?? []);
-      setSearched(true);
-    } catch {
-      setSearchError("Erro de conexão.");
-    } finally {
-      setSearchLoading(false);
-    }
-  }
-
-  function selectOrder(order: SearchResult) {
-    setSelected(order);
-    setReason("");
-    setDetails("");
-    setOverrideError(null);
-    setOverrideResult(null);
-  }
-
-  async function handleOverride() {
-    if (!selected || !reason) {
-      setOverrideError("Selecione um motivo.");
-      return;
-    }
-    if (needsDetails && details.trim().length < 10) {
-      setOverrideError("Detalhe deve ter ao menos 10 caracteres.");
-      return;
-    }
-    setOverrideLoading(true);
-    setOverrideError(null);
-    setOverrideResult(null);
-    try {
-      const res = await fetch(`/api/orders/${selected.id}/otp-override`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason, details: details.trim() || undefined }),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        setOverrideError(body.error || "Erro ao realizar override");
-        return;
-      }
-      setOverrideResult("Override realizado com sucesso. O pedido foi marcado como entregue.");
-      setResults((prev) => prev.filter((o) => o.id !== selected.id));
+      await api.patch(`/api/orders/${selected.id}/otp-override`, { reason, details: details.trim() || undefined });
+      toast.success(`Entrega de ${selected.consumer_name} confirmada sem código`);
       setSelected(null);
       setReason("");
       setDetails("");
-    } catch {
-      setOverrideError("Erro de conexão.");
+      await queryClient.invalidateQueries({ queryKey: ["otp-override"] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Não foi possível liberar a entrega");
     } finally {
-      setOverrideLoading(false);
+      setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-bold font-heading">Override de OTP</h1>
-        <p className="text-sm text-muted-foreground">
-          Busque o pedido em rota de entrega e confirme a entrega sem o código, informando o motivo.
-        </p>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Liberar sem código" description="Confirma a entrega quando o cliente não consegue mostrar o código." sticky>
+        <form
+          role="search"
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setQ(input.trim());
+          }}
+        >
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              type="search"
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (!e.target.value) setQ("");
+              }}
+              placeholder="Cliente, telefone ou nº do pedido"
+              aria-label="Buscar entrega em rota"
+              className="h-11 rounded-xl pl-9"
+            />
+          </div>
+          <Button type="submit" variant="outline" size="xl">
+            Buscar
+          </Button>
+        </form>
+      </PageHeader>
+
+      <div className="space-y-3 px-4 pb-6">
+        <Alert className="border-warning/30 bg-warning-surface">
+          <KeyRound className="text-warning-foreground" aria-hidden />
+          <AlertDescription className="text-warning-foreground">
+            Use só depois de confirmar com o cliente que a água chegou. A liberação fica registrada na auditoria.
+          </AlertDescription>
+        </Alert>
+
+        {query.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{query.error instanceof ApiError ? query.error.message : "Erro na busca"}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <h2 className="text-sm font-semibold text-foreground">{q ? `Entregas em rota para “${q}”` : "Entregas em rota agora"}</h2>
+        {query.isLoading ? (
+          <Skeleton className="h-32 rounded-2xl" />
+        ) : (query.data ?? []).length === 0 ? (
+          <EmptyState icon={Truck} title="Nenhuma entrega em rota encontrada" description="Só pedidos que saíram para entrega podem ser liberados." />
+        ) : (
+          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            {(query.data ?? []).map((order) => (
+              <li key={order.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2">
+                    <span className="truncate font-semibold text-foreground">{order.consumer_name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">#{formatShortOrderId(order.id)}</span>
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {formatDate(order.delivery_date)}
+                    {order.consumer_phone ? ` · ${formatPhone(order.consumer_phone)}` : ""}
+                  </p>
+                </div>
+                <Button variant="soft" size="lg" onClick={() => setSelected(order)}>
+                  Liberar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <form onSubmit={handleSearch} className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
-        <p className="text-xs text-muted-foreground">Preencha ao menos um campo (3+ caracteres) ou a data de entrega.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</label>
-            <Input placeholder="Maria Silva" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefone</label>
-            <Input placeholder="(11) 91234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">E-mail</label>
-            <Input placeholder="maria@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">CPF</label>
-            <Input placeholder="123.456.789-00" value={cpf} onChange={(e) => setCpf(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ID do pedido</label>
-            <Input placeholder="Ex: abc-123" value={orderId} onChange={(e) => setOrderId(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de entrega</label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl border-0 bg-surface-highest" />
-          </div>
-        </div>
-        {searchError && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{searchError}</div>}
-        <Button type="submit" disabled={searchLoading} className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]">
-          {searchLoading ? "Buscando..." : "Buscar pedidos em rota"}
-        </Button>
-      </form>
-
-      {searched && results.length === 0 && (
-        <p className="text-muted-foreground text-sm">Nenhum pedido em rota de entrega encontrado para essa busca.</p>
-      )}
-
-      {results.length > 0 && !selected && (
-        <div className="space-y-3">
-          {results.map((order) => (
-            <button key={order.id} onClick={() => selectOrder(order)} className="w-full text-left">
-              <div className="rounded-2xl bg-white/95 p-3 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm hover:shadow-[0_4px_16px_rgba(0,26,64,0.10)] transition-shadow space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-sm font-heading">{order.consumer_name}</p>
-                  <StatusPill status={order.status} />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Pedido #{order.id} — {order.consumer_phone} — {formatDate(order.delivery_date)}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selected && (
-        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold font-heading">{selected.consumer_name}</p>
-              <p className="text-xs text-muted-foreground">
-                Pedido #{selected.id} — {selected.consumer_phone} — {formatDate(selected.delivery_date)}
-              </p>
-            </div>
-            <Button onClick={() => setSelected(null)} className="rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest text-xs h-8 px-3">
-              Trocar pedido
-            </Button>
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            Use esta função apenas quando o consumidor não conseguir fornecer o código OTP. Todas as ações são registradas na auditoria.
-          </p>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo *</label>
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value as typeof reason)}
-              className="w-full rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm"
-            >
-              <option value="">Selecione...</option>
-              {REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {needsDetails && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detalhe *</label>
-              <Textarea
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                className="h-24 rounded-xl border-0 bg-surface-highest px-3 py-2 text-sm resize-none"
-                placeholder="Descreva o motivo do override..."
-              />
-            </div>
-          )}
-
-          {overrideError && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{overrideError}</div>}
-          {overrideResult && <div className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700">{overrideResult}</div>}
-
-          <Button
-            className="w-full rounded-xl bg-cta hover:bg-cta/90 text-cta-foreground font-semibold shadow-none active:scale-[0.98]"
-            disabled={overrideLoading || !reason || (needsDetails && details.trim().length < 10)}
-            onClick={handleOverride}
-          >
-            {overrideLoading ? "Processando..." : "Confirmar Override"}
+      <ResponsiveDialog
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelected(null);
+            setReason("");
+            setDetails("");
+          }
+        }}
+        title={selected ? `Liberar entrega de ${selected.consumer_name}` : "Liberar entrega"}
+        description="O pedido será marcado como entregue sem o código do cliente."
+        footer={
+          <Button variant="cta" size="xl" disabled={!ready || saving} onClick={confirm}>
+            {saving ? <Loader2 className="animate-spin" aria-hidden /> : <KeyRound aria-hidden />}
+            Confirmar entrega
           </Button>
+        }
+      >
+        <div className="grid gap-3">
+          <RadioGroup value={reason} onValueChange={(v) => setReason(v as Reason)} aria-label="Motivo">
+            {REASONS.map((r) => (
+              <Label
+                key={r.value}
+                htmlFor={`r-${r.value}`}
+                className={cn(
+                  "flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl border bg-card px-3 font-normal",
+                  reason === r.value ? "border-primary ring-1 ring-primary" : "border-hairline",
+                )}
+              >
+                {r.label}
+                <RadioGroupItem id={`r-${r.value}`} value={r.value} aria-label={r.label} />
+              </Label>
+            ))}
+          </RadioGroup>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ov-details">
+              Detalhes {needsDetails ? null : <span className="font-normal text-muted-foreground">(opcional)</span>}
+            </Label>
+            <Textarea
+              id="ov-details"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={3}
+              placeholder={needsDetails ? "Ao menos 10 caracteres" : "Ex.: falei com a cliente às 10h"}
+              className="resize-none text-base md:text-sm"
+            />
+          </div>
         </div>
-      )}
+      </ResponsiveDialog>
     </div>
+  );
+}
+
+export default function OtpOverridePage() {
+  return (
+    <Suspense fallback={null}>
+      <OtpOverrideContent />
+    </Suspense>
   );
 }
