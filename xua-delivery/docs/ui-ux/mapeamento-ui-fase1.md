@@ -556,23 +556,23 @@ e mantido no desktop. Badge "Operacoes" sem acento. Suporte tem 2 itens (Suporte
 |---|---|---|---|---|
 | ENV | 🔴 | todos | `JWT_SECRET` web ≠ api → login "volta" pro login | `apps/web/.env` (corrigido localmente) |
 | C-03 | ✅ | cliente/motorista | ~~Total do checkout ≠ total cobrado~~ — resolvido pela regra de vasilhame na entrega (seção 9) | — |
-| S-02 | 🔴 | suporte | `/support/[id]` quebra (TypeError `audit_events`) | `support/[id]/page.tsx:82` |
-| S-01 | 🔴 | suporte | Busca retorna 500 para e-mail/telefone/nº curto; UI mostra "nenhum resultado" | `GET /api/orders?scope=support` |
-| C-05 | ✅/🟠 | cliente/KPIs | ~~"Hoje" em UTC~~ no agendamento do cliente (`lib/datetime.ts`); gráficos/KPIs ainda pendentes | gráficos |
-| D-04 | 🟠 | dist./ops | Taxa de aceite 200% | KPIs |
-| O-01/D-05 | 🟠 | dist./ops | SLA de aceite diverge (0% vs 100%) | KPIs |
+| S-02 | ✅ | suporte | ~~`/support/[id]` quebra~~ — reescrita com as seções compartilhadas do pedido | — |
+| S-01 | ✅ | suporte | ~~Busca retorna 500~~ — guarda de UUID, prefixo curto e telefone só dígitos no repositório | — |
+| C-05 | ✅ | cliente/KPIs | ~~"Hoje" em UTC~~ — agendamento (`lib/datetime.ts`) e agrupamento diário dos KPIs em America/Sao_Paulo | — |
+| D-04 | ✅ | dist./ops | ~~Taxa de aceite 200%~~ — conta pedidos distintos (1º evento por pedido) | — |
+| O-01/D-05 | ✅ | dist./ops | ~~SLA de aceite diverge~~ — prazo único (`acceptance_sla_seconds` da distribuidora) na fila e nos KPIs | — |
 | C-06 | ✅ | cliente | ~~"Ver planos" → 404~~ — aponta para `/subscription/create` e só aparece com plano ativo | — |
-| O-02 | 🟠 | cliente | Banners prometem cupom e frete grátis inexistentes | banners × checkout |
-| O-03 | 🟠 | ops/cliente | Sem plano possível sem MP; tela não explica → assinatura morta | `subscription-plans` |
-| C-07/D-02 | ✅/🟡 | cliente/dist. | ~~Stepper errado~~ no cliente (`OrderStepper`); distribuidora (D-02) pendente | dist. |
-| M-01/M-02 | 🟡 | motorista | "garrafãoões"; contagem soma vasilhames e 10L como garrafões | `driver/deliveries/page.tsx` |
-| D-03 | 🟡 | dist. | Agenda: switches sobrepõem textos | `distributor/schedule` |
+| O-02 | ⚠️ | cliente | Banners prometem cupom/frete grátis inexistentes — tela de banners agora avisa; regra de cupom continua inexistente (decisão de produto) | banners × checkout |
+| O-03 | ✅ | ops/cliente | ~~Tela não explica~~ — aviso "sem distribuidora com Mercado Pago" e estado vazio explicativo | — |
+| C-07/D-02 | ✅ | cliente/dist. | ~~Stepper errado~~ — `OrderStepper` (cliente) e `OPS_ORDER_STEPS` (distribuidora) | — |
+| M-01/M-02 | ✅ | motorista | ~~"garrafãoões"; contagem errada~~ — `plural()` e contagem por item real | — |
+| D-03 | ✅ | dist. | ~~Agenda: switches sobrepõem textos~~ — abas Dias/Horários/Folgas | — |
 | D-01 | ✅ | dist. | ~~Dois itens ativos no bottom nav~~ — ativo = prefixo mais longo | — |
 | C-01/C-02 | ✅ | cliente | ~~Endereço não auto-seleciona; sem editar/excluir~~ — PATCH/DELETE (arquiva) + 1º endereço principal | — |
 | C-08 | ✅ | cliente | ~~"Ajuda e Suporte"/"Sobre Nós" sem ação~~ — `/profile/help` (FAQ + sobre + versão real) | — |
-| A-01 | 🟡 | auth | Foto de fundo do cadastro não aparece | `register/page.tsx` |
-| — | 🟡 | todos | Nenhuma confirmação em ações destrutivas | ops, dist. |
-| — | ⚪ | todos | Textos sem acento / em inglês / enums crus | vários |
+| A-01 | ✅ | auth | ~~Foto de fundo do cadastro não aparece~~ — `AuthShell` único para login/cadastro/senha | — |
+| — | ✅ | todos | ~~Nenhuma confirmação em ações destrutivas~~ — `ConfirmAction` em desativar/excluir/remover CEP/encerrar plano | — |
+| — | ✅ | todos | ~~Enums crus~~ — status, atores e eventos de auditoria traduzidos | — |
 
 ---
 
@@ -615,6 +615,25 @@ Cada etapa: branch própria, PR por módulo, validação navegando de novo com o
   `/checkout/distributor` redireciona), pagamento, confirmação, pedidos (lista/detalhe com cancelar, ligar/WhatsApp,
   acordeão, histórico traduzido), perfil, endereços, dados pessoais, ajuda, assinaturas (gerenciar/criar com saída sem plano).
   Auth (login/cadastro) ainda não foi refeita.
+- **Auth — feita**: `AuthShell` comum (login, cadastro, esqueci/redefinir senha), validação ao sair do campo, máscara de
+  telefone, força da senha, e-mail já cadastrado oferece "Entrar" / "recuperar a senha"; troca de senha em `Conta`.
+- **Etapa 2 — Motorista feita**: lista com resumo + `StopCard` (Mapa/Ligar/Entregar), detalhe da entrega, conclusão em
+  passos com `InputOTP`, falha com `RadioGroup`, histórico agrupado por dia; página `Conta` para todos os perfis operacionais.
+- **Etapa 3 — Distribuidora feita**: fila por abas com contagem, busca + filtros em diálogo, `Sheet` no desktop e página
+  inteira no celular; detalhe com ação contextual no rodapé; checklist com itens reais; estoque, conferência, agenda
+  (abas), pagamento (switches + alterações pendentes), motoristas, indicadores e rota do dia.
+- **Etapa 4 — Ops/Suporte feita**: suporte com fila de atenção + busca única, detalhe com contatos e reagendar,
+  "Sem código" com busca única e motivo em diálogo; CRUDs (distribuidoras, motoristas, produtos, banners com prévia ao
+  vivo, planos) no padrão lista + menu de ações + diálogo + ação principal no rodapé; estoque/conferências em abas e
+  listas; zonas com confirmação ao remover CEP; auditoria com período obrigatório e grupos de eventos em português;
+  sidebar de Ops agrupada (Operação, Rede, Catálogo, Sistema).
+- **Correções de shell (todos os perfis operacionais)**: o padding do layout sobrescrevia o recuo da sidebar no desktop
+  (conteúdo ficava 48px por baixo dela) e o `PageHeader` grudava 56px abaixo do topo sem header no desktop, cobrindo a
+  1ª linha das listas; gutter do celular caiu de 32px para 16px; `Select` com 40px de altura.
+- **Bugs de backend achados no caminho**: exportação de auditoria ignorava o filtro de tipos (Express 5 não lê
+  `eventTypes[]`); edição de distribuidora falhava por CNPJ legado inválido mesmo sem mexer nele (agora envia só o que mudou).
+- Pendentes: `DataTable` genérico (zonas ainda usam tabela com rolagem lateral no celular); O-02 depende de decisão de
+  produto sobre cupons; Garrafão 10L sem regra de vasilhame.
 - Achados no caminho: header "sticky" não grudava (`overflow-x-hidden` na raiz → `overflow-x-clip`); apelido do endereço
   era descartado pela API; e-mail na edição de perfil não era salvo (schema não aceita) → agora somente leitura.
 
