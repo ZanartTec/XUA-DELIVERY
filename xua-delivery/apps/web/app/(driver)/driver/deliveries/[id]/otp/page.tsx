@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Banknote, CreditCard, FileText, Loader2, Phone, WifiOff } from "lucide-react";
 import { OtpInput } from "@/src/components/shared/driver/otp-input";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -211,6 +212,7 @@ export default function CompleteDeliveryPage() {
       }
 
       navigator.vibrate?.(120);
+      toast.success("Entrega concluída");
       router.push("/driver/deliveries");
     } catch {
       setError("Erro de conexão.");

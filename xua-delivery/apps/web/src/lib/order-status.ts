@@ -68,3 +68,60 @@ export const ACTIVE_ORDER_STATUSES: readonly string[] = [
   OrderStatus.OUT_FOR_DELIVERY,
   OrderStatus.REDELIVERY_SCHEDULED,
 ];
+
+/**
+ * Rótulos do ponto de vista da operação (distribuidora, motorista, ops):
+ * "Aguardando distribuidora" faz sentido para o cliente, não para quem aceita.
+ */
+const OPS_STATUS_LABELS: Partial<Record<string, string>> = {
+  [OrderStatus.SENT_TO_DISTRIBUTOR]: "Novo",
+  [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: "Aceito · separar",
+  [OrderStatus.READY_FOR_DISPATCH]: "Pronto para despachar",
+  [OrderStatus.OUT_FOR_DELIVERY]: "Em rota",
+  [OrderStatus.CONFIRMED]: "Confirmado",
+};
+
+export function opsStatusLabel(status: string) {
+  return OPS_STATUS_LABELS[status] ?? orderStatusMeta(status).label;
+}
+
+/** Etapas da operação da distribuidora. */
+export const OPS_ORDER_STEPS = ["Recebido", "Aceito", "Despachado", "Entregue"] as const;
+
+/**
+ * Quantas etapas já foram cumpridas (a próxima é a "atual").
+ * Antes "Aceito" aparecia como etapa 1 e PICKING caía em 0 (D-02).
+ */
+export function opsStepsDone(status: string): number | null {
+  switch (status) {
+    case OrderStatus.SENT_TO_DISTRIBUTOR:
+      return 1;
+    case OrderStatus.ACCEPTED_BY_DISTRIBUTOR:
+    case OrderStatus.PICKING:
+    case OrderStatus.READY_FOR_DISPATCH:
+    case OrderStatus.REDELIVERY_SCHEDULED:
+      return 2;
+    case OrderStatus.OUT_FOR_DELIVERY:
+      return 3;
+    case OrderStatus.DELIVERED:
+      return 4;
+    default:
+      return null;
+  }
+}
+
+/** Quem fez a ação no histórico (antes saía "distributor_user", "system"...). */
+export const ACTOR_TYPE_LABELS: Record<string, string> = {
+  CONSUMER: "Cliente",
+  DISTRIBUTOR_USER: "Distribuidora",
+  DRIVER: "Motorista",
+  OPS: "Operação",
+  SUPPORT: "Suporte",
+  SYSTEM: "Automático",
+  PAYMENT_GATEWAY: "Mercado Pago",
+};
+
+export function actorTypeLabel(actorType?: string | null) {
+  if (!actorType) return null;
+  return ACTOR_TYPE_LABELS[actorType.toUpperCase()] ?? null;
+}

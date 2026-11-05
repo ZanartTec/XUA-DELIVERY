@@ -39,8 +39,8 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
   if (!receipt && !ISSUABLE_STATUSES.has(order.status)) return null;
 
   return (
-    <section className="rounded-lg border border-hairline bg-white p-3.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+    <section className="rounded-2xl border border-hairline bg-card p-4">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <FileText className="h-3.5 w-3.5" />
         Comprovante de venda
       </p>
@@ -60,14 +60,14 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
             O comprovante é gerado automaticamente no despacho. Gere agora se quiser imprimir antes.
           </p>
           {issueMutation.error ? (
-            <p className="mt-2 text-xs text-red-700">
+            <p className="mt-2 text-xs text-destructive">
               {issueMutation.error instanceof ApiError ? issueMutation.error.message : "Erro ao gerar comprovante"}
             </p>
           ) : null}
           <Button
             type="button"
             variant="outline"
-            className="mt-3 h-9 w-full rounded-md"
+            size="lg" className="mt-3 w-full"
             disabled={issueMutation.isPending}
             onClick={() => issueMutation.mutate()}
           >
@@ -77,7 +77,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
         </>
       )}
 
-      <p className="mt-2 text-[10px] text-[#94a3b8]">Documento sem valor fiscal.</p>
+      <p className="mt-2 text-[10px] text-muted-foreground">Documento sem valor fiscal.</p>
     </section>
   );
 }

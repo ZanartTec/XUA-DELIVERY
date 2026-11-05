@@ -61,20 +61,22 @@ export function OtpInput({
   }
 
   return (
-    <div className={cn("flex gap-2 justify-center", className)}>
+    <div role="group" aria-label="Código de entrega" className={cn("flex justify-center gap-2", className)}>
       {values.map((val, i) => (
         <Input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
           type="text"
           inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          aria-label={`Dígito ${i + 1} de ${length} do código`}
           maxLength={1}
           value={val}
           disabled={disabled}
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={i === 0 ? handlePaste : undefined}
-          className="h-14 w-full min-w-0 max-w-12 flex-1 px-0 text-center text-2xl font-mono"
+          className="h-14 w-full min-w-0 max-w-12 flex-1 rounded-xl px-0 text-center font-mono text-2xl"
         />
       ))}
     </div>
