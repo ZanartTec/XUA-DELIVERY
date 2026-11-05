@@ -24,7 +24,7 @@ import { formatReceiptNumber, openReceipt, orderReceiptUrl, readReceiptFormat } 
 import { cn } from "@/src/lib/utils";
 import { OrderStatus } from "@xua/shared/enums";
 
-type Driver = { id: string; name: string };
+type Driver = { id: string; name: string; is_active?: boolean };
 
 export default function ChecklistPage() {
   const { id } = useParams<{ id: string }>();
@@ -35,6 +35,8 @@ export default function ChecklistPage() {
   const drivers = useQuery({
     queryKey: ["distributor-drivers"],
     queryFn: async () => (await api.get<{ drivers?: Driver[] }>("/api/distributor/drivers")).drivers ?? [],
+    // Motorista desativado não pode receber entrega.
+    select: (list: Driver[]) => list.filter((d) => d.is_active !== false),
   });
 
   const [checks, setChecks] = useState<Record<string, boolean>>({});

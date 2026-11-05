@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeftRight,
   BarChart3,
   Boxes,
   Building2,
@@ -81,14 +80,14 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         icon: ClipboardList,
         match: ["/distributor/queue", "/distributor/orders", "/distributor/routes"],
       },
-      { href: "/distributor/inventory", label: "Estoque", icon: Boxes, match: ["/distributor/inventory"] },
-      { href: "/distributor/inventory/reconciliation", label: "Conciliação", icon: ArrowLeftRight },
+      // Conciliação é uma ação dentro do Estoque (antes era item próprio e duplicava o botão).
+      { href: "/distributor/inventory", label: "Estoque", icon: Boxes, match: ["/distributor/inventory", "/distributor/reconciliation"] },
+      { href: "/distributor/drivers", label: "Motoristas", icon: UserCog },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/payment-config", label: "Pagamento", icon: Wallet },
-      { href: "/distributor/drivers", label: "Motoristas", icon: UserCog },
       // Venda simples (sem caução): entrada oculta até a feature Comodato B2B.
       // Tela continua acessível por rota direta (/distributor/deposit-program).
-      { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
+      { href: "/distributor/kpis", label: "Indicadores", icon: BarChart3 },
       { href: "/distributor/account", label: "Conta", icon: CircleUser },
     ],
   },

@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
-import { formatDate } from "@/src/lib/utils";
+import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Navigation, Route } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { PageHeader } from "@/src/components/shared/page-header";
 import { ReceiptPrintButton } from "@/src/components/shared/receipt-print-button";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { api } from "@/src/lib/api-client";
+import { plural } from "@/src/lib/format";
+import type { StatusTone } from "@/src/lib/order-status";
 import { routeReceiptsUrl } from "@/src/lib/receipt";
+import { formatDate } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
 
 type RouteStop = {
@@ -39,167 +49,90 @@ function windowLabel(window: RouteGroup["delivery_window"]) {
   return window === "MORNING" ? "Manhã" : "Tarde";
 }
 
-function toneClass(tone: RouteStop["status_tone"]) {
-  if (tone === "success") return "bg-green-100 text-green-700";
-  if (tone === "danger") return "bg-red-100 text-red-700";
-  if (tone === "warning") return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-700";
-}
+const TONE: Record<RouteStop["status_tone"], StatusTone> = {
+  success: "success",
+  danger: "danger",
+  warning: "warning",
+  neutral: "neutral",
+};
 
 export default function RouteDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [route, setRoute] = useState<RouteDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadRoute() {
-      try {
-        const response = await fetch(`/api/distributor/routes/${id}`);
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error ?? `Erro ${response.status}`);
-        }
-        setRoute(data.route ?? null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar rota");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadRoute();
-  }, [id]);
-
-  const routeDateLabel = useMemo(() => {
-    if (!route?.date) return id;
-    return formatDate(route.date);
-  }, [id, route?.date]);
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="animate-pulse rounded-2xl bg-white/90 p-5 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
-            <div className="h-4 w-48 rounded bg-surface-highest" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (error) {
-    return <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  }
+  const query = useQuery({
+    queryKey: ["distributor-route", id],
+    queryFn: async () => (await api.get<{ route: RouteDetail | null }>(`/api/distributor/routes/${id}`)).route,
+  });
+  const route = query.data ?? null;
+  const routeDateLabel = route?.date ? formatDate(route.date) : id === "today" ? "Hoje" : id;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold font-heading">Rota do dia</h1>
-          <p className="text-sm text-muted-foreground">{routeDateLabel}</p>
-        </div>
-        <Link
-          href="/distributor/queue"
-          className="rounded-xl border border-hairline px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-low"
-        >
-          Voltar para pedidos
-        </Link>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader back="/distributor/queue" title="Rota do dia" description={routeDateLabel} />
+      <div className="space-y-4 px-4 pb-4">
+        {query.isLoading ? (
+          <Skeleton className="h-48 rounded-2xl" />
+        ) : query.isError ? (
+          <EmptyState icon={Route} title={query.error instanceof Error ? query.error.message : "Erro ao carregar a rota"} />
+        ) : (
+          <>
+            <dl className="grid grid-cols-3 divide-x divide-hairline rounded-2xl border border-hairline bg-card text-center">
+              <div className="px-2 py-2.5">
+                <dt className="text-[11px] text-muted-foreground">Paradas</dt>
+                <dd className="font-heading text-xl font-bold text-ink">{route?.total_stops ?? 0}</dd>
+              </div>
+              <div className="px-2 py-2.5">
+                <dt className="text-[11px] text-muted-foreground">Pendentes</dt>
+                <dd className="font-heading text-xl font-bold text-warning-foreground">{route?.pending_stops ?? 0}</dd>
+              </div>
+              <div className="px-2 py-2.5">
+                <dt className="text-[11px] text-muted-foreground">Entregues</dt>
+                <dd className="font-heading text-xl font-bold text-success-foreground">{route?.delivered_stops ?? 0}</dd>
+              </div>
+            </dl>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-          <p className="text-sm text-muted-foreground">Paradas totais</p>
-          <p className="mt-1 text-3xl font-bold text-ink">{route?.total_stops ?? 0}</p>
-        </div>
-        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-          <p className="text-sm text-muted-foreground">Pendentes</p>
-          <p className="mt-1 text-3xl font-bold text-amber-600">{route?.pending_stops ?? 0}</p>
-        </div>
-        <div className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-          <p className="text-sm text-muted-foreground">Entregues</p>
-          <p className="mt-1 text-3xl font-bold text-green-600">{route?.delivered_stops ?? 0}</p>
-        </div>
+            {!route || route.groups.length === 0 ? (
+              <EmptyState icon={Route} title="Nenhuma parada nesta data" description="Pedidos despachados para entrega aparecem aqui, por zona e período." />
+            ) : (
+              route.groups.map((group) => (
+                <section key={`${group.zone_name}-${group.delivery_window}`} className="space-y-2">
+                  <h2 className="flex items-baseline justify-between text-sm font-semibold text-foreground">
+                    <span>
+                      {group.zone_name} · {windowLabel(group.delivery_window)}
+                    </span>
+                    <span className="font-normal text-muted-foreground">{group.stops.length} paradas</span>
+                  </h2>
+                  <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                    {group.stops.map((stop) => (
+                      <li key={stop.order_id} className="flex items-center gap-3 px-4 py-3">
+                        <Link href={`/distributor/orders/${stop.order_id}`} className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2">
+                            <span className="truncate font-semibold text-foreground">{stop.consumer_name}</span>
+                            <StatusBadge label={stop.status_label} tone={TONE[stop.status_tone]} className="h-5 shrink-0 px-2 text-[11px]" />
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {plural(stop.total_items_qty, "item", "itens")} · {stop.address_line}
+                          </p>
+                        </Link>
+                        <Button asChild variant="soft" size="icon-touch" aria-label={`Abrir ${stop.address_line} no mapa`}>
+                          <a href={stop.maps_url} target="_blank" rel="noreferrer">
+                            <Navigation />
+                          </a>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
+          </>
+        )}
       </div>
 
       {route && route.total_stops > 0 ? (
-        <div className="flex flex-col gap-3 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-ink">Comprovantes de venda da rota</p>
-            <p className="text-xs text-muted-foreground">
-              Um PDF com os comprovantes já emitidos (pedidos despachados), na ordem da rota. Sem valor fiscal.
-            </p>
-          </div>
-          <ReceiptPrintButton
-            className="sm:w-64"
-            label="Imprimir comprovantes"
-            buildUrl={(format) => routeReceiptsUrl(id, format)}
-          />
-        </div>
+        <StickyActionBar summary={<span className="block text-center text-xs">Comprovantes já emitidos, na ordem da rota. Sem valor fiscal.</span>}>
+          <ReceiptPrintButton label="Imprimir comprovantes da rota" buildUrl={(format) => routeReceiptsUrl(id, format)} />
+        </StickyActionBar>
       ) : null}
-
-      {!route || route.groups.length === 0 ? (
-        <div className="rounded-2xl bg-white/95 p-6 text-center text-sm text-muted-foreground shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-          Nenhuma parada operacional encontrada para esta data.
-        </div>
-      ) : (
-        route.groups.map((group) => (
-          <section
-            key={`${group.zone_name}-${group.delivery_window}`}
-            className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm"
-          >
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold font-heading">{group.zone_name}</p>
-                <p className="text-xs text-muted-foreground">Janela {windowLabel(group.delivery_window)}</p>
-              </div>
-              <span className="rounded-full bg-sky/10 px-3 py-1 text-xs font-semibold text-primary">
-                {group.stops.length} paradas
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {group.stops.map((stop) => (
-                <article
-                  key={stop.order_id}
-                  className="rounded-xl border border-[#edf0f3] bg-[#fcfcfd] p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-ink">{stop.consumer_name}</p>
-                        <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${toneClass(stop.status_tone)}`}>
-                          {stop.status_label}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{stop.address_line}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {stop.total_items_qty} item(ns){stop.consumer_phone ? ` • ${stop.consumer_phone}` : ""}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Link
-                        href={`/distributor/orders/${stop.order_id}`}
-                        className="rounded-xl border border-hairline px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-low"
-                      >
-                        Ver pedido
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => window.open(stop.maps_url, "_blank", "noopener,noreferrer")}
-                        className="rounded-xl bg-cta hover:bg-cta/90 px-3 py-2 text-sm font-semibold text-cta-foreground transition-opacity active:scale-[0.98]"
-                      >
-                        Abrir no Google Maps
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))
-      )}
     </div>
   );
 }

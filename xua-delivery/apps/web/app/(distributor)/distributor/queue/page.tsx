@@ -14,6 +14,7 @@ import {
   MapPin,
   PackageCheck,
   RefreshCw,
+  Route,
   Repeat2,
   Search,
   SlidersHorizontal,
@@ -476,9 +477,16 @@ function DistributorQueueContent() {
         description={queueQuery.isFetching ? "Atualizando…" : queueQuery.dataUpdatedAt ? `Atualizado às ${formatTime(new Date(queueQuery.dataUpdatedAt))}` : undefined}
         sticky
         actions={
-          <Button variant="ghost" size="icon-touch" aria-label="Atualizar" disabled={queueQuery.isFetching} onClick={() => void queueQuery.refetch()}>
-            <RefreshCw className={cn(queueQuery.isFetching && "animate-spin")} />
-          </Button>
+          <>
+            <Button asChild variant="ghost" size="icon-touch" aria-label="Rota do dia">
+              <Link href="/distributor/routes/today">
+                <Route />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon-touch" aria-label="Atualizar" disabled={queueQuery.isFetching} onClick={() => void queueQuery.refetch()}>
+              <RefreshCw className={cn(queueQuery.isFetching && "animate-spin")} />
+            </Button>
+          </>
         }
       >
         <div className="space-y-2">

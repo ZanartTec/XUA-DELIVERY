@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
-import { Pencil, Plus, Save, Truck, UserCog, X } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, MoreVertical, Pencil, Phone, Plus, Power, Truck } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Input } from "@/src/components/ui/input";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { FormField } from "@/src/components/shared/form-field";
+import { MaskedInput } from "@/src/components/shared/masked-input";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PasswordInput } from "@/src/components/shared/password-input";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/**
- * GET /api/distributor/drivers é o mesmo endpoint usado no seletor de
- * despacho (distributor/queue) e hoje retorna apenas {id, name}. `email`,
- * `phone` e `is_active` só chegam depois de criar/editar o motorista nesta
- * tela (a resposta do POST/PATCH traz o registro completo).
- */
-interface DriverListItem {
+interface Driver {
   id: string;
   name: string;
   email?: string;
@@ -25,358 +33,220 @@ interface DriverListItem {
   is_active?: boolean;
 }
 
-interface CreateDraft {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
+type FormState = { mode: "new" } | { mode: "edit"; driver: Driver } | null;
+
+async function send(url: string, method: string, body: unknown) {
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(typeof data?.error === "string" ? data.error : "Não foi possível salvar");
+  }
+  return res.json();
 }
-
-const EMPTY_CREATE_DRAFT: CreateDraft = { name: "", email: "", phone: "", password: "" };
-
-interface EditDraft {
-  name: string;
-  phone: string;
-}
-
-const EMPTY_EDIT_DRAFT: EditDraft = { name: "", phone: "" };
-
-function editDraftToPayload(d: EditDraft): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
-  if (d.name.trim()) payload.name = d.name.trim();
-  if (d.phone.trim()) payload.phone = d.phone.trim();
-  return payload;
-}
-
-async function extractError(res: Response, fallback: string): Promise<string> {
-  const body = await res.json().catch(() => ({}));
-  return typeof body?.error === "string" ? body.error : fallback;
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </label>
-      {children}
-      {hint && <p className="text-[10px] text-muted-foreground/70">{hint}</p>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 
 export default function DistributorDriversPage() {
-  const [drivers, setDrivers] = useState<DriverListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["distributor-drivers"],
+    queryFn: async () => {
+      const res = await fetch("/api/distributor/drivers");
+      if (!res.ok) throw new Error("Erro ao carregar motoristas");
+      return ((await res.json()).drivers ?? []) as Driver[];
+    },
+  });
+  const drivers = query.data ?? [];
+  const active = drivers.filter((d) => d.is_active !== false);
+  const inactive = drivers.filter((d) => d.is_active === false);
 
-  const [creating, setCreating] = useState(false);
-  const [createDraft, setCreateDraft] = useState<CreateDraft>({ ...EMPTY_CREATE_DRAFT });
+  const [form, setForm] = useState<FormState>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState<Driver | null>(null);
 
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<EditDraft>({ ...EMPTY_EDIT_DRAFT });
-
-  function loadDrivers() {
-    return fetch("/api/distributor/drivers")
-      .then((r) => r.json())
-      .then((data) => setDrivers(data.drivers ?? []));
-  }
-
-  useEffect(() => {
-    loadDrivers()
-      .catch(() => toast.error("Erro ao carregar motoristas"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  function validateCreate(d: CreateDraft): string | null {
-    if (!d.name.trim()) return "Informe o nome do motorista";
-    if (!d.email.trim()) return "Informe o e-mail do motorista";
-    if (!d.password || d.password.length < 8) return "A senha deve ter ao menos 8 caracteres";
-    return null;
-  }
-
-  async function handleCreate() {
-    const err = validateCreate(createDraft);
-    if (err) {
-      toast.error(err);
-      return;
+  function openForm(next: FormState) {
+    setForm(next);
+    if (next?.mode === "edit") {
+      setName(next.driver.name);
+      setPhone(onlyDigits(next.driver.phone));
+    } else {
+      setName("");
+      setEmail("");
+      setPhone("");
+      setPassword("");
     }
+  }
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["distributor-drivers"] });
+
+  async function submit() {
+    if (!form) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/distributor/drivers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: createDraft.name.trim(),
-          email: createDraft.email.trim(),
-          phone: createDraft.phone.trim() || undefined,
-          password: createDraft.password,
-        }),
-      });
-      if (!res.ok) throw new Error(await extractError(res, "Erro ao cadastrar motorista"));
-      const driver = await res.json();
-      setDrivers((prev) => [...prev, driver]);
-      setCreateDraft({ ...EMPTY_CREATE_DRAFT });
-      setCreating(false);
-      toast.success("Motorista cadastrado");
+      if (form.mode === "new") {
+        await send("/api/distributor/drivers", "POST", {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone ? formatPhone(phone) : undefined,
+          password,
+        });
+        toast.success("Motorista cadastrado. Passe o e-mail e a senha para ele entrar no app.");
+      } else {
+        await send(`/api/distributor/drivers/${form.driver.id}`, "PATCH", {
+          name: name.trim(),
+          ...(phone ? { phone: formatPhone(phone) } : {}),
+        });
+        toast.success("Dados do motorista atualizados");
+      }
+      setForm(null);
+      await refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao cadastrar motorista");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleUpdate(id: string) {
-    const payload = editDraftToPayload(editDraft);
-    if (Object.keys(payload).length === 0) {
-      toast.error("Preencha ao menos um campo para atualizar");
-      return;
-    }
-    setSaving(true);
+  async function setActive(driver: Driver, isActive: boolean) {
     try {
-      const res = await fetch(`/api/distributor/drivers/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await extractError(res, "Erro ao atualizar motorista"));
-      const driver = await res.json();
-      setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...driver } : d)));
-      setEditId(null);
-      toast.success("Motorista atualizado");
+      await send(`/api/distributor/drivers/${driver.id}`, "PATCH", { is_active: isActive });
+      toast.success(isActive ? `${driver.name} reativado` : `${driver.name} desativado`);
+      await refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao atualizar motorista");
-    } finally {
-      setSaving(false);
+      toast.error(e instanceof Error ? e.message : "Erro ao alterar o status");
     }
   }
 
-  async function setActive(driver: DriverListItem, isActive: boolean) {
-    try {
-      const res = await fetch(`/api/distributor/drivers/${driver.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: isActive }),
-      });
-      if (!res.ok) throw new Error(await extractError(res, "Erro ao alterar status do motorista"));
-      const updated = await res.json();
-      setDrivers((prev) => prev.map((d) => (d.id === driver.id ? { ...d, ...updated } : d)));
-      toast.success(isActive ? "Motorista ativado" : "Motorista desativado");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao alterar status do motorista");
-    }
-  }
+  const canSubmit =
+    name.trim().length >= 2 &&
+    (form?.mode === "edit" || (/\S+@\S+\.\S+/.test(email) && password.length >= 8)) &&
+    (!phone || phone.length >= 10);
 
-  if (loading) {
+  const row = (driver: Driver) => {
+    const isActive = driver.is_active !== false;
+    const tel = phoneHref(driver.phone);
     return (
-      <div className="space-y-3">
-        <h1 className="text-lg font-bold font-heading text-foreground">Motoristas</h1>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="animate-pulse rounded-2xl bg-white/80 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="h-4 w-48 rounded-lg bg-surface-highest" />
-          </div>
-        ))}
-      </div>
+      <li key={driver.id} className={cn("flex items-center gap-3 px-4 py-3", !isActive && "bg-surface-low")}>
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+          <Truck className="size-5 text-primary" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={cn("truncate font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{driver.name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {driver.email ?? "—"}
+            {driver.phone ? ` · ${formatPhone(driver.phone)}` : ""}
+          </p>
+        </div>
+        {!isActive ? <StatusBadge label="Inativo" tone="neutral" className="h-5 px-2 text-[11px]" /> : null}
+        {tel && isActive ? (
+          <Button asChild variant="ghost" size="icon-touch" aria-label={`Ligar para ${driver.name}`}>
+            <a href={tel}>
+              <Phone />
+            </a>
+          </Button>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-touch" aria-label={`Ações de ${driver.name}`}>
+              <MoreVertical />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onSelect={() => openForm({ mode: "edit", driver })}>
+              <Pencil /> Editar
+            </DropdownMenuItem>
+            {isActive ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setDeactivating(driver)}>
+                <Power /> Desativar
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={() => setActive(driver, true)}>
+                <Power /> Reativar
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </li>
     );
-  }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold font-heading text-foreground">Motoristas</h1>
-          <p className="text-xs text-muted-foreground">Motoristas da sua distribuidora</p>
-        </div>
-        {!creating && (
-          <Button
-            size="sm"
-            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-            onClick={() => {
-              setCreating(true);
-              setEditId(null);
-            }}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Novo
-          </Button>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Motoristas" description="Quem faz as entregas da sua distribuidora." />
+      <div className="space-y-5 px-4 pb-4">
+        {query.isLoading ? (
+          <Skeleton className="h-40 rounded-2xl" />
+        ) : drivers.length === 0 ? (
+          <EmptyState icon={Truck} title="Nenhum motorista cadastrado" description="Cadastre quem vai entregar para poder despachar pedidos." />
+        ) : (
+          <>
+            <ul aria-label="Motoristas ativos" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              {active.map(row)}
+            </ul>
+            {inactive.length > 0 ? (
+              <section aria-labelledby="sec-inativos" className="space-y-2">
+                <h2 id="sec-inativos" className="text-sm font-semibold text-muted-foreground">
+                  Desativados
+                </h2>
+                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline">{inactive.map(row)}</ul>
+              </section>
+            ) : null}
+          </>
         )}
       </div>
 
-      {creating && (
-        <div className="rounded-2xl bg-white/95 p-5 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold font-heading">Novo motorista</p>
-            <button
-              type="button"
-              onClick={() => {
-                setCreating(false);
-                setCreateDraft({ ...EMPTY_CREATE_DRAFT });
-              }}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nome *">
-              <Input
-                value={createDraft.name}
-                onChange={(e) => setCreateDraft({ ...createDraft, name: e.target.value })}
-                placeholder="Nome completo"
-                className="rounded-xl border-hairline text-sm"
-              />
-            </Field>
-            <Field label="E-mail *">
-              <Input
-                type="email"
-                value={createDraft.email}
-                onChange={(e) => setCreateDraft({ ...createDraft, email: e.target.value })}
-                placeholder="motorista@exemplo.com"
-                className="rounded-xl border-hairline text-sm"
-              />
-            </Field>
-            <Field label="Telefone">
-              <Input
-                value={createDraft.phone}
-                onChange={(e) => setCreateDraft({ ...createDraft, phone: e.target.value })}
-                placeholder="(11) 98888-7777"
-                className="rounded-xl border-hairline text-sm"
-              />
-            </Field>
-            <Field label="Senha inicial *" hint="Mínimo 8 caracteres. O motorista pode trocar depois.">
-              <Input
-                type="password"
-                value={createDraft.password}
-                onChange={(e) => setCreateDraft({ ...createDraft, password: e.target.value })}
-                placeholder="••••••••"
-                className="rounded-xl border-hairline text-sm"
-              />
-            </Field>
-          </div>
-          <Button
-            disabled={saving}
-            onClick={handleCreate}
-            className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-          >
-            <Save className="mr-1 h-4 w-4" />
-            {saving ? "Salvando..." : "Cadastrar motorista"}
+      <StickyActionBar>
+        <Button variant="cta" size="xl" onClick={() => openForm({ mode: "new" })}>
+          <Plus aria-hidden /> Novo motorista
+        </Button>
+      </StickyActionBar>
+
+      <ResponsiveDialog
+        open={form !== null}
+        onOpenChange={(open) => !open && setForm(null)}
+        title={form?.mode === "edit" ? "Editar motorista" : "Novo motorista"}
+        description={form?.mode === "new" ? "Ele usa o e-mail e a senha para entrar no app do motorista." : undefined}
+        footer={
+          <Button variant="cta" size="xl" disabled={!canSubmit || saving} onClick={submit}>
+            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {form?.mode === "edit" ? "Salvar" : "Cadastrar motorista"}
           </Button>
+        }
+      >
+        <div className="grid gap-4">
+          <FormField label="Nome">
+            {(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className="h-11" />}
+          </FormField>
+          {form?.mode === "new" ? (
+            <FormField label="E-mail">
+              {(f) => <Input {...f} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" className="h-11" />}
+            </FormField>
+          ) : null}
+          <FormField label="Celular" optional>
+            {(f) => <MaskedInput {...f} mask="phone" value={phone} onValueChange={setPhone} placeholder="(00) 00000-0000" className="h-11" />}
+          </FormField>
+          {form?.mode === "new" ? (
+            <FormField label="Senha inicial" hint="Mínimo de 8 caracteres. Ele pode trocar em Conta.">
+              {(f) => <PasswordInput {...f} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="h-11" />}
+            </FormField>
+          ) : null}
         </div>
-      )}
+      </ResponsiveDialog>
 
-      <div className="space-y-3">
-        {drivers.map((driver) => {
-          const isEditing = editId === driver.id;
-          const isActive = driver.is_active !== false;
-
-          return (
-            <div
-              key={driver.id}
-              className="rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky/15">
-                    <UserCog className="h-5 w-5 text-sky" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold font-heading leading-tight truncate">{driver.name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {driver.email ?? "—"}
-                      {driver.phone ? ` · ${driver.phone}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <Badge className={isActive ? "bg-primary text-white shrink-0" : "shrink-0"} variant={isActive ? "default" : "secondary"}>
-                  {isActive ? "Ativo" : "Inativo"}
-                </Badge>
-              </div>
-
-              {isEditing ? (
-                <div className="space-y-4 pt-3 border-t border-hairline">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Nome" hint="Em branco = manter atual">
-                      <Input
-                        value={editDraft.name}
-                        onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
-                        className="rounded-xl border-hairline text-sm"
-                      />
-                    </Field>
-                    <Field label="Telefone" hint="Em branco = manter atual">
-                      <Input
-                        value={editDraft.phone}
-                        onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })}
-                        className="rounded-xl border-hairline text-sm"
-                      />
-                    </Field>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={saving}
-                      onClick={() => handleUpdate(driver.id)}
-                      className="rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold"
-                    >
-                      <Save className="mr-1 h-4 w-4" />
-                      {saving ? "Salvando..." : "Salvar"}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setEditId(null)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
-                    onClick={() => {
-                      setEditId(driver.id);
-                      setEditDraft({ ...EMPTY_EDIT_DRAFT, name: driver.name });
-                      setCreating(false);
-                    }}
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    className={
-                      isActive
-                        ? "h-7 text-xs rounded-xl border-0 bg-surface-highest text-foreground hover:bg-surface-highest"
-                        : "h-7 text-xs rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none"
-                    }
-                    onClick={() => setActive(driver, !isActive)}
-                  >
-                    {isActive ? "Desativar" : "Ativar"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {drivers.length === 0 && !creating && (
-          <div className="rounded-2xl bg-white/95 px-6 py-10 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky/15">
-              <Truck className="h-7 w-7 text-sky" />
-            </div>
-            <h2 className="mt-3 text-sm font-semibold font-heading text-foreground">
-              Nenhum motorista cadastrado
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Cadastre o primeiro motorista da sua distribuidora.
-            </p>
-          </div>
-        )}
-      </div>
+      <ConfirmAction
+        open={deactivating !== null}
+        onOpenChange={(open) => !open && setDeactivating(null)}
+        title={`Desativar ${deactivating?.name ?? "motorista"}?`}
+        description="Ele não consegue mais entrar no app nem receber entregas. Você pode reativar depois."
+        confirmLabel="Desativar"
+        destructive
+        onConfirm={async () => {
+          if (deactivating) await setActive(deactivating, false);
+          setDeactivating(null);
+        }}
+      />
     </div>
   );
 }
