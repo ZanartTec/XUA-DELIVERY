@@ -129,7 +129,7 @@ export function DeliveryDateCalendar({
         onSelect={handleSelect}
         disabled={disabled}
         locale={ptBR}
-        className="rounded-2xl border border-[#d9dde3] bg-white shadow-sm"
+        className="rounded-2xl border border-hairline bg-card shadow-sm"
       />
     </div>
   );

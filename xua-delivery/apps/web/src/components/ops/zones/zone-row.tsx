@@ -82,9 +82,9 @@ export function ZoneRow({
     <>
       <tr
         className={cn(
-          "border-b border-[#e4e8f1] transition-colors hover:bg-[#e1e3e4]/30",
+          "border-b border-hairline transition-colors hover:bg-surface-highest/30",
           !zone.is_active && "opacity-60",
-          isExpanded && "bg-[#00E0FF]/5"
+          isExpanded && "bg-cta/5"
         )}
       >
         <td className={cn(CELL, "w-8")}>
@@ -93,7 +93,7 @@ export function ZoneRow({
             onClick={onToggleExpand}
             aria-expanded={isExpanded}
             aria-label={isExpanded ? "Recolher cobertura" : "Expandir cobertura"}
-            className="flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground hover:bg-[#e1e3e4]"
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface-highest"
           >
             {isExpanded ? (
               <ChevronDown className="h-4 w-4" />
@@ -103,7 +103,7 @@ export function ZoneRow({
           </button>
         </td>
 
-        <td className={cn(CELL, "font-medium")}>
+        <td className={cn(CELL, "font-medium whitespace-nowrap")}>
           <button
             type="button"
             onClick={onToggleExpand}
@@ -120,17 +120,17 @@ export function ZoneRow({
         <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
           {zone._count.coverage}
         </td>
-        <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
+        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.addresses}
         </td>
-        <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
+        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.orders}
         </td>
 
         <td className={CELL}>
           <span
             className={cn(
-              "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              "inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
               zone.is_active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
             )}
           >
@@ -160,7 +160,7 @@ export function ZoneRow({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 rounded-xl text-xs text-red-600 hover:bg-red-50"
+                className="h-9 rounded-xl text-xs text-destructive hover:bg-danger-surface"
                 onClick={() => onDeactivateOpenChange(true)}
               >
                 Desativar
@@ -169,7 +169,7 @@ export function ZoneRow({
               <Button
                 size="sm"
                 disabled={updateZone.isPending}
-                className="h-7 rounded-xl bg-[#00E0FF] text-xs font-semibold text-[#001735] shadow-none hover:bg-[#00E0FF]/90"
+                className="h-9 rounded-xl bg-cta text-xs font-semibold text-cta-foreground shadow-none hover:bg-cta/90"
                 onClick={() => handleToggleActive(true)}
               >
                 Reativar
@@ -180,7 +180,7 @@ export function ZoneRow({
       </tr>
 
       {isEditing && (
-        <tr className="border-b border-[#e4e8f1] bg-white">
+        <tr className="border-b border-hairline bg-white">
           <td colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
             <div className="max-w-sm">
               <ZoneForm
@@ -197,7 +197,7 @@ export function ZoneRow({
       )}
 
       {isExpanded && (
-        <tr className="border-b border-[#e4e8f1] bg-[#00E0FF]/5">
+        <tr className="border-b border-hairline bg-cta/5">
           <td colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
             <CoverageEditor zone={zone} />
           </td>

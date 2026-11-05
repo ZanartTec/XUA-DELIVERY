@@ -6,6 +6,7 @@ import { profileUpdateSchema, updateAssignModeSchema } from "@xua/shared/schemas
 import { AppError, badRequest, forbidden, notFound } from "../../../errors/index.js";
 
 const createAddressSchema = z.object({
+  label: z.string().trim().max(40, "Apelido muito longo").optional(),
   zip_code: z.string().trim().min(1, "CEP é obrigatório"),
   street: z.string().trim().min(1, "Rua é obrigatória"),
   number: z.string().trim().min(1, "Número é obrigatório"),
@@ -15,6 +16,15 @@ const createAddressSchema = z.object({
   state: z.string().trim().min(1, "Estado é obrigatório"),
   is_default: z.boolean().optional().default(false),
 });
+
+const updateAddressSchema = z
+  .object({
+    label: z.string().trim().max(40, "Apelido muito longo").nullable().optional(),
+    number: z.string().trim().min(1, "Número é obrigatório").optional(),
+    complement: z.string().trim().max(120, "Complemento muito longo").nullable().optional(),
+    is_default: z.literal(true).optional(),
+  })
+  .refine((d) => Object.values(d).some((v) => v !== undefined), "Nada para atualizar");
 
 export const consumersController = {
   // ─── Profile ──────────────────────────────────────────────
@@ -144,6 +154,58 @@ export const consumersController = {
       }
 
       res.status(201).json({ address: result.address });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** PATCH /api/consumers/:id/addresses/:addressId */
+  async updateAddress(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = req.user!;
+    const id = req.params.id as string;
+    const addressId = req.params.addressId as string;
+
+    if (user.sub !== id) {
+      next(forbidden("Acesso negado"));
+      return;
+    }
+
+    const parsed = updateAddressSchema.safeParse(req.body);
+    if (!parsed.success) {
+      next(badRequest(parsed.error.issues[0]?.message ?? "Dados inválidos"));
+      return;
+    }
+
+    try {
+      const address = await consumersService.updateAddress(id, addressId, parsed.data);
+      if (!address) {
+        next(notFound("Endereço não encontrado"));
+        return;
+      }
+      res.json({ address });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** DELETE /api/consumers/:id/addresses/:addressId (arquiva o endereço) */
+  async deleteAddress(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = req.user!;
+    const id = req.params.id as string;
+    const addressId = req.params.addressId as string;
+
+    if (user.sub !== id) {
+      next(forbidden("Acesso negado"));
+      return;
+    }
+
+    try {
+      const ok = await consumersService.archiveAddress(id, addressId);
+      if (!ok) {
+        next(notFound("Endereço não encontrado"));
+        return;
+      }
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

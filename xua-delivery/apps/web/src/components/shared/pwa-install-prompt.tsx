@@ -66,9 +66,9 @@ export function PwaInstallPrompt() {
         role="banner"
         aria-label="Instalar aplicativo"
       >
-        <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 max-w-sm w-full pointer-events-auto bg-white/40 backdrop-blur-xl supports-backdrop-filter:bg-white/35 border border-[#00E0FF]/35 ring-1 ring-white/50 shadow-[0_8px_28px_-8px_rgba(0,26,64,0.25)] animate-in slide-in-from-top-16 fade-in zoom-in-95 duration-500 ease-out">
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 max-w-sm w-full pointer-events-auto bg-white/40 backdrop-blur-xl supports-backdrop-filter:bg-white/35 border border-cta/35 ring-1 ring-white/50 shadow-[0_8px_28px_-8px_rgba(0,26,64,0.25)] animate-in slide-in-from-top-16 fade-in zoom-in-95 duration-500 ease-out">
           {/* Ícone da marca Xuá */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#00E0FF]/15 overflow-hidden">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cta/15 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/icon.svg" alt="Xuá" className="h-6 w-6 object-contain" />
           </div>
@@ -83,7 +83,7 @@ export function PwaInstallPrompt() {
           <div className="flex items-center gap-1 shrink-0">
             <Button
               size="sm"
-              className="h-7 border-[#00E0FF] bg-[#00E0FF] px-3 text-xs font-semibold text-[#001735] hover:bg-[#00C9E6] hover:text-[#001735]"
+              className="h-7 border-cta bg-cta px-3 text-xs font-semibold text-cta-foreground hover:bg-[#00C9E6] hover:text-cta-foreground"
               onClick={status === "ios" ? () => setIsIosSheetOpen(true) : promptInstall}
             >
               Instalar

@@ -129,8 +129,18 @@ export const otpService = {
    * Valida OTP — max 5 tentativas, após isso status = locked.
    * Retorna true se válido, false se inválido.
    * @throws OtpServiceError se OTP não encontrado, expirado ou locked
+   *
+   * `consume: false` confere o código sem marcá-lo como usado: a conclusão da
+   * entrega consome depois (`consume`), só se der certo — assim uma conclusão
+   * recusada (ex.: estoque) não deixa o motorista sem código.
    */
-  async validate(orderId: string, code: string, driverId: string): Promise<OtpValidationResult> {
+  async validate(
+    orderId: string,
+    code: string,
+    driverId: string,
+    options: { consume?: boolean } = {}
+  ): Promise<OtpValidationResult> {
+    const shouldConsume = options.consume !== false;
     const prisma = getPrisma();
 
     // FUNC-01: Usa transação com FOR UPDATE para evitar race condition
@@ -157,9 +167,11 @@ export const otpService = {
       let locked = false;
 
       if (isValid) {
-        await otpRepository.markUsed(otp.id, tx);
-        // Remove código do Redis ao usar
-        redis.del(`otp:${orderId}`).catch(() => {});
+        if (shouldConsume) {
+          await otpRepository.markUsed(otp.id, tx);
+          // Remove código do Redis ao usar
+          redis.del(`otp:${orderId}`).catch(() => {});
+        }
       } else {
         const updated = await otpRepository.incrementAttempts(otp.id, tx);
         attempts = updated.attempts;
@@ -183,6 +195,16 @@ export const otpService = {
       logger.info({ orderId, isValid, attempts }, "OTP validation attempted");
       return { isValid, attempts, maxAttempts: MAX_ATTEMPTS, locked };
     });
+  },
+
+  /** Marca como usado o OTP ativo do pedido (após a entrega concluída). */
+  async consume(orderId: string): Promise<void> {
+    const prisma = getPrisma();
+    await prisma.$transaction(async (tx: TxClient) => {
+      const otp = await otpRepository.findActive(orderId, tx);
+      if (otp) await otpRepository.markUsed(otp.id, tx);
+    });
+    redis.del(`otp:${orderId}`).catch(() => {});
   },
 
   /**

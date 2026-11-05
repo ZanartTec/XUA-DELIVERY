@@ -1,13 +1,14 @@
 "use client";
 
-import { cn } from "@/src/lib/utils";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 
 export interface CategoryItem {
   label: string;
   value: string;
 }
 
-const ALL_CATEGORY: CategoryItem = { label: "Todos", value: "all" };
+export const ALL_CATEGORY: CategoryItem = { label: "Todos", value: "all" };
 
 interface CategoryFilterProps {
   categories: CategoryItem[];
@@ -16,44 +17,36 @@ interface CategoryFilterProps {
   loading?: boolean;
 }
 
-export function CategoryFilter({
-  categories,
-  selected,
-  onChange,
-  loading = false,
-}: CategoryFilterProps) {
-  const items = [ALL_CATEGORY, ...categories];
-
+/** Chips de categoria roláveis (zona de topo, junto da busca). */
+export function CategoryFilter({ categories, selected, onChange, loading = false }: CategoryFilterProps) {
   if (loading) {
     return (
-      <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none">
-        {[100, 80, 60, 90, 70].map((w, i) => (
-          <div
-            key={i}
-            className="shrink-0 animate-pulse rounded-full bg-[#e1e3e4]"
-            style={{ width: w, height: 36 }}
-          />
+      <div className="flex gap-2 overflow-hidden">
+        {[72, 96, 64, 88].map((w) => (
+          <Skeleton key={w} className="h-9 shrink-0 rounded-md" style={{ width: w }} />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none">
-      {items.map((cat) => (
-        <button
+    <ToggleGroup
+      type="single"
+      value={selected}
+      onValueChange={(v) => onChange(v || ALL_CATEGORY.value)}
+      aria-label="Categorias"
+      spacing={2}
+      className="-mx-4 w-[calc(100%+2rem)] justify-start overflow-x-auto px-4 pb-1 [scrollbar-width:none]"
+    >
+      {[ALL_CATEGORY, ...categories].map((cat) => (
+        <ToggleGroupItem
           key={cat.value}
-          onClick={() => onChange(cat.value)}
-          className={cn(
-            "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors",
-            selected === cat.value
-              ? "bg-[#00E0FF] text-[#001735]"
-              : "bg-[#f3f4f5] text-[#434656] hover:bg-[#e7e8e9]"
-          )}
+          value={cat.value}
+          className="h-9 shrink-0 rounded-md bg-muted px-4 text-sm font-medium text-muted-foreground data-[state=on]:bg-cta data-[state=on]:text-cta-foreground"
         >
           {cat.label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

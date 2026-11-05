@@ -2,30 +2,28 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { CheckCircle2, Loader2, LinkIcon } from "lucide-react";
 import { resetPasswordSchema } from "@/src/schemas/auth";
-import { Input } from "@/src/components/ui/input";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
+import { FormField } from "@/src/components/shared/form-field";
+import { PasswordInput } from "@/src/components/shared/password-input";
+import { AuthShell } from "@/src/components/auth/auth-shell";
 
 // Estende o schema compartilhado com confirmação de senha (validação só no cliente).
 const formSchema = resetPasswordSchema
   .pick({ password: true })
   .extend({ confirm: z.string() })
-  .refine((d) => d.password === d.confirm, {
-    message: "As senhas não coincidem",
-    path: ["confirm"],
-  });
+  .refine((d) => d.password === d.confirm, { message: "As senhas não coincidem", path: ["confirm"] });
 
 type FormInput = z.infer<typeof formSchema>;
 
-function ResetPasswordForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
-
+function ResetPasswordContent() {
+  const token = useSearchParams().get("token") ?? "";
   const [serverError, setServerError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -33,9 +31,7 @@ function ResetPasswordForm() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormInput>({
-    resolver: zodResolver(formSchema),
-  });
+  } = useForm<FormInput>({ resolver: zodResolver(formSchema), mode: "onTouched" });
 
   async function onSubmit(data: FormInput) {
     setServerError(null);
@@ -45,126 +41,75 @@ function ResetPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password: data.password }),
       });
-
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setServerError(body.error || "Não foi possível redefinir a senha.");
         return;
       }
-
       setDone(true);
-      setTimeout(() => router.replace("/login"), 2500);
     } catch {
-      setServerError("Erro de conexão. Tente novamente.");
+      setServerError("Sem conexão. Verifique a internet e tente de novo.");
     }
   }
 
   if (!token) {
     return (
-      <div className="text-center">
-        <h1 className="font-heading text-xl font-extrabold text-[#0d1b2f]">Link inválido</h1>
-        <p className="mt-2 text-sm text-[#7d8494]">
-          Este link de redefinição é inválido ou está incompleto. Solicite um novo.
-        </p>
-        <Link
-          href="/forgot-password"
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#00E0FF] text-base font-semibold text-[#001735] transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98]"
-        >
-          Solicitar novo link
-        </Link>
-      </div>
+      <AuthShell title="Link inválido" description="Este link de redefinição está incompleto ou já expirou.">
+        <div className="grid gap-4 text-center">
+          <LinkIcon className="mx-auto size-10 text-muted-foreground" aria-hidden />
+          <Button asChild variant="cta" size="xl">
+            <Link href="/forgot-password">Pedir novo link</Link>
+          </Button>
+        </div>
+      </AuthShell>
     );
   }
 
   if (done) {
     return (
-      <div className="text-center">
-        <CheckCircle2 className="mx-auto h-12 w-12 text-[#00E0FF]" />
-        <h1 className="mt-3 font-heading text-xl font-extrabold text-[#0d1b2f]">Senha redefinida!</h1>
-        <p className="mt-2 text-sm text-[#7d8494]">
-          Sua senha foi atualizada. Redirecionando para o login...
-        </p>
-      </div>
+      <AuthShell title="Senha redefinida">
+        <div className="grid gap-4 text-center">
+          <CheckCircle2 className="mx-auto size-12 text-success-foreground" aria-hidden />
+          <p className="text-sm text-muted-foreground">Pronto! Use a nova senha para entrar.</p>
+          <Button asChild variant="cta" size="xl">
+            <Link href="/login">Ir para o login</Link>
+          </Button>
+        </div>
+      </AuthShell>
     );
   }
 
   return (
-    <>
-      <h1 className="font-heading text-xl font-extrabold leading-tight text-[#0d1b2f]">
-        Criar nova senha
-      </h1>
-      <p className="mt-0.5 text-sm text-[#7d8494]">
-        Escolha uma nova senha para sua conta. Mínimo de 8 caracteres.
-      </p>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
-        {serverError && (
-          <div className="rounded-xl bg-red-50 px-4 py-2.5 text-center text-sm text-red-600">
-            {serverError}
-          </div>
-        )}
-
-        <div className="space-y-1">
-          <label
-            htmlFor="password"
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
-          >
-            Nova senha
-          </label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            className="h-11 rounded-xl border border-[#e8eaf0] bg-white shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
-            {...register("password")}
-          />
-          {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-        </div>
-
-        <div className="space-y-1">
-          <label
-            htmlFor="confirm"
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ba3af]"
-          >
-            Confirmar senha
-          </label>
-          <Input
-            id="confirm"
-            type="password"
-            placeholder="••••••••"
-            className="h-11 rounded-xl border border-[#e8eaf0] bg-white shadow-none focus-visible:border-[#00E0FF] focus-visible:ring-1 focus-visible:ring-[#00E0FF]/60"
-            {...register("confirm")}
-          />
-          {errors.confirm && <p className="text-xs text-red-500">{errors.confirm.message}</p>}
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00E0FF] text-base font-semibold text-[#001735] transition-all hover:bg-[#00E0FF]/90 active:scale-[0.98] disabled:opacity-60"
-        >
-          {isSubmitting ? "Salvando..." : "Redefinir senha"}
-          {!isSubmitting && <ArrowRight className="h-4 w-4" />}
-        </button>
+    <AuthShell title="Criar nova senha" description="Mínimo de 8 caracteres.">
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" noValidate>
+        {serverError ? (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{serverError}</AlertDescription>
+          </Alert>
+        ) : null}
+        <FormField label="Nova senha" error={errors.password?.message}>
+          {(field) => (
+            <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("password")} />
+          )}
+        </FormField>
+        <FormField label="Confirme a nova senha" error={errors.confirm?.message}>
+          {(field) => (
+            <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("confirm")} />
+          )}
+        </FormField>
+        <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
+          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? "Salvando…" : "Salvar nova senha"}
+        </Button>
       </form>
-    </>
+    </AuthShell>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#f8f9fa] px-6 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-transparent.png" alt="Xuá Água Mineral" className="h-20 w-auto" />
-        </div>
-        <div className="rounded-2xl bg-white p-6 shadow-lg shadow-black/5">
-          <Suspense fallback={<p className="text-center text-sm text-[#7d8494]">Carregando...</p>}>
-            <ResetPasswordForm />
-          </Suspense>
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={<div className="min-h-dvh bg-background" />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

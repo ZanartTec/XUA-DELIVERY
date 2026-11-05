@@ -61,10 +61,10 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         disabled={page === 1}
         aria-label="Página anterior"
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150",
+          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
           page === 1
             ? "cursor-not-allowed text-[#b0b3c6]"
-            : "text-[#5697E9] hover:bg-[#5697E9]/10 active:scale-90"
+            : "text-sky hover:bg-sky/10 active:scale-90"
         )}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -86,10 +86,10 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
             aria-label={`Ir para página ${item}`}
             aria-current={item === page ? "page" : undefined}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition-all duration-150 active:scale-90",
+              "flex h-9 w-9 items-center justify-center rounded-md text-sm font-semibold transition-all duration-150 active:scale-90",
               item === page
-                ? "bg-[#5697E9] text-white shadow-[0_2px_8px_rgba(86,151,233,0.35)]"
-                : "text-[#737688] hover:bg-[#f3f4f5]"
+                ? "bg-sky text-white shadow-[0_2px_8px_rgba(86,151,233,0.35)]"
+                : "text-muted-foreground hover:bg-muted"
             )}
           >
             {item}
@@ -103,10 +103,10 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         disabled={page === totalPages}
         aria-label="Próxima página"
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150",
+          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
           page === totalPages
             ? "cursor-not-allowed text-[#b0b3c6]"
-            : "text-[#5697E9] hover:bg-[#5697E9]/10 active:scale-90"
+            : "text-sky hover:bg-sky/10 active:scale-90"
         )}
       >
         <ChevronRight className="h-4 w-4" />

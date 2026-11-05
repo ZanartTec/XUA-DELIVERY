@@ -56,14 +56,14 @@ export const consumerRepository = {
   async findAddressOwnedBy(addressId: string, consumerId: string, tx?: TxClient) {
     const prisma = getPrisma();
     return (tx ?? prisma).address.findFirst({
-      where: { id: addressId, consumer_id: consumerId },
+      where: { id: addressId, consumer_id: consumerId, archived_at: null },
     });
   },
 
   async findAddresses(consumerId: string, tx?: TxClient) {
     const prisma = getPrisma();
     return (tx ?? prisma).address.findMany({
-      where: { consumer_id: consumerId },
+      where: { consumer_id: consumerId, archived_at: null },
       orderBy: [{ is_default: "desc" }, { created_at: "desc" }],
     });
   },
@@ -71,6 +71,7 @@ export const consumerRepository = {
   async createAddress(
     data: {
       consumer_id: string;
+      label: string | null;
       zip_code: string;
       street: string;
       number: string;
@@ -92,6 +93,39 @@ export const consumerRepository = {
     return (tx ?? prisma).address.updateMany({
       where: { consumer_id: consumerId, is_default: true },
       data: { is_default: false },
+    });
+  },
+
+  async countActiveAddresses(consumerId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.count({
+      where: { consumer_id: consumerId, archived_at: null },
+    });
+  },
+
+  async updateAddress(
+    addressId: string,
+    data: Partial<{ label: string | null; number: string; complement: string | null; is_default: boolean }>,
+    tx?: TxClient
+  ) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.update({ where: { id: addressId }, data });
+  },
+
+  async archiveAddress(addressId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.update({
+      where: { id: addressId },
+      data: { archived_at: new Date(), is_default: false },
+    });
+  },
+
+  /** Endereço ativo mais recente: vira o principal quando o atual é excluído. */
+  async findLatestActiveAddress(consumerId: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).address.findFirst({
+      where: { consumer_id: consumerId, archived_at: null },
+      orderBy: { created_at: "desc" },
     });
   },
 

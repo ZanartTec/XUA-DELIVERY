@@ -2,306 +2,192 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { DeliveryWindow, OrderStatus } from "@/src/types/enums";
-import { formatCurrency, formatDate } from "@/src/lib/utils";
-import {
-  ClipboardList,
-  ChevronRight,
-  Check,
-  Truck,
-  Home,
-  Droplets,
-  AlertTriangle,
-} from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronRight, ClipboardList, Droplets } from "lucide-react";
 import type { Order } from "@/src/types";
-import { FilterChips, type FilterOption } from "@/src/components/shared/filter-chips";
-import { Pagination } from "@/src/components/shared/pagination";
 import { Button } from "@/src/components/ui/button";
+import { Card } from "@/src/components/ui/card";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { OrderStepper } from "@/src/components/shared/order-stepper";
+import { Pagination } from "@/src/components/shared/pagination";
 import { useOrders, type OrdersFilterValue } from "@/src/hooks/consumer/use-orders";
-
-/* -- helpers -- */
-const STATUS_LABELS: Record<string, string> = {
-  CONFIRMED: "Confirmado",
-  SENT_TO_DISTRIBUTOR: "A caminho",
-  ACCEPTED_BY_DISTRIBUTOR: "A caminho",
-  OUT_FOR_DELIVERY: "A caminho",
-  DELIVERED: "Entregue",
-  CANCELLED: "Cancelado",
-  DELIVERY_FAILED: "Falha na entrega",
-};
-
-const TERMINAL_STATUSES: string[] = [
-  OrderStatus.DELIVERED,
-  OrderStatus.CANCELLED,
-  OrderStatus.DELIVERY_FAILED,
-  OrderStatus.REJECTED_BY_DISTRIBUTOR,
-];
-
-function getProgress(status: string) {
-  const s = status as OrderStatus;
-  if (s === OrderStatus.DELIVERED) return { step: 3, pct: "w-full" };
-  if (
-    s === OrderStatus.OUT_FOR_DELIVERY ||
-    s === OrderStatus.ACCEPTED_BY_DISTRIBUTOR ||
-    s === OrderStatus.SENT_TO_DISTRIBUTOR
-  )
-    return { step: 2, pct: "w-2/3" };
-  return { step: 1, pct: "w-1/3" };
-}
+import { useHasActivePlans } from "@/src/hooks/consumer/use-subscription-plans";
+import { ACTIVE_ORDER_STATUSES } from "@/src/lib/order-status";
+import { formatShortOrderId } from "@/src/lib/order-detail-format";
+import { formatCurrency, formatDate } from "@/src/lib/utils";
 
 function isActive(order: Order) {
-  return !TERMINAL_STATUSES.includes(order.status);
+  return ACTIVE_ORDER_STATUSES.includes(order.status);
 }
 
-function shortId(id: string) {
-  return id.slice(0, 8).toUpperCase();
-}
-
-function OrderSkeleton() {
-  return (
-    <div className="animate-pulse rounded-2xl bg-white/80 shadow-[0_2px_12px_rgba(0,26,64,0.06)]">
-      <div className="space-y-3 p-4">
-        <div className="h-5 w-40 rounded-lg bg-[#e1e3e4]" />
-        <div className="h-3 w-56 rounded-lg bg-[#e1e3e4]" />
-        <div className="h-8 w-full rounded-lg bg-[#e1e3e4]" />
-      </div>
-    </div>
-  );
+function windowLabel(window: string) {
+  return window === "MORNING" ? "Manhã" : "Tarde";
 }
 
 export default function OrdersPage() {
   const [filter, setFilter] = useState<OrdersFilterValue>("all");
   const [page, setPage] = useState(1);
-  const { data, isLoading: loading, isError, refetch } = useOrders(filter, page);
+  const { data, isLoading, isError, refetch } = useOrders(filter, page);
+  const { hasPlans } = useHasActivePlans();
 
-  function handleFilterChange(val: OrdersFilterValue) {
-    setFilter(val);
-    setPage(1);
-  }
-
-  /* -- derived -- */
   const orders = data?.orders ?? [];
   const activeOrders = orders.filter(isActive);
   const pastOrders = orders.filter((o) => !isActive(o));
   const summary = data?.summary ?? { all: 0, active: 0, delivered: 0, cancelled: 0 };
   const totalPages = data?.totalPages ?? 1;
 
-  /* -- filter options -- */
-  const filterOptions: FilterOption<OrdersFilterValue>[] = [
-    { label: "Todos", value: "all", count: summary.all },
-    { label: "Ativos", value: "active", count: summary.active },
-    { label: "Entregues", value: "delivered", count: summary.delivered },
-    { label: "Cancelados", value: "cancelled", count: summary.cancelled },
+  const tabs: { value: OrdersFilterValue; label: string; count: number }[] = [
+    { value: "all", label: "Todos", count: summary.all },
+    { value: "active", label: "Ativos", count: summary.active },
+    { value: "delivered", label: "Entregues", count: summary.delivered },
+    { value: "cancelled", label: "Cancelados", count: summary.cancelled },
   ];
 
-  const showActiveOrders = filter === "all" || filter === "active";
-
   return (
-    <div className="pb-4">
-      {/* Header */}
-      <div className="px-5 pt-5 mb-4">
-        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-primary mb-0.5">
-          Acompanhamento
-        </p>
-        <h1 className="font-heading text-2xl font-extrabold tracking-tight text-[#191c1d]">
-          Meus Pedidos
-        </h1>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Meus pedidos" sticky>
+        <Tabs
+          value={filter}
+          onValueChange={(v) => {
+            setFilter(v as OrdersFilterValue);
+            setPage(1);
+          }}
+        >
+          <TabsList className="h-11 w-full">
+            {tabs.map((t) => (
+              <TabsTrigger key={t.value} value={t.value} className="h-9 gap-1 px-1 text-xs sm:text-sm">
+                {t.label}
+                {data ? <span className="text-muted-foreground tabular-nums">{t.count}</span> : null}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </PageHeader>
 
-      {/* Filtros */}
-      <div className="px-5 mb-5">
-        <FilterChips options={filterOptions} value={filter} onChange={handleFilterChange} />
-      </div>
-
-      {loading ? (
-        <div className="space-y-3 px-5">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <OrderSkeleton key={i} />
-          ))}
-        </div>
-      ) : isError ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center px-5">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <AlertTriangle className="h-8 w-8 text-red-400" />
+      <div className="space-y-6 px-4 pt-2 pb-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-2xl" />
+            ))}
           </div>
-          <p className="text-[#737688]">Não foi possível carregar seus pedidos.</p>
-          <Button variant="ghost" className="mt-4 text-primary" onClick={() => refetch()}>
-            Tentar novamente
-          </Button>
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center px-5">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#5697E9]/15">
-            <ClipboardList className="h-8 w-8 text-[#5697E9]/50" />
-          </div>
-          <p className="text-[#737688]">
-            {filter === "all"
-              ? "Nenhum pedido encontrado."
-              : "Nenhum pedido nessa categoria."}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* -- Active Orders -- */}
-          {showActiveOrders && activeOrders.length > 0 && (
-            <div className="px-5 mb-6">
-              {filter === "all" && (
-                <h2 className="font-heading text-sm font-extrabold uppercase tracking-widest text-[#737688] mb-3">
-                  Em andamento
-                </h2>
-              )}
-              <div className="space-y-5">
-                {activeOrders.map((order) => {
-                  const { step, pct } = getProgress(order.status);
-                  return (
-                    <Link key={order.id} href={`/orders/${order.id}`} className="block">
-                      <div className="bg-[#f3f4f5] rounded-2xl p-4 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-[#5697E9]/8 rounded-full -mr-16 -mt-16 blur-3xl" />
-                        <div className="relative z-10">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
-                              <Droplets className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="font-heading text-base font-bold text-[#191c1d] leading-tight">
-                                Pedido #{shortId(order.id)}
-                              </h3>
-                              <p className="text-xs text-[#737688] font-medium truncate">
-                                {formatDate(order.delivery_date)} •{" "}
-                                <span className="text-primary">
-                                  {formatCurrency(order.total_cents)}
-                                </span>
+        ) : isError ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Não foi possível carregar seus pedidos"
+            action={
+              <Button variant="outline" onClick={() => refetch()}>
+                Tentar novamente
+              </Button>
+            }
+          />
+        ) : orders.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title={filter === "all" ? "Você ainda não fez pedidos" : "Nenhum pedido nesta aba"}
+            action={
+              filter === "all" ? (
+                <Button asChild variant="cta" size="xl">
+                  <Link href="/catalog">Fazer meu primeiro pedido</Link>
+                </Button>
+              ) : null
+            }
+          />
+        ) : (
+          <>
+            {activeOrders.length > 0 ? (
+              <section aria-labelledby="sec-ativos" className="space-y-3">
+                {filter === "all" ? (
+                  <h2 id="sec-ativos" className="text-sm font-semibold text-foreground">
+                    Em andamento
+                  </h2>
+                ) : null}
+                <ul className="space-y-3">
+                  {activeOrders.map((order) => (
+                    <li key={order.id}>
+                      <Link href={`/orders/${order.id}`} className="block rounded-2xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+                        <Card className="flex flex-col gap-4 rounded-2xl border-hairline p-4 transition-colors hover:border-primary/40">
+                          <div className="flex items-start gap-3">
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+                              <Droplets className="size-5 text-primary" aria-hidden />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <h3 className="font-heading text-base font-bold text-ink">#{formatShortOrderId(order.id)}</h3>
+                                <StatusBadge status={order.status} />
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {formatDate(order.delivery_date)} · {windowLabel(order.delivery_window)} ·{" "}
+                                <span className="font-semibold text-foreground">{formatCurrency(order.total_cents)}</span>
                               </p>
                             </div>
                           </div>
-                          <div className="relative pb-1">
-                            <div className="absolute top-3 left-0 w-full h-0.5 bg-[#e1e3e4] rounded-full">
-                              <div className={`h-full bg-[#00E0FF] rounded-full transition-all ${pct}`} />
-                            </div>
-                            <div className="relative flex justify-between">
-                              {[
-                                { step: 1, icon: Check, label: "Confirmado" },
-                                { step: 2, icon: Truck, label: "A caminho" },
-                                { step: 3, icon: Home, label: "Entregue" },
-                              ].map(({ step: s, icon: Icon, label }) => (
-                                <div key={s} className="flex flex-col items-center gap-1.5">
-                                  <div
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                      step >= s
-                                        ? "bg-[#00E0FF] text-[#001735]"
-                                        : "bg-[#e1e3e4] text-[#737688]"
-                                    }`}
-                                  >
-                                    <Icon className="h-3 w-3" />
-                                  </div>
-                                  <span
-                                    className={`text-[9px] font-bold uppercase tracking-wide ${
-                                      step >= s ? "text-[#001735]" : "text-[#b0b3c6]"
-                                    }`}
-                                  >
-                                    {label}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                          <OrderStepper status={order.status} />
+                        </Card>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {pastOrders.length > 0 ? (
+              <section aria-labelledby="sec-historico" className="space-y-3">
+                {filter === "all" ? (
+                  <h2 id="sec-historico" className="text-sm font-semibold text-foreground">
+                    Histórico
+                  </h2>
+                ) : null}
+                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                  {pastOrders.map((order) => (
+                    <li key={order.id}>
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground">#{formatShortOrderId(order.id)}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {formatDate(order.delivery_date)} · {formatCurrency(order.total_cents)}
+                          </p>
                         </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+                        <StatusBadge status={order.status} />
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {totalPages > 1 ? (
+              <div className="space-y-2">
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+                <p className="text-center text-xs text-muted-foreground">
+                  Página {page} de {totalPages} · {data?.total ?? 0} pedidos
+                </p>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {/* -- Past Deliveries -- */}
-          {pastOrders.length > 0 && (
-            <section className="px-5">
-              {filter === "all" && (
-                <h2 className="font-heading text-sm font-extrabold uppercase tracking-widest text-[#737688] mb-3">
-                  Histórico
-                </h2>
-              )}
-              <div className="space-y-3">
-                {pastOrders.map((order) => {
-                  const d = new Date(order.delivery_date);
-                  const month = d
-                    .toLocaleDateString("pt-BR", { month: "short" })
-                    .replace(".", "")
-                    .toUpperCase();
-                  const day = d.getDate().toString().padStart(2, "0");
-                  return (
-                    <Link key={order.id} href={`/orders/${order.id}`} className="block">
-                      <div className="bg-white p-4 rounded-xl flex items-center justify-between group transition-all duration-200 hover:bg-[#f3f4f5] shadow-sm overflow-hidden">
-                        <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
-                          <div className="text-center w-10 shrink-0">
-                            <p className="text-[9px] font-bold uppercase text-[#737688]">{month}</p>
-                            <p className="text-lg font-heading font-black text-[#191c1d] leading-tight">
-                              {day}
-                            </p>
-                          </div>
-                          <div className="h-8 w-px bg-[#e1e3e4] shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-sm text-[#191c1d] truncate">
-                              Pedido #{shortId(order.id)}
-                            </p>
-                            <p className="text-xs text-[#737688] font-medium truncate">
-                              {order.delivery_window === DeliveryWindow.MORNING ? "Manhã" : "Tarde"}{" "}
-                              •{" "}
-                              {STATUS_LABELS[order.status] ??
-                                order.status.replace(/_/g, " ").toLowerCase()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-3">
-                          <span className="font-heading font-bold text-sm text-[#191c1d]">
-                            {formatCurrency(order.total_cents)}
-                          </span>
-                          <ChevronRight className="h-4 w-4 text-[#737688] group-hover:text-primary transition-colors shrink-0" />
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Paginação */}
-          {totalPages > 1 && (
-            <div className="mt-5 px-5">
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-              <p className="mt-2 text-center text-xs text-[#b0b3c6]">
-                Página {page} de {totalPages} • {data?.total ?? 0} pedidos
-              </p>
-            </div>
-          )}
-
-          {/* -- Upsell Banner -- */}
-          {filter === "all" && (
-            <div className="mx-5 mt-6 rounded-2xl overflow-hidden relative h-36 bg-[#191c1d] shadow-xl">
-              <div className="absolute inset-0 bg-linear-to-r from-[#191c1d] to-transparent" />
-              <div className="absolute inset-0 flex items-center px-6">
-                <div className="max-w-xs relative z-10">
-                  <h4 className="text-white font-heading text-base font-extrabold mb-1">
-                    Assine e Economize 15%
-                  </h4>
-                  <p className="text-[#b6c4ff] text-xs mb-3">
-                    Monte um plano recorrente para sua entrega semanal.
-                  </p>
-                  <Link
-                    href="/subscription"
-                    className="inline-block bg-white text-[#191c1d] px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest active:scale-95 transition-transform"
-                  >
-                    Ver Planos
-                  </Link>
+            {/* Só promove assinatura quando há plano (antes levava a uma rota 404, C-06). */}
+            {filter === "all" && hasPlans ? (
+              <Card className="flex flex-col flex-row items-center gap-4 rounded-2xl border-0 bg-linear-to-br from-primary to-sky p-5 text-primary-foreground">
+                <CalendarDays className="size-8 shrink-0" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading font-bold">Receba sem precisar pedir</p>
+                  <p className="text-sm text-primary-foreground/80">Monte uma entrega recorrente.</p>
                 </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+                <Button asChild variant="cta" size="lg" className="shrink-0">
+                  <Link href="/subscription/create">Ver planos</Link>
+                </Button>
+              </Card>
+            ) : null}
+          </>
+        )}
+      </div>
     </div>
   );
 }
-

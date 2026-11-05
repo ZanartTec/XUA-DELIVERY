@@ -46,10 +46,10 @@ export function FilterChips<T extends string = string>({
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95 select-none",
+              "flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95 select-none",
               active
-                ? "bg-[#5697E9] text-white shadow-[0_2px_8px_rgba(86,151,233,0.30)]"
-                : "bg-[#f3f4f5] text-[#737688] hover:bg-[#e8eaec]"
+                ? "bg-sky text-white shadow-[0_2px_8px_rgba(86,151,233,0.30)]"
+                : "bg-muted text-muted-foreground hover:bg-[#e8eaec]"
             )}
           >
             {opt.label}
@@ -57,7 +57,7 @@ export function FilterChips<T extends string = string>({
               <span
                 className={cn(
                   "flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold",
-                  active ? "bg-white/25 text-white" : "bg-[#e1e3e4] text-[#737688]"
+                  active ? "bg-white/25 text-white" : "bg-surface-highest text-muted-foreground"
                 )}
               >
                 {opt.count}

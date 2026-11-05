@@ -1,504 +1,318 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronRight, CloudSun, Sun } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
-import { useCartStore } from "@/src/store/cart";
-import { useAuthStore } from "@/src/store/auth";
-import { useCheckoutStore } from "@/src/store/checkout";
-import { formatCurrency } from "@/src/lib/utils";
-import { cn } from "@/src/lib/utils";
+import { Label } from "@/src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Textarea } from "@/src/components/ui/textarea";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
-import { useIsClient } from "@/src/hooks/use-is-client";
-import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
+import { CheckoutProgress } from "@/src/components/consumer/checkout-progress";
 import { DeliveryAddressCard } from "@/src/components/consumer/delivery-address-card";
+import { DistributorSelector } from "@/src/components/consumer/distributor-selector";
+import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
+import { useCartStore } from "@/src/store/cart";
+import { useCheckoutStore } from "@/src/store/checkout";
+import { useIsClient } from "@/src/hooks/use-is-client";
+import { useSelectedAddress } from "@/src/hooks/consumer/use-addresses";
 import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
-import type { Address } from "@/src/types";
+import { isoDayToDate, todayIso, addDaysIso } from "@/src/lib/datetime";
+import { cn, formatCurrency } from "@/src/lib/utils";
 import type { DeliveryWindowInput } from "@xua/shared/enums";
-import {
-  ArrowLeft,
-  ChevronRight,
-  Sun,
-  CloudSun,
-  Droplets,
-  Zap,
-} from "lucide-react";
 
 type TimeWindow = DeliveryWindowInput;
 
-type DayItem = {
-  date: Date;
-  iso: string;
-  isToday: boolean;
-  morningAvailable: boolean;
-  afternoonAvailable: boolean;
-  anyAvailable: boolean;
-};
-
-const WINDOWS: { value: TimeWindow; label: string; sublabel: string; icon: typeof Sun }[] = [
-  { value: "morning", label: "Manhã", sublabel: "Entre 08:00 - 12:00", icon: Sun },
-  { value: "afternoon", label: "Tarde", sublabel: "Entre 12:00 - 17:00", icon: CloudSun },
+const WINDOWS: { value: TimeWindow; label: string; hours: string; icon: typeof Sun }[] = [
+  { value: "morning", label: "Manhã", hours: "08h às 12h", icon: Sun },
+  { value: "afternoon", label: "Tarde", hours: "13h às 18h", icon: CloudSun },
 ];
-
-const MONTH_SHORT: Record<number, string> = {
-  0: "jan", 1: "fev", 2: "mar", 3: "abr", 4: "mai", 5: "jun",
-  6: "jul", 7: "ago", 8: "set", 9: "out", 10: "nov", 11: "dez",
-};
-
-const WEEKDAY: Record<number, string> = {
-  0: "Domingo", 1: "Segunda-feira", 2: "Terça-feira", 3: "Quarta-feira",
-  4: "Quinta-feira", 5: "Sexta-feira", 6: "Sábado",
-};
 
 const DAYS_AHEAD = 14;
 
-function parseISODateLocal(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function formatDayLabel(d: Date, isToday: boolean): { top: string; day: string; month: string } {
-  if (isToday) {
-    return {
-      top: "HOJE",
-      day: String(d.getDate()),
-      month: MONTH_SHORT[d.getMonth()],
-    };
-  }
+function dayParts(iso: string) {
+  const d = isoDayToDate(iso);
+  const fmt = (opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("pt-BR", { ...opts, timeZone: "UTC" });
   return {
-    top: WEEKDAY[d.getDay()],
-    day: String(d.getDate()),
-    month: MONTH_SHORT[d.getMonth()],
+    weekday: fmt({ weekday: "short" }).replace(".", ""),
+    day: fmt({ day: "numeric" }),
+    month: fmt({ month: "short" }).replace(".", ""),
+    long: fmt({ weekday: "long", day: "numeric", month: "long" }),
   };
 }
 
-function getWindowLabel(w: TimeWindow | null): string {
-  if (w === "morning") return "Manhã";
-  if (w === "afternoon") return "Tarde";
-  return "";
-}
-
-export default function CheckoutSchedulePage() {
+export default function CheckoutDeliveryPage() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
+  const isClient = useIsClient();
 
-  // Persisted checkout state (Zustand)
+  const items = useCartStore((s) => s.items);
+  const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
+  const setCartDistributorId = useCartStore((s) => s.setSelectedDistributorId);
+
   const selectedDate = useCheckoutStore((s) => s.selectedDate);
   const selectedWindow = useCheckoutStore((s) => s.selectedWindow);
-  const instructions = useCheckoutStore((s) => s.instructions);
-  const storedAddressId = useCheckoutStore((s) => s.selectedAddressId);
-  const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
   const selectedSlotId = useCheckoutStore((s) => s.selectedSlotId);
+  const selectedDistributorId = useCheckoutStore((s) => s.selectedDistributorId);
+  const instructions = useCheckoutStore((s) => s.instructions);
   const setSelectedDate = useCheckoutStore((s) => s.setSelectedDate);
   const setSelectedWindow = useCheckoutStore((s) => s.setSelectedWindow);
   const setSelectedSlotId = useCheckoutStore((s) => s.setSelectedSlotId);
-  const setInstructions = useCheckoutStore((s) => s.setInstructions);
-  const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
   const setSelectedDistributorId = useCheckoutStore((s) => s.setSelectedDistributorId);
-  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const setInstructions = useCheckoutStore((s) => s.setInstructions);
 
-  // Garante que endereço e distribuidora foram selecionados antes de prosseguir
-  useEffect(() => {
-    if (!storedAddressId || !selectedDistributorId) {
-      router.replace("/checkout/distributor");
-    }
-  }, [storedAddressId, selectedDistributorId, router]);
-
-  // Address state (full object loaded from API, id persisted in store)
-  const [selectedAddress, setSelectedAddressLocal] = useState<Address | null>(null);
+  const { address, isLoading: addressLoading } = useSelectedAddress();
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
-  const [addressLoading, setAddressLoading] = useState(true);
+  const zoneId = address?.zone_id ?? null;
 
-  // When user selects an address, persist its ID and redirect to distributor
-  const handleAddressSelect = useCallback((addr: Address) => {
-    setSelectedAddressLocal(addr);
-    setSelectedAddressId(addr.id);
-    // Endereço mudou → precisa reescolher distribuidora
-    setSelectedDistributorId(null);
-    router.push("/checkout/distributor");
-  }, [setSelectedAddressId, setSelectedDistributorId, router]);
-
-  const loadDefaultAddress = useCallback(async () => {
-    if (!user?.id) return;
-    setAddressLoading(true);
-    try {
-      const res = await fetch(`/api/consumers/${user.id}/addresses`);
-      const data = await res.json();
-      const list: Address[] = data.addresses ?? [];
-      if (list.length > 0) {
-        const fromStore = storedAddressId
-          ? list.find((a) => a.id === storedAddressId)
-          : null;
-        const def = fromStore ?? list.find((a) => a.is_default) ?? list[0];
-        setSelectedAddressLocal(def);
-        setSelectedAddressId(def.id);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setAddressLoading(false);
-    }
-  }, [user?.id, storedAddressId, setSelectedAddressId]);
-
+  // Carrinho vazio não tem o que agendar.
   useEffect(() => {
-    void loadDefaultAddress();
-  }, [loadDefaultAddress]);
+    if (isClient && items.length === 0) router.replace("/cart");
+  }, [isClient, items.length, router]);
 
-  const zoneId = selectedAddress?.zone_id ?? null;
-  const {
-    availableDates,
-    loading: datesLoading,
-    error: datesError,
-  } = useAvailableDeliveryDates({
+  // Trocou o endereço (aqui ou no header): a distribuidora precisa ser revista.
+  const lastAddressId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!address) return;
+    if (lastAddressId.current && lastAddressId.current !== address.id) {
+      setSelectedDistributorId(null);
+      setCartDistributorId(null);
+    }
+    lastAddressId.current = address.id;
+  }, [address, setSelectedDistributorId, setCartDistributorId]);
+
+  function chooseDistributor(id: string | null) {
+    setSelectedDistributorId(id);
+    setCartDistributorId(id);
+  }
+
+  const { availableDates, loading: datesLoading, error: datesError } = useAvailableDeliveryDates({
     zoneId,
     distributorId: selectedDistributorId,
     days: DAYS_AHEAD,
+    enabled: Boolean(selectedDistributorId),
   });
 
-  // Detect if current distributor has time slots configured
-  const hasTimeSlots = useMemo(() => {
-    if (!availableDates || availableDates.length === 0) return false;
-    return availableDates[0].has_time_slots === true;
-  }, [availableDates]);
+  const hasTimeSlots = availableDates?.[0]?.has_time_slots === true;
+  const today = todayIso();
+  const tomorrow = addDaysIso(today, 1);
 
-  // Build day cards from API data (fallback to empty list while loading)
-  const days: DayItem[] = useMemo(() => {
-    if (!availableDates) return [];
-    const todayIso = new Date().toISOString().split("T")[0];
-    return availableDates.map((d) => ({
-      date: parseISODateLocal(d.date),
-      iso: d.date,
-      isToday: d.date === todayIso,
-      morningAvailable: d.morning_available,
-      afternoonAvailable: d.afternoon_available,
-      anyAvailable: d.morning_available || d.afternoon_available,
-    }));
-  }, [availableDates]);
+  const days = useMemo(
+    () =>
+      (availableDates ?? []).map((d) => ({
+        iso: d.date,
+        morning: d.morning_available,
+        afternoon: d.afternoon_available,
+        any: d.morning_available || d.afternoon_available,
+      })),
+    [availableDates],
+  );
 
-  // Auto-select first available date if current selection is invalid
+  // Data inválida/ausente → primeira data disponível.
   useEffect(() => {
     if (days.length === 0) return;
     const current = days.find((d) => d.iso === selectedDate);
-    if (!current || !current.anyAvailable) {
-      const firstAvailable = days.find((d) => d.anyAvailable);
-      if (firstAvailable) setSelectedDate(firstAvailable.iso);
+    if (!current || !current.any) {
+      const first = days.find((d) => d.any);
+      if (first) setSelectedDate(first.iso);
     }
   }, [days, selectedDate, setSelectedDate]);
 
-  // Clear window selection if it becomes unavailable for current day
-  useEffect(() => {
-    if (!selectedDate || !selectedWindow) return;
-    if (hasTimeSlots) return; // managed by TimeSlotPicker
-    const day = days.find((d) => d.iso === selectedDate);
-    if (!day) return;
-    if (selectedWindow === "morning" && !day.morningAvailable) setSelectedWindow(null);
-    if (selectedWindow === "afternoon" && !day.afternoonAvailable) setSelectedWindow(null);
-  }, [days, selectedDate, selectedWindow, setSelectedWindow, hasTimeSlots]);
+  const selectedDay = days.find((d) => d.iso === selectedDate);
 
-  // Clear slot when date changes
+  // Janela que deixou de existir no dia escolhido é limpa.
   useEffect(() => {
-    if (hasTimeSlots) {
+    if (!selectedDay || !selectedWindow || hasTimeSlots) return;
+    if (selectedWindow === "morning" && !selectedDay.morning) setSelectedWindow(null);
+    if (selectedWindow === "afternoon" && !selectedDay.afternoon) setSelectedWindow(null);
+  }, [selectedDay, selectedWindow, setSelectedWindow, hasTimeSlots]);
+
+  // Com horários configurados, trocar o dia exige escolher o horário de novo.
+  const lastDate = useRef(selectedDate);
+  useEffect(() => {
+    if (hasTimeSlots && lastDate.current !== selectedDate) {
       setSelectedSlotId(null);
       setSelectedWindow(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+    lastDate.current = selectedDate;
+  }, [selectedDate, hasTimeSlots, setSelectedSlotId, setSelectedWindow]);
 
-  // Distribuidora sem time slots: nunca deve haver slot selecionado. Limpa
-  // qualquer selectedSlotId obsoleto (persistido de um checkout anterior),
-  // senão ele seria enviado ao criar o pedido e violaria a FK de time_slot_id.
+  // Sem horários configurados nunca pode sobrar slot de um checkout anterior
+  // (violaria a FK de time_slot_id ao criar o pedido).
   useEffect(() => {
-    if (!hasTimeSlots && selectedSlotId) {
-      setSelectedSlotId(null);
-    }
-  }, [hasTimeSlots, selectedSlotId, setSelectedSlotId]);
+    if (availableDates && !hasTimeSlots && selectedSlotId) setSelectedSlotId(null);
+  }, [availableDates, hasTimeSlots, selectedSlotId, setSelectedSlotId]);
 
-  const isClient = useIsClient();
-  const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
-  const items = useCartStore((s) => s.items);
   const totalCents = isClient ? getSubtotalCents() : 0;
-  const itemCount = isClient ? items.reduce((acc, i) => acc + i.quantity, 0) : 0;
+  const ready =
+    Boolean(address && selectedDistributorId && selectedDate && selectedWindow) && (!hasTimeSlots || Boolean(selectedSlotId));
 
-  const effectiveDate = selectedDate;
-  const selectedDayObj = days.find((d) => d.iso === effectiveDate);
-  const selectedLabel = selectedDayObj
-    ? `${selectedDayObj.date.getDate()} de ${MONTH_SHORT[selectedDayObj.date.getMonth()]}`
-    : "";
-
-  const showSkeleton = datesLoading && days.length === 0;
-
-  function handleContinue() {
-    if (!effectiveDate || !selectedWindow) return;
-    if (hasTimeSlots && !selectedSlotId) return;
-    router.push("/checkout/payment");
-  }
+  const summary =
+    selectedDay && selectedWindow
+      ? `${dayParts(selectedDay.iso).long} · ${WINDOWS.find((w) => w.value === selectedWindow)?.label ?? ""}`
+      : "Escolha o dia e o período";
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-8rem)]">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="Voltar"
-          className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-[#f0f2f4] transition-colors"
-        >
-          <ArrowLeft className="h-7 w-7 text-[#191c1d]" strokeWidth={2.5} />
-        </button>
-        <span className="text-lg font-bold font-heading text-[#191c1d]">Xuá</span>
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#191c1d]">
-          <Zap className="h-4 w-4 text-white" />
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader back="/cart" title="Entrega" description="Onde, quem entrega e quando.">
+        <CheckoutProgress current={0} />
+      </PageHeader>
 
-      {/* Hero Banner */}
-      <div className="mx-4 rounded-2xl bg-linear-to-br from-primary to-primary-hover p-5 relative overflow-hidden">
-        <div className="absolute -right-4 -bottom-4 opacity-15">
-          <Droplets className="h-32 w-32 text-white" />
-        </div>
-        <p className="text-xs font-semibold text-white/80 uppercase tracking-wider">
-          Etapa 03/04
-        </p>
-        <h1 className="text-2xl font-bold text-white font-heading mt-1 leading-tight">
-          Agendar
-          <br />
-          Entrega
-        </h1>
-        <p className="text-sm text-white/70 mt-2">
-          Garantindo que sua hidratação chegue sempre no horário.
-        </p>
-      </div>
+      <div className="space-y-6 px-4 pt-2">
+        <section aria-labelledby="sec-onde" className="space-y-2">
+          <h2 id="sec-onde" className="text-sm font-semibold text-foreground">
+            Onde
+          </h2>
+          <DeliveryAddressCard address={address} loading={addressLoading} onClick={() => setAddressSheetOpen(true)} />
+        </section>
 
-      <DeliveryAddressCard
-        className="mx-4 mt-5"
-        address={selectedAddress}
-        loading={addressLoading}
-        onClick={() => setAddressSheetOpen(true)}
-      />
+        {address ? (
+          <section aria-labelledby="sec-quem" className="space-y-2">
+            <h2 id="sec-quem" className="text-sm font-semibold text-foreground">
+              Quem entrega
+            </h2>
+            {zoneId ? (
+              <DistributorSelector zoneId={zoneId} selectedId={selectedDistributorId} onSelect={chooseDistributor} />
+            ) : (
+              <Alert className="border-warning/30 bg-warning-surface">
+                <AlertDescription className="text-warning-foreground">
+                  Este endereço ainda não está numa área de entrega. Escolha outro endereço.
+                </AlertDescription>
+              </Alert>
+            )}
+          </section>
+        ) : null}
 
-      {/* Select Delivery Day */}
-      <div className="mx-4 mt-5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688] mb-3">
-          Selecione o Dia de Entrega
-        </p>
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {showSkeleton &&
-            Array.from({ length: 5 }).map((_, i) => (
+        {selectedDistributorId ? (
+          <section aria-labelledby="sec-quando" className="space-y-3">
+            <h2 id="sec-quando" className="text-sm font-semibold text-foreground">
+              Quando
+            </h2>
+
+            {datesError ? (
+              <Alert variant="destructive">
+                <AlertDescription>Não foi possível carregar as datas. Tente novamente.</AlertDescription>
+              </Alert>
+            ) : (
               <div
-                key={`skeleton-${i}`}
-                className="flex flex-col items-center shrink-0 rounded-2xl px-4 py-3 min-w-20 bg-[#f0f2f4] animate-pulse"
+                role="radiogroup"
+                aria-label="Dia da entrega"
+                className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]"
               >
-                <div className="h-2 w-10 rounded bg-[#e1e3e4]" />
-                <div className="mt-1 h-5 w-6 rounded bg-[#e1e3e4]" />
-                <div className="mt-1 h-2 w-8 rounded bg-[#e1e3e4]" />
-              </div>
-            ))}
-          {!showSkeleton && datesError && (
-            <p className="text-xs text-red-500 py-3">
-              Não foi possível carregar as datas. Tente novamente.
-            </p>
-          )}
-          {!showSkeleton &&
-            days.map((d) => {
-              const info = formatDayLabel(d.date, d.isToday);
-              const selected = effectiveDate === d.iso;
-              const disabled = !d.anyAvailable;
-              return (
-                <button
-                  key={d.iso}
-                  type="button"
-                  disabled={disabled}
-                  title={disabled ? "Sem entregas neste dia" : undefined}
-                  onClick={() => !disabled && setSelectedDate(d.iso)}
-                  className={cn(
-                    "flex flex-col items-center shrink-0 rounded-2xl px-4 py-3 min-w-20 transition-all",
-                    disabled
-                      ? "bg-[#f0f2f4] text-[#c4c6cf] opacity-50 cursor-not-allowed"
-                      : "active:scale-95",
-                    !disabled && selected
-                      ? "bg-[#00E0FF] text-[#001735] shadow-[0_4px_12px_rgba(0,224,255,0.3)]"
-                      : !disabled
-                        ? "bg-white border border-[#e1e3e4] text-[#191c1d] hover:border-primary/30"
-                        : "",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "text-[9px] font-bold uppercase tracking-wider",
-                      selected && !disabled ? "text-[#001735]/70" : "text-[#737688]",
-                    )}
-                  >
-                    {info.top}
-                  </span>
-                  <span className="text-xl font-bold mt-0.5">{info.day}</span>
-                  <span
-                    className={cn(
-                      "text-[10px] capitalize",
-                      selected && !disabled ? "text-[#001735]/60" : "text-[#737688]",
-                    )}
-                  >
-                    {info.month}
-                  </span>
-                </button>
-              );
-            })}
-        </div>
-      </div>
-
-      {/* Preferred Time Window */}
-      <div className="mx-4 mt-5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688] mb-3">
-          Janela de Horário Preferida
-        </p>
-
-        {hasTimeSlots && zoneId && effectiveDate ? (
-          <TimeSlotPicker
-            zoneId={zoneId}
-            date={effectiveDate}
-            distributorId={selectedDistributorId ?? undefined}
-            selectedSlotId={selectedSlotId}
-            onSelectSlot={(_, slot) => {
-              setSelectedSlotId(slot.id);
-              setSelectedWindow(slot.window.toLowerCase() as TimeWindow);
-            }}
-          />
-        ) : (
-        <div className="space-y-2">
-          {WINDOWS.map((w) => {
-            const selected = selectedWindow === w.value;
-            const Icon = w.icon;
-            const windowAvailable = selectedDayObj
-              ? (w.value === "morning"
-                  ? selectedDayObj.morningAvailable
-                  : selectedDayObj.afternoonAvailable)
-              : true;
-            const disabled = !windowAvailable || !selectedDayObj;
-            return (
-              <button
-                key={w.value}
-                type="button"
-                disabled={disabled}
-                title={disabled && selectedDayObj ? "Janela indisponível" : undefined}
-                onClick={() => !disabled && setSelectedWindow(w.value)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl p-4 transition-all",
-                  disabled
-                    ? "opacity-50 cursor-not-allowed bg-[#f0f2f4]"
-                    : "active:scale-[0.98]",
-                  !disabled && selected
-                    ? "bg-white border-2 border-primary shadow-[0_2px_12px_rgba(27,74,154,0.1)]"
-                    : !disabled
-                      ? "bg-white border border-[#e1e3e4] hover:border-primary/30"
-                      : "",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-                    selected ? "bg-[#00E0FF]/15" : "bg-[#f0f2f4]",
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-5 w-5",
-                      selected ? "text-[#001735]" : "text-[#737688]",
-                    )}
-                  />
-                </div>
-                <div className="flex-1 text-left">
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      selected ? "text-[#191c1d]" : "text-[#191c1d]",
-                    )}
-                  >
-                    {w.label}
-                  </p>
-                  <p className="text-xs text-[#737688]">{w.sublabel}</p>
-                </div>
-                <div
-                  className={cn(
-                    "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
-                    selected
-                      ? "border-[#00E0FF] bg-[#00E0FF]"
-                      : "border-[#c4c6cf] bg-transparent",
-                  )}
-                >
-                  {selected && (
-                    <div className="h-2 w-2 rounded-full bg-white" />
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        )}
-      </div>
-
-      {/* Special Instructions */}
-      <div className="mx-4 mt-5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#737688] mb-2">
-          Instruções Especiais (Opcional)
-        </p>
-        <textarea
-          ref={instructionsRef}
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="Ex: Deixar na portaria, código 1234..."
-          rows={3}
-          maxLength={280}
-          className="w-full rounded-2xl border border-[#e1e3e4] bg-[#f8f9fa] px-4 py-3 text-sm text-[#191c1d] placeholder:text-[#737688]/50 resize-none focus:outline-none focus:border-primary/40 transition-colors"
-        />
-      </div>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Sticky Footer */}
-      <div className="sticky bottom-0 mx-4 mt-5 mb-4 rounded-2xl bg-white p-4 shadow-[0_-4px_20px_rgba(0,26,64,0.08)]">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs text-[#737688]">
-              Selecionado: {selectedLabel}
-              {selectedWindow ? `, ${getWindowLabel(selectedWindow)}` : ""}
-            </p>
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-xl font-bold text-[#191c1d] font-heading">
-                {isClient ? formatCurrency(totalCents) : "—"}
-              </span>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#737688]">
-                Total
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center -space-x-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5697E9]/15 border-2 border-white">
-              <Droplets className="h-3.5 w-3.5 text-[#5697E9]" />
-            </div>
-            {itemCount > 1 && (
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f2f4] border-2 border-white text-[10px] font-bold text-[#737688]">
-                +{itemCount - 1}
+                {datesLoading
+                  ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-16 shrink-0 rounded-2xl" />)
+                  : days.map((d) => {
+                      const parts = dayParts(d.iso);
+                      const top = d.iso === today ? "Hoje" : d.iso === tomorrow ? "Amanhã" : parts.weekday;
+                      const selected = d.iso === selectedDate;
+                      return (
+                        <button
+                          key={d.iso}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          aria-label={`${parts.long}${d.any ? "" : " (sem entrega)"}`}
+                          disabled={!d.any}
+                          onClick={() => setSelectedDate(d.iso)}
+                          className={cn(
+                            "flex h-20 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border text-center transition-colors",
+                            selected
+                              ? "border-cta bg-cta text-cta-foreground"
+                              : "border-hairline bg-card text-foreground hover:border-primary/40",
+                            !d.any && "cursor-not-allowed border-transparent bg-surface-low text-muted-foreground opacity-50",
+                          )}
+                        >
+                          <span className="text-[11px] font-semibold capitalize">{top}</span>
+                          <span className="text-xl leading-tight font-bold">{parts.day}</span>
+                          <span className="text-[11px] capitalize opacity-80">{parts.month}</span>
+                        </button>
+                      );
+                    })}
               </div>
             )}
-          </div>
-        </div>
-        <Button
-          className="w-full h-12 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
-          disabled={!effectiveDate || !selectedWindow || !selectedAddress || (hasTimeSlots && !selectedSlotId)}
-          onClick={handleContinue}
-        >
-          Continuar para Pagamento
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
+
+            {hasTimeSlots && zoneId && selectedDate ? (
+              <TimeSlotPicker
+                zoneId={zoneId}
+                date={selectedDate}
+                distributorId={selectedDistributorId}
+                selectedSlotId={selectedSlotId}
+                onSelectSlot={(_, slot) => {
+                  setSelectedSlotId(slot.id);
+                  setSelectedWindow(slot.window.toLowerCase() as TimeWindow);
+                }}
+              />
+            ) : (
+              <RadioGroup
+                value={selectedWindow ?? ""}
+                onValueChange={(v) => setSelectedWindow(v as TimeWindow)}
+                aria-label="Período"
+                className="grid-cols-2"
+              >
+                {WINDOWS.map((w) => {
+                  const available = selectedDay ? (w.value === "morning" ? selectedDay.morning : selectedDay.afternoon) : false;
+                  const checked = selectedWindow === w.value;
+                  const Icon = w.icon;
+                  return (
+                    <Label
+                      key={w.value}
+                      htmlFor={`win-${w.value}`}
+                      className={cn(
+                        "flex min-h-16 cursor-pointer items-center gap-3 rounded-2xl border bg-card p-3 font-normal transition-colors",
+                        checked ? "border-primary ring-1 ring-primary" : "border-hairline hover:border-primary/40",
+                        !available && "cursor-not-allowed opacity-50",
+                      )}
+                    >
+                      <Icon className={cn("size-5 shrink-0", checked ? "text-primary" : "text-muted-foreground")} aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-foreground">{w.label}</span>
+                        <span className="block text-xs text-muted-foreground">{available ? w.hours : "Indisponível"}</span>
+                      </span>
+                      <RadioGroupItem id={`win-${w.value}`} value={w.value} disabled={!available} aria-label={w.label} />
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
+            )}
+          </section>
+        ) : null}
+
+        {selectedDistributorId ? (
+          <section className="space-y-2">
+            <Label htmlFor="instructions" className="text-sm font-semibold text-foreground">
+              Instruções para o entregador <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
+            <Textarea
+              id="instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Ex.: deixar na portaria, interfone 12…"
+              rows={3}
+              maxLength={280}
+              className="resize-none rounded-xl text-base md:text-sm"
+            />
+          </section>
+        ) : null}
       </div>
 
-      {/* Address Selection Sheet */}
-      <AddressSheet
-        open={addressSheetOpen}
-        onOpenChange={setAddressSheetOpen}
-        selectedAddressId={selectedAddress?.id ?? null}
-        onSelect={handleAddressSelect}
-      />
+      <StickyActionBar
+        summary={
+          <span className="flex items-center justify-between gap-2">
+            <span className="truncate first-letter:uppercase">{summary}</span>
+            <span className="shrink-0 font-semibold text-foreground tabular-nums">{isClient ? formatCurrency(totalCents) : "—"}</span>
+          </span>
+        }
+      >
+        <Button variant="cta" size="xl" disabled={!ready} onClick={() => router.push("/checkout/payment")}>
+          Ir para pagamento
+          <ChevronRight />
+        </Button>
+      </StickyActionBar>
+
+      <AddressSheet open={addressSheetOpen} onOpenChange={setAddressSheetOpen} />
     </div>
   );
 }

@@ -1,206 +1,137 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ChevronRight, Droplets, ShoppingCart } from "lucide-react";
 import { useCartStore } from "@/src/store/cart";
 import { formatCurrency } from "@/src/lib/utils";
+import { plural } from "@/src/lib/format";
 import { getRenderableProductImageUrl } from "@/src/lib/product-image";
+import { useIsClient } from "@/src/hooks/use-is-client";
 import { Button } from "@/src/components/ui/button";
-import {
-  ShoppingCart,
-  Minus,
-  Plus,
-  Trash2,
-  ArrowRight,
-  Droplets,
-  Recycle,
-  Info,
-} from "lucide-react";
+import { Card } from "@/src/components/ui/card";
+import { Separator } from "@/src/components/ui/separator";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { QuantityStepper } from "@/src/components/shared/quantity-stepper";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { BottleExchangeNotice } from "@/src/components/consumer/bottle-exchange-notice";
 
 export default function CartPage() {
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
+  const mounted = useIsClient();
   const items = useCartStore((s) => s.items);
-  const removeItem = useCartStore((s) => s.removeItem);
   const updateQty = useCartStore((s) => s.updateQty);
   const getSubtotalCents = useCartStore((s) => s.getSubtotalCents);
 
   const subtotal = mounted ? getSubtotalCents() : 0;
-  const totalCents = subtotal;
-  const isEmpty = mounted ? items.length === 0 : true;
+  const totalItems = mounted ? items.reduce((acc, i) => acc + i.quantity, 0) : 0;
+
+  if (!mounted) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pt-4">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <PageHeader title="Carrinho" />
+        <EmptyState
+          icon={ShoppingCart}
+          title="Seu carrinho está vazio"
+          description="Escolha a água e os produtos que quer receber."
+          action={
+            <Button asChild variant="cta" size="xl">
+              <Link href="/catalog">
+                <Droplets />
+                Ver catálogo
+              </Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-8rem)] pb-4">
-      {/* Header */}
-      <div className="px-4 pt-5 pb-2">
-        <h1 className="text-xl font-bold font-heading text-[#191c1d]">
-          Seu Carrinho
-        </h1>
-        <p className="text-sm text-[#737688] mt-0.5">
-          Revise seu pedido de hidratação premium
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Carrinho" description={plural(totalItems, "item", "itens")} />
 
-      {isEmpty ? (
-        <div className="flex flex-1 flex-col items-center justify-center py-16 text-center px-4">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#5697E9]/15">
-            <ShoppingCart className="h-10 w-10 text-[#5697E9]/50" />
-          </div>
-          <p className="text-[#737688] mb-3">Seu carrinho está vazio.</p>
-          <Link href="/catalog">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-[#e1e3e4] bg-white hover:bg-[#f8f9fa]"
-            >
-              <Droplets className="h-4 w-4 mr-1.5 text-primary" /> Ver
-              catálogo
-            </Button>
-          </Link>
-        </div>
-      ) : (
-        <>
-          {/* Product cards */}
-          <div className="space-y-3 px-4 mt-2">
-            {items.map((item) => (
-              <div
-                key={item.product_id}
-                className="relative rounded-2xl bg-white p-4 shadow-[0_1px_8px_rgba(0,26,64,0.07)]"
-              >
-                {/* Delete button */}
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.product_id)}
-                  className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4 text-[#737688]" />
-                </button>
-
-                <div className="flex gap-4">
-                  {/* Product Image */}
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#5697E9]/10 to-[#5697E9]/05 overflow-hidden">
-                    {getRenderableProductImageUrl(item.image_url) ? (
-                      <Image
-                        src={getRenderableProductImageUrl(item.image_url)!}
-                        alt={item.product_name}
-                        width={80}
-                        height={80}
-                        className="h-full w-full object-cover rounded-xl"
-                      />
+      <div className="space-y-4 px-4">
+        <ul className="space-y-3" aria-label="Itens do carrinho">
+          {items.map((item) => {
+            const imageUrl = getRenderableProductImageUrl(item.image_url);
+            return (
+              <li key={item.product_id}>
+                <Card className="flex flex-col flex-row items-center gap-3 rounded-2xl border-0 p-3 shadow-[0_1px_8px_rgba(0,26,64,0.07)]">
+                  <div className="flex size-18 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-secondary to-muted">
+                    {imageUrl ? (
+                      <Image src={imageUrl} alt="" width={72} height={72} className="size-full object-cover" />
                     ) : (
-                      <Droplets className="h-8 w-8 text-primary/40" />
+                      <Droplets className="size-8 text-sky/60" aria-hidden />
                     )}
                   </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0 pr-6">
-                    <h3 className="font-semibold text-sm text-[#191c1d] font-heading leading-tight">
-                      {item.product_name}
-                    </h3>
-                    <p className="text-primary font-bold text-base mt-1">
-                      {formatCurrency(item.unit_price_cents)}
-                    </p>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <h3 className="line-clamp-2 text-sm leading-tight font-semibold text-foreground">{item.product_name}</h3>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {formatCurrency(item.unit_price_cents)} cada
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <QuantityStepper
+                        size="sm"
+                        value={item.quantity}
+                        itemLabel={item.product_name}
+                        onChange={(q) => updateQty(item.product_id, q)}
+                      />
+                      <span className="text-base font-bold text-primary tabular-nums">
+                        {formatCurrency(item.unit_price_cents * item.quantity)}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
 
-                {/* Quantity stepper */}
-                <div className="flex items-center justify-end mt-3">
-                  <div className="flex items-center rounded-full bg-[#f0f2f4] p-0.5">
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
-                      onClick={() =>
-                        item.quantity <= 1
-                          ? removeItem(item.product_id)
-                          : updateQty(item.product_id, item.quantity - 1)
-                      }
-                    >
-                      {item.quantity <= 1 ? (
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      ) : (
-                        <Minus className="h-3.5 w-3.5 text-[#191c1d]" />
-                      )}
-                    </button>
-                    <span className="w-8 text-center text-sm font-semibold text-[#191c1d]">
-                      {String(item.quantity).padStart(2, "0")}
-                    </span>
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-all hover:bg-[#f8f9fa] active:scale-95"
-                      onClick={() =>
-                        updateQty(item.product_id, item.quantity + 1)
-                      }
-                    >
-                      <Plus className="h-3.5 w-3.5 text-[#191c1d]" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <Button asChild variant="link" className="px-0">
+          <Link href="/catalog">+ Adicionar mais itens</Link>
+        </Button>
 
-          {/* Aviso sobre a troca de vasilhame */}
-          <div className="mx-4 mt-4 rounded-2xl bg-[#5697E9]/10 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#5697E9]/15">
-                <Recycle className="h-5 w-5 text-[#5697E9]" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-sm text-[#191c1d] font-heading">
-                  Troca de vasilhame
-                </h3>
-                <p className="text-xs text-[#444] mt-1 leading-relaxed">
-                  Na compra da água sem galão incluso, é necessário entregar 1 vasilhame
-                  vazio de 20L, em bom estado e dentro da validade(3 anos), para cada garrafão pedido.
-                </p>
-              </div>  
-            </div>
-            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#5697E9]/15">
-              <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              <p className="text-[11px] text-amber-600 leading-tight font-medium">
-                Vasilhame danificado, vencido ou ausente na entrega pode gerar cobrança
-                adicional do valor do galão.
-              </p>
-            </div>
-          </div>
+        {/* Regra de vasilhame na entrega (só aparece com itens refil) */}
+        <BottleExchangeNotice items={items} />
 
-          {/* Cost Breakdown */}
-          <div className="mx-4 mt-4 rounded-2xl bg-white p-4 shadow-[0_1px_8px_rgba(0,26,64,0.07)]">
-            <div className="flex justify-between text-sm text-[#444]">
-              <span>Subtotal</span>
-              <span className="font-medium text-[#191c1d]">
-                {formatCurrency(subtotal)}
-              </span>
-            </div>
-            <div className="my-3 h-px bg-[#e1e3e4]" />
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-[#737688] font-medium">
-                  Valor Total
-                </p>
-                <p className="text-xl font-bold text-primary font-heading">
-                  {formatCurrency(totalCents)}
-                </p>
-              </div>
-            </div>
+        <Card className="flex flex-col gap-3 rounded-2xl border-0 p-4 shadow-[0_1px_8px_rgba(0,26,64,0.07)]">
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Subtotal</span>
+            <span className="font-medium text-foreground tabular-nums">{formatCurrency(subtotal)}</span>
           </div>
+          <Separator />
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-semibold text-foreground">Total</span>
+            <span className="font-heading text-xl font-bold text-primary tabular-nums">{formatCurrency(subtotal)}</span>
+          </div>
+        </Card>
+      </div>
 
-          {/* CTA Button */}
-          <div className="mx-4 mt-4">
-            <Link href="/checkout/distributor" className="block">
-              <Button className="w-full h-12 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] font-semibold text-sm shadow-none hover:opacity-90 active:scale-[0.98] transition-all">
-                Continuar para Agendamento
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </Link>
-          </div>
-        </>
-      )}
+      <StickyActionBar>
+        <Button asChild variant="cta" size="xl" className="justify-between">
+          <Link href="/checkout/schedule">
+            <span>Escolher entrega</span>
+            <span className="flex items-center gap-1 tabular-nums">
+              {formatCurrency(subtotal)}
+              <ChevronRight />
+            </span>
+          </Link>
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }

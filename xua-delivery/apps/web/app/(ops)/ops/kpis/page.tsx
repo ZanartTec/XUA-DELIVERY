@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { ChartFrame } from "@/src/components/charts";
+import { PageHeader } from "@/src/components/shared/page-header";
 import { PeriodSelector } from "@/src/components/shared/period-selector";
 import {
   Select,
@@ -50,12 +51,12 @@ export default function OpsKpisPage() {
   );
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-heading text-lg font-bold text-foreground">
-          KPIs — {isDrillDown ? "distribuidora selecionada" : "todas as distribuidoras"}
-        </h1>
-
+    <div className="mx-auto w-full max-w-5xl space-y-4 px-4">
+      <PageHeader
+        className="px-0"
+        title="Indicadores"
+        description={isDrillDown ? "Visão de uma distribuidora." : "Todas as distribuidoras."}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={selectedDistributor || ALL_DISTRIBUTORS}
@@ -63,7 +64,7 @@ export default function OpsKpisPage() {
               setSelectedDistributor(value === ALL_DISTRIBUTORS ? "" : value)
             }
           >
-            <SelectTrigger className="h-9 w-56 rounded-xl">
+            <SelectTrigger className="h-10 min-w-0 flex-1 rounded-xl sm:w-60 sm:flex-none" aria-label="Distribuidora">
               <SelectValue placeholder="Distribuidora" />
             </SelectTrigger>
             <SelectContent>
@@ -78,7 +79,7 @@ export default function OpsKpisPage() {
 
           <PeriodSelector value={period} onChange={setPeriod} />
         </div>
-      </header>
+      </PageHeader>
 
       {isError ? (
         <p className="text-sm text-destructive">

@@ -3,40 +3,28 @@
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  CheckCircle2,
-  History,
-  Loader2,
-  PackageSearch,
-  Plus,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, History, Loader2, PackagePlus, PackageSearch, Scale, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { InventoryItemType, InventoryMovementType } from "@xua/shared/enums";
-import { INVENTORY_ITEM_TYPE_VALUES } from "@xua/shared/enums";
 
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { Label } from "@/src/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { Textarea } from "@/src/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { ApiError, api } from "@/src/lib/api-client";
 import {
   buildInventoryQuery,
-  formatInventoryQuantity,
   INVENTORY_ITEM_TYPE_LABEL,
   INVENTORY_MOVEMENT_LABEL,
-  type ItemTypeFilter,
   type StockStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
@@ -52,522 +40,359 @@ interface InventoryItem {
   code: string;
   name: string;
   type: InventoryItemType;
-  product_id: string | null;
   unit_label: string;
-  low_stock_threshold: number | null;
-  is_active: boolean;
 }
 
 interface InventoryBalance {
   id: string;
   inventory_item_id: string;
-  item: Pick<InventoryItem, "id" | "code" | "name" | "type" | "unit_label">;
+  item: InventoryItem;
   quantity_on_hand: number;
   low_stock_threshold: number | null;
   is_low_stock: boolean;
   last_movement_at: string | null;
-  updated_at: string;
 }
 
 interface InventoryMovement {
   id: string;
-  inventory_item_id: string;
-  item: Pick<InventoryItem, "id" | "code" | "name" | "type" | "unit_label">;
+  item: InventoryItem;
   quantity_delta: number;
   movement_type: InventoryMovementType;
-  reference_type: string | null;
-  reference_id: string | null;
   occurred_at: string;
 }
 
-interface BalanceResponse {
-  balances: InventoryBalance[];
-  pagination: Pagination;
-}
-
-interface MovementResponse {
-  movements: InventoryMovement[];
-  pagination: Pagination;
-}
-
-interface ItemResponse {
-  items: InventoryItem[];
-  pagination: Pagination;
-}
+const PAGE = 20;
 
 function createBatchId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (char) =>
-    (Number(char) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(char) / 4)))).toString(16)
-  );
-}
-
-function EmptyState({ title }: { title: string }) {
-  return (
-    <div className="rounded-2xl bg-white p-6 text-center shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-      <PackageSearch className="mx-auto h-8 w-8 text-muted-foreground" />
-      <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
-    </div>
-  );
-}
-
-function LoadingCards() {
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div
-          key={index}
-          className="h-28 animate-pulse rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]"
-        />
-      ))}
-    </div>
-  );
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message;
-  return fallback;
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (char) =>
+        (Number(char) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(char) / 4)))).toString(16),
+      );
 }
 
 export default function DistributorInventoryPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [itemType, setItemType] = useState<ItemTypeFilter>("ALL");
   const [stockStatus, setStockStatus] = useState<StockStatusFilter>("ALL");
-  const [balanceOffset, setBalanceOffset] = useState(0);
-  const [movementOffset, setMovementOffset] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [movementItemId, setMovementItemId] = useState("ALL");
-  const [loadObservation, setLoadObservation] = useState("");
+  const [movementOffset, setMovementOffset] = useState(0);
+  const [loadOpen, setLoadOpen] = useState(false);
   const [loadQuantities, setLoadQuantities] = useState<Record<string, string>>({});
+  const [loadObservation, setLoadObservation] = useState("");
   const deferredSearch = useDeferredValue(search);
 
-  const itemsQuery = useQuery<ItemResponse>({
+  const itemsQuery = useQuery<{ items: InventoryItem[] }>({
     queryKey: ["distributor-inventory-items"],
     queryFn: () => api.get(`/api/distributor/inventory/items?is_active=true&limit=100&offset=0`),
   });
-
-  const balancesQuery = useQuery<BalanceResponse>({
-    queryKey: ["distributor-inventory-balances", deferredSearch, itemType, stockStatus, balanceOffset],
-    queryFn: () => {
-      const query = buildInventoryQuery({
-        q: deferredSearch.trim() || undefined,
-        item_type: itemType === "ALL" ? undefined : itemType,
-        stock_status: stockStatus === "ALL" ? undefined : stockStatus,
-        limit: "20",
-        offset: String(balanceOffset),
-      });
-      return api.get(`/api/distributor/inventory/balances?${query}`);
-    },
+  const balancesQuery = useQuery<{ balances: InventoryBalance[]; pagination: Pagination }>({
+    queryKey: ["distributor-inventory-balances", deferredSearch, stockStatus, offset],
+    queryFn: () =>
+      api.get(
+        `/api/distributor/inventory/balances?${buildInventoryQuery({
+          q: deferredSearch.trim() || undefined,
+          stock_status: stockStatus === "ALL" ? undefined : stockStatus,
+          limit: String(PAGE),
+          offset: String(offset),
+        })}`,
+      ),
   });
-
-  const movementsQuery = useQuery<MovementResponse>({
+  // Todos os saldos (sem filtro): resumo do topo e quais itens ainda não têm carga inicial.
+  const allBalancesQuery = useQuery<{ balances: InventoryBalance[] }>({
+    queryKey: ["distributor-inventory-balances", "all"],
+    queryFn: () => api.get(`/api/distributor/inventory/balances?limit=100&offset=0`),
+  });
+  const movementsQuery = useQuery<{ movements: InventoryMovement[]; pagination: Pagination }>({
     queryKey: ["distributor-inventory-movements", movementItemId, movementOffset],
-    queryFn: () => {
-      const query = buildInventoryQuery({
-        inventory_item_id: movementItemId === "ALL" ? undefined : movementItemId,
-        limit: "10",
-        offset: String(movementOffset),
-      });
-      return api.get(`/api/distributor/inventory/movements?${query}`);
-    },
+    queryFn: () =>
+      api.get(
+        `/api/distributor/inventory/movements?${buildInventoryQuery({
+          inventory_item_id: movementItemId === "ALL" ? undefined : movementItemId,
+          limit: "10",
+          offset: String(movementOffset),
+        })}`,
+      ),
   });
 
-  const initialLoadMutation = useMutation({
+  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  const allBalances = useMemo(() => allBalancesQuery.data?.balances ?? [], [allBalancesQuery.data]);
+  const balances = balancesQuery.data?.balances ?? [];
+  const movements = movementsQuery.data?.movements ?? [];
+  const lowStock = allBalances.filter((b) => b.is_low_stock).length;
+  // A API só aceita uma carga inicial por item; depois disso, ajuste é pela conciliação.
+  const itemsWithoutStock = useMemo(() => {
+    const withBalance = new Set(allBalances.map((b) => b.inventory_item_id));
+    return items.filter((i) => !withBalance.has(i.id));
+  }, [items, allBalances]);
+
+  const loadMutation = useMutation({
     mutationFn: (payload: unknown) =>
-      api.post<{
-        applied_count: number;
-        replayed_count: number;
-        skipped_count: number;
-      }>("/api/distributor/inventory/initial-load", payload),
+      api.post<{ applied_count: number }>("/api/distributor/inventory/initial-load", payload),
     onSuccess: (result) => {
       setLoadQuantities({});
       setLoadObservation("");
+      setLoadOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["distributor-inventory-balances"] });
       void queryClient.invalidateQueries({ queryKey: ["distributor-inventory-movements"] });
-      toast.success(
-        `Carga registrada: ${result.applied_count} aplicado(s), ${result.replayed_count} repetido(s), ${result.skipped_count} zerado(s)`
-      );
+      toast.success(`Carga registrada em ${result.applied_count} ${result.applied_count === 1 ? "item" : "itens"}`);
     },
-    onError: (error) => toast.error(getApiErrorMessage(error, "Erro ao registrar carga inicial")),
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Erro ao registrar a carga"),
   });
 
-  const balances = balancesQuery.data?.balances ?? [];
-  const movements = movementsQuery.data?.movements ?? [];
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data?.items]);
-  const lowStockCount = balances.filter((balance) => balance.is_low_stock).length;
-  const totalQuantity = balances.reduce((sum, balance) => sum + balance.quantity_on_hand, 0);
-  const hasNextBalances = Boolean(
-    balancesQuery.data && balanceOffset + balancesQuery.data.pagination.limit < balancesQuery.data.pagination.total
-  );
-  const hasNextMovements = Boolean(
-    movementsQuery.data && movementOffset + movementsQuery.data.pagination.limit < movementsQuery.data.pagination.total
-  );
+  const loadItems = itemsWithoutStock
+    .map((item) => ({ inventory_item_id: item.id, quantity: Number(loadQuantities[item.id] || 0) }))
+    .filter((i) => i.quantity > 0);
+  const loadInvalid = Object.values(loadQuantities).some((v) => v !== "" && (!Number.isInteger(Number(v)) || Number(v) < 0));
 
-  const initialLoadItems = useMemo(
-    () =>
-      items
-        .map((item) => ({
-          inventory_item_id: item.id,
-          quantity: Number(loadQuantities[item.id] ?? 0),
-        }))
-        .filter((item) => item.quantity > 0),
-    [items, loadQuantities]
-  );
-
-  function submitInitialLoad() {
-    const invalid = Object.values(loadQuantities).some((value) => {
-      if (!value) return false;
-      const parsed = Number(value);
-      return !Number.isInteger(parsed) || parsed < 0;
-    });
-
-    if (invalid) {
-      toast.error("Quantidades devem ser inteiras e não negativas");
-      return;
-    }
-
-    if (initialLoadItems.length === 0) {
-      toast.error("Informe ao menos uma quantidade positiva");
-      return;
-    }
-
-    initialLoadMutation.mutate({
-      batch_id: createBatchId(),
-      observation: loadObservation.trim() || undefined,
-      items: initialLoadItems,
-    });
-  }
+  const total = balancesQuery.data?.pagination.total ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-bold font-heading text-foreground">Estoque</h1>
-          <p className="text-sm text-muted-foreground">Saldos, alertas e movimentações</p>
-        </div>
-        <Button asChild size="sm" className="rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90">
-          <Link href="/distributor/inventory/reconciliation">
-            <SlidersHorizontal className="h-4 w-4" />
-            Conciliar
-          </Link>
-        </Button>
-      </div>
-
-      {balancesQuery.isLoading ? (
-        <LoadingCards />
-      ) : balancesQuery.isError ? (
-        <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-red-100">
-          <p className="text-sm font-semibold text-red-700">Erro ao carregar saldos</p>
-          <Button size="sm" variant="outline" className="mt-3" onClick={() => balancesQuery.refetch()}>
-            <RefreshCw className="h-4 w-4" />
-            Recarregar
-          </Button>
-        </div>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Itens com saldo</p>
-            <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{balancesQuery.data?.pagination.total ?? 0}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quantidade total</p>
-            <p className="mt-2 text-3xl font-bold text-[#0d1b2f]">{totalQuantity.toLocaleString("pt-BR")}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Baixo estoque</p>
-            <p className={cn("mt-2 text-3xl font-bold", lowStockCount > 0 ? "text-red-600" : "text-green-600")}>
-              {lowStockCount}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-        <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
+    <div className="mx-auto w-full max-w-4xl">
+      <PageHeader title="Estoque" description="O que você tem agora, por item." sticky>
+        <div className="space-y-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
+              type="search"
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setBalanceOffset(0);
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOffset(0);
               }}
               placeholder="Buscar item ou código"
-              className="rounded-xl border-[#d9dde3] pl-9"
+              aria-label="Buscar item"
+              className="h-11 rounded-xl pl-9"
             />
           </div>
-          <Select
-            value={itemType}
-            onValueChange={(value) => {
-              setItemType(value as ItemTypeFilter);
-              setBalanceOffset(0);
-            }}
-          >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos os tipos</SelectItem>
-              {INVENTORY_ITEM_TYPE_VALUES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {INVENTORY_ITEM_TYPE_LABEL[type]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+          <ToggleGroup
+            type="single"
             value={stockStatus}
-            onValueChange={(value) => {
-              setStockStatus(value as StockStatusFilter);
-              setBalanceOffset(0);
+            onValueChange={(v) => {
+              if (!v) return;
+              setStockStatus(v as StockStatusFilter);
+              setOffset(0);
             }}
+            className="justify-start"
+            spacing={2}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl border-[#d9dde3]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos os status</SelectItem>
-              <SelectItem value="LOW_STOCK">Baixo estoque</SelectItem>
-              <SelectItem value="OK">Sem alerta</SelectItem>
-            </SelectContent>
-          </Select>
+            <ToggleGroupItem value="ALL" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+              Todos
+            </ToggleGroupItem>
+            <ToggleGroupItem value="LOW_STOCK" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-destructive data-[state=on]:text-white">
+              Baixo estoque {lowStock > 0 ? `(${lowStock})` : ""}
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
+      </PageHeader>
 
-        {balancesQuery.isLoading ? (
-          <LoadingCards />
-        ) : balances.length === 0 ? (
-          <EmptyState title="Nenhum saldo encontrado" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-[#e1e3e4] text-left">
-                  <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Item</th>
-                  <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tipo</th>
-                  <th className="py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo</th>
-                  <th className="py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Limite</th>
-                  <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                  <th className="py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Último movimento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {balances.map((balance) => (
-                  <tr key={balance.id} className="border-b border-[#e1e3e4] last:border-0">
-                    <td className="py-3">
-                      <p className="font-semibold text-[#0d1b2f]">{balance.item.name}</p>
-                      <p className="text-xs text-muted-foreground">{balance.item.code}</p>
-                    </td>
-                    <td className="py-3 text-muted-foreground">{INVENTORY_ITEM_TYPE_LABEL[balance.item.type]}</td>
-                    <td className="py-3 text-right font-semibold">
-                      {formatInventoryQuantity(balance.quantity_on_hand, balance.item.unit_label)}
-                    </td>
-                    <td className="py-3 text-right text-muted-foreground">
-                      {balance.low_stock_threshold == null
-                        ? "-"
-                        : formatInventoryQuantity(balance.low_stock_threshold, balance.item.unit_label)}
-                    </td>
-                    <td className="py-3">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold",
-                          balance.is_low_stock
-                            ? "bg-red-50 text-red-700"
-                            : "bg-green-50 text-green-700"
-                        )}
-                      >
-                        {balance.is_low_stock ? (
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                        ) : (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        )}
-                        {balance.is_low_stock ? "Baixo" : "OK"}
-                      </span>
-                    </td>
-                    <td className="py-3 text-muted-foreground">
-                      {balance.last_movement_at ? `${formatDate(balance.last_movement_at)} ${formatTime(balance.last_movement_at)}` : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="space-y-6 px-4 pb-4">
+        {lowStock > 0 && stockStatus === "ALL" ? (
+          <Alert variant="destructive" className="border-destructive/30 bg-danger-surface">
+            <AlertTriangle aria-hidden />
+            <AlertDescription>
+              {lowStock === 1 ? "1 item está abaixo do mínimo." : `${lowStock} itens estão abaixo do mínimo.`}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={balanceOffset === 0 || balancesQuery.isFetching}
-            onClick={() => setBalanceOffset((offset) => Math.max(0, offset - 20))}
-          >
-            Anterior
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {balancesQuery.data ? `${balanceOffset + 1}-${Math.min(balanceOffset + balances.length, balancesQuery.data.pagination.total)} de ${balancesQuery.data.pagination.total}` : "-"}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!hasNextBalances || balancesQuery.isFetching}
-            onClick={() => setBalanceOffset((offset) => offset + 20)}
-          >
-            Próxima
-          </Button>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-primary" />
-              <h2 className="font-heading text-sm font-bold text-foreground">Extrato recente</h2>
+        {/* Lista de saldos: o saldo é a informação principal, sempre visível (antes ficava fora da tabela no celular) */}
+        <section aria-label="Saldos" className="space-y-2">
+          {balancesQuery.isLoading ? (
+            <Skeleton className="h-48 rounded-2xl" />
+          ) : balancesQuery.isError ? (
+            <EmptyState
+              icon={PackageSearch}
+              title="Erro ao carregar o estoque"
+              action={
+                <Button variant="outline" onClick={() => balancesQuery.refetch()}>
+                  Tentar de novo
+                </Button>
+              }
+            />
+          ) : balances.length === 0 ? (
+            <EmptyState
+              icon={PackageSearch}
+              title={search || stockStatus !== "ALL" ? "Nenhum item com esse filtro" : "Estoque ainda vazio"}
+              description={search || stockStatus !== "ALL" ? undefined : "Registre a carga inicial para começar a controlar os saldos."}
+            />
+          ) : (
+            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              {balances.map((b) => (
+                <li key={b.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-foreground">{b.item.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {INVENTORY_ITEM_TYPE_LABEL[b.item.type]} · {b.item.code}
+                      {b.low_stock_threshold != null ? ` · mínimo ${b.low_stock_threshold}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn("font-heading text-xl font-bold tabular-nums", b.is_low_stock ? "text-destructive" : "text-ink")}>
+                      {b.quantity_on_hand.toLocaleString("pt-BR")}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{b.item.unit_label}</p>
+                  </div>
+                  {b.is_low_stock ? <StatusBadge label="Baixo" tone="danger" className="h-5 px-2 text-[11px]" /> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {total > PAGE ? (
+            <div className="flex items-center justify-between">
+              <Button variant="outline" size="lg" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))}>
+                Anterior
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {offset + 1}–{Math.min(offset + balances.length, total)} de {total}
+              </span>
+              <Button variant="outline" size="lg" disabled={offset + PAGE >= total} onClick={() => setOffset((o) => o + PAGE)}>
+                Próxima
+              </Button>
             </div>
+          ) : null}
+        </section>
+
+        {/* Extrato */}
+        <section aria-labelledby="sec-extrato" className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 id="sec-extrato" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <History className="size-4 text-primary" aria-hidden /> Movimentações
+            </h2>
             <Select
               value={movementItemId}
-              onValueChange={(value) => {
-                setMovementItemId(value);
+              onValueChange={(v) => {
+                setMovementItemId(v);
                 setMovementOffset(0);
               }}
             >
-              <SelectTrigger className="h-9 w-full rounded-xl border-[#d9dde3] sm:w-56">
-                <SelectValue placeholder="Item" />
+              <SelectTrigger className="h-10 w-44" aria-label="Filtrar movimentações por item">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos os itens</SelectItem>
                 {items.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
-                    {item.code}
+                    {item.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
           {movementsQuery.isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse rounded-xl bg-[#eef0f3]" />
-              ))}
-            </div>
+            <Skeleton className="h-32 rounded-2xl" />
           ) : movements.length === 0 ? (
-            <EmptyState title="Nenhum movimento encontrado" />
+            <p className="rounded-2xl border border-dashed border-hairline p-4 text-center text-sm text-muted-foreground">Nenhuma movimentação ainda.</p>
           ) : (
-            <div className="space-y-2">
-              {movements.map((movement) => {
-                const positive = movement.quantity_delta > 0;
-                const DirectionIcon = positive ? ArrowUp : ArrowDown;
+            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              {movements.map((m) => {
+                const positive = m.quantity_delta > 0;
+                const Icon = positive ? ArrowUp : ArrowDown;
                 return (
-                  <div key={movement.id} className="flex items-start gap-3 rounded-xl border border-[#e4e8f1] p-3">
+                  <li key={m.id} className="flex items-center gap-3 px-4 py-3">
                     <span
                       className={cn(
-                        "mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                        positive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                        positive ? "bg-success-surface text-success-foreground" : "bg-danger-surface text-destructive",
                       )}
                     >
-                      <DirectionIcon className="h-4 w-4" />
+                      <Icon className="size-4" aria-hidden />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-[#0d1b2f]">{movement.item.name}</p>
-                        <p className={cn("font-bold", positive ? "text-green-700" : "text-red-700")}>
-                          {positive ? "+" : ""}{formatInventoryQuantity(movement.quantity_delta, movement.item.unit_label)}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {INVENTORY_MOVEMENT_LABEL[movement.movement_type] ?? movement.movement_type} · {formatDate(movement.occurred_at)} {formatTime(movement.occurred_at)}
+                      <p className="truncate text-sm font-medium text-foreground">{m.item.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {INVENTORY_MOVEMENT_LABEL[m.movement_type] ?? m.movement_type} · {formatDate(m.occurred_at)} {formatTime(m.occurred_at)}
                       </p>
                     </div>
-                  </div>
+                    <span className={cn("font-semibold tabular-nums", positive ? "text-success-foreground" : "text-destructive")}>
+                      {positive ? "+" : ""}
+                      {m.quantity_delta.toLocaleString("pt-BR")}
+                    </span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={movementOffset === 0 || movementsQuery.isFetching}
-              onClick={() => setMovementOffset((offset) => Math.max(0, offset - 10))}
-            >
-              Anterior
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!hasNextMovements || movementsQuery.isFetching}
-              onClick={() => setMovementOffset((offset) => offset + 10)}
-            >
-              Próxima
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] ring-1 ring-[#e4e8f1]">
-          <div className="flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" />
-            <h2 className="font-heading text-sm font-bold text-foreground">Carga inicial</h2>
-          </div>
-
-          {itemsQuery.isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-12 animate-pulse rounded-xl bg-[#eef0f3]" />
-              ))}
+          {(movementsQuery.data?.pagination.total ?? 0) > 10 ? (
+            <div className="flex justify-between">
+              <Button variant="ghost" size="lg" disabled={movementOffset === 0} onClick={() => setMovementOffset((o) => Math.max(0, o - 10))}>
+                Mais recentes
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                disabled={movementOffset + 10 >= (movementsQuery.data?.pagination.total ?? 0)}
+                onClick={() => setMovementOffset((o) => o + 10)}
+              >
+                Mais antigas
+              </Button>
             </div>
-          ) : items.length === 0 ? (
-            <EmptyState title="Nenhum item ativo" />
-          ) : (
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {items.map((item) => (
-                <div key={item.id} className="grid grid-cols-[1fr_7rem] items-center gap-3 rounded-xl border border-[#e4e8f1] p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#0d1b2f]">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.code} · {INVENTORY_ITEM_TYPE_LABEL[item.type]}</p>
-                  </div>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={1}
-                    inputMode="numeric"
-                    value={loadQuantities[item.id] ?? ""}
-                    onChange={(event) =>
-                      setLoadQuantities((current) => ({ ...current, [item.id]: event.target.value }))
-                    }
-                    placeholder="0"
-                    className="h-9 rounded-xl border-[#d9dde3] text-right"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+          ) : null}
+        </section>
+      </div>
 
-          <Textarea
-            value={loadObservation}
-            onChange={(event) => setLoadObservation(event.target.value)}
-            placeholder="Observação"
-            className="min-h-20 rounded-xl border-[#d9dde3] bg-white text-sm"
-            maxLength={500}
-          />
+      <StickyActionBar>
+        <Button asChild variant={itemsWithoutStock.length ? "outline" : "cta"} size="xl">
+          <Link href="/distributor/inventory/reconciliation">
+            <Scale aria-hidden /> Conferir contagem
+          </Link>
+        </Button>
+        {itemsWithoutStock.length > 0 ? (
+          <Button variant="cta" size="xl" onClick={() => setLoadOpen(true)}>
+            <PackagePlus aria-hidden /> Carga inicial
+          </Button>
+        ) : null}
+      </StickyActionBar>
+
+      <ResponsiveDialog
+        open={loadOpen}
+        onOpenChange={setLoadOpen}
+        title="Carga inicial"
+        description="Informe quanto você tem hoje de cada item. Depois, ajustes são feitos pela conferência de contagem."
+        footer={
           <Button
-            type="button"
-            className="w-full rounded-xl bg-[#00E0FF] text-[#001735] shadow-none hover:bg-[#00E0FF]/90"
-            disabled={initialLoadMutation.isPending || itemsQuery.isLoading}
-            onClick={submitInitialLoad}
+            variant="cta"
+            size="xl"
+            disabled={loadMutation.isPending || loadItems.length === 0 || loadInvalid}
+            onClick={() =>
+              loadMutation.mutate({ batch_id: createBatchId(), observation: loadObservation.trim() || undefined, items: loadItems })
+            }
           >
-            {initialLoadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {loadMutation.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
             Registrar carga
           </Button>
+        }
+      >
+        <div className="grid gap-3">
+          {itemsWithoutStock.map((item) => (
+            <div key={item.id} className="grid grid-cols-[1fr_6rem] items-center gap-3">
+              <Label htmlFor={`load-${item.id}`} className="flex-col items-start gap-0 font-normal">
+                <span className="font-medium text-foreground">{item.name}</span>
+                <span className="text-xs text-muted-foreground">{item.unit_label}</span>
+              </Label>
+              <Input
+                id={`load-${item.id}`}
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={loadQuantities[item.id] ?? ""}
+                onChange={(e) => setLoadQuantities((c) => ({ ...c, [item.id]: e.target.value }))}
+                placeholder="0"
+                className="h-11 text-right"
+              />
+            </div>
+          ))}
+          {loadInvalid ? <p className="text-xs text-destructive">Use apenas números inteiros, sem negativos.</p> : null}
+          <div className="grid gap-1.5">
+            <Label htmlFor="load-obs">
+              Observação <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
+            <Textarea id="load-obs" value={loadObservation} onChange={(e) => setLoadObservation(e.target.value)} maxLength={500} rows={2} className="resize-none" />
+          </div>
         </div>
-      </section>
+      </ResponsiveDialog>
     </div>
   );
 }

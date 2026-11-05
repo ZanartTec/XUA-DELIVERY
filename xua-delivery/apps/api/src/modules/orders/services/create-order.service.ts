@@ -11,9 +11,9 @@ import {
   type CheckoutPaymentMethod,
 } from "@xua/shared/enums";
 import {
-  CASH_PAYMENT_METHOD,
   DEFAULT_CHECKOUT_PAYMENT_METHOD,
   isCashPaymentMethod,
+  isOfflinePaymentMethod,
 } from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderRepository } from "../repository/orders.repository.js";
@@ -61,7 +61,7 @@ interface CreateOrderData {
    * `paymentMethod` aqui é só metadado — não há nada a proteger validando.
    */
   skipPaymentMethodValidation?: boolean;
-  /** Vazios declarados pelo consumidor, por tipo de vasilhame (settlement). */
+  /** Legado: ignorado. Os vazios passaram a ser registrados pelo motorista na entrega. */
   emptyBottles?: Array<{ bottle_product_id: string; quantity: number }>;
   items: Array<{
     product_id: string;
@@ -78,6 +78,8 @@ interface CreateOrderData {
  */
 interface BuildOrderContext {
   paymentMethod: CheckoutPaymentMethod;
+  /** Dinheiro ou cartão na maquininha: pago na entrega, não passa pelo gateway. */
+  isOfflinePayment: boolean;
   isCashPayment: boolean;
   prepaid: boolean;
   subtotalCents: number;
@@ -96,7 +98,8 @@ async function buildOrderInTx(
   data: CreateOrderData,
   ctx: BuildOrderContext
 ): Promise<Order> {
-  const { paymentMethod, isCashPayment, prepaid, subtotalCents, cashChangeForCents } = ctx;
+  const { paymentMethod, isOfflinePayment, isCashPayment, prepaid, subtotalCents, cashChangeForCents } =
+    ctx;
 
   if (!data.skipPaymentMethodValidation) {
     const distributorPaymentSettings = await ctx.paymentSettingsPromise;
@@ -117,47 +120,20 @@ async function buildOrderInTx(
     }
   }
 
-  // Settlement de vasilhames (caução de vasilhames), por vasilhame-produto:
-  // - DEFAULT = venda dos vasilhames faltantes → vira item de venda real (vasilhame-produto);
-  // - caução só p/ consumidor com vínculo ativo na distribuidora escolhida e dentro do limite.
-  // Toda a decisão é do backend; o front só informa vazios por tipo de vasilhame.
-  const emptiesByBottle = new Map<string, number>(
-    (data.emptyBottles ?? []).map((e) => [e.bottle_product_id, Math.max(0, e.quantity)])
-  );
+  // Regra de vasilhame na entrega: o pedido nasce cobrando só os produtos.
+  // Cada unidade de refil exige 1 vazio na porta; o que faltar é resolvido pelo
+  // motorista na entrega (cobrar o vasilhame, entregar parcial ou cancelar).
+  // Aqui só se registra a demanda de vazios e o teto informado ao cliente.
   const bottleGroups = await depositSettlementService.resolveBottleGroups(
     data.items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
     tx
   );
-  const settledBottles = await depositSettlementService.settlePerBottle(
-    {
-      distributorId: data.distributorId,
-      consumerId: data.consumerId,
-      groups: bottleGroups,
-      emptiesByBottle,
-    },
-    tx
+  const bottlesFullOrdered = bottleGroups.reduce((acc, g) => acc + g.bottlesOrdered, 0);
+  const maxBottleChargeCents = bottleGroups.reduce(
+    (acc, g) => acc + g.bottlesOrdered * g.bottleUnitPriceCents,
+    0
   );
-  const bottleAgg = settledBottles.reduce(
-    (acc, s) => {
-      acc.fullOrdered += s.bottlesOrdered;
-      acc.provided += s.emptiesProvided;
-      acc.sold += s.sold;
-      acc.loaned += s.loaned;
-      acc.soldAmountCents += s.sold * s.bottleUnitPriceCents;
-      return acc;
-    },
-    { fullOrdered: 0, provided: 0, sold: 0, loaned: 0, soldAmountCents: 0 }
-  );
-  // Itens de venda do vasilhame faltante (adicionados pelo backend).
-  const soldBottleItems = settledBottles
-    .filter((s) => s.sold > 0)
-    .map((s) => ({
-      product_id: s.bottleProductId,
-      product_name: s.bottleProductName,
-      unit_price_cents: s.bottleUnitPriceCents,
-      quantity: s.sold,
-    }));
-  const totalCents = subtotalCents + bottleAgg.soldAmountCents;
+  const totalCents = subtotalCents;
 
   if (!isCashPayment && cashChangeForCents != null) {
     throw new OrderServiceError(
@@ -190,12 +166,13 @@ async function buildOrderInTx(
     preferredTimeEnd: data.preferredTimeEnd ?? null,
   });
 
-  // Pedido pré-pago e em dinheiro nascem CONFIRMED; online nasce CREATED.
-  const confirmedAtCreation = prepaid || isCashPayment;
+  // Pré-pago e pago na entrega (dinheiro/cartão na maquininha) nascem
+  // CONFIRMED; só os métodos online aguardam o gateway (CREATED).
+  const confirmedAtCreation = prepaid || isOfflinePayment;
   const initialStatus = confirmedAtCreation ? OrderStatus.CONFIRMED : OrderStatus.CREATED;
   const initialPaymentStatus = prepaid
     ? PAYMENT_PAID_STATUS
-    : isCashPayment
+    : isOfflinePayment
       ? CASH_PAYMENT_PENDING_STATUS
       : null;
 
@@ -223,11 +200,14 @@ async function buildOrderInTx(
       // Caução financeira v1 removida — zeros exigidos até o drop das colunas (Fase 3).
       deposit_cents: 0,
       total_cents: totalCents,
-      // Settlement de vasilhames (agregados; detalhe por tipo nos itens/ledger)
-      bottles_full_ordered: bottleAgg.fullOrdered,
-      empty_bottles_provided: bottleAgg.provided,
-      bottles_sold: bottleAgg.sold,
-      bottles_loaned: bottleAgg.loaned,
+      // Vasilhames: demanda de vazios e teto da cobrança na porta. Venda e
+      // caução efetivas só são conhecidas na entrega (order-bottle.service).
+      bottles_full_ordered: bottlesFullOrdered,
+      empty_bottles_provided: 0,
+      bottles_sold: 0,
+      bottles_loaned: 0,
+      max_bottle_charge_cents: maxBottleChargeCents,
+      bottle_charge_cents: 0,
       rating: null,
       rating_comment: null,
       nps_score: null,
@@ -253,8 +233,7 @@ async function buildOrderInTx(
     tx
   );
 
-  // Insere items do pedido + vasilhames vendidos (adicionados pelo settlement).
-  await orderRepository.createItems(created.id, [...data.items, ...soldBottleItems], tx);
+  await orderRepository.createItems(created.id, data.items, tx);
 
   // Evento de auditoria na mesma transação. Pedidos pré-pagos (assinatura) são
   // criados pelo sistema; checkout normal é criado pelo consumidor.
@@ -271,29 +250,29 @@ async function buildOrderInTx(
     tx
   );
 
-  if (isCashPayment) {
+  if (isOfflinePayment && !prepaid) {
     const payment = await tx.payment.create({
       data: {
         order_id: created.id,
         kind: PaymentKind.ORDER,
         status: PaymentStatus.CREATED,
         amount_cents: totalCents,
-        payment_method: CASH_PAYMENT_METHOD,
+        payment_method: paymentMethod,
         provider: CASH_PAYMENT_PROVIDER,
-        cash_change_for_cents: cashChangeForCents,
+        cash_change_for_cents: isCashPayment ? cashChangeForCents : null,
       },
     });
 
     await auditRepository.emit(
       {
         eventType: AuditEventType.PAYMENT_CREATED,
-        actor: { type: ActorType.SYSTEM, id: "cash-on-delivery" },
+        actor: { type: ActorType.SYSTEM, id: "pay-on-delivery" },
         orderId: created.id,
         sourceApp: SourceApp.BACKEND,
         payload: {
           payment_id: payment.id,
-          payment_method: CASH_PAYMENT_METHOD,
-          cash_change_for_cents: cashChangeForCents,
+          payment_method: paymentMethod,
+          cash_change_for_cents: isCashPayment ? cashChangeForCents : null,
         },
       },
       tx
@@ -307,10 +286,10 @@ async function buildOrderInTx(
         eventType: AuditEventType.ORDER_CONFIRMED,
         actor: prepaid
           ? { type: ActorType.SYSTEM, id: "subscription-generation" }
-          : { type: ActorType.SYSTEM, id: "cash-on-delivery" },
+          : { type: ActorType.SYSTEM, id: "pay-on-delivery" },
         orderId: created.id,
         sourceApp: SourceApp.BACKEND,
-        payload: prepaid ? { prepaid: true } : { payment_method: CASH_PAYMENT_METHOD },
+        payload: prepaid ? { prepaid: true } : { payment_method: paymentMethod },
       },
       tx
     );
@@ -336,6 +315,7 @@ export const createOrderService = {
       : distributorGatewayService.getPublicMethods(data.distributorId);
 
     const isCashPayment = isCashPaymentMethod(paymentMethod);
+    const isOfflinePayment = isOfflinePaymentMethod(paymentMethod);
     const cashChangeForCents = data.cashChangeForCents ?? null;
     const subtotalCents = data.items.reduce(
       (acc, i) => acc + i.unit_price_cents * i.quantity,
@@ -345,6 +325,7 @@ export const createOrderService = {
     const order = await prisma.$transaction((tx: TxClient) =>
       buildOrderInTx(tx, data, {
         paymentMethod,
+        isOfflinePayment,
         isCashPayment,
         prepaid: false,
         subtotalCents,
@@ -354,9 +335,9 @@ export const createOrderService = {
     );
 
     log.info({ orderId: order.id }, "Order created");
-    if (isCashPayment) {
+    if (isOfflinePayment) {
       const sent = await createOrderService.sendToDistributor(order.id);
-      log.info({ orderId: sent.id }, "Cash order sent to distributor");
+      log.info({ orderId: sent.id, paymentMethod }, "Pay-on-delivery order sent to distributor");
       return sent;
     }
 
@@ -377,6 +358,7 @@ export const createOrderService = {
 
     return buildOrderInTx(tx, data, {
       paymentMethod: data.paymentMethod ?? DEFAULT_CHECKOUT_PAYMENT_METHOD,
+      isOfflinePayment: false,
       isCashPayment: false,
       prepaid: true,
       subtotalCents,

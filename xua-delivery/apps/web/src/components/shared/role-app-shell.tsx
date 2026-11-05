@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeftRight,
   BarChart3,
   Boxes,
   Building2,
   CalendarDays,
   ChevronDown,
+  CircleUser,
   ClipboardList,
   FileText,
   Headphones,
@@ -18,6 +18,7 @@ import {
   Image,
   KeyRound,
   MapPin,
+  MoreHorizontal,
   Package,
   Repeat,
   ReceiptText,
@@ -31,17 +32,26 @@ import {
 import { cn } from "@/src/lib/utils";
 import type { UserRole } from "@/src/lib/role-utils";
 import { useAuthStore } from "@/src/store/auth";
+import { useCartStore } from "@/src/store/cart";
+import { useIsClient } from "@/src/hooks/use-is-client";
 import { OfflineBanner } from "@/src/components/shared/offline-banner";
 import { LogoutButton } from "@/src/components/shared/logout-button";
-import { CartNavItem } from "@/src/components/consumer/cart-nav-item";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
-import type { Address } from "@/src/types";
+import { useSelectedAddress } from "@/src/hooks/consumer/use-addresses";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
 
 interface RoleNavItem {
   href: string;
   label: string;
   icon: LucideIcon;
   match?: string[];
+  /** Título de seção na sidebar (desktop); itens seguidos do mesmo grupo ficam juntos. */
+  group?: string;
 }
 
 interface RoleShellConfig {
@@ -49,24 +59,17 @@ interface RoleShellConfig {
   navItems: RoleNavItem[];
 }
 
+/** No mobile cabem 5 itens; acima disso, os 4 primeiros + "Mais". */
+const MAX_BOTTOM_ITEMS = 5;
+
 const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
   consumer: {
     badgeLabel: "Consumidor",
     navItems: [
       { href: "/catalog", label: "Catálogo", icon: ShoppingBag },
-      {
-        href: "/cart",
-        label: "Carrinho",
-        icon: ShoppingCart,
-        match: ["/cart", "/checkout"],
-      },
+      { href: "/cart", label: "Carrinho", icon: ShoppingCart, match: ["/cart", "/checkout"] },
       { href: "/orders", label: "Pedidos", icon: ReceiptText },
-      {
-        href: "/subscription/manage",
-        label: "Assinatura",
-        icon: CalendarDays,
-        match: ["/subscription"],
-      },
+      { href: "/subscription/manage", label: "Assinatura", icon: CalendarDays, match: ["/subscription"] },
       { href: "/profile", label: "Perfil", icon: User },
     ],
   },
@@ -79,66 +82,86 @@ const ROLE_SHELL_CONFIG: Record<UserRole, RoleShellConfig> = {
         icon: ClipboardList,
         match: ["/distributor/queue", "/distributor/orders", "/distributor/routes"],
       },
-      {
-        href: "/distributor/inventory/reconciliation",
-        label: "Concilia",
-        icon: ArrowLeftRight,
-      },
-      {
-        href: "/distributor/inventory",
-        label: "Estoque",
-        icon: Boxes,
-        match: ["/distributor/inventory"],
-      },
+      // Conciliação é uma ação dentro do Estoque (antes era item próprio e duplicava o botão).
+      { href: "/distributor/inventory", label: "Estoque", icon: Boxes, match: ["/distributor/inventory", "/distributor/reconciliation"] },
+      { href: "/distributor/drivers", label: "Motoristas", icon: UserCog },
       { href: "/distributor/schedule", label: "Agenda", icon: CalendarDays },
       { href: "/distributor/payment-config", label: "Pagamento", icon: Wallet },
-      { href: "/distributor/drivers", label: "Motoristas", icon: UserCog },
       // Venda simples (sem caução): entrada oculta até a feature Comodato B2B.
       // Tela continua acessível por rota direta (/distributor/deposit-program).
-      // { href: "/distributor/deposit-program", label: "Caução", icon: Recycle },
-      { href: "/distributor/kpis", label: "KPIs", icon: BarChart3 },
+      { href: "/distributor/kpis", label: "Indicadores", icon: BarChart3 },
+      { href: "/distributor/account", label: "Conta", icon: CircleUser },
     ],
   },
   driver: {
     badgeLabel: "Motorista",
     navItems: [
       { href: "/driver/deliveries", label: "Entregas", icon: Truck },
-      { href: "/driver/history", label: "Historico", icon: History },
+      { href: "/driver/history", label: "Histórico", icon: History },
+      { href: "/driver/account", label: "Conta", icon: CircleUser },
     ],
   },
   ops: {
-    badgeLabel: "Operacoes",
+    badgeLabel: "Operações",
     navItems: [
-      { href: "/ops/kpis", label: "KPIs", icon: BarChart3 },
-      { href: "/ops/zones", label: "Zonas", icon: MapPin },
-      {
-        href: "/ops/inventory",
-        label: "Estoque",
-        icon: Boxes,
-        match: ["/ops/inventory"],
-      },
-      { href: "/ops/products", label: "Produtos", icon: Package },
-      { href: "/ops/banners", label: "Banners", icon: Image },
-      { href: "/ops/subscription-plans", label: "Planos", icon: Repeat },
-      { href: "/ops/distributors", label: "Distribuidoras", icon: Building2 },
-      { href: "/ops/drivers", label: "Motoristas", icon: UserCog },
-      { href: "/support", label: "Suporte", icon: Headphones },
-      { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
-      { href: "/ops/audit-export", label: "Auditoria", icon: FileText },
+      { href: "/support", label: "Suporte", icon: Headphones, group: "Operação" },
+      { href: "/ops/kpis", label: "Indicadores", icon: BarChart3, group: "Operação" },
+      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound, group: "Operação" },
+      { href: "/ops/distributors", label: "Distribuidoras", icon: Building2, group: "Rede" },
+      { href: "/ops/zones", label: "Zonas", icon: MapPin, group: "Rede" },
+      { href: "/ops/drivers", label: "Motoristas", icon: UserCog, group: "Rede" },
+      { href: "/ops/inventory", label: "Estoque", icon: Boxes, match: ["/ops/inventory"], group: "Rede" },
+      { href: "/ops/products", label: "Produtos", icon: Package, group: "Catálogo" },
+      { href: "/ops/subscription-plans", label: "Planos", icon: Repeat, group: "Catálogo" },
+      { href: "/ops/banners", label: "Banners", icon: Image, group: "Catálogo" },
+      { href: "/ops/audit-export", label: "Auditoria", icon: FileText, group: "Sistema" },
+      { href: "/ops/account", label: "Conta", icon: CircleUser, group: "Sistema" },
     ],
   },
   support: {
     badgeLabel: "Suporte",
     navItems: [
       { href: "/support", label: "Suporte", icon: Headphones },
-      { href: "/ops/otp-override", label: "OTP", icon: KeyRound },
+      { href: "/ops/otp-override", label: "Sem código", icon: KeyRound },
+      { href: "/support/account", label: "Conta", icon: CircleUser },
     ],
   },
 };
 
-function isItemActive(pathname: string, item: RoleNavItem) {
-  const prefixes = item.match ?? [item.href];
-  return prefixes.some((prefix) => pathname.startsWith(prefix));
+/**
+ * Item ativo = o de prefixo mais longo que casa com a rota. Evita dois itens
+ * acesos ao mesmo tempo (ex.: "Estoque" e "Conciliação" na distribuidora, D-01).
+ */
+function resolveActiveHref(pathname: string, items: RoleNavItem[]): string | null {
+  let best: { href: string; len: number } | null = null;
+  for (const item of items) {
+    for (const prefix of item.match ?? [item.href]) {
+      const hit = pathname === prefix || pathname.startsWith(`${prefix}/`);
+      if (hit && (!best || prefix.length > best.len)) best = { href: item.href, len: prefix.length };
+    }
+  }
+  return best?.href ?? null;
+}
+
+function useCartCount(enabled: boolean) {
+  const total = useCartStore((s) => s.getTotalItems());
+  const mounted = useIsClient();
+  return enabled && mounted ? total : 0;
+}
+
+function CountBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      key={count}
+      className={cn(
+        "flex h-4 min-w-4 animate-badge-pop items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-bold text-primary-foreground ring-2 ring-background",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 export function RoleAppShell({
@@ -157,125 +180,222 @@ export function RoleAppShell({
   const config = ROLE_SHELL_CONFIG[role];
   const resolvedName = storeUser?.name ?? userName ?? null;
   const firstName = resolvedName?.trim().split(/\s+/)[0];
+  const isConsumer = role === "consumer";
 
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const activeHref = resolveActiveHref(pathname, config.navItems);
+  const cartCount = useCartCount(isConsumer);
+  const badgeFor = (href: string) => (isConsumer && href === "/cart" ? cartCount : 0);
 
-  useEffect(() => {
-    if (role !== "consumer" || !storeUser?.id) return;
-    fetch(`/api/consumers/${storeUser.id}/addresses`)
-      .then((r) => r.json())
-      .then((data: { addresses?: Address[] }) => {
-        const list = data.addresses ?? [];
-        const def = list.find((a) => a.is_default) ?? list[0] ?? null;
-        setSelectedAddress(def);
-      })
-      .catch(() => {});
-  }, [role, storeUser?.id]);
+  const overflow = config.navItems.length > MAX_BOTTOM_ITEMS;
+  const bottomItems = overflow ? config.navItems.slice(0, MAX_BOTTOM_ITEMS - 1) : config.navItems;
+  const moreItems = overflow ? config.navItems.slice(MAX_BOTTOM_ITEMS - 1) : [];
+  const moreActive = moreItems.some((i) => i.href === activeHref);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col overflow-x-clip bg-background",
+        "[--bottom-nav-h:calc(4rem+env(safe-area-inset-bottom))] md:[--app-sidebar-w:15rem] md:[--bottom-nav-h:0px]",
+        // Operacionais não têm header no desktop (a sidebar faz o papel); o PageHeader gruda no topo.
+        isConsumer ? "[--app-header-h:4rem]" : "[--app-header-h:3.5rem] md:[--app-header-h:0px]",
+      )}
+    >
       <OfflineBanner />
 
-      {role === "consumer" ? (
-        <>
-          <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
-            <div className="flex h-16 items-center justify-between gap-3 px-4">
-              {/* Endereço de entrega */}
-              <button
-                onClick={() => setAddressSheetOpen(true)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-              >
-                <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#737688]">
-                    Entregar em
-                  </span>
-                  <span className="flex items-center gap-0.5 text-sm font-medium text-[#191c1d] truncate">
-                    {selectedAddress
-                      ? `${selectedAddress.street}, ${selectedAddress.number}`
-                      : "Selecione um endereço"}
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#737688]" />
-                  </span>
-                </div>
-              </button>
+      {/* Sidebar (desktop) */}
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-(--app-sidebar-w) flex-col border-r border-hairline bg-sidebar md:flex">
+        <div className="flex h-16 items-center gap-2 px-5">
+          <img src="/logo-transparent.png" alt="Xuá" className="h-9 w-auto" />
+          {!isConsumer ? (
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+              {config.badgeLabel}
+            </span>
+          ) : null}
+        </div>
+        <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-3 py-2">
+          <ul className="grid gap-1">
+            {config.navItems.map((item, index) => {
+              const active = item.href === activeHref;
+              const Icon = item.icon;
+              const startsGroup = item.group && item.group !== config.navItems[index - 1]?.group;
+              return (
+                <li key={item.href}>
+                  {startsGroup ? (
+                    <p className={cn("px-3 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", index > 0 && "pt-3")}>
+                      {item.group}
+                    </p>
+                  ) : null}
+                  <Link
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors",
+                      active
+                        ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-5 shrink-0" aria-hidden />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    <CountBadge count={badgeFor(item.href)} />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <div className="flex items-center justify-between gap-2 border-t border-hairline px-5 py-3">
+          <span className="truncate text-sm text-muted-foreground">{firstName ? `Olá, ${firstName}` : null}</span>
+          <LogoutButton />
+        </div>
+      </aside>
 
-              <img src="/logo-transparent.png" alt="Xuá" className="h-18 w-auto shrink-0" />
-            </div>
-          </header>
-
-          <AddressSheet
-            open={addressSheetOpen}
-            onOpenChange={setAddressSheetOpen}
-            selectedAddressId={selectedAddress?.id ?? null}
-            onSelect={(addr) => {
-              setSelectedAddress(addr);
-              setAddressSheetOpen(false);
-            }}
-          />
-        </>
-      ) : (
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 shadow-[0_1px_8px_rgba(0,26,64,0.04)]">
-          <div className="flex h-14 items-center justify-between gap-3 px-4">
+      {/* Header (topo: contexto) */}
+      <header className="sticky top-0 z-40 bg-background/95 shadow-[0_1px_8px_rgba(0,26,64,0.04)] backdrop-blur supports-backdrop-filter:bg-background/80 md:pl-(--app-sidebar-w)">
+        {isConsumer ? (
+          <ConsumerHeader />
+        ) : (
+          <div className="flex h-14 items-center justify-between gap-3 px-4 md:hidden">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex items-center gap-2">
-                <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
-              </div>
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+              <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                 {config.badgeLabel}
               </span>
             </div>
-
-            <div className="flex items-center gap-2">
-              {firstName ? (
-                <span className="hidden max-w-28 truncate text-sm text-muted-foreground sm:block">
-                  Ola, {firstName}
-                </span>
-              ) : null}
-              <LogoutButton />
-            </div>
+            {firstName ? <span className="max-w-32 truncate text-sm text-muted-foreground">Olá, {firstName}</span> : null}
           </div>
-        </header>
-      )}
+        )}
+      </header>
 
-      <main className={cn("flex-1 pb-24 md:pb-28", contentClassName)}>{children}</main>
+      {/* O padding do layout fica num wrapper interno: no <main> o twMerge deixaria
+          `md:p-6` sobrescrever o recuo da sidebar e o conteúdo ficaria por baixo dela. */}
+      <main className="flex-1 pb-(--bottom-nav-h) md:pl-(--app-sidebar-w)">
+        <div className={contentClassName}>{children}</div>
+      </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur shadow-[0_-1px_8px_rgba(0,26,64,0.04)] supports-backdrop-filter:bg-white/80">
-        <ul className="mx-auto flex w-full max-w-3xl items-stretch justify-around gap-1 px-2 py-1.5">
-          {config.navItems.map((item) => {
-            const active = isItemActive(pathname, item);
-
-            /* Cart gets its own dedicated component */
-            if (role === "consumer" && item.href === "/cart") {
-              return (
-                <li key={item.href} className="flex min-w-0 flex-1">
-                  <CartNavItem active={active} />
-                </li>
-              );
-            }
-
-            const Icon = item.icon;
-            return (
-              <li key={item.href} className="flex min-w-0 flex-1">
-                <Link
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-center transition-colors",
-                    active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className={cn("h-5 w-5", active && "fill-primary/15")} />
-                  <span className={cn("text-[10px] leading-tight", active && "font-semibold")}>
-                    {item.label}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-
+      {/* Bottom nav (mobile, zona do polegar) */}
+      <nav
+        aria-label="Navegação principal"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
+      >
+        <ul className="mx-auto flex h-16 w-full max-w-3xl items-stretch justify-around px-1">
+          {bottomItems.map((item) => (
+            <li key={item.href} className="flex min-w-0 flex-1">
+              <BottomNavLink item={item} active={item.href === activeHref} badge={badgeFor(item.href)} />
+            </li>
+          ))}
+          {overflow ? (
+            <li className="flex min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => setMoreOpen(true)}
+                aria-expanded={moreOpen}
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-center transition-colors",
+                  moreActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <MoreHorizontal className="size-5" aria-hidden />
+                <span className={cn("text-[11px] leading-tight", moreActive && "font-semibold")}>Mais</span>
+              </button>
+            </li>
+          ) : null}
         </ul>
       </nav>
+
+      {overflow ? (
+        <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+          <DrawerContent>
+            <DrawerHeader className="text-left">
+              <DrawerTitle className="font-heading">Mais opções</DrawerTitle>
+            </DrawerHeader>
+            <ul className="grid grid-cols-3 gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              {moreItems.map((item) => {
+                const active = item.href === activeHref;
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border text-xs transition-colors",
+                        active
+                          ? "border-primary bg-secondary font-semibold text-primary"
+                          : "border-hairline bg-card text-foreground hover:border-primary/40",
+                      )}
+                    >
+                      <Icon className="size-5" aria-hidden />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </DrawerContent>
+        </Drawer>
+      ) : null}
     </div>
+  );
+}
+
+function BottomNavLink({ item, active, badge }: { item: RoleNavItem; active: boolean; badge: number }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-center transition-colors",
+        active ? "text-primary" : badge > 0 ? "text-primary/80" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span className="relative inline-flex">
+        <Icon className={cn("size-5", active && "fill-primary/15")} aria-hidden />
+        <CountBadge count={badge} className="absolute -top-1.5 -right-2.5" />
+      </span>
+      <span className={cn("truncate text-[11px] leading-tight", active && "font-semibold")}>{item.label}</span>
+      {badge > 0 ? <span className="sr-only">{`, ${badge} itens`}</span> : null}
+    </Link>
+  );
+}
+
+/** Header do consumidor: "Entregar em …" (abre o seletor de endereço). */
+function ConsumerHeader() {
+  const { address, isLoading } = useSelectedAddress();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="-ml-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left transition-colors hover:bg-muted"
+          aria-label={address ? `Endereço de entrega: ${address.street}, ${address.number}. Trocar` : "Selecionar endereço de entrega"}
+        >
+          <MapPin className="size-5 shrink-0 text-primary" aria-hidden />
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              Entregar em
+            </span>
+            <span className="flex items-center gap-0.5 text-sm font-medium text-foreground">
+              <span className="truncate">
+                {address
+                  ? `${address.label ? `${address.label} · ` : ""}${address.street}, ${address.number}`
+                  : isLoading
+                    ? "Carregando…"
+                    : "Adicionar endereço"}
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </span>
+          </span>
+        </button>
+        <img src="/logo-transparent.png" alt="Xuá" className="h-10 w-auto shrink-0 md:hidden" />
+      </div>
+      <AddressSheet open={open} onOpenChange={setOpen} />
+    </>
   );
 }

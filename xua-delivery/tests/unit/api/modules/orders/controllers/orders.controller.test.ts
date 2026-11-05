@@ -37,6 +37,7 @@ const mocks = await vi.hoisted(async () => {
       dispatch: vi.fn(),
       dispatchWithChecklist: vi.fn(),
       deliverOrder: vi.fn(),
+      precheckBottleStep: vi.fn(async () => undefined),
       cancelOrder: vi.fn(),
       markDeliveryFailed: vi.fn(),
       scheduleRedelivery: vi.fn(),
@@ -51,7 +52,7 @@ const mocks = await vi.hoisted(async () => {
       zone: { findFirst: vi.fn() },
       product: { findMany: vi.fn() },
     },
-    otpService: { generate: vi.fn(), validate: vi.fn(), override: vi.fn() },
+    otpService: { generate: vi.fn(), validate: vi.fn(), override: vi.fn(), consume: vi.fn() },
     receiptService: { issue: vi.fn(), loadForPrint: vi.fn() },
     sendReceiptsPdf: vi.fn(),
     socketEmit: vi.fn(),
@@ -593,6 +594,39 @@ describe("ordersController verifyOtp/otpOverride", () => {
     await call(ordersController.verifyOtp, req("driver", { code: "123456" }), response);
 
     expect(response.status).toHaveBeenCalledWith(400);
+    expect(mocks.otpService.validate).not.toHaveBeenCalled();
+    expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
+  });
+
+  it("confere o código sem consumi-lo e só consome depois que a entrega conclui", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
+
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
+
+    expect(mocks.otpService.validate).toHaveBeenCalledWith(orderId, "123456", userId, { consume: false });
+    expect(mocks.otpService.consume).toHaveBeenCalledWith(orderId);
+  });
+
+  it("não consome o código quando a conclusão da entrega falha", async () => {
+    const response = res();
+    mocks.otpService.validate.mockResolvedValueOnce({ isValid: true, attempts: 1, maxAttempts: 5, locked: false });
+    mocks.orderService.deliverOrder.mockRejectedValueOnce(new Error("Saldo insuficiente"));
+
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
+
+    expect(mocks.otpService.consume).not.toHaveBeenCalled();
+  });
+
+  it("recusa o passo de vasilhame incompleto ANTES de consumir o código do cliente", async () => {
+    const response = res();
+    const { OrderServiceError } = await import("@api/modules/orders/errors.js");
+    mocks.orderService.precheckBottleStep.mockRejectedValueOnce(
+      new OrderServiceError("BOTTLE_SHORTFALL_RESOLUTION_REQUIRED", "Faltaram vasilhames vazios")
+    );
+
+    await call(ordersController.verifyOtp, req("driver", { code: "123456", bottle_step: bottleStepBody }), response);
+
     expect(mocks.otpService.validate).not.toHaveBeenCalled();
     expect(mocks.orderService.deliverOrder).not.toHaveBeenCalled();
   });

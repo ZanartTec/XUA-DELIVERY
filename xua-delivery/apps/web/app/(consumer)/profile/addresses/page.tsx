@@ -1,201 +1,152 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuthStore } from "@/src/store/auth";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { useState } from "react";
+import { Home, MapPin, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { MapPin } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { AddressForm } from "@/src/components/consumer/address-form";
+import { formatAddressLine, useAddressMutations, useAddresses } from "@/src/hooks/consumer/use-addresses";
+import { ApiError } from "@/src/lib/api-client";
 import type { Address } from "@/src/types";
 
+type Editing = { mode: "new" } | { mode: "edit"; address: Address } | null;
+
 export default function AddressesPage() {
-  const user = useAuthStore((s) => s.user);
-  const [consumerId, setConsumerId] = useState<string | null>(user?.id ?? null);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [cep, setCep] = useState("");
-  const [cepData, setCepData] = useState<{
-    street: string;
-    neighborhood: string;
-    city: string;
-    state: string;
-  } | null>(null);
-  const [number, setNumber] = useState("");
-  const [complement, setComplement] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [cepLoading, setCepLoading] = useState(false);
+  const { data: addresses, isLoading } = useAddresses();
+  const { update, remove } = useAddressMutations();
+  const [editing, setEditing] = useState<Editing>(null);
+  const [deleting, setDeleting] = useState<Address | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        let uid = consumerId;
-        if (!uid) {
-          const meRes = await fetch("/api/auth/me");
-          const meData = await meRes.json();
-          uid = meData.consumer?.id ?? null;
-          if (uid) setConsumerId(uid);
-        }
-        if (!uid) return;
-        const res = await fetch(`/api/consumers/${uid}/addresses`);
-        const data = await res.json();
-        setAddresses(data.addresses ?? []);
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
-  }, [consumerId]);
-
-  async function lookupCep() {
-    const clean = cep.replace(/\D/g, "");
-    if (clean.length !== 8) {
-      setError("CEP deve ter 8 dígitos.");
-      return;
-    }
-    setCepLoading(true);
-    setError(null);
+  async function makeDefault(addr: Address) {
     try {
-      const res = await fetch(`/api/consumers/cep/${clean}`);
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-        setCepData(null);
-      } else {
-        setCepData({
-          street: data.street,
-          neighborhood: data.neighborhood,
-          city: data.city,
-          state: data.state,
-        });
-      }
-    } catch {
-      setError("Erro ao buscar CEP.");
-    } finally {
-      setCepLoading(false);
+      await update.mutateAsync({ id: addr.id, patch: { is_default: true } });
+      toast.success("Endereço principal atualizado");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Não foi possível atualizar.");
     }
   }
 
-  async function handleAdd() {
-    if (!cepData || !number || !consumerId) return;
-    setSaving(true);
-    setError(null);
+  async function confirmDelete() {
+    if (!deleting) return;
     try {
-      const res = await fetch(`/api/consumers/${consumerId}/addresses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          zip_code: cep.replace(/\D/g, ""),
-          street: cepData.street,
-          number,
-          complement,
-          neighborhood: cepData.neighborhood,
-          city: cepData.city,
-          state: cepData.state,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        if (body.code === "NO_COVERAGE") {
-          toast.error("Ainda não atendemos sua região");
-        }
-        setError(body.error || "Erro ao salvar endereço");
-        return;
-      }
-      const { address } = await res.json();
-      setAddresses((prev) => [...prev, address]);
-      setCep("");
-      setCepData(null);
-      setNumber("");
-      setComplement("");
-    } catch {
-      setError("Erro de conexão.");
-    } finally {
-      setSaving(false);
+      await remove.mutateAsync(deleting.id);
+      toast.success("Endereço excluído");
+      setDeleting(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Não foi possível excluir.");
     }
   }
+
+  const list = addresses ?? [];
 
   return (
-    <div className="space-y-4 pb-4">
-      <div className="px-4 pt-4">
-        <h1 className="text-lg font-bold font-heading">Endereços</h1>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader back="/profile" title="Meus endereços" />
 
-      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm space-y-3">
-        <p className="text-sm font-semibold font-heading">Novo endereço</p>
-        <div className="flex gap-2">
-          <Input
-            placeholder="CEP (ex: 01001-000)"
-            value={cep}
-            onChange={(e) => setCep(e.target.value)}
-            className="flex-1 rounded-xl border-0 bg-[#e1e3e4]"
-          />
-          <Button variant="outline" onClick={lookupCep} disabled={cepLoading} className="rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]">
-            {cepLoading ? "..." : "Buscar"}
-          </Button>
-        </div>
-
-        {cepData && (
-          <>
-            <p className="text-sm text-muted-foreground">
-              {cepData.street}, {cepData.neighborhood} — {cepData.city}/{cepData.state}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                placeholder="Número"
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-                required
-                className="rounded-xl border-0 bg-[#e1e3e4]"
-              />
-              <Input
-                placeholder="Complemento"
-                value={complement}
-                onChange={(e) => setComplement(e.target.value)}
-                className="rounded-xl border-0 bg-[#e1e3e4]"
-              />
-            </div>
-            <Button className="w-full rounded-xl bg-primary hover:bg-primary-hover font-semibold shadow-none hover:opacity-90 active:scale-[0.98]" onClick={handleAdd} disabled={saving || !number}>
-              {saving ? "Salvando..." : "Adicionar endereço"}
-            </Button>
-          </>
-        )}
-
-        {error && <div className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-      </div>
-
-      <div className="mx-4 rounded-2xl bg-white/95 p-4 shadow-[0_2px_12px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <p className="mb-3 text-sm font-semibold font-heading">Meus endereços</p>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        ) : addresses.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <MapPin className="h-8 w-8 text-primary/40" />
-            </div>
-            <p className="text-sm text-muted-foreground">Nenhum endereço cadastrado.</p>
+      <div className="px-4 pb-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
           </div>
+        ) : list.length === 0 ? (
+          <EmptyState icon={MapPin} title="Nenhum endereço cadastrado" description="Cadastre onde quer receber a água." />
         ) : (
-          <ul className="space-y-2">
-            {addresses.map((addr) => (
-              <li key={addr.id} className="rounded-xl bg-[#e1e3e4]/50 p-3 text-sm">
-                <p>
-                  {addr.street}, {addr.number}
-                  {addr.complement ? ` — ${addr.complement}` : ""}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {addr.neighborhood} — {addr.city}/{addr.state} — CEP {addr.zip_code}
-                </p>
-                {addr.is_default && (
-                  <span className="text-xs font-medium text-primary">Principal</span>
-                )}
+          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            {list.map((addr) => (
+              <li key={addr.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+                  <Home className="size-5 text-primary" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <span className="truncate">{addr.label || "Endereço"}</span>
+                    {addr.is_default ? <StatusBadge label="Principal" tone="info" className="h-5 px-2 text-[11px]" /> : null}
+                  </p>
+                  <p className="truncate text-sm text-foreground">{formatAddressLine(addr)}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {addr.neighborhood} — {addr.city}/{addr.state} · CEP {addr.zip_code}
+                  </p>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-touch" aria-label={`Ações do endereço ${addr.label || formatAddressLine(addr)}`}>
+                      <MoreVertical />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onSelect={() => setEditing({ mode: "edit", address: addr })}>
+                      <Pencil /> Editar
+                    </DropdownMenuItem>
+                    {!addr.is_default ? (
+                      <DropdownMenuItem onSelect={() => makeDefault(addr)}>
+                        <Star /> Tornar principal
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(addr)}>
+                      <Trash2 /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </li>
             ))}
           </ul>
         )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Para mudar a rua ou o CEP, cadastre um novo endereço e exclua o antigo. Seus pedidos anteriores não são afetados.
+        </p>
       </div>
+
+      <StickyActionBar>
+        <Button variant="cta" size="xl" onClick={() => setEditing({ mode: "new" })}>
+          <Plus /> Adicionar endereço
+        </Button>
+      </StickyActionBar>
+
+      <ResponsiveDialog
+        open={editing !== null}
+        onOpenChange={(open) => !open && setEditing(null)}
+        title={editing?.mode === "edit" ? "Editar endereço" : "Novo endereço"}
+        description={editing?.mode === "edit" ? undefined : "Informe o CEP para começar."}
+      >
+        {editing ? (
+          <AddressForm
+            key={editing.mode === "edit" ? editing.address.id : "new"}
+            address={editing.mode === "edit" ? editing.address : undefined}
+            onSaved={() => {
+              toast.success(editing.mode === "edit" ? "Endereço atualizado" : "Endereço adicionado");
+              setEditing(null);
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        ) : null}
+      </ResponsiveDialog>
+
+      <ConfirmAction
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Excluir este endereço?"
+        description={deleting ? `${formatAddressLine(deleting)}. Pedidos já feitos para ele continuam no histórico.` : undefined}
+        confirmLabel="Excluir"
+        cancelLabel="Manter"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

@@ -3,20 +3,21 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { AlertCircle, CheckCircle2, Clock3, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { formatCurrency } from "@/src/lib/utils";
-import { AlertCircle, CheckCircle2, Clock3, CreditCard, ShoppingCart } from "lucide-react";
-import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { Card } from "@/src/components/ui/card";
+import { Separator } from "@/src/components/ui/separator";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
+import { CheckoutProgress } from "@/src/components/consumer/checkout-progress";
+import { useOrderDetail } from "@/src/hooks/consumer/use-order-detail";
+import { cn, formatCurrency, formatDate } from "@/src/lib/utils";
+import { formatScheduledTime, formatShortOrderId } from "@/src/lib/order-detail-format";
+import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
 
 type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created" | "cash_pending";
 
 interface PaymentStatusResponse {
-  order: {
-    id: string;
-    status: string;
-    payment_status: string | null;
-    total_cents: number;
-  };
+  order: { id: string; status: string; payment_status: string | null; total_cents: number };
   payment: {
     id: string;
     status: string;
@@ -34,8 +35,8 @@ function getViewStatus(data: PaymentStatusResponse | null, fallback: string | nu
     if (fallback === "pending") return "pending";
     return "loading";
   }
-
-  if (isCashPaymentMethod(data.payment?.payment_method) && data.payment.status !== "CAPTURED") return "cash_pending";
+  // Pago na entrega (dinheiro ou cartão na maquininha): pedido já confirmado.
+  if (isOfflinePaymentMethod(data.payment?.payment_method) && data.payment.status !== "CAPTURED") return "cash_pending";
   if (data.payment?.status === "CAPTURED" || data.order.payment_status === "paid") return "approved";
   if (data.payment?.status === "FAILED" || data.order.payment_status === "failed") return "failed";
   if (data.payment?.status === "REFUNDED" || data.order.payment_status === "refunded") return "failed";
@@ -47,18 +48,24 @@ function isTerminalPaymentStatus(status: PaymentViewStatus): boolean {
   return status === "approved" || status === "failed" || status === "cash_pending";
 }
 
+const VIEW: Record<PaymentViewStatus, { icon: typeof CheckCircle2; tone: string; title: string }> = {
+  loading: { icon: Loader2, tone: "bg-secondary text-primary", title: "Atualizando status…" },
+  approved: { icon: CheckCircle2, tone: "bg-success-surface text-success-foreground", title: "Pagamento aprovado!" },
+  cash_pending: { icon: CheckCircle2, tone: "bg-success-surface text-success-foreground", title: "Pedido confirmado!" },
+  created: { icon: CheckCircle2, tone: "bg-success-surface text-success-foreground", title: "Pedido recebido!" },
+  pending: { icon: Clock3, tone: "bg-warning-surface text-warning-foreground", title: "Aguardando pagamento" },
+  failed: { icon: AlertCircle, tone: "bg-danger-surface text-destructive", title: "Pagamento não aprovado" },
+};
+
 function ConfirmationContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
   const paymentStatusParam = searchParams.get("paymentStatus");
   const [statusData, setStatusData] = useState<PaymentStatusResponse | null>(null);
-  const [loading, setLoading] = useState(Boolean(orderId));
   const [error, setError] = useState<string | null>(null);
+  const { order } = useOrderDetail(orderId ?? "");
 
-  const viewStatus = useMemo(
-    () => getViewStatus(statusData, paymentStatusParam),
-    [statusData, paymentStatusParam]
-  );
+  const viewStatus = useMemo(() => getViewStatus(statusData, paymentStatusParam), [statusData, paymentStatusParam]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -74,14 +81,10 @@ function ConfirmationContent() {
         if (!cancelled) {
           setStatusData(body);
           setError(null);
-          if (isTerminalPaymentStatus(getViewStatus(body, paymentStatusParam))) {
-            window.clearInterval(interval);
-          }
+          if (isTerminalPaymentStatus(getViewStatus(body, paymentStatusParam))) window.clearInterval(interval);
         }
       } catch {
         if (!cancelled) setError("Não foi possível atualizar o status do pagamento.");
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
 
@@ -101,89 +104,105 @@ function ConfirmationContent() {
     };
   }, [orderId, paymentStatusParam]);
 
-  const Icon =
-    viewStatus === "failed"
-      ? AlertCircle
-      : viewStatus === "pending"
-        ? Clock3
-        : CheckCircle2;
-  const iconClass =
-    viewStatus === "failed"
-      ? "text-red-600"
-      : viewStatus === "pending"
-        ? "text-[#32466e]"
-        : "text-green-600";
-  const iconBg =
-    viewStatus === "failed"
-      ? "bg-red-100"
-      : viewStatus === "pending"
-        ? "bg-[#d8e2ff]"
-        : "bg-green-100";
-  const title =
-    viewStatus === "approved"
-      ? "Pagamento aprovado!"
-      : viewStatus === "failed"
-        ? "Pagamento não aprovado"
-        : viewStatus === "cash_pending"
-          ? "Pedido confirmado!"
-        : "Aguardando pagamento";
+  const view = VIEW[viewStatus];
+  const Icon = view.icon;
+  const paymentMethod = statusData?.payment?.payment_method;
   const message =
     viewStatus === "approved"
-      ? "Seu pedido foi confirmado e seguirá para a distribuidora."
+      ? "Seu pedido foi confirmado e segue para a distribuidora."
       : viewStatus === "failed"
-        ? "Não recebemos a aprovação do Mercado Pago. Você pode acompanhar o pedido ou tentar novamente pelo suporte."
+        ? "O Mercado Pago não aprovou o pagamento. Você pode acompanhar o pedido ou falar com o suporte."
         : viewStatus === "cash_pending"
-          ? "O pedido foi enviado para a distribuidora. O pagamento em dinheiro será cobrado na entrega."
-        : "Recebemos seu pedido e estamos aguardando a confirmação do Mercado Pago.";
+          ? isCashPaymentMethod(paymentMethod)
+            ? "Enviamos o pedido para a distribuidora. O pagamento em dinheiro é feito na entrega."
+            : "Enviamos o pedido para a distribuidora. O pagamento no cartão é feito na maquininha do entregador."
+          : viewStatus === "loading"
+            ? ""
+            : "Recebemos seu pedido e estamos aguardando a confirmação do Mercado Pago.";
   const canResumePayment = Boolean(orderId && viewStatus === "pending");
   const cashChangeForCents = statusData?.payment?.cash_change_for_cents ?? null;
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-6 px-4 text-center">
-      <div className={`flex h-20 w-20 items-center justify-center rounded-full ${iconBg}`}>
-        <Icon className={`h-10 w-10 ${iconClass}`} />
+    <div className="mx-auto w-full max-w-md px-4 pt-4">
+      <CheckoutProgress current={2} />
+
+      <div className="flex flex-col items-center gap-4 pt-8 text-center">
+        <div className={cn("flex size-20 items-center justify-center rounded-full", view.tone)}>
+          <Icon className={cn("size-10", viewStatus === "loading" && "animate-spin")} aria-hidden />
+        </div>
+        <div className="space-y-1" aria-live="polite">
+          <h1 className="font-heading text-2xl font-bold text-ink">{view.title}</h1>
+          {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+        </div>
       </div>
-      <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white/95 px-6 py-6 shadow-[0_4px_24px_rgba(0,26,64,0.06)] backdrop-blur-sm">
-        <h1 className="text-xl font-bold font-heading text-[#191c1d]">{loading ? "Atualizando status..." : title}</h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        {orderId && (
-          <p className="break-all text-xs text-muted-foreground">Pedido #{orderId}</p>
-        )}
-        {viewStatus === "cash_pending" && statusData?.payment && (
-          <p className="text-xs font-semibold text-[#805300]">
-            {cashChangeForCents == null
-              ? "Pagamento em valor exato."
-              : `Troco para ${formatCurrency(cashChangeForCents)}.`}
-          </p>
-        )}
-        {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {orderId ? (
+        <Card className="flex flex-col mt-6 gap-3 rounded-2xl border-hairline p-4 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pedido</span>
+            <span className="font-semibold text-foreground">#{formatShortOrderId(orderId)}</span>
+          </div>
+          {order ? (
+            <>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Entrega</span>
+                <span className="text-right font-medium text-foreground">
+                  {formatDate(order.delivery_date)} · {formatScheduledTime(order)}
+                </span>
+              </div>
+              {order.distributor_name ? (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Distribuidora</span>
+                  <span className="text-right font-medium text-foreground">{order.distributor_name}</span>
+                </div>
+              ) : null}
+              <Separator />
+              <div className="flex justify-between">
+                <span className="font-semibold text-foreground">Total</span>
+                <span className="font-heading text-lg font-bold text-primary">{formatCurrency(order.total_cents)}</span>
+              </div>
+            </>
+          ) : null}
+          {viewStatus === "cash_pending" && isCashPaymentMethod(paymentMethod) ? (
+            <p className="text-xs font-medium text-warning-foreground">
+              {cashChangeForCents == null ? "Pagamento em valor exato." : `Troco para ${formatCurrency(cashChangeForCents)}.`}
+            </p>
+          ) : null}
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        </Card>
+      ) : null}
+
+      <div className="mt-4 text-center">
+        <Button asChild variant="link">
+          <Link href="/catalog">Continuar comprando</Link>
+        </Button>
       </div>
-      <div className={`grid w-full max-w-sm gap-3 ${canResumePayment ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-        {canResumePayment && (
-          <Link href={`/checkout/payment?orderId=${encodeURIComponent(orderId!)}`}>
-            <Button className="h-11 w-full gap-1.5 rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]">
-              <CreditCard className="h-4 w-4" /> Retomar pagamento
-            </Button>
-          </Link>
-        )}
-        <Link href={orderId ? `/orders/${orderId}` : "/orders"}>
-          <Button variant={canResumePayment ? "outline" : "default"} className={canResumePayment ? "h-11 w-full rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]" : "h-11 w-full rounded-xl bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735] shadow-none hover:opacity-90 active:scale-[0.98]"}>
-            Ver pedido
+
+      <StickyActionBar>
+        {canResumePayment ? (
+          <Button asChild variant="cta" size="xl">
+            <Link href={`/checkout/payment?orderId=${encodeURIComponent(orderId!)}`}>
+              <CreditCard /> Retomar pagamento
+            </Link>
           </Button>
-        </Link>
-        <Link href="/catalog">
-          <Button variant="outline" className="h-11 w-full gap-1.5 rounded-xl border-0 bg-[#e1e3e4] hover:bg-[#d1d3d4]">
-            <ShoppingCart className="h-4 w-4" /> Continuar comprando
-          </Button>
-        </Link>
-      </div>
+        ) : null}
+        <Button asChild variant={canResumePayment ? "outline" : "cta"} size="xl">
+          <Link href={orderId ? `/orders/${orderId}` : "/orders"}>Acompanhar pedido</Link>
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }
 
 export default function CheckoutConfirmationPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center px-4"><p className="text-muted-foreground">Carregando...</p></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Loader2 className="size-8 animate-spin text-primary" aria-label="Carregando" />
+        </div>
+      }
+    >
       <ConfirmationContent />
     </Suspense>
   );

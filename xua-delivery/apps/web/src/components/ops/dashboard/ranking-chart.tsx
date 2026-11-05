@@ -76,7 +76,7 @@ export function RankingChart({ rows }: { rows: DistributorKpiRow[] }) {
             className={cn(
               "rounded-md px-2 py-0.5 text-xs transition-colors",
               metric === key
-                ? "bg-[#00E0FF] font-semibold text-[#001735]"
+                ? "bg-cta font-semibold text-cta-foreground"
                 : "text-muted-foreground hover:bg-muted"
             )}
           >

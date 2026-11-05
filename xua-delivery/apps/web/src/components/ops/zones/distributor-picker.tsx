@@ -34,8 +34,8 @@ export function DistributorPicker({
   return (
     <div className={cn(OPS_CARD, "p-4 space-y-3")}>
       <div className="flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#5697E9]/10">
-          <Building2 className="h-3.5 w-3.5 text-[#5697E9]" />
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky/10">
+          <Building2 className="h-3.5 w-3.5 text-sky" />
         </span>
         <p className="text-sm font-semibold font-heading">Distribuidoras</p>
       </div>
@@ -53,7 +53,7 @@ export function DistributorPicker({
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded-xl bg-[#e1e3e4]" />
+            <div key={i} className="h-9 animate-pulse rounded-xl bg-surface-highest" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -70,8 +70,8 @@ export function DistributorPicker({
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
                 selectedId === ALL_DISTRIBUTORS
-                  ? "bg-[#00E0FF]/15 font-semibold text-[#001735]"
-                  : "hover:bg-[#e1e3e4]/60"
+                  ? "bg-cta/15 font-semibold text-cta-foreground"
+                  : "hover:bg-surface-highest/60"
               )}
             >
               <span className="truncate">Todas as distribuidoras</span>
@@ -89,15 +89,15 @@ export function DistributorPicker({
                   className={cn(
                     "flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
                     isSelected
-                      ? "bg-[#00E0FF]/15 font-semibold text-[#001735]"
-                      : "hover:bg-[#e1e3e4]/60",
+                      ? "bg-cta/15 font-semibold text-cta-foreground"
+                      : "hover:bg-surface-highest/60",
                     !distributor.is_active && "opacity-60"
                   )}
                 >
                   <span className="truncate">{distributor.name}</span>
                   <span className="flex shrink-0 items-center gap-1.5">
                     {!distributor.is_active && (
-                      <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                      <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
                         Inativa
                       </span>
                     )}

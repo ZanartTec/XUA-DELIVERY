@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BOTTLE_CONDITION_VALUES,
+  BOTTLE_SHORTFALL_RESOLUTION_VALUES,
   CHECKOUT_PAYMENT_METHOD_VALUES,
   DELIVERY_WINDOW_INPUT_VALUES,
   NON_COLLECTION_REASON_VALUES,
@@ -299,6 +300,11 @@ export const bottleStepSchema = z.discriminatedUnion("kind", [
     // Vazios devolvidos ao estoque da distribuidora (RETURNABLE_EMPTY in).
     returned_empty_qty: z.number().int().min(0, "Quantidade inválida"),
     bottle_condition: z.enum(BOTTLE_CONDITION_VALUES),
+    // Regra de vasilhame na entrega: como resolver os vazios que faltaram.
+    // "charge" = cobra o vasilhame na porta; "partial" = entrega só o que teve vazio.
+    shortfall_resolution: z.enum(BOTTLE_SHORTFALL_RESOLUTION_VALUES).optional(),
+    // Pedido pago online: como a cobrança extra do vasilhame foi recebida.
+    extra_payment_method: z.enum(["cash", "card_on_delivery"]).optional(),
   }),
   z.object({
     kind: z.literal("not_collected"),

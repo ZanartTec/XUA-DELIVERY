@@ -71,6 +71,13 @@ export type ReceiptSnapshotV1 = {
     empty_provided: number;
     sold: number;
     loaned: number;
+    /**
+     * Regra de vasilhame na entrega (refil). Opcionais: snapshots emitidos antes
+     * da regra não têm os campos. `max_charge_cents` = teto cobrado se faltarem
+     * todos os vazios; `charged_cents` = valor efetivamente cobrado na porta.
+     */
+    max_charge_cents?: number;
+    charged_cents?: number;
   };
 };
 

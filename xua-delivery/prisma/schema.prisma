@@ -207,6 +207,11 @@ enum InventoryMovementType {
   PURCHASE_IN
   DEPOSIT_LOAN_OUT
   DEPOSIT_RETURN_IN
+  // Regra de vasilhame na entrega: vasilhame vendido na porta (faltou o vazio)
+  // e água devolvida na entrega parcial. Tipos próprios porque o mesmo pedido já
+  // tem ORDER_ACCEPT_OUT/ORDER_CANCEL_RETURN no mesmo item (unicidade do ledger).
+  BOTTLE_SALE_OUT
+  PARTIAL_DELIVERY_RETURN
 
   @@map("inventory_movement_type")
 }
@@ -287,6 +292,8 @@ model Address {
   zip_code     String
   zone_id      String?  @db.Uuid
   is_default   Boolean  @default(false)
+  /// Excluído pelo consumidor. Mantido para o histórico de pedidos/assinaturas.
+  archived_at  DateTime?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -432,12 +439,23 @@ model Product {
   // Vasilhame vinculado a uma água (kind=WATER → BOTTLE). Usado p/ adicionar o
   // vasilhame certo automaticamente quando faltam vazios. 1 água → 1 vasilhame.
   bottle_product_id String? @db.Uuid
+  // Regra de vasilhame na entrega (configurada no cadastro do produto):
+  // - requires_empty_return = true (refil): preço só da água; cada unidade exige
+  //   1 vazio na entrega. Faltando vazio, o motorista cobra o vasilhame
+  //   (bottle_product_id) na porta, faz entrega parcial ou cancela.
+  // - base_product_id preenchido (combo "água + vasilhame"): preço já inclui o
+  //   vasilhame; nada a devolver. O estoque consumido é o da água-base + o do
+  //   vasilhame (bottle_product_id).
+  requires_empty_return Boolean @default(false)
+  base_product_id   String?   @db.Uuid
   is_active     Boolean     @default(true)
   created_at    DateTime    @default(now())
   updated_at    DateTime    @updatedAt
 
   bottle_product      Product?           @relation("WaterBottle", fields: [bottle_product_id], references: [id])
   water_products      Product[]          @relation("WaterBottle")
+  base_product        Product?           @relation("ComboBase", fields: [base_product_id], references: [id])
+  combo_products      Product[]          @relation("ComboBase")
   categories          Category[]
   inventory_items     InventoryItem[]
   order_items         OrderItem[]
@@ -621,6 +639,10 @@ model Order {
   empty_bottles_provided     Int            @default(0)
   bottles_sold               Int            @default(0)
   bottles_loaned             Int            @default(0)
+  // Regra de vasilhame na entrega: teto informado ao cliente no checkout
+  // ("até + R$ X sem os vazios") e valor efetivamente cobrado na porta.
+  max_bottle_charge_cents    Int            @default(0)
+  bottle_charge_cents        Int            @default(0)
   qty_20l_sent               Int?
   qty_20l_returned           Int?
   rating                     Int?
@@ -699,6 +721,8 @@ model OrderItem {
   product_name     String
   unit_price_cents Int
   quantity         Int
+  // Entrega parcial: quantidade pedida originalmente (null = entregue integral).
+  original_quantity Int?
   subtotal_cents   Int
   created_at       DateTime @default(now())
 

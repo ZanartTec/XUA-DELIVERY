@@ -11,6 +11,11 @@ export interface ProductItem {
   price_cents: number;
   kind: "WATER" | "BOTTLE" | "OTHER";
   bottle_product_id: string | null;
+  /** Refil: exige 1 vazio por unidade na entrega; sem ele, cobra bottle_product. */
+  requires_empty_return: boolean;
+  /** Combo água + vasilhame (preço já inclui o vasilhame). */
+  base_product_id: string | null;
+  bottle_product: { id: string; name: string; price_cents: number } | null;
   is_active: boolean;
   categories: { id: string; name: string; value: string }[];
 }

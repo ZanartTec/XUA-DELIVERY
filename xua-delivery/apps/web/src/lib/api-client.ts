@@ -7,7 +7,9 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public details?: unknown
+    public details?: unknown,
+    /** Código de erro da API (ex.: "NO_COVERAGE"). */
+    public code?: string
   ) {
     super(message);
     this.name = "ApiError";
@@ -32,7 +34,8 @@ async function request<T>(
     throw new ApiError(
       res.status,
       body.error || `Erro ${res.status}`,
-      body.details
+      body.details,
+      typeof body.code === "string" ? body.code : undefined
     );
   }
 

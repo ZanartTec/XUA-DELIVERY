@@ -74,6 +74,28 @@ describe("kpiService", () => {
     });
   });
 
+  it("ignora aceites sem o recebido correspondente e nunca passa de 100% (D-04)", async () => {
+    mocks.prisma.auditEvent.findMany.mockResolvedValue([
+      // Pedido antigo: só o aceite caiu no período.
+      event(AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR, orderC, "2026-05-27T09:00:00.000Z"),
+      event(AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR, orderA, "2026-05-27T10:00:00.000Z"),
+      event(AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR, orderA, "2026-05-27T10:01:00.000Z"),
+      // Aceite duplicado do mesmo pedido não conta duas vezes.
+      event(AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR, orderA, "2026-05-27T10:02:00.000Z"),
+    ]);
+
+    await expect(kpiService.acceptanceRate(distributorId, startDate, endDate)).resolves.toEqual({
+      rate: 100,
+      accepted: 1,
+      total: 1,
+    });
+    await expect(kpiService.slaAcceptance(distributorId, startDate, endDate, 180)).resolves.toEqual({
+      rate: 100,
+      total: 1,
+      withinSla: 1,
+    });
+  });
+
   it("monta serie diaria com pedidos recebidos, aceitos, entregues e reentregas", async () => {
     mocks.prisma.auditEvent.findMany.mockResolvedValue([
       event(AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR, orderA, "2026-05-27T10:00:00.000Z"),

@@ -1,9 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, CreditCard, Loader2, ShieldCheck, Wallet, X } from "lucide-react";
+import { KeyRound, Loader2, ShieldCheck, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/lib/utils";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { Switch } from "@/src/components/ui/switch";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { FormField } from "@/src/components/shared/form-field";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { PasswordInput } from "@/src/components/shared/password-input";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import type {
   DistributorPaymentSettingsUpdateInput,
   DistributorPaymentSettingsView,
@@ -22,17 +33,19 @@ const METHOD_LABELS: Array<{
   hint: string;
   online: boolean;
 }> = [
-  { key: "accepts_pix_online", label: "Pix (no app)", hint: "Pago no app via Mercado Pago", online: true },
-  { key: "accepts_credit_online", label: "Cartão de crédito (no app)", hint: "Pago no app via Mercado Pago", online: true },
-  { key: "accepts_cash_on_delivery", label: "Dinheiro na entrega", hint: "Pago ao entregador", online: false },
-  { key: "accepts_card_on_delivery", label: "Cartão na entrega", hint: "Crédito/débito na maquininha do entregador", online: false },
+  { key: "accepts_pix_online", label: "Pix", hint: "Aprovação na hora, antes de o pedido chegar a você", online: true },
+  { key: "accepts_credit_online", label: "Cartão de crédito", hint: "Cobrado no app; o pedido chega já pago", online: true },
+  { key: "accepts_cash_on_delivery", label: "Dinheiro", hint: "O motorista recebe na porta (com troco, se pedido)", online: false },
+  { key: "accepts_card_on_delivery", label: "Cartão na maquininha", hint: "Crédito ou débito na maquininha do motorista", online: false },
 ];
 
 export default function DistributorPaymentConfigPage() {
   const [distributorId, setDistributorId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [resolved, setResolved] = useState(false);
+  const [savedMethods, setSavedMethods] = useState("");
+  const [savedPublicKey, setSavedPublicKey] = useState("");
 
   const [methods, setMethods] = useState<Methods>({
     accepts_pix_online: false,
@@ -59,7 +72,8 @@ export default function DistributorPaymentConfigPage() {
       .catch(() => {
         setDistributorId(null);
         setLoading(false);
-      });
+      })
+      .finally(() => setResolved(true));
   }, []);
 
   const loadConfig = useCallback(async () => {
@@ -69,17 +83,20 @@ export default function DistributorPaymentConfigPage() {
       const res = await fetch(`/api/distributor/payment-settings/${distributorId}`);
       if (!res.ok) throw new Error("Erro ao carregar configuração");
       const data: DistributorPaymentSettingsView = await res.json();
-      setMethods({
+      const loaded = {
         accepts_pix_online: data.accepts_pix_online,
         accepts_credit_online: data.accepts_credit_online,
         accepts_cash_on_delivery: data.accepts_cash_on_delivery,
         accepts_card_on_delivery: data.accepts_card_on_delivery,
-      });
+      };
+      setMethods(loaded);
+      setSavedMethods(JSON.stringify(loaded));
+      setSavedPublicKey(data.mp_public_key ?? "");
       setMpConnected(data.mp_connected);
       setMaskedToken(data.mp_access_token_masked);
       setPublicKey(data.mp_public_key ?? "");
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Erro ao carregar" });
+      toast.error(err instanceof Error ? err.message : "Erro ao carregar");
     } finally {
       setLoading(false);
     }
@@ -99,7 +116,6 @@ export default function DistributorPaymentConfigPage() {
 
   async function save() {
     if (!distributorId) return;
-    setMessage(null);
     setSaving(true);
     try {
       const body: DistributorPaymentSettingsUpdateInput = {
@@ -121,166 +137,126 @@ export default function DistributorPaymentConfigPage() {
       setAccessToken("");
       setWebhookSecret("");
       await loadConfig();
-      setMessage({ type: "success", text: "Configuração de pagamento salva" });
+      toast.success("Formas de pagamento salvas");
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Erro ao salvar" });
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!distributorId) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh] text-sm text-[#737688]">
-        {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          "Usuário não vinculado a nenhuma distribuidora"
-        )}
-      </div>
-    );
+  const noneSelected = !Object.values(methods).some(Boolean);
+  const dirty = JSON.stringify(methods) !== savedMethods || Boolean(accessToken.trim() || webhookSecret.trim()) || publicKey !== savedPublicKey;
+
+  if (resolved && !distributorId) {
+    return <EmptyState icon={Wallet} title="Usuário não vinculado a nenhuma distribuidora" />;
   }
 
+  const methodRow = (item: (typeof METHOD_LABELS)[number]) => (
+      <li key={item.key} className="flex min-h-16 items-center gap-3 px-4 py-3">
+        <Label htmlFor={`m-${item.key}`} className="flex-1 cursor-pointer flex-col items-start gap-0.5">
+          <span className="text-sm font-semibold text-foreground">{item.label}</span>
+          <span className="text-xs font-normal text-muted-foreground">{item.hint}</span>
+        </Label>
+        <Switch id={`m-${item.key}`} checked={methods[item.key]} onCheckedChange={() => toggle(item.key)} />
+      </li>
+  );
+
   return (
-    <div className="px-4 py-5 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-          <Wallet className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-[#191c1d] font-heading">Pagamento</h1>
-          <p className="text-xs text-[#737688]">
-            Escolha os métodos aceitos e conecte sua conta do Mercado Pago
-          </p>
-        </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Pagamento" description="Como seus clientes podem pagar." />
+
+      <div className="space-y-5 px-4 pb-4">
+        {loading ? (
+          <Skeleton className="h-64 rounded-2xl" />
+        ) : (
+          <>
+            <section aria-labelledby="sec-entrega" className="space-y-2">
+              <h2 id="sec-entrega" className="text-sm font-semibold text-foreground">
+                Na entrega
+              </h2>
+              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                {METHOD_LABELS.filter((m) => !m.online).map(methodRow)}
+              </ul>
+            </section>
+
+            <section aria-labelledby="sec-app" className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h2 id="sec-app" className="text-sm font-semibold text-foreground">
+                  No app · Mercado Pago
+                </h2>
+                <StatusBadge label={mpConnected ? "Conectado" : "Não conectado"} tone={mpConnected ? "success" : "neutral"} />
+              </div>
+              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                {METHOD_LABELS.filter((m) => m.online).map(methodRow)}
+              </ul>
+              {!wantsOnline && !mpConnected ? (
+                <p className="text-xs text-muted-foreground">Ative Pix ou cartão no app para conectar sua conta do Mercado Pago.</p>
+              ) : null}
+            </section>
+
+            {wantsOnline ? (
+              <section aria-labelledby="sec-mp" className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+                <h2 id="sec-mp" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <KeyRound className="size-4 text-primary" aria-hidden /> Credenciais do Mercado Pago
+                </h2>
+                {mpConnected ? (
+                  <p className="flex items-start gap-2 rounded-xl bg-success-surface p-3 text-xs text-success-foreground">
+                    <ShieldCheck className="size-4 shrink-0" aria-hidden />
+                    Conta conectada{maskedToken ? ` (token ${maskedToken})` : ""}. Deixe os campos em branco para manter.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Encontre no painel do Mercado Pago, em Suas integrações › Credenciais de produção. Guardamos criptografado e não exibimos de novo.
+                  </p>
+                )}
+                <FormField label="Access token" error={missingGateway && !accessToken.trim() ? "Obrigatório para ativar" : null}>
+                  {(field) => (
+                    <PasswordInput
+                      {...field}
+                      autoComplete="off"
+                      value={accessToken}
+                      onChange={(e) => setAccessToken(e.target.value)}
+                      placeholder={mpConnected ? "Manter o atual" : "APP_USR-..."}
+                      className="h-11"
+                    />
+                  )}
+                </FormField>
+                <FormField label="Webhook secret" error={missingGateway && !webhookSecret.trim() ? "Obrigatório para ativar" : null}>
+                  {(field) => (
+                    <PasswordInput
+                      {...field}
+                      autoComplete="off"
+                      value={webhookSecret}
+                      onChange={(e) => setWebhookSecret(e.target.value)}
+                      placeholder={mpConnected ? "Manter o atual" : "Assinatura secreta do webhook"}
+                      className="h-11"
+                    />
+                  )}
+                </FormField>
+                <FormField label="Public key" optional>
+                  {(field) => (
+                    <Input {...field} autoComplete="off" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." className="h-11" />
+                  )}
+                </FormField>
+              </section>
+            ) : null}
+
+            {noneSelected ? (
+              <Alert variant="destructive">
+                <AlertDescription>Ative pelo menos uma forma de pagamento, senão ninguém consegue pedir.</AlertDescription>
+              </Alert>
+            ) : null}
+          </>
+        )}
       </div>
 
-      {message && (
-        <div
-          className={cn(
-            "rounded-xl px-3 py-2 text-sm flex items-center gap-2",
-            message.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700",
-          )}
-        >
-          {message.type === "success" ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
-
-      {/* Métodos aceitos */}
-      <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-[#191c1d]">Métodos aceitos</h2>
-        {loading ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-[#737688]" />
-          </div>
-        ) : (
-          METHOD_LABELS.map(({ key, label, hint, online }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => toggle(key)}
-              className={cn(
-                "flex w-full items-center justify-between rounded-xl border p-3 text-left transition-colors",
-                methods[key] ? "border-primary bg-primary/5" : "border-[#e1e3e4] bg-white",
-              )}
-            >
-              <div>
-                <p className="font-semibold text-[#191c1d] text-sm">
-                  {label}
-                  {online && (
-                    <span className="ml-2 rounded-full bg-[#d8e2ff] px-2 py-0.5 text-[10px] font-medium text-[#32466e]">
-                      Mercado Pago
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-[#737688]">{hint}</p>
-              </div>
-              <span
-                className={cn(
-                  "flex h-6 w-6 items-center justify-center rounded-full border",
-                  methods[key] ? "border-primary bg-primary text-white" : "border-[#c4c7c8]",
-                )}
-              >
-                {methods[key] && <Check className="h-3.5 w-3.5" />}
-              </span>
-            </button>
-          ))
-        )}
-      </section>
-
-      {/* Credenciais do gateway (só quando aceita método online) */}
-      {wantsOnline && (
-        <section className="rounded-2xl border border-[#e1e3e4] bg-white p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-[#191c1d]">Credenciais do Mercado Pago</h2>
-          </div>
-
-          {mpConnected ? (
-            <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
-              <ShieldCheck className="h-4 w-4" />
-              Gateway conectado{maskedToken ? ` (token ${maskedToken})` : ""}. Deixe os campos em
-              branco para manter.
-            </div>
-          ) : (
-            <p className="text-xs text-[#737688]">
-              Para aceitar Pix ou cartão no app, informe as credenciais da sua conta do Mercado
-              Pago. Elas são guardadas de forma criptografada e nunca exibidas novamente.
-            </p>
-          )}
-
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Access token</span>
-            <input
-              type="password"
-              autoComplete="off"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              placeholder={mpConnected ? "•••• (manter atual)" : "APP_USR-..."}
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Webhook secret</span>
-            <input
-              type="password"
-              autoComplete="off"
-              value={webhookSecret}
-              onChange={(e) => setWebhookSecret(e.target.value)}
-              placeholder={mpConnected ? "•••• (manter atual)" : "Assinatura secreta do webhook"}
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#434656]">Public key (opcional)</span>
-            <input
-              type="text"
-              autoComplete="off"
-              value={publicKey}
-              onChange={(e) => setPublicKey(e.target.value)}
-              placeholder="APP_USR-public-..."
-              className="w-full rounded-lg border border-[#e1e3e4] px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </label>
-
-          {missingGateway && (
-            <p className="text-xs text-red-600">
-              Informe access token e webhook secret para habilitar os métodos do Mercado Pago.
-            </p>
-          )}
-        </section>
-      )}
-
-      <Button
-        onClick={save}
-        disabled={saving || loading || missingGateway}
-        className="w-full bg-[#00E0FF] hover:bg-[#00E0FF]/90 text-[#001735]"
-      >
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar configuração"}
-      </Button>
+      <StickyActionBar>
+        <Button variant="cta" size="xl" disabled={!dirty || saving || loading || missingGateway || noneSelected} onClick={save}>
+          {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {dirty ? "Salvar alterações" : "Tudo salvo"}
+        </Button>
+      </StickyActionBar>
     </div>
   );
 }

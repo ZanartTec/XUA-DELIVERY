@@ -9,7 +9,6 @@ import {
   PaymentStatus,
   SourceApp,
 } from "@xua/shared/enums";
-import { CASH_PAYMENT_METHOD } from "@xua/shared/mappers/payment";
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { orderRepository } from "../repository/orders.repository.js";
@@ -26,6 +25,7 @@ import {
 import {
   CASH_PAYMENT_CAPTURABLE_STATUSES,
   CASH_PAYMENT_INVALID_CAPTURE_STATUSES,
+  CASH_PAYMENT_PROVIDER,
   PAYMENT_PAID_STATUS,
 } from "./payment-constants.js";
 import { subscriptionSettlementService } from "../../user-subscriptions/services/subscription-settlement.service.js";
@@ -99,27 +99,31 @@ export const deliverOrderService = {
         );
       }
 
-      const cashPayment = await tx.payment.findFirst({
+      // Pagamentos "na porta" (dinheiro ou cartão na maquininha), incluindo a
+      // cobrança avulsa de vasilhame em pedido pago online. Todos são
+      // recebidos pelo motorista e capturados aqui.
+      const offlinePayments = await tx.payment.findMany({
         where: {
           order_id: orderId,
           kind: PaymentKind.ORDER,
-          payment_method: CASH_PAYMENT_METHOD,
+          provider: CASH_PAYMENT_PROVIDER,
         },
-        orderBy: { created_at: "desc" },
+        orderBy: { created_at: "asc" },
       });
 
-      if (cashPayment && CASH_PAYMENT_INVALID_CAPTURE_STATUSES.has(cashPayment.status)) {
+      if (offlinePayments.some((p) => CASH_PAYMENT_INVALID_CAPTURE_STATUSES.has(p.status))) {
         throw new OrderServiceError(
           "CASH_PAYMENT_INVALID",
-          "Pagamento em dinheiro não está disponível para captura"
+          "Pagamento na entrega não está disponível para captura"
         );
       }
 
       const deliveredAt = new Date();
+      const capturable = offlinePayments.filter((p) => CASH_PAYMENT_CAPTURABLE_STATUSES.has(p.status));
 
-      if (cashPayment && CASH_PAYMENT_CAPTURABLE_STATUSES.has(cashPayment.status)) {
+      for (const payment of capturable) {
         await tx.payment.update({
-          where: { id: cashPayment.id },
+          where: { id: payment.id },
           data: { status: PaymentStatus.CAPTURED, paid_at: deliveredAt },
         });
 
@@ -130,9 +134,9 @@ export const deliverOrderService = {
             orderId,
             sourceApp: actor.sourceApp,
             payload: {
-              payment_id: cashPayment.id,
-              payment_method: CASH_PAYMENT_METHOD,
-              amount_cents: cashPayment.amount_cents,
+              payment_id: payment.id,
+              payment_method: payment.payment_method,
+              amount_cents: payment.amount_cents,
             },
           },
           tx
@@ -144,7 +148,7 @@ export const deliverOrderService = {
         OrderStatus.DELIVERED,
         {
           delivered_at: deliveredAt,
-          ...(cashPayment ? { payment_status: PAYMENT_PAID_STATUS } : {}),
+          ...(offlinePayments.length > 0 ? { payment_status: PAYMENT_PAID_STATUS } : {}),
         },
         tx
       );

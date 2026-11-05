@@ -8,8 +8,17 @@ type KpiEvent = {
   occurred_at: Date;
 };
 
+// Dia de calendário da operação (America/Sao_Paulo): em UTC, um pedido das
+// 21h caía no dia seguinte do gráfico.
+const OPERATION_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 function dayKey(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return OPERATION_DAY.format(date);
 }
 
 function eventKey(day: string, orderId: string): string {
@@ -44,62 +53,67 @@ async function findDistributorAuditEvents(
   });
 }
 
+/** Primeiro "recebido" e primeiro "aceito" de cada pedido (eventos já vêm em ordem). */
+function firstEventsByOrder(events: KpiEvent[]) {
+  const receivedAt = new Map<string, Date>();
+  const acceptedAt = new Map<string, Date>();
+  for (const event of events) {
+    if (!event.order_id) continue;
+    if (event.event_type === AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR && !receivedAt.has(event.order_id)) {
+      receivedAt.set(event.order_id, event.occurred_at);
+    }
+    if (event.event_type === AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR && !acceptedAt.has(event.order_id)) {
+      acceptedAt.set(event.order_id, event.occurred_at);
+    }
+  }
+  return { receivedAt, acceptedAt };
+}
+
 /**
  * KpiService — Cálculos EXCLUSIVAMENTE via audit_events (seção 1 — KPIs Operacionais).
  * Usa a relação Prisma com Order apenas para escopo da distribuidora.
  */
 export const kpiService = {
   /**
-   * SLA de aceitação: aceites dentro do prazo / total recebidos.
-   * Meta ≥ 98%.
+   * SLA de aceitação: pedidos recebidos no período cujo primeiro aceite saiu
+   * dentro do prazo / pedidos recebidos no período. Meta ≥ 98%.
+   *
+   * Conta pedidos distintos (não eventos): um aceite sem o "recebido"
+   * correspondente — pedido antigo ou recebido fora do período — não entra
+   * no numerador nem no denominador.
    */
   async slaAcceptance(
     distributorId: string,
     startDate: Date,
     endDate: Date,
-    slaSeconds: number = DEFAULT_ACCEPTANCE_SLA_SECONDS
+    slaSeconds?: number
   ): Promise<{ rate: number; total: number; withinSla: number }> {
+    // Mesmo prazo que a fila mostra para a distribuidora (acceptance_sla_seconds).
+    const sla =
+      slaSeconds ??
+      (await getPrisma().distributor.findUnique({ where: { id: distributorId }, select: { acceptance_sla_seconds: true } }))
+        ?.acceptance_sla_seconds ??
+      DEFAULT_ACCEPTANCE_SLA_SECONDS;
     const events = await findDistributorAuditEvents(distributorId, startDate, endDate, [
       AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR,
       AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR,
     ]);
-    const acceptedByOrder = new Map<string, KpiEvent[]>();
+    const { receivedAt, acceptedAt } = firstEventsByOrder(events);
 
-    for (const event of events) {
-      if (!event.order_id || event.event_type !== AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR) {
-        continue;
-      }
-      addEventToMap(acceptedByOrder, event.order_id, event);
-    }
-
-    let total = 0;
     let withinSla = 0;
-    for (const event of events) {
-      if (!event.order_id || event.event_type !== AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR) {
-        continue;
-      }
-
-      const acceptedEvents = acceptedByOrder.get(event.order_id) ?? [];
-      total += Math.max(acceptedEvents.length, 1);
-      for (const acceptedEvent of acceptedEvents) {
-        const elapsedSeconds =
-          (acceptedEvent.occurred_at.getTime() - event.occurred_at.getTime()) / 1000;
-        if (elapsedSeconds <= slaSeconds) {
-          withinSla += 1;
-        }
-      }
+    for (const [orderId, received] of receivedAt) {
+      const accepted = acceptedAt.get(orderId);
+      if (accepted && (accepted.getTime() - received.getTime()) / 1000 <= sla) withinSla += 1;
     }
+    const total = receivedAt.size;
 
-    return {
-      rate: total > 0 ? (withinSla / total) * 100 : 0,
-      total,
-      withinSla,
-    };
+    return { rate: total > 0 ? (withinSla / total) * 100 : 0, total, withinSla };
   },
 
   /**
-   * Taxa de aceitação: aceitos / total recebidos.
-   * Meta ≥ 95%.
+   * Taxa de aceitação: pedidos recebidos no período que foram aceitos /
+   * pedidos recebidos no período. Meta ≥ 95%. Nunca passa de 100% (D-04: antes
+   * contava eventos de aceite soltos e chegava a 200%).
    */
   async acceptanceRate(
     distributorId: string,
@@ -110,18 +124,12 @@ export const kpiService = {
       AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR,
       AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR,
     ]);
-    const total = events.filter(
-      (event) => event.event_type === AuditEventType.ORDER_RECEIVED_BY_DISTRIBUTOR
-    ).length;
-    const accepted = events.filter(
-      (event) => event.event_type === AuditEventType.ORDER_ACCEPTED_BY_DISTRIBUTOR
-    ).length;
+    const { receivedAt, acceptedAt } = firstEventsByOrder(events);
+    const total = receivedAt.size;
+    let accepted = 0;
+    for (const orderId of receivedAt.keys()) if (acceptedAt.has(orderId)) accepted += 1;
 
-    return {
-      rate: total > 0 ? (accepted / total) * 100 : 0,
-      accepted,
-      total,
-    };
+    return { rate: total > 0 ? (accepted / total) * 100 : 0, accepted, total };
   },
 
   /**

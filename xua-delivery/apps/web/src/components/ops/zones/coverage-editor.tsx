@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { AlertTriangle, ListPlus, Plus, Search, X } from "lucide-react";
+import { ConfirmAction } from "@/src/components/shared/confirm-action";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -53,6 +54,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
   const addBulk = useAddCoverageBulk();
   const previewCoverage = usePreviewCoverage();
   const removeCoverage = useRemoveCoverage();
+  const [removing, setRemoving] = useState<{ id: string; label: string } | null>(null);
 
   const parsedLines = useMemo(() => parseCoverageList(bulkText), [bulkText]);
   const invalidLines = parsedLines.filter((line) => line.error);
@@ -130,6 +132,18 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
 
   return (
     <div className="space-y-2">
+      <ConfirmAction
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={`Remover ${removing?.label ?? ""}?`}
+        description={`${zone.name} deixa de atender esse endereço. Pedidos novos dali podem ficar sem distribuidora.`}
+        confirmLabel="Remover"
+        destructive
+        onConfirm={async () => {
+          if (removing) await handleRemove(removing.id);
+          setRemoving(null);
+        }}
+      />
       {zone._count.coverage > 0 && (
         <div className="space-y-2">
           <div className="relative max-w-xs">
@@ -148,7 +162,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
           {isLoadingCoverage ? (
             <div className="flex flex-wrap gap-1.5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-5 w-24 animate-pulse rounded-lg bg-[#e1e3e4]" />
+                <div key={i} className="h-5 w-24 animate-pulse rounded-lg bg-surface-highest" />
               ))}
             </div>
           ) : coverage.length === 0 ? (
@@ -160,17 +174,17 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
               {coverage.map((item) => (
                 <span
                   key={item.id}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[#e1e3e4]/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg bg-surface-highest/60 px-2 py-0.5 text-[11px] text-muted-foreground"
                 >
                   {coverageLabel(item)}
                   <button
                     type="button"
                     disabled={removeCoverage.isPending}
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => setRemoving({ id: item.id, label: coverageLabel(item) })}
                     aria-label={`Remover cobertura ${coverageLabel(item)}`}
-                    className="text-muted-foreground/60 hover:text-red-600 disabled:opacity-50"
+                    className="-my-1 -mr-1.5 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-danger-surface hover:text-destructive disabled:opacity-50"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="size-3.5" />
                   </button>
                 </span>
               ))}
@@ -208,7 +222,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
       )}
 
       {mode === "single" && (
-        <div className="space-y-2 border-t border-[#e4e8f1] pt-2">
+        <div className="space-y-2 border-t border-hairline pt-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
               autoFocus
@@ -238,7 +252,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
             >
               {addCoverage.isPending ? "Salvando..." : "Adicionar"}
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 rounded-xl text-xs" onClick={resetForms}>
+            <Button size="sm" variant="ghost" className="h-9 rounded-xl text-xs" onClick={resetForms}>
               Cancelar
             </Button>
           </div>
@@ -246,7 +260,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
       )}
 
       {mode === "bulk" && (
-        <div className="space-y-2 border-t border-[#e4e8f1] pt-2">
+        <div className="space-y-2 border-t border-hairline pt-2">
           <label htmlFor={`bulk-${zone.id}`} className={OPS_FIELD_LABEL}>
             Uma cobertura por linha
           </label>
@@ -304,7 +318,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
                   : `Importar ${preview.accepted_count} linha(s)`}
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="h-7 rounded-xl text-xs" onClick={resetForms}>
+            <Button size="sm" variant="ghost" className="h-9 rounded-xl text-xs" onClick={resetForms}>
               Cancelar
             </Button>
           </div>
@@ -317,7 +331,7 @@ export function CoverageEditor({ zone }: { zone: OpsZone }) {
 /** Resultado da análise: o que entra, o que é bloqueado e o que só avisa. */
 function PreviewSummary({ preview }: { preview: CoveragePreview }) {
   return (
-    <div className="space-y-2 rounded-xl bg-[#e1e3e4]/40 p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-xl bg-surface-highest/40 p-2.5 text-[11px]">
       <p className="font-semibold text-foreground">
         {preview.accepted_count} de {preview.total} serão importadas
         {preview.duplicates_in_payload > 0 &&

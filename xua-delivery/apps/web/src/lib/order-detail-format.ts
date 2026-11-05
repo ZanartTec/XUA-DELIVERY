@@ -232,15 +232,30 @@ export function getDeliveryUrgency(order: DeliveryUrgencyInput, now: Date = new 
 
 export function getOperationalMessage(status: string) {
   switch (status) {
-    case OrderStatus.REJECTED_BY_DISTRIBUTOR:
-      return "Pedido recusado. O consumidor já deve receber a atualização deste status.";
-    case OrderStatus.OUT_FOR_DELIVERY:
-      return "Pedido já despachado. Agora o acompanhamento principal acontece na fila de entregas do motorista.";
-    case OrderStatus.DELIVERED:
-      return "Pedido concluído com sucesso. Esta tela permanece apenas para consulta operacional.";
+    case OrderStatus.SENT_TO_DISTRIBUTOR:
+      return "Pedido novo: aceite ou recuse dentro do prazo de resposta.";
+    case OrderStatus.ACCEPTED_BY_DISTRIBUTOR:
+    case OrderStatus.PICKING:
+      return "Aceito. Separe os itens, confira e despache com um motorista.";
     case OrderStatus.READY_FOR_DISPATCH:
-      return "Checklist concluído e pedido pronto para despacho.";
+      return "Conferido e pronto para sair: falta despachar com um motorista.";
+    case OrderStatus.OUT_FOR_DELIVERY:
+      return "Com o motorista. A entrega conclui quando ele digita o código do cliente.";
+    case OrderStatus.DELIVERED:
+      return "Entregue. Esta tela fica para consulta.";
+    case OrderStatus.DELIVERY_FAILED:
+      return "A entrega não aconteceu. Fale com o cliente e reagende.";
+    case OrderStatus.REDELIVERY_SCHEDULED:
+      return "Reentrega agendada: o pedido volta para a distribuidora na nova data.";
+    case OrderStatus.REJECTED_BY_DISTRIBUTOR:
+      return "Recusado pela distribuidora. O cliente já foi avisado.";
+    case OrderStatus.CANCELLED:
+      return "Cancelado. Esta tela fica para consulta.";
+    case OrderStatus.PAYMENT_PENDING:
+    case OrderStatus.CREATED:
+      return "Aguardando o pagamento do cliente pelo Mercado Pago.";
     default:
-      return "Revise os dados do pedido e avance somente quando a etapa operacional estiver concluída.";
+      return "Acompanhe o andamento pelo histórico.";
   }
 }
+

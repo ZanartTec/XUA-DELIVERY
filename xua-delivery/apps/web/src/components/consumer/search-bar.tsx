@@ -1,6 +1,8 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
+import { Input } from "@/src/components/ui/input";
+import { Button } from "@/src/components/ui/button";
 
 interface SearchBarProps {
   value: string;
@@ -9,17 +11,29 @@ interface SearchBarProps {
 
 export function SearchBar({ value, onChange }: SearchBarProps) {
   return (
-    <div className="px-4">
-      <div className="flex items-center gap-3 rounded-2xl bg-[#f3f4f5] px-4 py-3">
-        <Search className="h-5 w-5 shrink-0 text-[#737688]" />
-        <input
-          type="text"
-          placeholder="O que você precisa hoje?"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-transparent text-sm text-[#191c1d] placeholder:text-[#737688] outline-none"
-        />
-      </div>
+    <div className="relative">
+      <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+      <Input
+        type="search"
+        inputMode="search"
+        placeholder="Buscar água, galão, vasilhame…"
+        aria-label="Buscar produtos"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-11 rounded-xl border-0 bg-muted pr-10 pl-11 text-base md:text-sm [&::-webkit-search-cancel-button]:hidden"
+      />
+      {value ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="absolute top-1/2 right-2 -translate-y-1/2"
+          aria-label="Limpar busca"
+          onClick={() => onChange("")}
+        >
+          <X />
+        </Button>
+      ) : null}
     </div>
   );
 }

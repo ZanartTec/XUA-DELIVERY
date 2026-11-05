@@ -6,9 +6,13 @@ import { cn } from "@/src/lib/utils";
 interface SlaCountdownProps {
   deadlineIso: string;
   className?: string;
+  /** Texto antes do tempo restante (ex.: "Responder em"). */
+  prefix?: string;
+  /** Texto quando o prazo acaba. */
+  expiredLabel?: string;
 }
 
-export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
+export function SlaCountdown({ deadlineIso, className, prefix, expiredLabel = "Prazo vencido" }: SlaCountdownProps) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -25,12 +29,12 @@ export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
   const expired = remaining <= 0;
 
   const colorClass = expired
-    ? "text-red-600"
+    ? "text-destructive"
     : totalSeconds < 60
-      ? "text-red-500 animate-pulse"
+      ? "text-destructive animate-pulse"
       : totalSeconds < 180
-        ? "text-yellow-600"
-        : "text-green-600";
+        ? "text-warning-foreground"
+        : "text-success-foreground";
 
   return (
     <span
@@ -41,8 +45,8 @@ export function SlaCountdown({ deadlineIso, className }: SlaCountdownProps) {
       )}
     >
       {expired
-        ? "Expirado"
-        : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
+        ? expiredLabel
+        : `${prefix ? `${prefix} ` : ""}${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
     </span>
   );
 }

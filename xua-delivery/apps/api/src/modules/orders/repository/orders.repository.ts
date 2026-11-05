@@ -93,13 +93,16 @@ export type OrderWithItems = Order & {
 export type OrderWithDetails = Order & {
   consumer: Pick<Consumer, "name" | "email" | "phone">;
   address: Pick<Address, "street" | "number" | "complement" | "neighborhood" | "city" | "state" | "zip_code">;
-  distributor: Pick<Distributor, "name" | "phone" | "email">;
+  distributor: Pick<Distributor, "name" | "phone" | "email" | "acceptance_sla_seconds">;
   zone: Pick<Zone, "name">;
   time_slot: Pick<TimeSlot, "label" | "start_hour" | "start_minute" | "end_hour" | "end_minute"> | null;
   driver: Pick<Consumer, "name" | "phone"> | null;
   sales_receipt: { number: number; issued_at: Date; print_count: number } | null;
   items: {
+    product_id: string;
     quantity: number;
+    /** Entrega parcial: quantidade pedida originalmente (null = integral). */
+    original_quantity: number | null;
     unit_price_cents: number;
     subtotal_cents: number;
     product_name: string;
@@ -247,6 +250,8 @@ function buildDistributorQueueWhere(
  * OrderRepository — CRUD e queries de pedidos.
  * Todas as funções aceitam um TxClient opcional para operações transacionais.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const orderRepository = {
   async findById(id: string, tx?: TxClient): Promise<Order | null> {
     const prisma = getPrisma();
@@ -499,7 +504,7 @@ export const orderRepository = {
           select: { name: true, email: true, phone: true },
         },
         distributor: {
-          select: { name: true, phone: true, email: true },
+          select: { name: true, phone: true, email: true, acceptance_sla_seconds: true },
         },
         zone: {
           select: { name: true },
@@ -526,7 +531,9 @@ export const orderRepository = {
         },
         items: {
           select: {
+            product_id: true,
             quantity: true,
+            original_quantity: true,
             unit_price_cents: true,
             subtotal_cents: true,
             product_name: true,
@@ -609,13 +616,41 @@ export const orderRepository = {
     const conditions: Prisma.OrderWhereInput[] = [];
 
     if (filters.q) {
-      const digitsOnly = filters.q.replace(/\D/g, "");
+      const q = filters.q.trim();
+      const digitsOnly = q.replace(/\D/g, "");
+      const db = tx ?? prisma;
+
+      // `id` é UUID no Postgres: comparar com texto que não é UUID derrubava a
+      // busca inteira com 500 (S-01). UUID completo vai direto; prefixo curto
+      // (o "#D78FB484" que as telas mostram) e telefone sem máscara são
+      // resolvidos em SQL, já que o Prisma não filtra UUID por prefixo nem
+      // telefone ignorando a pontuação.
+      const extraIds: string[] = [];
+      if (/^[0-9a-f]{4,8}$/i.test(q.replace(/^#/, ""))) {
+        const prefix = `${q.replace(/^#/, "").toLowerCase()}%`;
+        const rows = await db.$queryRaw<Array<{ id: string }>>`
+          SELECT id::text AS id FROM "09_trn_orders" WHERE id::text LIKE ${prefix} ORDER BY created_at DESC LIMIT 50`;
+        extraIds.push(...rows.map((r) => r.id));
+      }
+      if (digitsOnly.length >= 8) {
+        const pattern = `%${digitsOnly}%`;
+        const rows = await db.$queryRaw<Array<{ id: string }>>`
+          SELECT o.id::text AS id
+          FROM "09_trn_orders" o
+          JOIN "01_mst_consumers" c ON c.id = o.consumer_id
+          WHERE regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g') LIKE ${pattern}
+          ORDER BY o.created_at DESC
+          LIMIT 50`;
+        extraIds.push(...rows.map((r) => r.id));
+      }
+
       conditions.push({
         OR: [
-          { consumer: { phone: { contains: filters.q } } },
-          { consumer: { email: { contains: filters.q, mode: "insensitive" } } },
-          { consumer: { name: { contains: filters.q, mode: "insensitive" } } },
-          { id: filters.q },
+          { consumer: { phone: { contains: q } } },
+          { consumer: { email: { contains: q, mode: "insensitive" } } },
+          { consumer: { name: { contains: q, mode: "insensitive" } } },
+          ...(UUID_RE.test(q) ? [{ id: q } as Prisma.OrderWhereInput] : []),
+          ...(extraIds.length ? [{ id: { in: extraIds } } as Prisma.OrderWhereInput] : []),
           // CPF/CNPJ é normalizado (somente dígitos) — só entra na busca se
           // sobrar dígito suficiente pra não virar um "contains" vazio/curto demais.
           ...(digitsOnly.length >= 3 ? [{ consumer: { document: { contains: digitsOnly } } } as Prisma.OrderWhereInput] : []),
@@ -626,7 +661,7 @@ export const orderRepository = {
     if (filters.phone) conditions.push({ consumer: { phone: { contains: filters.phone } } });
     if (filters.email) conditions.push({ consumer: { email: { contains: filters.email, mode: "insensitive" } } });
     if (filters.document) conditions.push({ consumer: { document: { contains: filters.document } } });
-    if (filters.id) conditions.push({ id: filters.id });
+    if (filters.id) conditions.push(UUID_RE.test(filters.id) ? { id: filters.id } : { id: { in: [] } });
     if (filters.date) conditions.push({ delivery_date: filters.date });
     if (filters.status) conditions.push({ status: filters.status });
 

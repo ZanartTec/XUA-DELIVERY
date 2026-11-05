@@ -15,6 +15,10 @@ const allowedDevOrigins = getAllowedDevOrigins();
 
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins ? { allowedDevOrigins } : {}),
+  // Versão exibida no app (perfil/ajuda) vem do package.json, não de texto fixo.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "",
+  },
   // Reduz drasticamente o número de módulos processados pelo Turbopack em dev
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "date-fns", "@radix-ui/react-icons"],

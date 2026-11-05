@@ -39,16 +39,16 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
   if (!receipt && !ISSUABLE_STATUSES.has(order.status)) return null;
 
   return (
-    <section className="rounded-lg border border-[#dfe5ef] bg-white p-3.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748b]">
+    <section className="rounded-2xl border border-hairline bg-card p-4">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <FileText className="h-3.5 w-3.5" />
         Comprovante de venda
       </p>
 
       {receipt ? (
         <>
-          <p className="mt-1.5 text-sm font-semibold text-[#0d1b2f]">Nº {formatReceiptNumber(receipt.number)}</p>
-          <p className="text-xs text-[#64748b]">
+          <p className="mt-1.5 text-sm font-semibold text-ink">Nº {formatReceiptNumber(receipt.number)}</p>
+          <p className="text-xs text-muted-foreground">
             Emitido em {formatDate(receipt.issued_at)}
             {receipt.print_count > 0 ? ` • impresso ${receipt.print_count}x (próximas saem como 2ª via)` : ""}
           </p>
@@ -56,18 +56,18 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
         </>
       ) : (
         <>
-          <p className="mt-1.5 text-sm text-[#4b5565]">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             O comprovante é gerado automaticamente no despacho. Gere agora se quiser imprimir antes.
           </p>
           {issueMutation.error ? (
-            <p className="mt-2 text-xs text-red-700">
+            <p className="mt-2 text-xs text-destructive">
               {issueMutation.error instanceof ApiError ? issueMutation.error.message : "Erro ao gerar comprovante"}
             </p>
           ) : null}
           <Button
             type="button"
             variant="outline"
-            className="mt-3 h-9 w-full rounded-md"
+            size="lg" className="mt-3 w-full"
             disabled={issueMutation.isPending}
             onClick={() => issueMutation.mutate()}
           >
@@ -77,7 +77,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
         </>
       )}
 
-      <p className="mt-2 text-[10px] text-[#94a3b8]">Documento sem valor fiscal.</p>
+      <p className="mt-2 text-[10px] text-muted-foreground">Documento sem valor fiscal.</p>
     </section>
   );
 }

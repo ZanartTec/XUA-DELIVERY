@@ -15,4 +15,6 @@ export const ALIASES = {
   "@api": path.resolve(root, "apps/api/src"),
   "@xua/shared": path.resolve(root, "packages/shared/src"),
   "@tests": path.resolve(root, "tests"),
+  // Utilitários puros do web (apps/web/src/lib), sem React.
+  "@/src": path.resolve(root, "apps/web/src"),
 } as const;

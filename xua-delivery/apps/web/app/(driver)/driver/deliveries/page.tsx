@@ -1,13 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Banknote, CheckCircle2, CreditCard, MapPin, MessageSquareText, Navigation, PackageOpen, Phone, Recycle, Truck } from "lucide-react";
 import { useSocket } from "@/src/hooks/use-socket";
-import { StatusPill } from "@/src/components/shared/status-pill";
-import { formatCurrency } from "@/src/lib/utils";
-import { MapPin, ChevronRight, PackageOpen, Phone, Droplets, Truck, CheckCircle2, Banknote } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { PageHeader } from "@/src/components/shared/page-header";
+import { EmptyState } from "@/src/components/shared/empty-state";
+import { StatusBadge } from "@/src/components/shared/status-badge";
+import { api } from "@/src/lib/api-client";
+import { describeDoorCharge, mapsHref, windowLabel } from "@/src/lib/driver";
+import { phoneHref, plural } from "@/src/lib/format";
+import { cn, formatCurrency } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
-import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
 
 interface Delivery {
   order_id: string;
@@ -22,236 +29,195 @@ interface Delivery {
   payment_method?: string | null;
   payment_status?: string | null;
   cash_change_for_cents?: number | null;
+  delivery_instructions?: string | null;
+  bottles_full_ordered?: number;
+  max_bottle_charge_cents?: number;
 }
 
-function canAdvanceToOtp(status: string) {
-  return status === "OUT_FOR_DELIVERY";
-}
+const isPending = (s: string) => s === "OUT_FOR_DELIVERY";
+const isDone = (s: string) => s === "DELIVERED" || s === "DELIVERY_FAILED";
 
-function isCompleted(status: string) {
-  return status === "DELIVERED" || status === "DELIVERY_FAILED";
-}
+export default function DeliveriesPage() {
+  const { on, off } = useSocket();
+  const query = useQuery({
+    queryKey: ["driver-deliveries"],
+    queryFn: async () => (await api.get<{ deliveries?: Delivery[] }>("/api/driver/deliveries")).deliveries ?? [],
+    refetchInterval: 60_000,
+  });
+  const refetch = query.refetch;
+  const refresh = useCallback(() => void refetch(), [refetch]);
 
-function cashChangeLabel(delivery: Delivery) {
-  if (delivery.cash_change_for_cents == null) return "Valor exato";
-  return `Troco para ${formatCurrency(delivery.cash_change_for_cents)}`;
-}
+  // Entrega despachada ou cancelada com o app aberto aparece sem precisar sair e voltar.
+  useEffect(() => {
+    on("new_delivery", refresh);
+    on("order_status_changed", refresh);
+    return () => {
+      off("new_delivery", refresh);
+      off("order_status_changed", refresh);
+    };
+  }, [on, off, refresh]);
 
-function DeliverySkeleton() {
+  const deliveries = query.data ?? [];
+  const pending = deliveries.filter((d) => isPending(d.status));
+  const done = deliveries.filter((d) => isDone(d.status));
+  const cashToCollect = pending.reduce((sum, d) => {
+    const charge = describeDoorCharge(d);
+    return charge.due && charge.method === "cash" ? sum + d.total_cents : sum;
+  }, 0);
+
   return (
-    <div className="animate-pulse rounded-[28px] bg-white p-5 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-      <div className="flex items-center gap-4">
-        <div className="h-12 w-12 rounded-2xl bg-[#eef0f3]" />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-36 rounded-full bg-[#e1e3e4]" />
-          <div className="h-3 w-52 rounded-full bg-[#eef0f3]" />
-          <div className="h-3 w-28 rounded-full bg-[#eef0f3]" />
-        </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Entregas de hoje">
+        {/* Resumo compacto no topo: lido de relance, sem empurrar a 1ª parada para baixo */}
+        <dl className="grid grid-cols-3 divide-x divide-hairline rounded-2xl border border-hairline bg-card text-center">
+          <div className="px-2 py-2.5">
+            <dt className="text-[11px] text-muted-foreground">A entregar</dt>
+            <dd className="font-heading text-xl font-bold text-ink">{query.isLoading ? "—" : pending.length}</dd>
+          </div>
+          <div className="px-2 py-2.5">
+            <dt className="text-[11px] text-muted-foreground">Concluídas</dt>
+            <dd className="font-heading text-xl font-bold text-ink">{query.isLoading ? "—" : done.length}</dd>
+          </div>
+          <div className="px-2 py-2.5">
+            <dt className="text-[11px] text-muted-foreground">Receber em dinheiro</dt>
+            <dd className="font-heading text-base font-bold text-ink tabular-nums">{query.isLoading ? "—" : formatCurrency(cashToCollect)}</dd>
+          </div>
+        </dl>
+      </PageHeader>
+
+      <div className="space-y-6 px-4 pb-6">
+        {query.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-44 rounded-2xl" />
+            <Skeleton className="h-44 rounded-2xl" />
+          </div>
+        ) : query.isError ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Não foi possível carregar as entregas"
+            action={
+              <Button variant="outline" size="xl" onClick={refresh}>
+                Tentar de novo
+              </Button>
+            }
+          />
+        ) : deliveries.length === 0 ? (
+          <EmptyState icon={PackageOpen} title="Nenhuma entrega por enquanto" description="Quando a distribuidora despachar um pedido para você, ele aparece aqui." />
+        ) : null}
+
+        {pending.length > 0 ? (
+          <section aria-labelledby="sec-rota" className="space-y-3">
+            <h2 id="sec-rota" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Truck className="size-4 text-primary" aria-hidden /> Próximas paradas
+            </h2>
+            <ol className="space-y-3">
+              {pending.map((d) => (
+                <li key={d.order_id}>
+                  <StopCard delivery={d} />
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
+        {done.length > 0 ? (
+          <section aria-labelledby="sec-feitas" className="space-y-3">
+            <h2 id="sec-feitas" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <CheckCircle2 className="size-4 text-success-foreground" aria-hidden /> Concluídas hoje
+            </h2>
+            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              {done.map((d) => (
+                <li key={d.order_id}>
+                  <Link href={`/driver/deliveries/${d.order_id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{d.consumer_name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{d.address_line}</p>
+                    </div>
+                    <StatusBadge status={d.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </div>
   );
 }
 
-export default function DeliveriesPage() {
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { on, off } = useSocket();
-
-  const loadDeliveries = useCallback(async () => {
-    try {
-      const response = await fetch("/api/driver/deliveries");
-      const data = await response.json();
-      setDeliveries(data.deliveries ?? []);
-    } catch {
-      // Estado de erro visível entra na sessão de redesign desta tela.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadDeliveries();
-  }, [loadDeliveries]);
-
-  // O despacho já emitia `new_delivery` para a sala do motorista desde sempre,
-  // mas nenhuma tela escutava: a lista era buscada uma única vez na montagem,
-  // então uma entrega despachada com o app aberto só aparecia se o motorista
-  // saísse e voltasse. `order_status_changed` cobre o caminho inverso — pedido
-  // cancelado ou reatribuído enquanto ele está na rua.
-  useEffect(() => {
-    const refresh = () => {
-      void loadDeliveries();
-    };
-
-    on("new_delivery", refresh);
-    on("order_status_changed", refresh);
-
-    return () => {
-      off("new_delivery", refresh);
-      off("order_status_changed", refresh);
-    };
-  }, [on, off, loadDeliveries]);
-
-  const pending = deliveries.filter((d) => canAdvanceToOtp(d.status));
-  const done = deliveries.filter((d) => isCompleted(d.status));
+/** Parada da rota: informação no meio, 3 ações grandes na base do card (Mapa · Ligar · Entregar). */
+function StopCard({ delivery: d }: { delivery: Delivery }) {
+  const charge = describeDoorCharge(d);
+  const tel = phoneHref(d.consumer_phone);
+  const bottles = (d.max_bottle_charge_cents ?? 0) > 0 ? d.bottles_full_ordered ?? 0 : 0;
 
   return (
-    <div className="space-y-5">
-      {/* Hero banner */}
-      <section className="relative overflow-hidden rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_28%),linear-gradient(135deg,#0038b0_0%,#004de1_52%,#2a84ff_100%)] px-5 py-6 text-white shadow-[0_22px_50px_rgba(27,74,154,0.28)]">
-        <div className="absolute -right-10 top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
-
-        <div className="relative space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/70">Operação do motorista</p>
-              <h1 className="mt-2 font-heading text-[2rem] leading-none font-extrabold">Minhas entregas</h1>
-              <p className="mt-3 text-sm leading-relaxed text-white/80">
-                Confirme cada entrega com o código OTP do cliente.
-              </p>
+    <article className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-sm">
+      <Link href={`/driver/deliveries/${d.order_id}`} className="block space-y-3 p-4 hover:bg-muted/40">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary font-heading text-lg font-bold text-primary-foreground" aria-label={`Parada ${d.sequence}`}>
+            {d.sequence}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate font-semibold text-foreground">{d.consumer_name}</p>
+              <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">{windowLabel(d.delivery_window)}</span>
             </div>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[24px] bg-white/14 backdrop-blur">
-              <Truck className="h-7 w-7 text-white" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-[24px] bg-white/12 px-4 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Pendentes</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold">{loading ? "—" : pending.length}</p>
-            </div>
-            <div className="rounded-[24px] bg-white/12 px-4 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Concluídas</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold">{loading ? "—" : done.length}</p>
-            </div>
+            <p className="mt-0.5 flex items-start gap-1 text-sm text-muted-foreground">
+              <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span className="line-clamp-2">{d.address_line}</span>
+            </p>
           </div>
         </div>
-      </section>
 
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => <DeliverySkeleton key={i} />)}
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="rounded-md bg-surface-low px-2.5 py-1 font-medium text-foreground">{plural(d.total_items_qty, "item", "itens")}</span>
+          <span
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2.5 py-1 font-semibold",
+              charge.due ? "bg-warning-surface text-warning-foreground" : "bg-success-surface text-success-foreground",
+            )}
+          >
+            {charge.method === "card" ? <CreditCard className="size-3.5" aria-hidden /> : <Banknote className="size-3.5" aria-hidden />}
+            {charge.label}
+            {charge.detail ? ` · ${charge.detail}` : ""}
+          </span>
+          {bottles > 0 ? (
+            <span className="flex items-center gap-1 rounded-md bg-sky/10 px-2.5 py-1 font-medium text-primary">
+              <Recycle className="size-3.5" aria-hidden /> Recolher {plural(bottles, "vazio", "vazios")}
+            </span>
+          ) : null}
         </div>
-      ) : deliveries.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-6 py-12 text-center shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#5697E9]/15 text-[#5697E9]">
-            <PackageOpen className="h-8 w-8" />
-          </div>
-          <h2 className="mt-4 font-heading text-xl font-extrabold text-[#0d1b2f]">Nenhuma entrega</h2>
-          <p className="mt-2 text-sm text-[#5d6473]">Quando um pedido for despachado para você, aparecerá aqui.</p>
-        </div>
-      ) : (
-        <>
-          {/* Pendentes */}
-          {pending.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Em rota</p>
-                  <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">Aguardando entrega</h2>
-                </div>
-                <span className="rounded-full bg-[#5697E9]/10 px-3 py-1 text-sm font-semibold text-primary">
-                  {pending.length}
-                </span>
-              </div>
 
-              {pending.map((d) => (
-                <Link key={d.order_id} href={`/driver/deliveries/${d.order_id}/otp`} className="group block">
-                  <article className="rounded-[28px] bg-white px-4 py-4 shadow-[0_12px_40px_rgba(0,26,64,0.08)] ring-1 ring-[#e4e8f1] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_48px_rgba(0,26,64,0.12)]">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#1B4A9A]">
-                        <span className="font-heading text-lg font-extrabold">{d.sequence}</span>
-                      </div>
+        {d.delivery_instructions ? (
+          <p className="flex items-start gap-1.5 rounded-xl bg-surface-low px-3 py-2 text-xs text-foreground">
+            <MessageSquareText className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+            <span className="line-clamp-2">{d.delivery_instructions}</span>
+          </p>
+        ) : null}
+      </Link>
 
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="font-semibold text-[#0d1b2f] truncate">{d.consumer_name}</p>
-                        <p className="text-xs text-[#5d6473] truncate flex items-center gap-1">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {d.address_line}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-[#7d8494]">
-                          <span className="inline-flex items-center gap-1">
-                            <Droplets className="h-3 w-3" />
-                            {d.total_items_qty} garrafão{d.total_items_qty !== 1 ? "ões" : ""}
-                          </span>
-                          {d.consumer_phone && (
-                            <span className="inline-flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {d.consumer_phone}
-                            </span>
-                          )}
-                          <span className="ml-auto rounded-full bg-[#fff2dd] px-2 py-0.5 text-[10px] font-semibold text-[#7a4700]">
-                            {d.delivery_window === "MORNING" ? "Manhã" : "Tarde"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#5697E9]/15 text-[#5697E9] transition-transform duration-200 group-hover:translate-x-0.5">
-                        <ChevronRight className="h-5 w-5" />
-                      </div>
-                    </div>
-                    {isCashPaymentMethod(d.payment_method) && (
-                      <div className="mt-3 rounded-2xl bg-[#fff8e6] px-3 py-2 text-[#7a4700] ring-1 ring-[#ffe099]">
-                        <p className="flex items-center gap-1.5 text-xs font-bold">
-                          <Banknote className="h-3.5 w-3.5" /> Cobrar {formatCurrency(d.total_cents)} em dinheiro
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-medium text-[#805300]">{cashChangeLabel(d)}</p>
-                      </div>
-                    )}
-                  </article>
-                </Link>
-              ))}
-            </section>
-          )}
-
-          {/* Concluídas */}
-          {done.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7d8494]">Histórico do dia</p>
-                  <h2 className="mt-1 font-heading text-xl font-extrabold text-[#0d1b2f]">Concluídas</h2>
-                </div>
-                <span className="rounded-full bg-[#e7f7ef] px-3 py-1 text-sm font-semibold text-[#166534]">
-                  {done.length}
-                </span>
-              </div>
-
-              {done.map((d) => (
-                <article key={d.order_id} className="rounded-[28px] bg-white px-4 py-4 opacity-75 shadow-[0_8px_24px_rgba(0,26,64,0.05)] ring-1 ring-[#e4e8f1]">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e7f7ef] text-[#166534]">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="font-semibold text-[#0d1b2f] truncate">{d.consumer_name}</p>
-                      <p className="text-xs text-[#5d6473] truncate flex items-center gap-1">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        {d.address_line}
-                      </p>
-                      <div className="flex items-center gap-3 text-xs text-[#7d8494]">
-                        <span className="inline-flex items-center gap-1">
-                          <Droplets className="h-3 w-3" />
-                          {d.total_items_qty} garrafão{d.total_items_qty !== 1 ? "ões" : ""}
-                        </span>
-                        {isCashPaymentMethod(d.payment_method) && (
-                          <span className="inline-flex items-center gap-1 text-[#7a4700]">
-                            <Banknote className="h-3 w-3" /> {d.payment_status === "CAPTURED" ? "Dinheiro recebido" : "Dinheiro"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <StatusPill status={d.status} />
-                  </div>
-                </article>
-              ))}
-            </section>
-          )}
-        </>
-      )}
-    </div>
+      <div className="grid grid-cols-3 gap-2 border-t border-hairline p-2">
+        <Button asChild variant="soft" size="xl" className="px-2">
+          <a href={mapsHref(d.address_line)} target="_blank" rel="noreferrer" aria-label={`Abrir ${d.address_line} no mapa`}>
+            <Navigation /> Mapa
+          </a>
+        </Button>
+        {tel ? (
+          <Button asChild variant="soft" size="xl" className="px-2">
+            <a href={tel} aria-label={`Ligar para ${d.consumer_name}`}>
+              <Phone /> Ligar
+            </a>
+          </Button>
+        ) : (
+          <Button variant="soft" size="xl" className="px-2" disabled>
+            <Phone /> Ligar
+          </Button>
+        )}
+        <Button asChild variant="cta" size="xl" className="px-2">
+          <Link href={`/driver/deliveries/${d.order_id}/otp`}>Entregar</Link>
+        </Button>
+      </div>
+    </article>
   );
 }

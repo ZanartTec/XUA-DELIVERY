@@ -1,4 +1,5 @@
 import { OrderStatus } from "@xua/shared/enums";
+import { DEFAULT_ACCEPTANCE_SLA_SECONDS } from "@xua/shared/constants/kpi";
 import {
   DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES,
 
@@ -12,6 +13,7 @@ import { distributorRepository } from "../../distributor/repository/distributor.
 import { orderRepository, type OrderForQueue } from "../repository/orders.repository.js";
 import { OrderServiceError } from "../errors.js";
 import { buildDistributorOrderOriginContext } from "./order-presentation.service.js";
+import { depositSettlementService } from "../../deposits/services/deposit-settlement.service.js";
 import redis from "../../../infra/redis/client.js";
 
 const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, OrderStatus[]> = {
@@ -65,7 +67,23 @@ function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, 
   };
 }
 
-function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, string>) {
+/**
+ * Prazo para a distribuidora aceitar. Usa o SLA configurado dela
+ * (`acceptance_sla_seconds`, o mesmo do KPI) e conta a partir de quando o
+ * pedido chegou à fila: enquanto está em SENT_TO_DISTRIBUTOR nada mais altera
+ * o pedido, então `updated_at` é o momento da entrada. Antes era um fixo de
+ * 15 min a partir da criação — a tela dizia "15 min" e o KPI cobrava 3 (D-05).
+ */
+export function acceptanceDeadline(
+  order: { status: string; created_at: Date | string; updated_at: Date | string },
+  slaSeconds: number
+): string | null {
+  if (order.status !== OrderStatus.SENT_TO_DISTRIBUTOR) return null;
+  const enteredAt = Math.max(new Date(order.created_at).getTime(), new Date(order.updated_at).getTime());
+  return new Date(enteredAt + slaSeconds * 1000).toISOString();
+}
+
+function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, string>, slaSeconds: number) {
   const subscriptionContext = buildDistributorOrderOriginContext(o);
   const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
   const firstItem = o.items[0];
@@ -83,12 +101,40 @@ function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, 
     total_items_qty: totalItemsQty,
     item_summary: itemSummary,
     driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
-    sla_deadline: new Date(new Date(o.created_at).getTime() + 15 * 60 * 1000).toISOString(),
+    sla_deadline: acceptanceDeadline(o, slaSeconds),
     consumer: undefined,
     address: undefined,
     items: undefined,
     subscription_delivery_date: undefined,
   };
+}
+
+/**
+ * Regra de vasilhame na entrega: vazios exigidos por vasilhame, preço cobrado
+ * por vazio faltante e os itens refil de cada grupo (na ordem do pedido) —
+ * o motorista calcula na tela o valor a receber em cada desfecho.
+ */
+async function describeBottleGroups(
+  items: Array<{ product_id: string; quantity: number; unit_price_cents: number }>
+) {
+  const groups = await depositSettlementService.resolveBottleGroups(items);
+  if (groups.length === 0) return [];
+
+  const products = await getPrisma().product.findMany({
+    where: { id: { in: items.map((item) => item.product_id) }, requires_empty_return: true },
+    select: { id: true, bottle_product_id: true },
+  });
+  const bottleByProduct = new Map(products.map((p) => [p.id, p.bottle_product_id]));
+
+  return groups.map((g) => ({
+    bottle_product_id: g.bottleProductId,
+    bottle_name: g.bottleProductName,
+    unit_price_cents: g.bottleUnitPriceCents,
+    required_empties: g.bottlesOrdered,
+    refil_items: items
+      .filter((item) => bottleByProduct.get(item.product_id) === g.bottleProductId)
+      .map((item) => ({ quantity: item.quantity, unit_price_cents: item.unit_price_cents })),
+  }));
 }
 
 /**
@@ -136,6 +182,12 @@ export const orderQueryService = {
           .filter((driverId): driverId is string => Boolean(driverId))
       )
     );
+    const distributorSla = await getPrisma().distributor.findUnique({
+      where: { id: distributorId },
+      select: { acceptance_sla_seconds: true },
+    });
+    const slaSeconds = distributorSla?.acceptance_sla_seconds ?? DEFAULT_ACCEPTANCE_SLA_SECONDS;
+
     const drivers = driverIds.length
       ? await getPrisma().consumer.findMany({
           where: { id: { in: driverIds } },
@@ -145,7 +197,7 @@ export const orderQueryService = {
     const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
 
     return {
-      orders: orders.map((order) => mapDistributorQueueOrder(order, driverNameById)),
+      orders: orders.map((order) => mapDistributorQueueOrder(order, driverNameById, slaSeconds)),
       total,
       page: query.page,
       totalPages: Math.ceil(total / query.limit),
@@ -298,6 +350,11 @@ export const orderQueryService = {
       ...order
     } = result;
     const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    // Regra de vasilhame na entrega: vazios exigidos e preço de cada vasilhame
+    // faltante, para o motorista calcular o valor a cobrar na porta.
+    // `refil_items` (na ordem dos itens) permite simular a entrega parcial.
+    // Só pedidos criados sob a regra (teto > 0); os anteriores já cobraram o vasilhame.
+    const bottleGroups = order.max_bottle_charge_cents > 0 ? await describeBottleGroups(items) : [];
     const addressParts = [
       `${address.street}, ${address.number}`,
       address.complement,
@@ -305,14 +362,12 @@ export const orderQueryService = {
       `${address.city}/${address.state}`,
     ].filter(Boolean);
 
-    const slaDeadline =
-      order.status === OrderStatus.SENT_TO_DISTRIBUTOR
-        ? new Date(new Date(order.created_at).getTime() + 15 * 60 * 1000).toISOString()
-        : null;
+    const slaDeadline = acceptanceDeadline(order, distributor.acceptance_sla_seconds ?? DEFAULT_ACCEPTANCE_SLA_SECONDS);
 
     return {
       ...order,
       ...subscriptionContext,
+      bottle_groups: bottleGroups,
       subscription_delivery_date: undefined,
       consumer_name: consumer.name,
       consumer_email: consumer.email,
@@ -347,6 +402,8 @@ export const orderQueryService = {
       items: items.map((i) => ({
         product_name: i.product_name,
         qty: i.quantity,
+        // Entrega parcial (sem vazio para troca): quantidade pedida originalmente.
+        original_qty: i.original_quantity,
         unit_price_cents: i.unit_price_cents,
         subtotal_cents: i.subtotal_cents,
         image_url: i.product.image_url ?? null,

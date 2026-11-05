@@ -97,7 +97,7 @@ vi.mock("@api/modules/deposits/services/deposit-settlement.service.js", () => ({
   depositSettlementService: {
     resolveBottleGroups: vi.fn(async () => []),
     settlePerBottle: vi.fn(async () => []),
-    settleDelivery: vi.fn(async () => ({ loaned: 0, returnedFromLoan: 0 })),
+    settleDelivery: vi.fn(async () => ({ loaned: 0, returnedFromLoan: 0, settled: [] })),
   },
 }));
 
@@ -135,7 +135,12 @@ vi.mock("@api/infra/queue/payment-jobs.producer.js", () => ({
 
 const { orderService, OrderServiceError } = await import("@api/modules/orders/services/orders.service.js");
 
-const tx = { tx: true, orderItem: { findMany: vi.fn() }, payment: { findFirst: vi.fn(), update: vi.fn() } };
+const tx = {
+  tx: true,
+  orderItem: { findMany: vi.fn() },
+  product: { findMany: vi.fn(async () => []) },
+  payment: { findFirst: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn() },
+};
 const orderId = "7e1d7b55-3f52-4d10-aac3-74387c236801";
 const consumerId = "7e1d7b55-3f52-4d10-aac3-74387c236802";
 const distributorId = "7e1d7b55-3f52-4d10-aac3-74387c236803";
