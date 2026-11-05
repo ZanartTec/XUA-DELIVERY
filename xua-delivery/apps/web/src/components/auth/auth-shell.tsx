@@ -48,7 +48,7 @@ export function AuthShell({ title, description, children, footer }: AuthShellPro
           />
         </Link>
 
-        <div className="mx-auto mt-auto w-full max-w-sm rounded-3xl bg-card/85 p-5 shadow-xl shadow-black/10 backdrop-blur-md lg:my-auto lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
+        <div className="mx-auto mt-auto w-full max-w-sm rounded-xl bg-card/85 p-5 shadow-xl shadow-black/10 backdrop-blur-md lg:my-auto lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
           <h1 className="font-heading text-2xl leading-tight font-extrabold text-ink">{title}</h1>
           {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
           <div className="mt-5">{children}</div>

@@ -192,7 +192,7 @@ function OrderCard({
           <span className="font-mono font-semibold text-foreground">#{formatShortOrderId(order.id)}</span>
           <span>· {formatRelativeShort(order.created_at)}</span>
           {isFromSubscription(order) ? (
-            <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium text-primary">
+            <span className="flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 font-medium text-primary">
               <Repeat2 className="size-3" aria-hidden /> Assinatura
             </span>
           ) : null}
@@ -219,7 +219,7 @@ function OrderCard({
         <div className="flex items-center gap-2">
           <StatusBadge status={order.status} audience="ops" />
           {isNew ? (
-            <span className="flex items-center gap-1 rounded-full bg-warning-surface px-2 py-0.5 text-xs font-semibold text-warning-foreground">
+            <span className="flex items-center gap-1 rounded-md bg-warning-surface px-2 py-0.5 text-xs font-semibold text-warning-foreground">
               <Clock3 className="size-3" aria-hidden />
               <SlaCountdown deadlineIso={order.sla_deadline} prefix="Responder em" expiredLabel="Prazo de resposta vencido" className="font-sans text-xs font-semibold text-inherit" />
             </span>
@@ -496,7 +496,7 @@ function DistributorQueueContent() {
                   {tab.count != null ? (
                     <span
                       className={cn(
-                        "rounded-full px-1.5 text-[11px] tabular-nums",
+                        "rounded-md px-1.5 text-[11px] tabular-nums",
                         tab.value === "incoming" && tab.count > 0 ? "bg-warning text-white" : "text-muted-foreground",
                       )}
                     >

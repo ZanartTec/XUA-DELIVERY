@@ -34,7 +34,7 @@ const buttonVariants = cva(
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
         /** Alvo de toque confortável (48px) para ações primárias no mobile. */
-        xl: "h-12 gap-2 rounded-xl px-5 text-base [&_svg:not([class*='size-'])]:size-5",
+        xl: "h-12 gap-2 rounded-lg px-5 text-base [&_svg:not([class*='size-'])]:size-5",
         icon: "size-8",
         "icon-xs":
           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
@@ -42,7 +42,7 @@ const buttonVariants = cva(
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
         /** Botão só-ícone com alvo de toque de 44px. */
-        "icon-touch": "size-11 rounded-xl [&_svg:not([class*='size-'])]:size-5",
+        "icon-touch": "size-11 rounded-lg [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

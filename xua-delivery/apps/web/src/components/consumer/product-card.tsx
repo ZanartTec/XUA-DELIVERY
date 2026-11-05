@@ -62,7 +62,7 @@ export function ProductCard({ product, quantity, onAdd, onChangeQuantity }: Prod
             <Button
               variant="cta"
               size="icon-lg"
-              className="rounded-full shadow-none active:scale-95"
+              className="rounded-md shadow-none active:scale-95"
               disabled={!product.is_active}
               aria-label={`Adicionar ${product.name} ao carrinho`}
               onClick={() => onAdd(product)}

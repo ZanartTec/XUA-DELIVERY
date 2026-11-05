@@ -61,7 +61,7 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         disabled={page === 1}
         aria-label="Página anterior"
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150",
+          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
           page === 1
             ? "cursor-not-allowed text-[#b0b3c6]"
             : "text-sky hover:bg-sky/10 active:scale-90"
@@ -86,7 +86,7 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
             aria-label={`Ir para página ${item}`}
             aria-current={item === page ? "page" : undefined}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition-all duration-150 active:scale-90",
+              "flex h-9 w-9 items-center justify-center rounded-md text-sm font-semibold transition-all duration-150 active:scale-90",
               item === page
                 ? "bg-sky text-white shadow-[0_2px_8px_rgba(86,151,233,0.35)]"
                 : "text-muted-foreground hover:bg-muted"
@@ -103,7 +103,7 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
         disabled={page === totalPages}
         aria-label="Próxima página"
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150",
+          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
           page === totalPages
             ? "cursor-not-allowed text-[#b0b3c6]"
             : "text-sky hover:bg-sky/10 active:scale-90"

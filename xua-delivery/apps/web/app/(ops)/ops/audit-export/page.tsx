@@ -177,7 +177,7 @@ export default function AuditExportPage() {
               <ToggleGroupItem
                 key={g.id}
                 value={g.id}
-                className="h-10 flex-none rounded-full! border px-4 data-[state=on]:border-primary data-[state=on]:bg-secondary data-[state=on]:text-primary"
+                className="h-10 flex-none rounded-md! border px-4 data-[state=on]:border-primary data-[state=on]:bg-secondary data-[state=on]:text-primary"
               >
                 {g.label}
               </ToggleGroupItem>

@@ -177,10 +177,10 @@ export default function DistributorInventoryPage() {
             className="justify-start"
             spacing={2}
           >
-            <ToggleGroupItem value="ALL" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+            <ToggleGroupItem value="ALL" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
               Todos
             </ToggleGroupItem>
-            <ToggleGroupItem value="LOW_STOCK" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-destructive data-[state=on]:text-white">
+            <ToggleGroupItem value="LOW_STOCK" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-destructive data-[state=on]:text-white">
               Baixo estoque {lowStock > 0 ? `(${lowStock})` : ""}
             </ToggleGroupItem>
           </ToggleGroup>

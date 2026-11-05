@@ -267,7 +267,7 @@ export default function OpsInventoryReconciliationsPage() {
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+                        "shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
                         item.delta == null
                           ? "bg-muted text-muted-foreground"
                           : delta === 0

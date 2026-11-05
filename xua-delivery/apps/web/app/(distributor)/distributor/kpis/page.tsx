@@ -72,7 +72,7 @@ export default function KpisPage() {
       <PageHeader title="Indicadores" description="Como a operação está indo." sticky>
         <ToggleGroup type="single" value={period} onValueChange={(v) => v && setPeriod(v)} spacing={2} className="justify-start" aria-label="Período">
           {PERIODS.map((p) => (
-            <ToggleGroupItem key={p.value} value={p.value} className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+            <ToggleGroupItem key={p.value} value={p.value} className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
               {p.label}
             </ToggleGroupItem>
           ))}

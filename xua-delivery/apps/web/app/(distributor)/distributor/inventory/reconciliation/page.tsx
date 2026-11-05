@@ -255,7 +255,7 @@ export default function DistributorInventoryReconciliationPage() {
                       </div>
                       <span
                         className={cn(
-                          "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+                          "flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold",
                           ok ? "bg-success-surface text-success-foreground" : valid ? "bg-danger-surface text-destructive" : "bg-warning-surface text-warning-foreground",
                         )}
                       >

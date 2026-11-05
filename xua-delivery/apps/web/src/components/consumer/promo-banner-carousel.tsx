@@ -80,7 +80,7 @@ export function PromoBannerCarousel({ banners }: PromoBannerCarouselProps) {
         <div className="relative z-10">
           {/* Tag */}
           {slide.tag?.trim() && (
-            <span className="mb-2 inline-block rounded-full bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
+            <span className="mb-2 inline-block rounded-md bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">
               {slide.tag}
             </span>
           )}

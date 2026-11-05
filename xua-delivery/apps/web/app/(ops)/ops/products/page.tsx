@@ -392,9 +392,9 @@ export default function OpsProductsPage() {
             <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto" aria-label="Buscar produto" className="h-11 rounded-xl pl-9" />
           </div>
           <ToggleGroup type="single" value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} spacing={2} className="justify-start">
-            <ToggleGroupItem value="active" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">No catálogo</ToggleGroupItem>
-            <ToggleGroupItem value="inactive" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Fora ({inactiveCount})</ToggleGroupItem>
-            <ToggleGroupItem value="all" className="h-9 rounded-full bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Todos</ToggleGroupItem>
+            <ToggleGroupItem value="active" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">No catálogo</ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Fora ({inactiveCount})</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Todos</ToggleGroupItem>
           </ToggleGroup>
         </div>
       </PageHeader>

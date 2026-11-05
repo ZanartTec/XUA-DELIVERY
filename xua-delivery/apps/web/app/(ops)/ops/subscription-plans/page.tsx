@@ -230,7 +230,7 @@ function PlanForm({
               spacing={2}
             >
               {distributors.map((d) => (
-                <ToggleGroupItem key={d.id} value={d.id} className="h-10 rounded-full px-4 data-[state=on]:border-primary data-[state=on]:bg-secondary data-[state=on]:text-primary">
+                <ToggleGroupItem key={d.id} value={d.id} className="h-10 rounded-md px-4 data-[state=on]:border-primary data-[state=on]:bg-secondary data-[state=on]:text-primary">
                   {d.name}
                 </ToggleGroupItem>
               ))}

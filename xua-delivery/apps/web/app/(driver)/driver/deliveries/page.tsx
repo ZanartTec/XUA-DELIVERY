@@ -161,7 +161,7 @@ function StopCard({ delivery: d }: { delivery: Delivery }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate font-semibold text-foreground">{d.consumer_name}</p>
-              <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">{windowLabel(d.delivery_window)}</span>
+              <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">{windowLabel(d.delivery_window)}</span>
             </div>
             <p className="mt-0.5 flex items-start gap-1 text-sm text-muted-foreground">
               <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -171,10 +171,10 @@ function StopCard({ delivery: d }: { delivery: Delivery }) {
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-surface-low px-2.5 py-1 font-medium text-foreground">{plural(d.total_items_qty, "item", "itens")}</span>
+          <span className="rounded-md bg-surface-low px-2.5 py-1 font-medium text-foreground">{plural(d.total_items_qty, "item", "itens")}</span>
           <span
             className={cn(
-              "flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold",
+              "flex items-center gap-1 rounded-md px-2.5 py-1 font-semibold",
               charge.due ? "bg-warning-surface text-warning-foreground" : "bg-success-surface text-success-foreground",
             )}
           >
@@ -183,7 +183,7 @@ function StopCard({ delivery: d }: { delivery: Delivery }) {
             {charge.detail ? ` · ${charge.detail}` : ""}
           </span>
           {bottles > 0 ? (
-            <span className="flex items-center gap-1 rounded-full bg-sky/10 px-2.5 py-1 font-medium text-primary">
+            <span className="flex items-center gap-1 rounded-md bg-sky/10 px-2.5 py-1 font-medium text-primary">
               <Recycle className="size-3.5" aria-hidden /> Recolher {plural(bottles, "vazio", "vazios")}
             </span>
           ) : null}

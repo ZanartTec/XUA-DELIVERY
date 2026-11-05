@@ -203,7 +203,7 @@ export default function DepositProgramPage() {
                 />
                 <button
                   onClick={() => void toggleProgram(p)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`rounded-md px-3 py-1 text-xs font-semibold ${
                     p.is_enabled
                       ? "bg-emerald-100 text-emerald-700"
                       : "bg-surface-highest text-muted-foreground"

@@ -45,7 +45,7 @@ export function FeaturedProductCard({
     <div className="mx-4 overflow-hidden rounded-2xl" style={{ backgroundColor: bgColor }}>
       <div className="flex items-center gap-4 p-5">
         <div className="flex-1 space-y-2">
-          <span className="inline-block rounded-full bg-cta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cta-foreground">
+          <span className="inline-block rounded-md bg-cta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cta-foreground">
             {tag}
           </span>
           <h3

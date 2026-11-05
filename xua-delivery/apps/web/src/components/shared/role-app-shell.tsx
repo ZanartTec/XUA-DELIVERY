@@ -208,7 +208,7 @@ export function RoleAppShell({
         <div className="flex h-16 items-center gap-2 px-5">
           <img src="/logo-transparent.png" alt="Xuá" className="h-9 w-auto" />
           {!isConsumer ? (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
               {config.badgeLabel}
             </span>
           ) : null}
@@ -259,7 +259,7 @@ export function RoleAppShell({
           <div className="flex h-14 items-center justify-between gap-3 px-4 md:hidden">
             <div className="flex min-w-0 items-center gap-3">
               <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                 {config.badgeLabel}
               </span>
             </div>

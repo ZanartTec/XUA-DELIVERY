@@ -23,7 +23,7 @@ export function CategoryFilter({ categories, selected, onChange, loading = false
     return (
       <div className="flex gap-2 overflow-hidden">
         {[72, 96, 64, 88].map((w) => (
-          <Skeleton key={w} className="h-9 shrink-0 rounded-full" style={{ width: w }} />
+          <Skeleton key={w} className="h-9 shrink-0 rounded-md" style={{ width: w }} />
         ))}
       </div>
     );
@@ -42,7 +42,7 @@ export function CategoryFilter({ categories, selected, onChange, loading = false
         <ToggleGroupItem
           key={cat.value}
           value={cat.value}
-          className="h-9 shrink-0 rounded-full bg-muted px-4 text-sm font-medium text-muted-foreground data-[state=on]:bg-cta data-[state=on]:text-cta-foreground"
+          className="h-9 shrink-0 rounded-md bg-muted px-4 text-sm font-medium text-muted-foreground data-[state=on]:bg-cta data-[state=on]:text-cta-foreground"
         >
           {cat.label}
         </ToggleGroupItem>

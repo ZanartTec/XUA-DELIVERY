@@ -97,7 +97,7 @@ export function DistributorPicker({
                   <span className="truncate">{distributor.name}</span>
                   <span className="flex shrink-0 items-center gap-1.5">
                     {!distributor.is_active && (
-                      <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                      <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
                         Inativa
                       </span>
                     )}

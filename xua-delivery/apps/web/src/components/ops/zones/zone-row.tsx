@@ -130,7 +130,7 @@ export function ZoneRow({
         <td className={CELL}>
           <span
             className={cn(
-              "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              "inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
               zone.is_active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
             )}
           >
