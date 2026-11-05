@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Truck, UserRound } from "lucide-react";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -16,6 +16,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
+import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useSocket } from "@/src/hooks/use-socket";
 import { api, ApiError } from "@/src/lib/api-client";
 import { plural } from "@/src/lib/format";
@@ -24,7 +25,6 @@ import { formatReceiptNumber, openReceipt, orderReceiptUrl, readReceiptFormat } 
 import { cn } from "@/src/lib/utils";
 import { OrderStatus } from "@xua/shared/enums";
 
-type Driver = { id: string; name: string; is_active?: boolean };
 
 export default function ChecklistPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,12 +32,8 @@ export default function ChecklistPage() {
   const queryClient = useQueryClient();
   const { on, off } = useSocket();
   const { order, isLoading } = useOrderDetail(id);
-  const drivers = useQuery({
-    queryKey: ["distributor-drivers"],
-    queryFn: async () => (await api.get<{ drivers?: Driver[] }>("/api/distributor/drivers")).drivers ?? [],
-    // Motorista desativado não pode receber entrega.
-    select: (list: Driver[]) => list.filter((d) => d.is_active !== false),
-  });
+  // Motorista desativado não pode receber entrega.
+  const drivers = useDistributorDrivers({ activeOnly: true });
 
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [driverChoice, setDriverChoice] = useState<string | null>(null);

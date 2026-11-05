@@ -50,6 +50,7 @@ import {
 import { RejectOrderDialog } from "@/src/components/distributor/reject-order-dialog";
 import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency";
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
+import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useIsDesktop } from "@/src/hooks/use-media-query";
 import { useSocket } from "@/src/hooks/use-socket";
 import { ApiError, api } from "@/src/lib/api-client";
@@ -390,10 +391,7 @@ function DistributorQueueContent() {
     placeholderData: (previousData) => previousData,
   });
 
-  const driversQuery = useQuery<{ drivers: Array<{ id: string; name: string }> }>({
-    queryKey: ["distributor-drivers"],
-    queryFn: () => api.get("/api/distributor/drivers"),
-  });
+  const driversQuery = useDistributorDrivers();
 
   const actionMutation = useMutation({
     mutationFn: ({ orderId, action, payload }: { orderId: string; action: QuickAction; payload?: Record<string, unknown> }) =>
@@ -436,7 +434,7 @@ function DistributorQueueContent() {
   const summary = queueQuery.data?.summary ?? SUMMARY_FALLBACK;
   const total = queueQuery.data?.total ?? 0;
   const totalPages = queueQuery.data?.totalPages ?? 0;
-  const drivers = driversQuery.data?.drivers ?? [];
+  const drivers = driversQuery.data ?? [];
   const actionLoadingId = actionMutation.isPending ? (actionMutation.variables?.orderId ?? null) : null;
   const activeFilterCount = [origin !== "all", Boolean(deliveryDate), driverId !== "all", sort !== "created_desc"].filter(Boolean).length;
 

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  DISTRIBUTOR_DRIVERS_KEY,
+  useDistributorDrivers,
+  type DistributorDriver,
+} from "@/src/hooks/distributor/use-distributor-drivers";
 import { Loader2, MoreVertical, Pencil, Phone, Plus, Power, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
@@ -25,13 +30,7 @@ import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 
-interface Driver {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string | null;
-  is_active?: boolean;
-}
+type Driver = DistributorDriver;
 
 type FormState = { mode: "new" } | { mode: "edit"; driver: Driver } | null;
 
@@ -46,14 +45,7 @@ async function send(url: string, method: string, body: unknown) {
 
 export default function DistributorDriversPage() {
   const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: ["distributor-drivers"],
-    queryFn: async () => {
-      const res = await fetch("/api/distributor/drivers");
-      if (!res.ok) throw new Error("Erro ao carregar motoristas");
-      return ((await res.json()).drivers ?? []) as Driver[];
-    },
-  });
+  const query = useDistributorDrivers();
   const drivers = query.data ?? [];
   const active = drivers.filter((d) => d.is_active !== false);
   const inactive = drivers.filter((d) => d.is_active === false);
@@ -79,7 +71,7 @@ export default function DistributorDriversPage() {
     }
   }
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["distributor-drivers"] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: DISTRIBUTOR_DRIVERS_KEY });
 
   async function submit() {
     if (!form) return;
