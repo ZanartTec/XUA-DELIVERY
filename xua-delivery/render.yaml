@@ -208,6 +208,10 @@ services:
         value: http://xua-api:3000
       - key: NEXT_PUBLIC_API_URL
         sync: false
+      # Domínio público do site (ex.: https://www.seudominio.com.br) para canonical,
+      # sitemap, robots.txt e prévias de link. Sem ela, usa RENDER_EXTERNAL_URL.
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
       - key: JWT_SECRET
         fromService:
           name: xua-api

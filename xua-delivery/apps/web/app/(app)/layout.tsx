@@ -16,6 +16,8 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Xuá Delivery",
   description: "Entrega de água mineral 20L — Xuá Delivery",
+  // Telas do app (login, pedidos, painéis) não entram na busca; o site é a porta de entrada.
+  robots: { index: false, follow: false },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
