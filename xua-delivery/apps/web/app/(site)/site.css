@@ -4,6 +4,93 @@
    Azul-marinho da marca + verde-limão do logo como acento.
    ═══════════════════════════════════════════════════════════════════ */
 
+/* Reset equivalente ao preflight do Tailwind v4: o site tem layout raiz próprio
+   (sem o globals.css do app). Fica num @layer para qualquer regra do site vencer. */
+@layer xs-reset {
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  html {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  b,
+  strong {
+    font-weight: bolder;
+  }
+  ol,
+  ul,
+  menu {
+    list-style: none;
+  }
+  img,
+  svg,
+  video,
+  canvas,
+  iframe,
+  object {
+    display: block;
+    vertical-align: middle;
+  }
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+  button {
+    cursor: pointer;
+  }
+  ::placeholder {
+    opacity: 1;
+    color: color-mix(in oklab, currentcolor 50%, transparent);
+  }
+  table {
+    border-collapse: collapse;
+    text-indent: 0;
+    border-color: inherit;
+  }
+  [hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+  }
+}
+
 .xs {
   --navy: #20408a;
   --navy-2: #18337a;
@@ -230,8 +317,7 @@ html:has(.xs-page) {
 html.xs-js .xs [data-reveal] {
   transition:
     opacity 0.9s var(--ease),
-    transform 0.9s var(--ease),
-    filter 0.9s var(--ease);
+    transform 0.9s var(--ease);
   transition-delay: calc(var(--d, 0) * 90ms);
 }
 html.xs-js .xs [data-reveal]:not(.is-in) {
@@ -246,7 +332,21 @@ html.xs-js .xs [data-reveal="right"]:not(.is-in) {
 }
 html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   transform: scale(0.94);
-  filter: blur(6px);
+}
+/* Animações CSS de [data-play] só começam quando o bloco aparece na tela
+   (no celular, o palco do galão fica abaixo da dobra). */
+html.xs-js .xs [data-play]:not(.is-in),
+html.xs-js .xs [data-play]:not(.is-in) *,
+html.xs-js .xs [data-play]:not(.is-in) *::before,
+html.xs-js .xs [data-play]:not(.is-in) *::after {
+  animation-play-state: paused !important;
+}
+/* Loops de blocos fora da tela ficam pausados (bateria e CPU). */
+.xs .is-off,
+.xs .is-off *,
+.xs .is-off *::before,
+.xs .is-off *::after {
+  animation-play-state: paused !important;
 }
 
 /* ─── Cabeçalho ──────────────────────────────────────────────────── */
@@ -628,7 +728,6 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   position: relative;
   width: min(420px, 86%);
   margin-bottom: -8px;
-  translate: 0 var(--py, 0px);
   animation: xs-rise 1.3s 0.15s both var(--ease);
 }
 .xs-galao img {
@@ -2081,7 +2180,6 @@ html.xs-js .xs-flow.is-in li {
   margin-top: 56px;
   margin-bottom: -70px;
   box-shadow: 0 40px 70px -24px rgba(0, 0, 0, 0.55);
-  translate: 0 var(--py, 0px);
   transform: rotate(-4deg);
   transition: transform 0.6s var(--ease);
 }
@@ -2813,23 +2911,53 @@ html.xs-js .xs-flow.is-in li {
   color: rgba(200, 214, 242, 0.7);
 }
 
-/* ─── Movimento reduzido ─────────────────────────────────────────── */
+/* ─── Níveis de movimento (html[data-motion], definido em scroll-effects.tsx) ───
+   full    → tudo;
+   reduced → sistema pede menos movimento: animações vão direto ao estado final,
+             entradas viram um fade curto (só opacidade), nada preso à rolagem;
+   lite    → aparelho fraco/economia de dados: entradas completas, loops tocam
+             uma vez só e sem desfoque de fundo (backdrop-filter é caro na GPU). */
+
+/* Antes do JS definir o nível, quem pede menos movimento já não vê nada se mexendo. */
 @media (prefers-reduced-motion: reduce) {
-  html:has(.xs-page) {
-    scroll-behavior: auto;
-  }
-  .xs *,
-  .xs *::before,
-  .xs *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    animation-delay: 0s !important;
-    transition-duration: 0.001ms !important;
-    transition-delay: 0s !important;
-  }
-  .xs-marquee-track,
-  .xl-bubble,
-  .xl-waves svg {
+  html:not([data-motion]) .xs *,
+  html:not([data-motion]) .xs *::before,
+  html:not([data-motion]) .xs *::after {
     animation: none !important;
+    transition: none !important;
   }
+}
+
+html[data-motion="reduced"]:has(.xs-page) {
+  scroll-behavior: auto;
+}
+html[data-motion="reduced"] .xs *,
+html[data-motion="reduced"] .xs *::before,
+html[data-motion="reduced"] .xs *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+  transition-property: opacity !important;
+  transition-duration: 0.35s !important;
+  transition-timing-function: ease !important;
+}
+html[data-motion="reduced"] .xs [data-reveal] {
+  transition-delay: calc(var(--d, 0) * 60ms) !important;
+}
+html[data-motion="reduced"] .xs [data-reveal]:not(.is-in) {
+  transform: none !important;
+}
+html[data-motion="reduced"] .xs :is(.xs-marquee-track, .xl-bubble, .xl-waves svg) {
+  animation: none !important;
+}
+
+html[data-motion="lite"] .xs *,
+html[data-motion="lite"] .xs *::before,
+html[data-motion="lite"] .xs *::after {
+  animation-iteration-count: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-motion="lite"] .xs .xs-marquee-track {
+  animation-iteration-count: infinite !important;
 }

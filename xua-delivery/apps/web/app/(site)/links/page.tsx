@@ -10,6 +10,7 @@ import {
   WhatsAppIcon,
 } from "../_components/icons";
 import { PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
+import { ScrollEffects } from "../_components/scroll-effects";
 import { ShareButton } from "./share-button";
 
 export const metadata: Metadata = {
@@ -88,6 +89,7 @@ function LinkItem({ link }: { link: PublicLink }) {
 export default function LinksPage() {
   return (
     <main className="xl">
+      <ScrollEffects />
       <div className="xl-bg" aria-hidden>
         {BUBBLES.map((b) => (
           <span

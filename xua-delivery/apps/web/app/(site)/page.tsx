@@ -74,7 +74,7 @@ export default function InstitutionalPage() {
 
       <main>
         {/* HERO */}
-        <section className="xs-hero" id="inicio" aria-labelledby="h-hero">
+        <section className="xs-hero" id="inicio" aria-labelledby="h-hero" data-live>
           <div className="xs-blob xs-blob-a" aria-hidden />
           <div className="xs-blob xs-blob-b" aria-hidden />
           <div className="xs-wrap xs-hero-in">
@@ -121,7 +121,7 @@ export default function InstitutionalPage() {
                 <span className="xs-pool-wave" />
                 <span className="xs-pool-wave is-b" />
               </div>
-              <div className="xs-galao" data-parallax="0.06">
+              <div className="xs-galao">
                 <Image
                   src="/site/galao.png"
                   alt="Galão de 20 litros da Água Mineral Natural Xuá, sem gás"
@@ -144,7 +144,7 @@ export default function InstitutionalPage() {
         </section>
 
         {/* FAIXA */}
-        <div className="xs-marquee" aria-hidden>
+        <div className="xs-marquee" aria-hidden data-live>
           <div className="xs-marquee-track">
             {[0, 1].map((k) => (
               <div key={k} className="xs-marquee-group">
@@ -526,7 +526,7 @@ export default function InstitutionalPage() {
         </section>
 
         {/* APP */}
-        <section className="xs-app" id="app" aria-labelledby="h-app">
+        <section className="xs-app" id="app" aria-labelledby="h-app" data-live>
           <div className="xs-wrap">
             <div className="xs-app-band" data-reveal="scale">
               <div className="xs-app-copy">
@@ -553,7 +553,7 @@ export default function InstitutionalPage() {
               <div className="xs-app-visual" aria-hidden>
                 <div className="xs-ring" />
                 <div className="xs-ring is-b" />
-                <div className="xs-phone" data-parallax="-0.05">
+                <div className="xs-phone">
                   <div className="xs-phone-screen">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img className="xs-ph-logo" src="/site/logo.svg" alt="" />
