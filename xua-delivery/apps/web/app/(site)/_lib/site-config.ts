@@ -73,3 +73,11 @@ export const PUBLIC_LINKS: PublicLink[] = [
     external: true,
   },
 ];
+
+/**
+ * Rotas do app (outro layout raiz): a navegação até elas recarrega a página inteira,
+ * então o prefetch do Next só baixaria CSS e fontes do app à toa.
+ */
+export function isAppRoute(href: string): boolean {
+  return ["/register", "/login", "/app"].some((p) => href === p || href.startsWith(`${p}/`) || href.startsWith(`${p}?`));
+}

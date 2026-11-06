@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { DistributorForm } from "./_components/distributor-form";
+import { DripDrop } from "./_components/drip-drop";
 import { FloatingActions } from "./_components/floating-actions";
 import { HeroDrops } from "./_components/hero-drops";
 import { HydrationCalc } from "./_components/hydration-calc";
@@ -12,9 +13,11 @@ import {
   InstagramIcon,
   PhoneIcon,
   SmartphoneIcon,
+  TruckIcon,
   WhatsAppIcon,
 } from "./_components/icons";
 import { ScrollEffects } from "./_components/scroll-effects";
+import { Sprout } from "./_components/sprout";
 import { SiteHeader } from "./_components/site-header";
 import { CONTACT, DISTRIBUIDOR_MSG, whatsappUrl } from "./_lib/site-config";
 
@@ -33,16 +36,19 @@ export const metadata: Metadata = {
 
 const d = (i: number) => ({ "--d": i }) as React.CSSProperties;
 
-function Wave({ className, flip }: { className?: string; flip?: boolean }) {
+// Onda periódica (período = metade da largura): deslizar -50% fecha o loop sem emenda.
+const WAVE_LOOP = "M0 60C240 20 480 20 720 60S1200 100 1440 60S1920 20 2160 60S2640 100 2880 60V120H0z";
+
+/** Três camadas de onda deslizando em velocidades e sentidos diferentes (só translateX). */
+function WaveLayers({ className }: { className: string }) {
   return (
-    <svg
-      className={`xs-wave${flip ? " is-flip" : ""}${className ? ` ${className}` : ""}`}
-      viewBox="0 0 1440 120"
-      preserveAspectRatio="none"
-      aria-hidden
-    >
-      <path d="M0 64c120-26 240-40 360-28s240 52 360 52 240-40 360-52 240 2 360 28v56H0z" />
-    </svg>
+    <div className={`xs-waves ${className}`} aria-hidden>
+      {["c", "b", "a"].map((k) => (
+        <svg key={k} className={`is-${k}`} viewBox="0 0 2880 120" preserveAspectRatio="none">
+          <path d={WAVE_LOOP} />
+        </svg>
+      ))}
+    </div>
   );
 }
 
@@ -69,12 +75,15 @@ const GALLERY = [
 export default function InstitutionalPage() {
   return (
     <div className="xs-page">
+      <noscript>
+        <style>{"html .xs [data-play]:not(.is-in) *{animation-play-state:running!important}"}</style>
+      </noscript>
       <ScrollEffects />
       <SiteHeader />
 
       <main>
         {/* HERO */}
-        <section className="xs-hero" id="inicio" aria-labelledby="h-hero">
+        <section className="xs-hero" id="inicio" aria-labelledby="h-hero" data-live>
           <div className="xs-blob xs-blob-a" aria-hidden />
           <div className="xs-blob xs-blob-b" aria-hidden />
           <div className="xs-wrap xs-hero-in">
@@ -92,8 +101,8 @@ export default function InstitutionalPage() {
                 você encher a sua garrafa todos os dias e deixar o plástico descartável para trás.
               </p>
               <div className="xs-hero-ctas xs-anim" style={d(5)}>
-                <Link className="xs-btn xs-btn-primary xs-btn-lg" href={CONTACT.appRegister}>
-                  <DropIcon />
+                <Link className="xs-btn xs-btn-primary xs-btn-lg" href={CONTACT.appRegister} prefetch={false}>
+                  <DripDrop />
                   Quero meu galão
                 </Link>
                 <a className="xs-btn xs-btn-ghost xs-btn-lg" href="#distribuidor">
@@ -107,44 +116,55 @@ export default function InstitutionalPage() {
                   portaria de lavra da fonte
                 </div>
                 <div>
-                  <b>3 captações</b>nascente e dois poços
+                  <b>
+                    <span data-count="3">3</span> captações
+                  </b>
+                  nascente e dois poços
                 </div>
                 <div>
-                  <b>20 L</b>galão retornável e higienizado
+                  <b>
+                    <span data-count="20">20</span> L
+                  </b>
+                  galão retornável e higienizado
                 </div>
               </div>
             </div>
 
-            <div className="xs-hero-visual">
+            {/* Palco do galão: as animações esperam o bloco aparecer (data-play). */}
+            <div className="xs-hero-visual" data-play>
               <HeroDrops />
               <div className="xs-pool" aria-hidden>
                 <span className="xs-pool-wave" />
                 <span className="xs-pool-wave is-b" />
               </div>
-              <div className="xs-galao" data-parallax="0.06">
-                <Image
-                  src="/site/galao.png"
-                  alt="Galão de 20 litros da Água Mineral Natural Xuá, sem gás"
-                  width={750}
-                  height={1000}
-                  priority
-                  sizes="(max-width: 900px) 80vw, 420px"
-                />
+              <div className="xs-galao">
+                <div className="xs-galao-px" data-parallax style={{ "--pl": 26 } as React.CSSProperties}>
+                  <Image
+                    src="/site/galao.png"
+                    alt="Galão de 20 litros da Água Mineral Natural Xuá, sem gás"
+                    width={750}
+                    height={1000}
+                    priority
+                    sizes="(max-width: 900px) 80vw, 420px"
+                  />
+                </div>
               </div>
+              <span className="xs-splash" aria-hidden />
+              <span className="xs-splash is-b" aria-hidden />
               <div className="xs-tag xs-tag-a">
-                <b>40</b>garrafinhas de 500 ml cabem em um galão Xuá
+                <b data-count="40">40</b>garrafinhas de 500 ml cabem em um galão Xuá
               </div>
               <div className="xs-tag xs-tag-b">
                 <span className="xs-tag-dot" />
-                Sem tratamento químico
+                <span className="xs-tag-txt">Sem tratamento químico</span>
               </div>
             </div>
           </div>
-          <Wave className="xs-hero-wave" />
+          <WaveLayers className="xs-hero-waves" />
         </section>
 
         {/* FAIXA */}
-        <div className="xs-marquee" aria-hidden>
+        <div className="xs-marquee" aria-hidden data-live>
           <div className="xs-marquee-track">
             {[0, 1].map((k) => (
               <div key={k} className="xs-marquee-group">
@@ -168,16 +188,16 @@ export default function InstitutionalPage() {
               <p>Escolha o seu perfil e fale direto com quem resolve.</p>
             </div>
             <div className="xs-path-list">
-              <article className="xs-path" data-reveal style={d(0)}>
+              <article className="xs-path" data-reveal data-tilt style={d(0)}>
                 <span className="xs-path-ico"><SmartphoneIcon /></span>
                 <span className="xs-who">Para sua casa</span>
                 <h3>Receba Xuá em casa</h3>
                 <p>Peça pelo aplicativo em poucos toques ou ligue para a fonte: a central indica o distribuidor do seu bairro.</p>
-                <Link className="xs-go" href={CONTACT.appRegister}>
+                <Link className="xs-go" href={CONTACT.appRegister} prefetch={false}>
                   Pedir pelo app <ArrowIcon />
                 </Link>
               </article>
-              <article className="xs-path" data-reveal style={d(1)}>
+              <article className="xs-path" data-reveal data-tilt style={d(1)}>
                 <span className="xs-path-ico"><PhoneIcon /></span>
                 <span className="xs-who">Empresas e escritórios</span>
                 <h3>Água para a sua equipe</h3>
@@ -186,7 +206,7 @@ export default function InstitutionalPage() {
                   Ligar {CONTACT.phoneFonteLabel} <ArrowIcon />
                 </a>
               </article>
-              <article className="xs-path is-feature" data-reveal style={d(2)}>
+              <article className="xs-path is-feature" data-reveal data-tilt style={d(2)}>
                 <span className="xs-path-ico"><WhatsAppIcon /></span>
                 <span className="xs-who">Negócios</span>
                 <h3>Seja um distribuidor</h3>
@@ -200,7 +220,7 @@ export default function InstitutionalPage() {
         </section>
 
         {/* HIDRATAÇÃO CONSCIENTE */}
-        <section className="xs-section xs-conscious" id="consciente" aria-labelledby="h-consc">
+        <section className="xs-section xs-conscious" id="consciente" aria-labelledby="h-consc" data-live>
           <div className="xs-wrap xs-two">
             <div data-reveal="left">
               <span className="xs-eyebrow">Hidratação consciente</span>
@@ -255,8 +275,8 @@ export default function InstitutionalPage() {
                 ["Tratamento", "Não recebe tratamento químico. Chega ao galão como sai da fonte.", "Recebe cloro e outros processos para se tornar segura para o consumo."],
                 ["Composição", "Estável, com sais minerais da própria rocha. A análise vem impressa no rótulo.", "Varia conforme a origem e o tratamento aplicado."],
                 ["Quem fiscaliza", "Lavra autorizada pela Agência Nacional de Mineração (antigo DNPM) e envase sob as normas da Anvisa.", "Padrões de potabilidade do Ministério da Saúde."],
-              ].map(([k, x, p]) => (
-                <div className="xs-crow" role="row" key={k}>
+              ].map(([k, x, p], r) => (
+                <div className="xs-crow" role="row" key={k} style={{ "--r": r } as React.CSSProperties}>
                   <div className="xs-k" role="rowheader">{k}</div>
                   <div className="xs-xv" role="cell">{x}</div>
                   <div className="xs-pv" role="cell">{p}</div>
@@ -271,7 +291,7 @@ export default function InstitutionalPage() {
                 ["K", "+", "Potássio", "Contribui para o equilíbrio de líquidos no corpo."],
                 ["HCO₃", "−", "Bicarbonato", "Comum nas águas minerais, participa do equilíbrio do pH."],
               ].map(([sym, ch, name, txt], i) => (
-                <div className="xs-mineral" key={name} data-reveal style={d(i)}>
+                <div className="xs-mineral" key={name} data-reveal="flip" style={d(i)}>
                   <div className="xs-sym">
                     {sym}
                     <sup>{ch}</sup>
@@ -299,7 +319,10 @@ export default function InstitutionalPage() {
                 A Água Mineral Xuá representa o que te faz bem. Queremos jovens, adultos e idosos cada vez mais saudáveis
                 e com vontade de viver. Beba 2 litros de água por dia, pratique uma atividade física e sinta a vida.
               </p>
-              <span className="xs-quote-drop" aria-hidden><DropIcon /></span>
+              {/* a gota enche de água conforme a rolagem */}
+              <span className="xs-quote-drop" aria-hidden>
+                <span className="xs-quote-water" />
+              </span>
             </div>
             <div>
               <div data-reveal>
@@ -329,8 +352,9 @@ export default function InstitutionalPage() {
         </section>
 
         {/* DA FONTE ATÉ VOCÊ */}
-        <section className="xs-section xs-source" id="qualidade" aria-labelledby="h-src">
-          <Wave className="xs-source-wave" flip />
+        <section className="xs-section xs-source" id="qualidade" aria-labelledby="h-src" data-live data-glow>
+          <WaveLayers className="xs-waves-light is-flip" />
+          <span className="xs-glow" aria-hidden />
           <div className="xs-wrap">
             <div className="xs-source-top" data-reveal>
               <div>
@@ -364,7 +388,7 @@ export default function InstitutionalPage() {
 
             <div className="xs-gallery">
               {GALLERY.map((g, i) => (
-                <figure className={g.cls} key={g.src} data-reveal="scale" style={d(i)}>
+                <figure className={g.cls} key={g.src} data-reveal="wipe" style={d(i)}>
                   <Image src={g.src} alt={g.alt} fill sizes="(max-width: 860px) 50vw, 33vw" />
                   <figcaption>{g.cap}</figcaption>
                 </figure>
@@ -384,7 +408,7 @@ export default function InstitutionalPage() {
               ))}
             </div>
           </div>
-          <Wave className="xs-source-wave-b" />
+          <WaveLayers className="xs-waves-light" />
         </section>
 
         {/* HISTÓRIA */}
@@ -435,7 +459,7 @@ export default function InstitutionalPage() {
               <li data-reveal>
                 <div className="xs-when">Anos 90</div>
                 <p>Começam a extração, o envase e a venda da Água Mineral Xuá em Juiz de Fora.</p>
-                <div className="xs-tl-img">
+                <div className="xs-tl-img is-truck">
                   <Image src="/site/caminhao.jpg" alt="Caminhão de entrega com a marca Xuá" fill sizes="(max-width: 900px) 90vw, 520px" />
                 </div>
               </li>
@@ -503,6 +527,7 @@ export default function InstitutionalPage() {
                   <div className="xs-eco-txt">
                     <div className="xs-big-num">
                       <span data-count="9000">9.000</span>
+                      <Sprout />
                     </div>
                     <h3>mudas nativas</h3>
                     <p>
@@ -526,7 +551,7 @@ export default function InstitutionalPage() {
         </section>
 
         {/* APP */}
-        <section className="xs-app" id="app" aria-labelledby="h-app">
+        <section className="xs-app" id="app" aria-labelledby="h-app" data-live>
           <div className="xs-wrap">
             <div className="xs-app-band" data-reveal="scale">
               <div className="xs-app-copy">
@@ -537,7 +562,7 @@ export default function InstitutionalPage() {
                   A nossa central atende e encaminha o seu pedido.
                 </p>
                 <div className="xs-app-ctas">
-                  <Link className="xs-btn xs-btn-lime xs-btn-lg" href={CONTACT.appRegister}>
+                  <Link className="xs-btn xs-btn-lime xs-btn-lg" href={CONTACT.appRegister} prefetch={false}>
                     <SmartphoneIcon />
                     Criar minha conta
                   </Link>
@@ -547,30 +572,69 @@ export default function InstitutionalPage() {
                   </a>
                 </div>
                 <p className="xs-app-login">
-                  Já tem conta? <Link href={CONTACT.appLogin}>Entrar no app</Link>
+                  Já tem conta? <Link href={CONTACT.appLogin} prefetch={false}>Entrar no app</Link>
                 </p>
               </div>
-              <div className="xs-app-visual" aria-hidden>
+              <div className="xs-app-visual" aria-hidden data-play>
                 <div className="xs-ring" />
                 <div className="xs-ring is-b" />
-                <div className="xs-phone" data-parallax="-0.05">
-                  <div className="xs-phone-screen">
+                {/* o celular gira em 3D preso à rolagem; as telas se alternam: pedir → confirmado → a caminho */}
+                <div className="xs-phone-3d">
+                  <div className="xs-phone">
+                    <div className="xs-phone-screen">
+                      <div className="xs-ph-scr is-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img className="xs-ph-logo" src="/site/logo.svg" alt="" />
+                        <div className="xs-ph-t">Olá! Vamos pedir a sua água?</div>
+                        <div className="xs-ph-item">
+                          <Image src="/site/galao.png" alt="" width={34} height={45} />
+                          <div>
+                            Galão Xuá 20 L<small>Água mineral natural</small>
+                          </div>
+                        </div>
+                        <div className="xs-ph-item is-dim">
+                          <span className="xs-ph-re">⟳</span>
+                          <div>
+                            Pedir de novo<small>Seu último pedido</small>
+                          </div>
+                        </div>
+                        <div className="xs-ph-btn">Pedir agora</div>
+                      </div>
+                      <div className="xs-ph-scr is-2">
+                        <span className="xs-ph-ok">
+                          <CheckIcon />
+                        </span>
+                        <div className="xs-ph-t">Pedido confirmado!</div>
+                        <p className="xs-ph-sub">O distribuidor do seu bairro já recebeu o seu pedido.</p>
+                        <div className="xs-ph-item">
+                          <Image src="/site/galao.png" alt="" width={34} height={45} />
+                          <div>
+                            1 × Galão Xuá 20 L<small>Troca do galão vazio</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="xs-ph-scr is-3">
+                        <div className="xs-ph-t">A caminho</div>
+                        <p className="xs-ph-sub">O seu galão já saiu para entrega.</p>
+                        <div className="xs-ph-route">
+                          <span className="xs-ph-pin is-a" />
+                          <span className="xs-ph-truck">
+                            <TruckIcon />
+                          </span>
+                          <span className="xs-ph-pin is-b">
+                            <DropIcon />
+                          </span>
+                        </div>
+                        <div className="xs-ph-btn is-ghost">Acompanhar pedido</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="xs-ph-toast">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img className="xs-ph-logo" src="/site/logo.svg" alt="" />
-                    <div className="xs-ph-t">Olá! Vamos pedir a sua água?</div>
-                    <div className="xs-ph-item">
-                      <Image src="/site/galao.png" alt="" width={34} height={45} />
-                      <div>
-                        Galão Xuá 20 L<small>Água mineral natural</small>
-                      </div>
+                    <img src="/site/logo.svg" alt="" />
+                    <div>
+                      <b>Xuá</b>Seu pedido saiu para entrega
                     </div>
-                    <div className="xs-ph-item is-dim">
-                      <span className="xs-ph-re">⟳</span>
-                      <div>
-                        Pedir de novo<small>Seu último pedido</small>
-                      </div>
-                    </div>
-                    <div className="xs-ph-btn">Pedir agora</div>
                   </div>
                 </div>
               </div>
@@ -590,12 +654,12 @@ export default function InstitutionalPage() {
               </p>
               <div className="xs-perks">
                 {[
-                  ["Excelência", "Água mineral natural com controle de qualidade da fonte ao galão.", <path key="a" d="M12 2l3 6.5 7 .8-5.2 4.8 1.4 7-6.2-3.6-6.2 3.6 1.4-7L2 9.3l7-.8z" />],
-                  ["Frescor", "Produção própria em Juiz de Fora e logística de distribuição estruturada.", <path key="b" d="M12 2.5c3 4.3 7 7.5 7 11.5a7 7 0 0 1-14 0c0-4 4-7.2 7-11.5z" />],
-                  ["Bons negócios", "Produto de giro constante para casas, escritórios, lojas e empresas.", <path key="c" d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
-                  ["Pedidos pelo app", "Os pedidos dos consumidores da sua região chegam organizados no painel do distribuidor.", <path key="d" d="M6 2h12a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM8 8h8M8 12h8M8 16h5" />],
-                ].map(([t, p, icon]) => (
-                  <div className="xs-perk" key={t as string}>
+                  ["Excelência", "Água mineral natural com controle de qualidade da fonte ao galão.", <path key="a" pathLength={1} d="M12 2l3 6.5 7 .8-5.2 4.8 1.4 7-6.2-3.6-6.2 3.6 1.4-7L2 9.3l7-.8z" />],
+                  ["Frescor", "Produção própria em Juiz de Fora e logística de distribuição estruturada.", <path key="b" pathLength={1} d="M12 2.5c3 4.3 7 7.5 7 11.5a7 7 0 0 1-14 0c0-4 4-7.2 7-11.5z" />],
+                  ["Bons negócios", "Produto de giro constante para casas, escritórios, lojas e empresas.", <path key="c" pathLength={1} d="M3 17l6-6 4 4 8-8M15 7h6v6" />],
+                  ["Pedidos pelo app", "Os pedidos dos consumidores da sua região chegam organizados no painel do distribuidor.", <path key="d" pathLength={1} d="M6 2h12a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM8 8h8M8 12h8M8 16h5" />],
+                ].map(([t, p, icon], i) => (
+                  <div className="xs-perk" key={t as string} style={{ "--p": i } as React.CSSProperties}>
                     <div className="xs-ico is-green">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         {icon}
@@ -651,9 +715,9 @@ export default function InstitutionalPage() {
       </main>
 
       <footer className="xs-footer">
-        <Wave className="xs-footer-wave" flip />
+        <WaveLayers className="xs-waves-mist is-flip" />
         <div className="xs-wrap xs-footer-in">
-          <div>
+          <div className="xs-footer-brand" data-reveal>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/site/logo.svg" alt="Água Mineral Xuá" width={92} height={92} />
             <div className="xs-slogan">
@@ -678,7 +742,7 @@ export default function InstitutionalPage() {
               <li><a href={`tel:${CONTACT.phoneFonte}`}>Consumidor: {CONTACT.phoneFonteLabel}</a></li>
               <li><a href={whatsappUrl(DISTRIBUIDOR_MSG)} target="_blank" rel="noopener noreferrer">Distribuidores: {CONTACT.whatsappDistribuidorLabel}</a></li>
               <li><a href="#distribuidor">Seja um distribuidor</a></li>
-              <li><Link href={CONTACT.appLogin}>Entrar no app</Link></li>
+              <li><Link href={CONTACT.appLogin} prefetch={false}>Entrar no app</Link></li>
             </ul>
           </div>
           <div>

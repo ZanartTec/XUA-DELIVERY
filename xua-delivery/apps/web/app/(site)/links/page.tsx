@@ -9,7 +9,9 @@ import {
   TruckIcon,
   WhatsAppIcon,
 } from "../_components/icons";
-import { PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
+import { isAppRoute, PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
+import { DripDrop } from "../_components/drip-drop";
+import { ScrollEffects } from "../_components/scroll-effects";
 import { ShareButton } from "./share-button";
 
 export const metadata: Metadata = {
@@ -57,7 +59,7 @@ function LinkItem({ link }: { link: PublicLink }) {
   const content = (
     <>
       <span className={`xl-ico ${link.featured ? "" : (ICON_CLASS[link.icon] ?? "")}`}>
-        <Icon />
+        {link.featured ? <DripDrop /> : <Icon />}
       </span>
       <span className="xl-txt">
         <b>{link.label}</b>
@@ -69,7 +71,7 @@ function LinkItem({ link }: { link: PublicLink }) {
 
   if (link.href.startsWith("/")) {
     return (
-      <Link className={cls} href={link.href}>
+      <Link className={cls} href={link.href} prefetch={isAppRoute(link.href) ? false : undefined}>
         {content}
       </Link>
     );
@@ -88,6 +90,7 @@ function LinkItem({ link }: { link: PublicLink }) {
 export default function LinksPage() {
   return (
     <main className="xl">
+      <ScrollEffects />
       <div className="xl-bg" aria-hidden>
         {BUBBLES.map((b) => (
           <span
