@@ -2,6 +2,31 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.2.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.1.0...v1.2.0) (2026-11-06)
+
+### Funcionalidades
+
+* **consumers:** editar, excluir e definir endereço principal ([faf18e0](https://github.com/ZanartTec/XUA-DELIVERY/commit/faf18e0bd7cf1c5788f44caf8658a9852b2a93ee))
+* **orders:** regra de vasilhame na entrega e cartão na entrega sem gateway ([391251e](https://github.com/ZanartTec/XUA-DELIVERY/commit/391251ef67909abe73ff1427de52463f378a6503))
+* **web:** estoque, conferência, agenda, pagamento, motoristas e rota da distribuidora ([a29f1a5](https://github.com/ZanartTec/XUA-DELIVERY/commit/a29f1a5c0823cbeff6fba7f97db7e34c9768ad9b))
+* **web:** fila, pedido e despacho da distribuidora redesenhados ([5bbf16e](https://github.com/ZanartTec/XUA-DELIVERY/commit/5bbf16eddb82664debfb4246a5396033e8b6ad22))
+* **web:** fundação de UI shadcn e redesign do módulo Cliente ([252f915](https://github.com/ZanartTec/XUA-DELIVERY/commit/252f9158312452b475ccac5fb995141d63a26b52))
+* **web:** redesign do módulo Motorista e página "Minha conta" ([8994f0f](https://github.com/ZanartTec/XUA-DELIVERY/commit/8994f0f6cfce95a9b975901867b86e3977b9e6e5))
+* **web:** redesign do módulo Ops e correções de layout operacional ([c177fff](https://github.com/ZanartTec/XUA-DELIVERY/commit/c177fff12e6e825dc60bbf26df56e660dbe4ee65))
+* **web:** site institucional, página de links e atalhos de rota ([da0cb0e](https://github.com/ZanartTec/XUA-DELIVERY/commit/da0cb0ed46df0a492adf9bde54344b49fcba8cfd))
+* **web:** telas de acesso unificadas e troca de senha logado ([2433453](https://github.com/ZanartTec/XUA-DELIVERY/commit/2433453bec161c53fe27a9bcde7205c8517db194))
+
+### Correções
+
+* **kpis:** aceite e SLA por pedido e prazo da fila igual ao do KPI ([a89bbc4](https://github.com/ZanartTec/XUA-DELIVERY/commit/a89bbc43fae81916946fe71de310bc1d03b2b3d2))
+* **support:** busca do suporte sem erro 500 e detalhe do pedido funcionando ([791e582](https://github.com/ZanartTec/XUA-DELIVERY/commit/791e582ed63c4690c797404b5836572dda1dd6af))
+* **web:** cache único de motoristas da distribuidora ([9350585](https://github.com/ZanartTec/XUA-DELIVERY/commit/9350585fc380c9976cb117f0b4b258b851d0063d))
+
+### Documentação
+
+* **ui-ux:** andamento da Fase 2 e bugs corrigidos ([427b652](https://github.com/ZanartTec/XUA-DELIVERY/commit/427b65202794d84f47ecbd2df30e1edd43ea1ecd))
+* **ui-ux:** mapeamento de UI/UX dos 4 módulos (fase 1) ([32b224c](https://github.com/ZanartTec/XUA-DELIVERY/commit/32b224c853cd211ae75cf99f505dbb12163d5d00))
+
 ## [1.1.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.0.0...v1.1.0) (2026-10-31)
 
 ### Funcionalidades
