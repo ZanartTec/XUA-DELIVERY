@@ -29,7 +29,7 @@ export function FloatingActions() {
   return (
     <div ref={ref} className={`xs-fab${open ? " is-open" : ""}`}>
       <div className="xs-fab-menu" id="xs-fab-menu" aria-hidden={!open}>
-        <Link href={CONTACT.appRegister} onClick={close} tabIndex={open ? 0 : -1} style={{ "--i": 2 } as React.CSSProperties}>
+        <Link href={CONTACT.appRegister} prefetch={false} onClick={close} tabIndex={open ? 0 : -1} style={{ "--i": 2 } as React.CSSProperties}>
           <span>
             Pedir pelo app<small>Receba em casa</small>
           </span>

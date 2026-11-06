@@ -9,7 +9,7 @@ import {
   TruckIcon,
   WhatsAppIcon,
 } from "../_components/icons";
-import { PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
+import { isAppRoute, PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
 import { DripDrop } from "../_components/drip-drop";
 import { ScrollEffects } from "../_components/scroll-effects";
 import { ShareButton } from "./share-button";
@@ -71,7 +71,7 @@ function LinkItem({ link }: { link: PublicLink }) {
 
   if (link.href.startsWith("/")) {
     return (
-      <Link className={cls} href={link.href}>
+      <Link className={cls} href={link.href} prefetch={isAppRoute(link.href) ? false : undefined}>
         {content}
       </Link>
     );

@@ -101,7 +101,7 @@ export default function InstitutionalPage() {
                 você encher a sua garrafa todos os dias e deixar o plástico descartável para trás.
               </p>
               <div className="xs-hero-ctas xs-anim" style={d(5)}>
-                <Link className="xs-btn xs-btn-primary xs-btn-lg" href={CONTACT.appRegister}>
+                <Link className="xs-btn xs-btn-primary xs-btn-lg" href={CONTACT.appRegister} prefetch={false}>
                   <DripDrop />
                   Quero meu galão
                 </Link>
@@ -193,7 +193,7 @@ export default function InstitutionalPage() {
                 <span className="xs-who">Para sua casa</span>
                 <h3>Receba Xuá em casa</h3>
                 <p>Peça pelo aplicativo em poucos toques ou ligue para a fonte: a central indica o distribuidor do seu bairro.</p>
-                <Link className="xs-go" href={CONTACT.appRegister}>
+                <Link className="xs-go" href={CONTACT.appRegister} prefetch={false}>
                   Pedir pelo app <ArrowIcon />
                 </Link>
               </article>
@@ -562,7 +562,7 @@ export default function InstitutionalPage() {
                   A nossa central atende e encaminha o seu pedido.
                 </p>
                 <div className="xs-app-ctas">
-                  <Link className="xs-btn xs-btn-lime xs-btn-lg" href={CONTACT.appRegister}>
+                  <Link className="xs-btn xs-btn-lime xs-btn-lg" href={CONTACT.appRegister} prefetch={false}>
                     <SmartphoneIcon />
                     Criar minha conta
                   </Link>
@@ -572,7 +572,7 @@ export default function InstitutionalPage() {
                   </a>
                 </div>
                 <p className="xs-app-login">
-                  Já tem conta? <Link href={CONTACT.appLogin}>Entrar no app</Link>
+                  Já tem conta? <Link href={CONTACT.appLogin} prefetch={false}>Entrar no app</Link>
                 </p>
               </div>
               <div className="xs-app-visual" aria-hidden data-play>
@@ -742,7 +742,7 @@ export default function InstitutionalPage() {
               <li><a href={`tel:${CONTACT.phoneFonte}`}>Consumidor: {CONTACT.phoneFonteLabel}</a></li>
               <li><a href={whatsappUrl(DISTRIBUIDOR_MSG)} target="_blank" rel="noopener noreferrer">Distribuidores: {CONTACT.whatsappDistribuidorLabel}</a></li>
               <li><a href="#distribuidor">Seja um distribuidor</a></li>
-              <li><Link href={CONTACT.appLogin}>Entrar no app</Link></li>
+              <li><Link href={CONTACT.appLogin} prefetch={false}>Entrar no app</Link></li>
             </ul>
           </div>
           <div>

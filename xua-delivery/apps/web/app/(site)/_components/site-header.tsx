@@ -82,7 +82,7 @@ export function SiteHeader() {
               {n.label}
             </a>
           ))}
-          <Link className="xs-btn xs-btn-primary xs-nav-cta" href="/register" onClick={() => setOpen(false)}>
+          <Link className="xs-btn xs-btn-primary xs-nav-cta" href="/register" prefetch={false} onClick={() => setOpen(false)}>
             Peça sua água
           </Link>
         </nav>
