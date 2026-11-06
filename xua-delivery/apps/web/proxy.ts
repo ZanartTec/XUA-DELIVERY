@@ -21,7 +21,29 @@ const JWT_SECRET_RAW = validateJwtSecret(process.env.JWT_SECRET);
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 // Rotas públicas que não requerem autenticação
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/links",
+  "/institucional",
+];
+
+/** Atalho "/app": sem sessão vai para o login; com sessão, para a home da role. */
+const APP_SHORTCUT = "/app";
+
+/**
+ * A raiz "/" é o site institucional da marca para visitantes sem sessão.
+ * Quem abre o app instalado (PWA, start_url "/?source=pwa") vai direto ao login,
+ * e quem tem sessão válida continua indo para a home da sua role.
+ */
+function anonymousRoot(request: NextRequest): NextResponse {
+  if (request.nextUrl.searchParams.get("source") === "pwa") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  return NextResponse.next();
+}
 
 // Mapa de redirecionamento por role (seção 3.2 do guia técnico)
 const ROLE_REDIRECTS: Record<string, string> = {
@@ -123,6 +145,7 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("xua-token")?.value;
 
   if (!token) {
+    if (pathname === "/") return anonymousRoot(request);
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -138,14 +161,15 @@ export async function proxy(request: NextRequest) {
         typeof payload.iat === "number" ? payload.iat : undefined
       );
       if (revoked) {
-        const response = NextResponse.redirect(new URL("/login", request.url));
+        const response =
+          pathname === "/" ? anonymousRoot(request) : NextResponse.redirect(new URL("/login", request.url));
         response.cookies.delete("xua-token");
         return response;
       }
     }
 
-    // Se acessando a raiz, redireciona para a home da role
-    if (pathname === "/") {
+    // Raiz e atalho "/app" levam para a home da role
+    if (pathname === "/" || pathname === APP_SHORTCUT) {
       const redirectPath = ROLE_REDIRECTS[role] || "/login";
       return NextResponse.redirect(new URL(redirectPath, request.url));
     }
@@ -171,7 +195,8 @@ export async function proxy(request: NextRequest) {
     });
   } catch {
     // Token inválido ou expirado
-    const response = NextResponse.redirect(new URL("/login", request.url));
+    const response =
+      pathname === "/" ? anonymousRoot(request) : NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("xua-token");
     return response;
   }
