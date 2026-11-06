@@ -104,7 +104,63 @@ export function ScrollEffects() {
     );
     document.querySelectorAll<HTMLElement>("[data-live]").forEach((el) => live.observe(el));
 
+    // [data-tilt]: inclinação 3D que segue o mouse (só desktop com mouse de verdade).
+    const tiltOff: Array<() => void> = [];
+    if (motion !== "reduced" && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      document.querySelectorAll<HTMLElement>("[data-tilt]").forEach((el) => {
+        let raf = 0;
+        const move = (e: PointerEvent) => {
+          cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(() => {
+            const r = el.getBoundingClientRect();
+            const x = (e.clientX - r.left) / r.width - 0.5;
+            const y = (e.clientY - r.top) / r.height - 0.5;
+            el.style.setProperty("--ry", `${(x * 10).toFixed(2)}deg`);
+            el.style.setProperty("--rx", `${(-y * 8).toFixed(2)}deg`);
+          });
+        };
+        const leave = () => {
+          cancelAnimationFrame(raf);
+          el.style.removeProperty("--rx");
+          el.style.removeProperty("--ry");
+        };
+        el.addEventListener("pointermove", move);
+        el.addEventListener("pointerleave", leave);
+        tiltOff.push(() => {
+          leave();
+          el.removeEventListener("pointermove", move);
+          el.removeEventListener("pointerleave", leave);
+        });
+      });
+
+      // [data-glow]: um brilho suave segue o cursor (move um elemento com transform).
+      document.querySelectorAll<HTMLElement>("[data-glow]").forEach((el) => {
+        let raf = 0;
+        const move = (e: PointerEvent) => {
+          cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(() => {
+            const r = el.getBoundingClientRect();
+            el.style.setProperty("--gx", `${Math.round(e.clientX - r.left)}px`);
+            el.style.setProperty("--gy", `${Math.round(e.clientY - r.top)}px`);
+            el.classList.add("is-glow");
+          });
+        };
+        const leave = () => {
+          cancelAnimationFrame(raf);
+          el.classList.remove("is-glow");
+        };
+        el.addEventListener("pointermove", move);
+        el.addEventListener("pointerleave", leave);
+        tiltOff.push(() => {
+          leave();
+          el.removeEventListener("pointermove", move);
+          el.removeEventListener("pointerleave", leave);
+        });
+      });
+    }
+
     return () => {
+      tiltOff.forEach((off) => off());
       io.disconnect();
       stage.disconnect();
       live.disconnect();

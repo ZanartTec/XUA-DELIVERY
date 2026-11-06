@@ -923,21 +923,6 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
     scale: 0.8;
   }
 }
-.xs-wave {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: clamp(36px, 6vw, 90px);
-  display: block;
-  pointer-events: none;
-}
-.xs-wave:not(.is-flip) {
-  bottom: -1px;
-}
-.xs-wave.is-flip {
-  top: -1px;
-  transform: rotate(180deg);
-}
 /* Ondas em camadas: cada SVG tem 200% da largura e desliza -50% em loop
    (só translateX, roda no compositor). A da frente é azul-marinho e emenda
    com a faixa rolante logo abaixo. */
@@ -1179,7 +1164,8 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   color: #fff;
   padding: 80px 0 100px;
   position: relative;
-  overflow: hidden;
+  /* clip (e não hidden) para os cartões sticky funcionarem no celular */
+  overflow: clip;
 }
 .xs-paths::before {
   content: "";
@@ -1238,9 +1224,32 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   transition: opacity 0.5s;
 }
 .xs-path:hover {
-  transform: translateY(-8px) !important;
+  transform: perspective(900px) translateY(-8px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) !important;
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(166, 206, 57, 0.6);
+  transition:
+    transform 0.2s ease-out,
+    background 0.45s,
+    border-color 0.45s,
+    opacity 0.9s var(--ease) !important;
+}
+/* o ícone de cada caminho "reage" no hover */
+.xs-path:hover .xs-path-ico svg {
+  animation: xs-wiggle 0.7s var(--ease);
+}
+@keyframes xs-wiggle {
+  20% {
+    transform: rotate(-14deg);
+  }
+  40% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-6deg);
+  }
+  80% {
+    transform: rotate(3deg);
+  }
 }
 .xs-path:hover::before {
   opacity: 1;
@@ -1307,6 +1316,16 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
 @media (max-width: 980px) {
   .xs-path-list {
     grid-template-columns: 1fr;
+  }
+  /* celular: os cartões se empilham ao rolar (sticky, sem JS) */
+  .xs-path {
+    position: sticky;
+    top: calc(92px + var(--d, 0) * 14px);
+    background: #2b4a91;
+    box-shadow: 0 -18px 34px -22px rgba(4, 12, 34, 0.75);
+  }
+  .xs-path.is-feature {
+    background: linear-gradient(160deg, #4a6a6b, #2b4a91 70%);
   }
 }
 
@@ -1517,23 +1536,137 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   grid-template-columns: repeat(20, 1fr);
   gap: 4px;
 }
+/* Garrafinhas: o vidro aparece, a água enche de baixo para cima e depois
+   fica balançando (onda deslizando + inclinação), cada uma no seu tempo.
+   Ao mexer no simulador, o líquido chacoalha (data-kick alterna 0/1). */
 .xs-bottles i {
+  position: relative;
   display: block;
   aspect-ratio: 1 / 2.4;
-  background: var(--navy);
-  opacity: 0.16;
+  background: rgba(32, 64, 138, 0.16);
   clip-path: polygon(35% 0, 65% 0, 65% 12%, 82% 22%, 82% 100%, 18% 100%, 18% 22%, 35% 12%);
+}
+.xs-bottles i::before {
+  content: "";
+  position: absolute;
+  left: -100%;
+  bottom: -14%;
+  width: 300%;
+  height: 76%;
+  /* uma crista por largura de garrafa; deslizar 1/3 fecha o loop */
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 100' preserveAspectRatio='none'%3E%3Cpath d='M0 7Q10 0 20 7T40 7V100H0z' fill='%2378b9ee'/%3E%3C/svg%3E")
+    repeat-x 0 0 / 33.334% 100%;
+  transform-origin: 50% 100%;
+  translate: 0 102%;
 }
 .xs-calc.is-in .xs-bottles i,
 html:not(.xs-js) .xs-bottles i {
   animation: xs-bottle 0.5s var(--ease) both;
-  animation-delay: calc(0.5s + var(--i) * 30ms);
+  animation-delay: calc(0.4s + var(--i) * 30ms);
+}
+.xs-calc.is-in .xs-bottles i::before,
+html:not(.xs-js) .xs-bottles i::before {
+  animation:
+    xs-liquid-fill 0.9s cubic-bezier(0.3, 1.2, 0.5, 1) both,
+    xs-liquid-wave 1.8s linear infinite,
+    xs-liquid-slosh 3.2s ease-in-out infinite;
+  animation-delay:
+    calc(0.6s + var(--i) * 30ms),
+    calc(var(--i) * -0.17s),
+    calc(var(--i) * -0.23s);
+}
+.xs-calc.is-in .xs-bottles[data-kick="0"] i::before {
+  animation-name: xs-liquid-fill, xs-liquid-wave, xs-liquid-slosh, xs-liquid-kick-a;
+  animation-duration: 0.9s, 1.8s, 3.2s, 1.1s;
+  animation-timing-function: cubic-bezier(0.3, 1.2, 0.5, 1), linear, ease-in-out, linear;
+  animation-iteration-count: 1, infinite, infinite, 1;
+  animation-delay: 0s, calc(var(--i) * -0.17s), calc(var(--i) * -0.23s), calc(var(--i) * 6ms);
+}
+.xs-calc.is-in .xs-bottles[data-kick="1"] i::before {
+  animation-name: xs-liquid-fill, xs-liquid-wave, xs-liquid-slosh, xs-liquid-kick-b;
+  animation-duration: 0.9s, 1.8s, 3.2s, 1.1s;
+  animation-timing-function: cubic-bezier(0.3, 1.2, 0.5, 1), linear, ease-in-out, linear;
+  animation-iteration-count: 1, infinite, infinite, 1;
+  animation-delay: 0s, calc(var(--i) * -0.17s), calc(var(--i) * -0.23s), calc(var(--i) * 6ms);
 }
 @keyframes xs-bottle {
-  to {
-    opacity: 1;
-    background: var(--sky);
+  from {
+    background: rgba(32, 64, 138, 0.16);
   }
+  to {
+    background: #d8e9f8;
+  }
+}
+@keyframes xs-liquid-fill {
+  from {
+    translate: 0 102%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes xs-liquid-wave {
+  to {
+    transform: translateX(-33.334%);
+  }
+}
+@keyframes xs-liquid-slosh {
+  0%,
+  100% {
+    rotate: -8deg;
+  }
+  50% {
+    rotate: 8deg;
+  }
+}
+/* chacoalhão amortecido (duas cópias para reiniciar a cada mudança) */
+@keyframes xs-liquid-kick-a {
+  0% {
+    rotate: 0deg;
+  }
+  15% {
+    rotate: 16deg;
+  }
+  35% {
+    rotate: -12deg;
+  }
+  55% {
+    rotate: 8deg;
+  }
+  75% {
+    rotate: -4deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+@keyframes xs-liquid-kick-b {
+  0% {
+    rotate: 0deg;
+  }
+  15% {
+    rotate: -16deg;
+  }
+  35% {
+    rotate: 12deg;
+  }
+  55% {
+    rotate: -8deg;
+  }
+  75% {
+    rotate: 4deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+.xs-sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .xs-calc-note {
   font-size: 13px;
@@ -1853,12 +1986,6 @@ html:not(.xs-js) .xs-bottles i {
   color: #fff;
   padding: 170px 0;
   overflow: hidden;
-}
-.xs-source-wave {
-  fill: #fff;
-}
-.xs-source-wave-b {
-  fill: #fff;
 }
 .xs-source h2 {
   color: #fff;
@@ -2707,9 +2834,6 @@ html.xs-js .xs-flow.is-in li {
   padding: 120px 0 110px;
   font-size: 15px;
 }
-.xs-footer-wave {
-  fill: var(--mist);
-}
 .xs-footer-in {
   display: grid;
   grid-template-columns: 1.3fr 1fr 1fr 1fr;
@@ -3166,6 +3290,726 @@ html.xs-js .xs-flow.is-in li {
   color: rgba(200, 214, 242, 0.7);
 }
 
+/* ═══ Efeitos das seções (Fase 2) ═══════════════════════════════════
+   Regra geral: só transform/opacity em loops; o que depende da rolagem usa
+   animation-timeline (compositor) dentro de @supports, com fallback estático
+   ou disparado por .is-in. */
+
+/* Ondas em camadas reaproveitadas: claras (sobre o azul escuro) e névoa. */
+.xs-waves.is-flip {
+  top: -1px;
+  bottom: auto;
+  transform: rotate(180deg);
+}
+.xs-waves-light .is-c {
+  fill: rgba(255, 255, 255, 0.18);
+}
+.xs-waves-light .is-b {
+  fill: rgba(255, 255, 255, 0.4);
+}
+.xs-waves-light .is-a {
+  fill: #fff;
+}
+.xs-waves-mist .is-c {
+  fill: rgba(238, 246, 252, 0.2);
+}
+.xs-waves-mist .is-b {
+  fill: rgba(238, 246, 252, 0.45);
+}
+.xs-waves-mist .is-a {
+  fill: var(--mist);
+}
+
+@keyframes xs-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes xs-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Hidratação consciente: linha dos passos se desenha com a rolagem e cada
+   número acende quando é alcançado. */
+.xs-steps {
+  position: relative;
+  isolation: isolate;
+}
+.xs-steps::after {
+  content: "";
+  position: absolute;
+  left: 27px;
+  top: 28px;
+  bottom: 40px;
+  width: 2px;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--sky), var(--lime));
+  transform-origin: top;
+}
+@keyframes xs-step-on {
+  to {
+    background: var(--navy);
+    color: var(--lime);
+  }
+}
+
+/* A água: linhas da tabela entram uma a uma e a coluna mineral ganha destaque. */
+html.xs-js .xs-compare .xs-crow:not(.xs-chead) {
+  transition:
+    background 0.25s,
+    opacity 0.6s var(--ease),
+    transform 0.6s var(--ease);
+  transition-delay: 0s, calc(0.25s + var(--r, 0) * 0.12s), calc(0.25s + var(--r, 0) * 0.12s);
+}
+html.xs-js .xs-compare:not(.is-in) .xs-crow:not(.xs-chead) {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.xs-compare .xs-xv {
+  position: relative;
+  isolation: isolate;
+}
+.xs-compare .xs-xv::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(166, 206, 57, 0.16), rgba(166, 206, 57, 0));
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.9s var(--ease);
+  transition-delay: calc(0.7s + var(--r, 0) * 0.12s);
+}
+.xs-compare.is-in .xs-xv::before,
+html:not(.xs-js) .xs-compare .xs-xv::before {
+  transform: none;
+}
+
+/* Minerais: viram em 3D como peças da tabela periódica; bolhas no hover. */
+.xs [data-reveal="flip"] {
+  transform-origin: 0 50%;
+}
+html.xs-js .xs [data-reveal="flip"]:not(.is-in) {
+  opacity: 0;
+  transform: perspective(900px) rotateY(-75deg);
+}
+.xs-mineral[data-reveal="flip"] {
+  transition:
+    transform 0.9s var(--ease),
+    box-shadow 0.45s,
+    opacity 0.7s var(--ease) !important;
+  transition-delay: calc(var(--d, 0) * 120ms) !important;
+}
+.xs-mineral.is-in:hover {
+  transition-delay: 0s !important;
+}
+.xs-mineral::before {
+  content: "";
+  position: absolute;
+  inset: 30% 0 -10px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 92%, rgba(120, 185, 238, 0.55) 0 4px, transparent 5px),
+    radial-gradient(circle at 52% 96%, rgba(120, 185, 238, 0.45) 0 3px, transparent 4px),
+    radial-gradient(circle at 78% 90%, rgba(120, 185, 238, 0.5) 0 5px, transparent 6px),
+    radial-gradient(circle at 36% 98%, rgba(120, 185, 238, 0.4) 0 2px, transparent 3px);
+  opacity: 0;
+}
+.xs-mineral:hover::before {
+  animation: xs-bubbles 1.6s ease-in infinite;
+}
+@keyframes xs-bubbles {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-70%);
+  }
+}
+
+/* Benefícios: a gota do cartão enche de água conforme a rolagem. */
+.xs-quote {
+  view-timeline-name: --quote;
+}
+.xs .xs-quote-drop {
+  width: 110px;
+  height: 140px;
+  overflow: hidden;
+  color: inherit;
+  background: rgba(156, 207, 239, 0.16);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='5 2 14 20'%3E%3Cpath d='M12 2.5c3 4.3 7 7.5 7 11.5a7 7 0 0 1-14 0c0-4 4-7.2 7-11.5z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='5 2 14 20'%3E%3Cpath d='M12 2.5c3 4.3 7 7.5 7 11.5a7 7 0 0 1-14 0c0-4 4-7.2 7-11.5z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.xs-quote-water {
+  position: absolute;
+  left: -100%;
+  bottom: -8%;
+  width: 300%;
+  height: 108%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 100' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q10 0 20 5T40 5V100H0z' fill='%239ccfef'/%3E%3C/svg%3E")
+    repeat-x 0 0 / 33.334% 100%;
+  translate: 0 30%;
+  opacity: 0.85;
+  animation: xs-liquid-wave 2.6s linear infinite;
+}
+@media (max-width: 900px) {
+  .xs .xs-quote-drop {
+    width: 62px;
+    height: 80px;
+    right: 22px;
+    top: 22px;
+  }
+  .xs-quote-q {
+    padding-right: 64px;
+  }
+}
+.xs-quote.is-in .xs-quote-water {
+  animation:
+    xs-liquid-wave 2.6s linear infinite,
+    xs-drop-fill 1.6s 0.4s var(--ease) backwards;
+}
+@keyframes xs-drop-fill {
+  from {
+    translate: 0 92%;
+  }
+}
+
+/* Fonte e qualidade: brilho que segue o cursor (desktop). */
+.xs-source {
+  position: relative;
+}
+.xs-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 560px;
+  height: 560px;
+  margin: -280px 0 0 -280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(156, 207, 239, 0.16), transparent 65%);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(var(--gx, 50%), var(--gy, 50%));
+  transition: opacity 0.6s;
+}
+.xs-source.is-glow .xs-glow {
+  opacity: 1;
+}
+.xs-source > .xs-wrap {
+  position: relative;
+}
+
+/* Galeria e fotos: uma cortina da cor do fundo sobe e revela a foto, com um
+   zoom curto (Ken Burns). A cortina é um ::before com scaleY (compositor);
+   recortar a própria figura com clip-path impediria o IntersectionObserver
+   de enxergá-la. */
+.xs-gallery figure::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--ink);
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 1s var(--ease);
+  transition-delay: calc(var(--d, 0) * 90ms);
+  pointer-events: none;
+}
+html.xs-js .xs .xs-gallery figure[data-reveal]:not(.is-in) {
+  opacity: 1;
+  transform: none;
+}
+html.xs-js .xs-gallery figure:not(.is-in)::before {
+  transform: none;
+}
+html.xs-js .xs-gallery figure:not(.is-in) img,
+html.xs-js .xs-eco-card:not(.is-in) .xs-eco-img img,
+html.xs-js .xs-timeline li:not(.is-in) .xs-tl-img img {
+  transform: scale(1.18);
+}
+.xs-gallery img,
+.xs-eco-img img,
+.xs-tl-img img {
+  transition: transform 1.4s var(--ease) !important;
+}
+.xs-tl-img {
+  clip-path: inset(0 0 0 0 round 18px);
+  transition: clip-path 1.1s var(--ease) 0.25s;
+}
+html.xs-js .xs-timeline li:not(.is-in) .xs-tl-img {
+  clip-path: inset(0 100% 0 0 round 18px);
+}
+
+/* Fluxo de 6 etapas e linha do tempo: linha e pontos acendem com a rolagem. */
+.xs-timeline {
+  position: relative;
+  border-left-color: transparent;
+}
+.xs-timeline::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--navy), var(--sky) 70%, var(--lime));
+  transform-origin: top;
+}
+.xs-timeline li::before {
+  z-index: 1;
+}
+@keyframes xs-tl-dot {
+  from {
+    border-color: var(--line);
+    scale: 0.6;
+  }
+}
+@keyframes xs-dot-on {
+  to {
+    background: var(--sky);
+    color: var(--ink);
+    box-shadow: 0 0 0 6px rgba(156, 207, 239, 0.16);
+  }
+}
+@keyframes xs-dot-on-lime {
+  to {
+    background: var(--lime);
+    color: var(--ink);
+    box-shadow: 0 0 0 6px rgba(166, 206, 57, 0.18);
+  }
+}
+
+/* O caminhão "anda" enquanto a página rola. */
+@keyframes xs-drive {
+  from {
+    translate: -7% 0;
+  }
+  to {
+    translate: 7% 0;
+  }
+}
+
+/* Socioambiental: a muda brota (caule desenhado, folhas abrindo, balanço). */
+.xs-big-num {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.xs-sprout {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 4px;
+  overflow: visible;
+}
+.xs-sprout-soil,
+.xs-sprout-stem {
+  stroke: #6d9417;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.xs-sprout-soil {
+  stroke: #b9a27a;
+}
+.xs-sprout-leaf {
+  fill: var(--lime);
+  transform-box: fill-box;
+  scale: 0;
+}
+.xs-sprout-leaf.is-l {
+  transform-origin: 100% 100%;
+}
+.xs-sprout-leaf.is-r {
+  fill: #8fb52a;
+  transform-origin: 0% 100%;
+}
+.is-in .xs-sprout-soil,
+html:not(.xs-js) .xs-sprout-soil {
+  animation: xs-draw 0.6s 0.3s var(--ease) forwards;
+}
+.is-in .xs-sprout-stem,
+html:not(.xs-js) .xs-sprout-stem {
+  animation: xs-draw 0.9s 0.7s var(--ease) forwards;
+}
+.is-in .xs-sprout-leaf,
+html:not(.xs-js) .xs-sprout-leaf {
+  animation:
+    xs-leaf 0.8s 1.3s cubic-bezier(0.3, 1.5, 0.5, 1) forwards,
+    xs-sway 4s 2.2s ease-in-out infinite;
+}
+.is-in .xs-sprout-leaf.is-r,
+html:not(.xs-js) .xs-sprout-leaf.is-r {
+  animation-delay: 1.55s, 2.4s;
+}
+@keyframes xs-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes xs-leaf {
+  to {
+    scale: 1;
+  }
+}
+@keyframes xs-sway {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: -6deg;
+  }
+}
+
+/* App: celular gira em 3D com a rolagem; telas se alternam; notificação. */
+.xs-app-visual {
+  perspective: 1100px;
+}
+.xs-phone-3d {
+  position: relative;
+}
+.xs .xs-phone-screen {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+}
+.xs-ph-scr {
+  position: absolute;
+  inset: 0;
+  padding: 26px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: xs-scr 12s infinite both;
+}
+/* sem animação (movimento reduzido), fica só a primeira tela */
+.xs-ph-scr.is-2,
+.xs-ph-scr.is-3,
+.xs-ph-toast {
+  opacity: 0;
+}
+.xs-ph-scr.is-2 {
+  animation-delay: 4s;
+  justify-content: center;
+  text-align: center;
+  align-items: center;
+}
+.xs-ph-scr.is-3 {
+  animation-delay: 8s;
+}
+@keyframes xs-scr {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  4%,
+  30% {
+    opacity: 1;
+    transform: none;
+  }
+  34%,
+  100% {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+.xs-ph-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.xs-ph-scr.is-2 .xs-ph-item {
+  width: 100%;
+  text-align: left;
+}
+.xs-ph-ok {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  animation: xs-ok 12s 4s infinite both;
+}
+.xs-ph-ok svg {
+  width: 30px;
+  height: 30px;
+}
+@keyframes xs-ok {
+  0% {
+    scale: 0;
+  }
+  6% {
+    scale: 1.15;
+  }
+  9%,
+  100% {
+    scale: 1;
+  }
+}
+.xs-ph-route {
+  position: relative;
+  height: 120px;
+  margin: 8px 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(156, 207, 239, 0.35) 0 18px, transparent 19px),
+    radial-gradient(circle at 75% 70%, rgba(166, 206, 57, 0.25) 0 22px, transparent 23px),
+    #fff;
+  box-shadow: 0 6px 14px -10px rgba(15, 31, 69, 0.5);
+}
+.xs-ph-route::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 50%;
+  border-top: 3px dashed #c4d7ec;
+}
+.xs-ph-pin {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--navy);
+}
+.xs-ph-pin.is-a {
+  left: 16px;
+}
+.xs-ph-pin.is-b {
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  background: var(--lime);
+  color: var(--navy);
+  display: grid;
+  place-items: center;
+}
+.xs-ph-pin.is-b svg {
+  width: 14px;
+  height: 14px;
+}
+.xs-ph-truck {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin-top: -17px;
+  border-radius: 10px;
+  background: var(--navy);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 14px -6px rgba(32, 64, 138, 0.7);
+  animation: xs-truck 12s 8s infinite both;
+}
+.xs-ph-truck svg {
+  width: 20px;
+  height: 20px;
+}
+@keyframes xs-truck {
+  0%,
+  4% {
+    transform: translateX(0);
+  }
+  30%,
+  100% {
+    transform: translateX(118px);
+  }
+}
+.xs-ph-btn.is-ghost {
+  background: var(--mist);
+  color: var(--navy);
+}
+.xs-ph-toast {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 230px;
+  margin-left: -115px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.3;
+  box-shadow: 0 20px 36px -16px rgba(0, 0, 0, 0.55);
+  animation: xs-toast 12s 8s infinite both;
+  z-index: 2;
+}
+.xs-ph-toast img {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.xs-ph-toast b {
+  display: block;
+  font-size: 12px;
+}
+@keyframes xs-toast {
+  0%,
+  5% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.92);
+  }
+  9%,
+  27% {
+    opacity: 1;
+    transform: none;
+  }
+  32%,
+  100% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.92);
+  }
+}
+@keyframes xs-phone-turn {
+  from {
+    transform: rotateY(-34deg) rotateX(10deg) translateY(50px);
+  }
+}
+
+/* Distribuidor: ícones dos benefícios se desenham; WhatsApp pulsa uma vez. */
+.xs-perk svg path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+html.xs-js .xs [data-reveal]:not(.is-in) .xs-perk svg path {
+  stroke-dashoffset: 1;
+}
+.xs-perk svg path {
+  transition: stroke-dashoffset 1.1s var(--ease);
+  transition-delay: calc(0.5s + var(--p, 0) * 0.18s);
+}
+.xs-form.is-in .xs-btn-wa {
+  animation: xs-cta-pulse 1.4s 1.2s ease-out 1;
+}
+@keyframes xs-cta-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(31, 168, 85, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(31, 168, 85, 0);
+  }
+}
+
+/* Rodapé: a gota do logo quica uma vez ao aparecer. */
+.xs-footer-brand.is-in img {
+  animation: xs-bounce 1s 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes xs-bounce {
+  0% {
+    transform: translateY(-26px) scale(0.9);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+/* Tudo que é preso à rolagem fica aqui, só onde o navegador suporta e quando
+   o visitante não pediu menos movimento. Sem suporte: estado final estático. */
+@supports (animation-timeline: view()) {
+  html:not([data-motion="reduced"]) .xs-steps {
+    view-timeline-name: --steps;
+  }
+  html:not([data-motion="reduced"]) .xs-steps::after {
+    animation: xs-grow-y linear both;
+    animation-timeline: --steps;
+    animation-range: entry 60% cover 65%;
+  }
+  html:not([data-motion="reduced"]) .xs-steps li::before {
+    animation: xs-step-on linear both;
+    animation-timeline: view();
+    animation-range: cover 38% cover 48%;
+  }
+  html:not([data-motion="reduced"]) .xs .xs-quote .xs-quote-water {
+    translate: none;
+    animation:
+      xs-liquid-wave 2.6s linear infinite,
+      xs-drop-fill-scroll linear both;
+    animation-timeline: auto, --quote;
+    animation-range: normal, entry 30% cover 60%;
+  }
+  html:not([data-motion="reduced"]) .xs-flow {
+    view-timeline-name: --flow;
+  }
+  html:not([data-motion="reduced"]) .xs .xs-flow::before {
+    transform: none;
+    transition: none;
+    animation: xs-grow-x linear both;
+    animation-timeline: --flow;
+    animation-range: entry 70% cover 55%;
+  }
+  html:not([data-motion="reduced"]) .xs-flow .xs-dot {
+    animation: xs-dot-on linear both;
+    animation-timeline: --flow;
+    animation-range: cover calc(28% + var(--d, 0) * 4.5%) cover calc(31% + var(--d, 0) * 4.5%);
+  }
+  html:not([data-motion="reduced"]) .xs-flow li:last-child .xs-dot {
+    animation-name: xs-dot-on-lime;
+  }
+  html:not([data-motion="reduced"]) .xs-timeline {
+    view-timeline-name: --tl;
+  }
+  html:not([data-motion="reduced"]) .xs-timeline::after {
+    animation: xs-grow-y linear both;
+    animation-timeline: --tl;
+    animation-range: entry 50% cover 75%;
+  }
+  html:not([data-motion="reduced"]) .xs-timeline li:not(.is-now)::before {
+    animation: xs-tl-dot linear both;
+    animation-timeline: view();
+    animation-range: cover 30% cover 42%;
+  }
+  html:not([data-motion="reduced"]) .xs-tl-img.is-truck img {
+    scale: 1.16;
+    animation: xs-drive linear both;
+    animation-timeline: view();
+  }
+  html:not([data-motion="reduced"]) .xs-phone-3d {
+    animation: xs-phone-turn linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 45%;
+  }
+  @media (max-width: 980px) {
+    html:not([data-motion="reduced"]) .xs .xs-flow::before {
+      animation-name: xs-grow-y;
+      animation-range: entry 40% cover 75%;
+    }
+    html:not([data-motion="reduced"]) .xs-flow .xs-dot {
+      animation-timeline: view();
+      animation-range: cover 30% cover 42%;
+    }
+  }
+}
+@keyframes xs-drop-fill-scroll {
+  from {
+    translate: 0 92%;
+  }
+  to {
+    translate: 0 18%;
+  }
+}
+
 /* ─── Níveis de movimento (html[data-motion], definido em scroll-effects.tsx) ───
    full    → tudo;
    reduced → sistema pede menos movimento: animações vão direto ao estado final,
@@ -3202,7 +4046,7 @@ html[data-motion="reduced"] .xs [data-reveal] {
 html[data-motion="reduced"] .xs [data-reveal]:not(.is-in) {
   transform: none !important;
 }
-html[data-motion="reduced"] .xs :is(.xs-marquee-track, .xl-bubble, .xl-waves svg) {
+html[data-motion="reduced"] .xs :is(.xs-marquee-track, .xl-bubble, .xl-waves svg, .xs-ph-scr, .xs-ph-toast) {
   animation: none !important;
 }
 
@@ -3213,6 +4057,6 @@ html[data-motion="lite"] .xs *::after {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-html[data-motion="lite"] .xs .xs-marquee-track {
+html[data-motion="lite"] .xs :is(.xs-marquee-track, .xs-ph-scr, .xs-ph-ok, .xs-ph-truck, .xs-ph-toast) {
   animation-iteration-count: infinite !important;
 }

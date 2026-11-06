@@ -10,6 +10,7 @@ import {
   WhatsAppIcon,
 } from "../_components/icons";
 import { PUBLIC_LINKS, type LinkIcon, type PublicLink } from "../_lib/site-config";
+import { DripDrop } from "../_components/drip-drop";
 import { ScrollEffects } from "../_components/scroll-effects";
 import { ShareButton } from "./share-button";
 
@@ -58,7 +59,7 @@ function LinkItem({ link }: { link: PublicLink }) {
   const content = (
     <>
       <span className={`xl-ico ${link.featured ? "" : (ICON_CLASS[link.icon] ?? "")}`}>
-        <Icon />
+        {link.featured ? <DripDrop /> : <Icon />}
       </span>
       <span className="xl-txt">
         <b>{link.label}</b>
