@@ -334,11 +334,12 @@ html.xs-js .xs [data-reveal="scale"]:not(.is-in) {
   transform: scale(0.94);
 }
 /* Animações CSS de [data-play] só começam quando o bloco aparece na tela
-   (no celular, o palco do galão fica abaixo da dobra). */
-html.xs-js .xs [data-play]:not(.is-in),
-html.xs-js .xs [data-play]:not(.is-in) *,
-html.xs-js .xs [data-play]:not(.is-in) *::before,
-html.xs-js .xs [data-play]:not(.is-in) *::after {
+   (no celular, o palco do galão fica abaixo da dobra). Vale desde o primeiro
+   paint, antes do JS; sem JS, um <noscript> na página libera tudo. */
+.xs [data-play]:not(.is-in),
+.xs [data-play]:not(.is-in) *,
+.xs [data-play]:not(.is-in) *::before,
+.xs [data-play]:not(.is-in) *::after {
   animation-play-state: paused !important;
 }
 /* Loops de blocos fora da tela ficam pausados (bateria e CPU). */
@@ -621,11 +622,47 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   z-index: -1;
   border-radius: 6px;
   transform-origin: left;
-  animation: xs-swipe 0.9s 0.9s both var(--ease);
+  /* por último: depois que as três linhas do título terminam de subir */
+  animation: xs-swipe 0.75s 1.45s both cubic-bezier(0.65, 0, 0.35, 1);
 }
 @keyframes xs-swipe {
   from {
     transform: scaleX(0);
+  }
+}
+/* gotinha lime que pinga da ponta do sublinhado quando ele termina */
+.xs-hero-title em::before {
+  content: "";
+  position: absolute;
+  right: 0.02em;
+  bottom: 0.02em;
+  width: 0.14em;
+  height: 0.14em;
+  background: var(--lime);
+  border-radius: 0 50% 50% 50%;
+  transform: rotate(45deg);
+  z-index: -1;
+  opacity: 0;
+  animation: xs-em-drip 1.1s 2.15s both cubic-bezier(0.55, 0, 0.8, 0.4);
+}
+@keyframes xs-em-drip {
+  0% {
+    opacity: 0;
+    translate: 0 -0.08em;
+    scale: 0.2;
+  }
+  22% {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 0.55em;
+    scale: 0.75;
   }
 }
 .xs-anim {
@@ -692,7 +729,16 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   background: linear-gradient(180deg, #2b4f9e, var(--navy));
   border-radius: 50% 50% 0 0 / 38% 38% 0 0;
   overflow: hidden;
-  animation: xs-fade-up 1.2s var(--ease) both;
+  /* o "portão" abre como um portal, de baixo para cima */
+  animation: xs-gate 1.1s var(--ease) backwards;
+}
+@keyframes xs-gate {
+  from {
+    clip-path: circle(0% at 50% 100%);
+  }
+  to {
+    clip-path: circle(150% at 50% 100%);
+  }
 }
 .xs-pool-wave {
   position: absolute;
@@ -724,22 +770,60 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
     translate: 0 60%;
   }
 }
+/* O galão sai de dentro do portão: sobe de trás das ondas com um leve
+   "passou do ponto e voltou", depois flutua. Três camadas, uma animação cada:
+   .xs-galao (entrada) > .xs-galao-px (parallax da rolagem) > img (flutuação). */
 .xs-galao {
   position: relative;
+  z-index: 1;
   width: min(420px, 86%);
   margin-bottom: -8px;
-  animation: xs-rise 1.3s 0.15s both var(--ease);
+  animation: xs-rise 1.5s 0.45s both cubic-bezier(0.3, 1.32, 0.5, 1);
 }
 .xs-galao img {
   width: 100%;
   height: auto;
   filter: drop-shadow(0 34px 44px rgba(15, 31, 69, 0.38));
-  animation: xs-float 6s 1.5s ease-in-out infinite;
+  animation: xs-float 6s 2.2s ease-in-out infinite;
 }
 @keyframes xs-rise {
-  from {
-    transform: translateY(60px);
+  0% {
+    transform: translateY(78%) scale(0.92);
+  }
+  100% {
+    transform: none;
+  }
+}
+/* respingo na água quando o galão emerge */
+.xs-splash {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(18px, 3vw, 40px);
+  width: min(360px, 70%);
+  aspect-ratio: 5 / 1;
+  margin-left: max(-180px, -35%);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  animation: xs-splash 1.3s 1.05s ease-out both;
+}
+.xs-splash.is-b {
+  animation-delay: 1.3s;
+  border-width: 1.5px;
+}
+@keyframes xs-splash {
+  0% {
     opacity: 0;
+    transform: scale(0.25);
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
   }
 }
 @keyframes xs-float {
@@ -765,9 +849,18 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   top: 70px;
   right: 0;
   max-width: 200px;
+  z-index: 2;
+  transform-origin: 50% 0;
+  /* vira em 3D como uma placa (o número conta até 40) */
   animation:
-    xs-pop 0.8s 1s both var(--ease),
-    xs-float 7s 2s ease-in-out infinite;
+    xs-flip 0.9s 1.2s both var(--ease),
+    xs-float 7s 2.4s ease-in-out infinite;
+}
+@keyframes xs-flip {
+  from {
+    opacity: 0;
+    transform: perspective(700px) rotateX(-80deg);
+  }
 }
 .xs-tag-a b {
   display: block;
@@ -783,9 +876,29 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   display: flex;
   align-items: center;
   gap: 10px;
+  z-index: 2;
+  /* primeiro o ponto aparece, depois o balão abre da esquerda para a direita */
   animation:
-    xs-pop 0.8s 1.2s both var(--ease),
-    xs-float 8s 2.4s ease-in-out infinite;
+    xs-pop 0.5s 1.5s both var(--ease),
+    xs-open 0.85s 1.9s backwards cubic-bezier(0.65, 0, 0.35, 1),
+    xs-float 8s 2.9s ease-in-out infinite;
+}
+.xs-tag-b .xs-tag-txt {
+  animation: xs-txt-in 0.5s 2.35s both var(--ease);
+}
+@keyframes xs-open {
+  from {
+    clip-path: inset(0 calc(100% - 36px) 0 0 round 18px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 18px);
+  }
+}
+@keyframes xs-txt-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
 }
 .xs-tag-dot {
   width: 10px;
@@ -793,7 +906,10 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   border-radius: 50%;
   background: var(--lime);
   box-shadow: 0 0 0 0 rgba(166, 206, 57, 0.7);
-  animation: xs-ping-dot 2s infinite;
+  flex: none;
+  animation:
+    xs-pop 0.45s 1.55s both cubic-bezier(0.3, 1.6, 0.5, 1),
+    xs-ping-dot 2s 2.6s infinite;
 }
 @keyframes xs-ping-dot {
   70%,
@@ -822,9 +938,145 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   top: -1px;
   transform: rotate(180deg);
 }
-.xs-hero-wave {
-  fill: var(--navy);
+/* Ondas em camadas: cada SVG tem 200% da largura e desliza -50% em loop
+   (só translateX, roda no compositor). A da frente é azul-marinho e emenda
+   com a faixa rolante logo abaixo. */
+.xs-waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: clamp(54px, 8vw, 112px);
+  overflow: hidden;
+  pointer-events: none;
   z-index: 3;
+}
+.xs-waves svg {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: 100%;
+  animation: xs-wave-slide 16s linear infinite;
+}
+.xs-waves .is-c {
+  fill: rgba(156, 207, 239, 0.55);
+  animation-duration: 15s;
+  animation-direction: reverse;
+}
+.xs-waves .is-b {
+  fill: rgba(86, 151, 233, 0.55);
+  height: 82%;
+  animation-duration: 11s;
+  animation-delay: -4s;
+}
+.xs-waves .is-a {
+  fill: var(--navy);
+  height: 60%;
+  animation-duration: 19s;
+  animation-delay: -9s;
+}
+@keyframes xs-wave-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Gota 3D do botão: estica, pinga, respinga e se forma de novo.
+   Toca duas vezes depois da entrada do hero; no hover, repete. */
+.xs .xs-drip {
+  width: 22px;
+  height: 29px;
+  margin: -6px -2px -4px 0;
+  overflow: visible;
+}
+.xs-drip-body,
+.xs-drip-ring {
+  transform-box: fill-box;
+}
+.xs-drip-body {
+  transform-origin: 50% 100%;
+  animation: xs-drip 2.2s 2.3s 2 cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+.xs-drip-ring {
+  transform-origin: 50% 50%;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.2;
+  opacity: 0;
+  animation: xs-drip-ring 2.2s 2.3s 2 ease-out both;
+}
+@media (hover: hover) {
+  .xs-btn:hover .xs-drip-body,
+  .xs-btn:hover .xs-drip-ring,
+  .xs-btn:focus-visible .xs-drip-body,
+  .xs-btn:focus-visible .xs-drip-ring {
+    animation-iteration-count: infinite;
+  }
+}
+@keyframes xs-drip {
+  0%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+  14% {
+    transform: scale(1.12, 0.86);
+  }
+  30% {
+    transform: translateY(1px) scale(0.9, 1.14);
+  }
+  44% {
+    transform: translateY(7px) scale(0.82, 1.2);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(9px) scale(1.4, 0.3);
+    opacity: 0;
+  }
+  51% {
+    transform: translateY(-3px) scale(0.2);
+    opacity: 0;
+  }
+  72% {
+    transform: scale(1.07, 0.94);
+    opacity: 1;
+  }
+  84% {
+    transform: scale(0.98, 1.03);
+  }
+}
+@keyframes xs-drip-ring {
+  0%,
+  46% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  52% {
+    opacity: 1;
+  }
+  76%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* Parallax nativo preso à rolagem (compositor, sem JS). Onde o navegador não
+   suporta animation-timeline, o elemento simplesmente fica parado. */
+@keyframes xs-parallax {
+  from {
+    translate: 0 calc(var(--pl, 30) * 1px);
+  }
+  to {
+    translate: 0 calc(var(--pl, 30) * -1px);
+  }
+}
+@supports (animation-timeline: view()) {
+  html:not([data-motion="reduced"]) .xs [data-parallax] {
+    animation: xs-parallax linear both;
+    animation-timeline: view();
+  }
 }
 @media (max-width: 900px) {
   .xs-hero {
@@ -883,6 +1135,9 @@ html.xs-js .xs [data-play]:not(.is-in) *::after {
   overflow: hidden;
   padding: 10px 0 22px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  /* as pontas somem suavemente, como num letreiro */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
 }
 .xs-marquee-track {
   display: flex;

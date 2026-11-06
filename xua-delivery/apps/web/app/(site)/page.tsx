@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { DistributorForm } from "./_components/distributor-form";
+import { DripDrop } from "./_components/drip-drop";
 import { FloatingActions } from "./_components/floating-actions";
 import { HeroDrops } from "./_components/hero-drops";
 import { HydrationCalc } from "./_components/hydration-calc";
@@ -46,6 +47,22 @@ function Wave({ className, flip }: { className?: string; flip?: boolean }) {
   );
 }
 
+// Onda periódica (período = metade da largura): deslizar -50% fecha o loop sem emenda.
+const WAVE_LOOP = "M0 60C240 20 480 20 720 60S1200 100 1440 60S1920 20 2160 60S2640 100 2880 60V120H0z";
+
+/** Três camadas de onda deslizando em velocidades e sentidos diferentes (só translateX). */
+function WaveLayers({ className }: { className: string }) {
+  return (
+    <div className={`xs-waves ${className}`} aria-hidden>
+      {["c", "b", "a"].map((k) => (
+        <svg key={k} className={`is-${k}`} viewBox="0 0 2880 120" preserveAspectRatio="none">
+          <path d={WAVE_LOOP} />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
 const MARQUEE = [
   "Água mineral natural",
   "Sem gás",
@@ -69,6 +86,9 @@ const GALLERY = [
 export default function InstitutionalPage() {
   return (
     <div className="xs-page">
+      <noscript>
+        <style>{"html .xs [data-play]:not(.is-in) *{animation-play-state:running!important}"}</style>
+      </noscript>
       <ScrollEffects />
       <SiteHeader />
 
@@ -93,7 +113,7 @@ export default function InstitutionalPage() {
               </p>
               <div className="xs-hero-ctas xs-anim" style={d(5)}>
                 <Link className="xs-btn xs-btn-primary xs-btn-lg" href={CONTACT.appRegister}>
-                  <DropIcon />
+                  <DripDrop />
                   Quero meu galão
                 </Link>
                 <a className="xs-btn xs-btn-ghost xs-btn-lg" href="#distribuidor">
@@ -107,40 +127,51 @@ export default function InstitutionalPage() {
                   portaria de lavra da fonte
                 </div>
                 <div>
-                  <b>3 captações</b>nascente e dois poços
+                  <b>
+                    <span data-count="3">3</span> captações
+                  </b>
+                  nascente e dois poços
                 </div>
                 <div>
-                  <b>20 L</b>galão retornável e higienizado
+                  <b>
+                    <span data-count="20">20</span> L
+                  </b>
+                  galão retornável e higienizado
                 </div>
               </div>
             </div>
 
-            <div className="xs-hero-visual">
+            {/* Palco do galão: as animações esperam o bloco aparecer (data-play). */}
+            <div className="xs-hero-visual" data-play>
               <HeroDrops />
               <div className="xs-pool" aria-hidden>
                 <span className="xs-pool-wave" />
                 <span className="xs-pool-wave is-b" />
               </div>
               <div className="xs-galao">
-                <Image
-                  src="/site/galao.png"
-                  alt="Galão de 20 litros da Água Mineral Natural Xuá, sem gás"
-                  width={750}
-                  height={1000}
-                  priority
-                  sizes="(max-width: 900px) 80vw, 420px"
-                />
+                <div className="xs-galao-px" data-parallax style={{ "--pl": 26 } as React.CSSProperties}>
+                  <Image
+                    src="/site/galao.png"
+                    alt="Galão de 20 litros da Água Mineral Natural Xuá, sem gás"
+                    width={750}
+                    height={1000}
+                    priority
+                    sizes="(max-width: 900px) 80vw, 420px"
+                  />
+                </div>
               </div>
+              <span className="xs-splash" aria-hidden />
+              <span className="xs-splash is-b" aria-hidden />
               <div className="xs-tag xs-tag-a">
-                <b>40</b>garrafinhas de 500 ml cabem em um galão Xuá
+                <b data-count="40">40</b>garrafinhas de 500 ml cabem em um galão Xuá
               </div>
               <div className="xs-tag xs-tag-b">
                 <span className="xs-tag-dot" />
-                Sem tratamento químico
+                <span className="xs-tag-txt">Sem tratamento químico</span>
               </div>
             </div>
           </div>
-          <Wave className="xs-hero-wave" />
+          <WaveLayers className="xs-hero-waves" />
         </section>
 
         {/* FAIXA */}

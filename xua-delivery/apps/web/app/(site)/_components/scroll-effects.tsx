@@ -80,9 +80,20 @@ export function ScrollEffects() {
       },
       { rootMargin: "0px 0px -10% 0px", threshold: 0.12 },
     );
-    document
-      .querySelectorAll<HTMLElement>("[data-reveal],[data-count],[data-play]")
-      .forEach((el) => io.observe(el));
+    document.querySelectorAll<HTMLElement>("[data-reveal],[data-count]").forEach((el) => io.observe(el));
+
+    // Palcos animados só começam com boa parte à vista, para a entrada ser vista.
+    const stage = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.add("is-in");
+          stage.unobserve(e.target);
+        }
+      },
+      { threshold: 0.35 },
+    );
+    document.querySelectorAll<HTMLElement>("[data-play]").forEach((el) => stage.observe(el));
 
     // Pausa as animações contínuas de blocos que saíram da tela.
     const live = new IntersectionObserver(
@@ -95,6 +106,7 @@ export function ScrollEffects() {
 
     return () => {
       io.disconnect();
+      stage.disconnect();
       live.disconnect();
       root.classList.remove("xs-js");
     };
