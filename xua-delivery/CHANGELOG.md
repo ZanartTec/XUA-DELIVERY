@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.3.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.2.0...v1.3.0) (2026-11-06)
+
+### Funcionalidades
+
+* **web:** animações das seções do site institucional ([901e464](https://github.com/ZanartTec/XUA-DELIVERY/commit/901e464b30f638258df6483cffc587514d059fa0))
+* **web:** animações do hero e do palco do galão ([02e1765](https://github.com/ZanartTec/XUA-DELIVERY/commit/02e1765a6b4e71ebe089013843d8b59bf059bd52))
+
+### Performance
+
+* **web:** site com layout raiz próprio e níveis de movimento ([b266e98](https://github.com/ZanartTec/XUA-DELIVERY/commit/b266e989ad6e7ee882e3a2f80c8aca04a4455f1e))
+* **web:** site sem prefetch do app e relatório de animações ([b5419c3](https://github.com/ZanartTec/XUA-DELIVERY/commit/b5419c3d378b76f5b871bc8e10b79fba68f1b8b6))
+
 ## [1.2.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.1.0...v1.2.0) (2026-11-06)
 
 ### Funcionalidades
