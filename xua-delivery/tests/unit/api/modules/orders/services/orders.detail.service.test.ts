@@ -40,8 +40,11 @@ vi.mock("@api/infra/prisma/client.js", () => ({
   getPrisma: () => ({ $transaction: mocks.transaction }),
 }));
 
-vi.mock("@api/infra/socket/gateway.js", () => ({
-  getIO: () => ({ to: mocks.socketTo }),
+// Publicador de tempo real simulado sobre o mesmo par socketTo/socketEmit.
+vi.mock("@api/infra/realtime/publisher.js", () => ({
+  realtimePublisher: {
+    publish: (room: string, event: string, payload: unknown) => mocks.socketTo(room).emit(event, payload),
+  },
 }));
 
 vi.mock("@api/infra/logger/index.js", () => ({

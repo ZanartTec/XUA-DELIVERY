@@ -28,6 +28,9 @@ services:
         sync: false
 
       # ─── Redis (BullMQ + Cache) ───────────────────────────────────────────
+      # Tempo real entre API e worker (Socket.IO via Redis). Ligado por padrão;
+      # REALTIME_REDIS_ADAPTER=off desliga sem deploy (o worker deixa de avisar as telas).
+      # Usa este mesmo REDIS_URL: +3 conexões por instância da API e +1 por worker.
       - key: REDIS_URL
         fromService:
           type: redis
@@ -134,6 +137,9 @@ services:
         sync: false
 
       # ─── Redis ───────────────────────────────────────────────────────────
+      # Tempo real entre API e worker (Socket.IO via Redis). Ligado por padrão;
+      # REALTIME_REDIS_ADAPTER=off desliga sem deploy (o worker deixa de avisar as telas).
+      # Usa este mesmo REDIS_URL: +3 conexões por instância da API e +1 por worker.
       - key: REDIS_URL
         fromService:
           type: redis

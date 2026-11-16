@@ -104,8 +104,10 @@ vi.mock("@api/modules/orders/receipt-pdf/send-receipt-pdf.js", () => ({
   sendReceiptsPdf: mocks.sendReceiptsPdf,
 }));
 
-vi.mock("@api/infra/socket/gateway.js", () => ({
-  getIO: () => ({ to: mocks.socketTo }),
+vi.mock("@api/infra/realtime/publisher.js", () => ({
+  realtimePublisher: {
+    publish: (room: string, event: string, payload: unknown) => mocks.socketTo(room).emit(event, payload),
+  },
 }));
 
 vi.mock("@api/infra/logger/index.js", () => ({
@@ -478,27 +480,28 @@ describe("ordersController assignDriver/completeChecklist/dispatch", () => {
     expect(mocks.orderService.completeChecklist).toHaveBeenCalledWith(orderId, userId);
   });
 
-  it("despacha pedido e emite OTP via socket", async () => {
+  // O OTP em tempo real saiu do controller: é emitido pelo dispatch-order.service
+  // depois do cacheCode (coberto em orders.inventory.service.test.ts).
+  it("despacha pedido sem emitir socket no controller", async () => {
     const response = res();
 
     await call(ordersController.dispatch, req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.dispatch).toHaveBeenCalledWith(orderId, userId, userId);
-    expect(mocks.socketTo).toHaveBeenCalledWith(`consumer:${userId}`);
-    expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "654321" });
+    expect(mocks.socketTo).not.toHaveBeenCalled();
     expect(response.json).toHaveBeenCalledWith({
       order: expect.objectContaining({ status: OrderStatus.OUT_FOR_DELIVERY }),
       otp: "654321",
     });
   });
 
-  it("despacha com checklist atomico e emite OTP via socket", async () => {
+  it("despacha com checklist atomico sem emitir socket no controller", async () => {
     const response = res();
 
     await call(ordersController.dispatchWithChecklist, req("distributor_admin", { driver_id: userId }), response);
 
     expect(mocks.orderService.dispatchWithChecklist).toHaveBeenCalledWith(orderId, userId, userId);
-    expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "654321" });
+    expect(mocks.socketTo).not.toHaveBeenCalled();
   });
 });
 

@@ -14,6 +14,7 @@ import {
   type SubscriptionExpirationJobPayload,
 } from "../infra/queue/contracts";
 import { closeQueueInfra } from "../infra/queue/queues";
+import { closeRealtime, initRealtimeEmitter } from "../infra/realtime/publisher";
 import { processInternalJob } from "./processors/internal-jobs.processor";
 import { processPaymentJob } from "./processors/payment-jobs.processor";
 import { processPaymentExpiration } from "./processors/expire-payment.processor";
@@ -31,6 +32,12 @@ const log = createLogger("worker");
  */
 export function startWorker(): void {
   const env = getEnv();
+
+  // Antes dos workers: um job processado logo no boot já precisa conseguir
+  // avisar as telas (ex.: webhook de PIX → new_order na distribuidora).
+  void initRealtimeEmitter().catch((err) => {
+    log.error({ err }, "Failed to initialize realtime emitter");
+  });
 
   const internalJobsWorker = new Worker<InternalJobPayload>(
     QUEUE_NAMES.internalJobs,
@@ -296,6 +303,7 @@ export function startWorker(): void {
     await paymentRefundsEvents.close();
     await subscriptionExpirationEvents.close();
     await closeQueueInfra();
+    await closeRealtime();
     await disconnectPrisma();
     await disconnectRedis();
 

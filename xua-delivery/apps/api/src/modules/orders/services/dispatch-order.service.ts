@@ -170,6 +170,8 @@ export const dispatchOrderService = {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
+    // Código em tempo real para a tela do cliente (só depois do cacheCode acima).
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "otp_generated", { orderId, code: otpCode });
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
     // Notifica driver
@@ -280,6 +282,8 @@ export const dispatchOrderService = {
       orderId,
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
+    // Código em tempo real para a tela do cliente (só depois do cacheCode acima).
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "otp_generated", { orderId, code: otpCode });
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.OUT_FOR_DELIVERY, { driverId });
 
     orderEventsPublisher.notifyDriver(driverId, "new_delivery", {

@@ -55,6 +55,9 @@ const envSchema = z.object({
   QUEUE_REDIS_URL: url.optional(),
   REDIS_KEY_PREFIX: z.string().trim().min(1).optional(),
   QUEUE_PREFIX: z.string().trim().min(1).optional(),
+  // Tempo real entre processos (API ↔ worker ↔ outras instâncias) via Redis.
+  // "off" volta ao Socket.IO só em memória — o worker deixa de emitir.
+  REALTIME_REDIS_ADAPTER: z.enum(["on", "off"]).optional(),
 
   // ─── Segurança ───────────────────────────────────────────────────
   // Mesmas regras de infra/auth/jwt.ts (validateJwtSecret).

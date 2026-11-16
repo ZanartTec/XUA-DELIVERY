@@ -10,7 +10,7 @@ import type { PaymentExpirationJobPayload } from "../../infra/queue/contracts";
 import { createLogger } from "../../infra/logger";
 import { getPrisma } from "../../infra/prisma/client";
 import { auditRepository } from "../../modules/audit/audit.repository.js";
-import { getIO } from "../../infra/socket/gateway.js";
+import { orderEventsPublisher } from "../../modules/orders/services/order-events.publisher.js";
 
 const log = createLogger("expire-payment-worker");
 
@@ -159,17 +159,13 @@ export async function processPaymentExpiration(
   }, { maxWait: 10_000, timeout: 15_000 });
 
   // Pós-commit: notificar consumer via Socket.IO
+  // Roda no worker: o publicador usa o redis-emitter e o adapter da API entrega.
   if (result.action === "expired") {
-    try {
-      const io = getIO();
-      io.to(`consumer:${result.consumerId}`).emit("order_status_changed", {
-        orderId,
-        status: OrderStatus.CANCELLED,
-        reason: "payment_expired",
-      });
-    } catch {
-      log.warn({ orderId }, "Failed to emit socket event for expired order");
-    }
+    orderEventsPublisher.notifyConsumer(result.consumerId, "order_status_changed", {
+      orderId,
+      status: OrderStatus.CANCELLED,
+      reason: "payment_expired",
+    });
   }
 
   return result;
