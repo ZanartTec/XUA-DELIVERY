@@ -8,16 +8,7 @@ import { useRouter } from "next/navigation";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  CalendarDays,
-  Truck,
-  Droplets,
-  Loader2,
-  Repeat,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CalendarDays, Truck, Droplets, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/src/store/auth";
 import { useSubscriptionStore } from "@/src/store/subscription";
@@ -44,6 +35,7 @@ import {
   DEFAULT_ONLINE_PAYMENT_METHOD,
   isOnlinePaymentMethod,
 } from "@xua/shared/mappers/payment";
+import { Spinner } from "@/src/components/ui/spinner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -473,7 +465,7 @@ export default function SubscriptionCreatePage() {
     if (loadingPlans) {
       return (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <Spinner className="h-6 w-6 text-primary" />
         </div>
       );
     }
@@ -713,7 +705,7 @@ export default function SubscriptionCreatePage() {
             </p>
             {loadingSlots ? (
               <div className="flex justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <Spinner className="h-5 w-5 text-primary" />
               </div>
             ) : timeSlots.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-2">
@@ -866,7 +858,7 @@ export default function SubscriptionCreatePage() {
             >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner className="h-4 w-4" />
                   Processando…
                 </>
               ) : (

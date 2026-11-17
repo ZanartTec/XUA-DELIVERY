@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
-import { Banknote, Building2, CalendarDays, Droplets, Loader2, MapPin, ShieldCheck } from "lucide-react";
+import { Banknote, Building2, CalendarDays, Droplets, MapPin, ShieldCheck } from "lucide-react";
 import { useCartStore } from "@/src/store/cart";
 import { useCheckoutStore } from "@/src/store/checkout";
 import { cn, formatCurrency } from "@/src/lib/utils";
@@ -39,6 +39,7 @@ import {
   isOfflinePaymentMethod,
   isOnlinePaymentMethod,
 } from "@xua/shared/mappers/payment";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface RetryOrderItem {
   product_name: string;
@@ -317,7 +318,7 @@ function PaymentContent() {
   if (isRedirecting) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <Loader2 className="size-10 animate-spin text-primary" aria-hidden />
+        <Spinner className="size-10 text-primary" aria-hidden />
         <p className="font-medium text-muted-foreground">Abrindo o pagamento no Mercado Pago…</p>
       </div>
     );
@@ -431,10 +432,10 @@ function PaymentContent() {
               }}
               className="grid w-full grid-cols-2"
             >
-              <ToggleGroupItem value="exact" className="h-11 bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+              <ToggleGroupItem value="exact" className="h-11 md:h-9 bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
                 Valor exato
               </ToggleGroupItem>
-              <ToggleGroupItem value="change" className="h-11 bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+              <ToggleGroupItem value="change" className="h-11 md:h-9 bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
                 Preciso de troco
               </ToggleGroupItem>
             </ToggleGroup>
@@ -452,7 +453,7 @@ function PaymentContent() {
                     setCashChangeForCents(cents ?? totalCents);
                   }}
                   aria-invalid={cashChangeInvalid || undefined}
-                  className="h-11 bg-card text-base"
+                  className="h-11 md:h-9 bg-card text-base"
                 />
                 {cashChangeInvalid ? (
                   <p role="alert" className="text-xs font-medium text-destructive">
@@ -538,7 +539,7 @@ function PaymentContent() {
         <Button variant="cta" size="xl" className={cn("justify-between")} disabled={confirmDisabled} onClick={handleConfirm}>
           {loading ? (
             <span className="flex w-full items-center justify-center gap-2">
-              <Loader2 className="animate-spin" aria-hidden /> Processando…
+              <Spinner aria-hidden /> Processando…
             </span>
           ) : (
             <>
@@ -557,7 +558,7 @@ export default function CheckoutPaymentPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[60vh] items-center justify-center px-4">
-          <Loader2 className="size-8 animate-spin text-primary" aria-label="Carregando" />
+          <Spinner className="size-8 text-primary" aria-label="Carregando" />
         </div>
       }
     >

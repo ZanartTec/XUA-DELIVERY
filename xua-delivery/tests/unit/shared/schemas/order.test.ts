@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { OrderStatus } from "@xua/shared/enums";
-import { createOrderSchema, distributorQueueQuerySchema } from "@xua/shared/schemas/order";
+import { createOrderSchema, distributorBoardQuerySchema, distributorQueueQuerySchema } from "@xua/shared/schemas/order";
 
 const baseOrderInput = {
   address_id: "7e1d7b55-3f52-4d10-aac3-74387c236904",
@@ -191,5 +191,39 @@ describe("distributorQueueQuerySchema", () => {
         ])
       );
     }
+  });
+});
+
+describe("distributorBoardQuerySchema", () => {
+  it("aplica os padrões do quadro", () => {
+    const result = distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({ origin: "all", sort: "created_desc", perColumn: 12 });
+    }
+  });
+
+  it("converte perColumn e respeita o limite máximo", () => {
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", perColumn: "30" }).success).toBe(true);
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", perColumn: "31" }).success).toBe(false);
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", perColumn: "0" }).success).toBe(false);
+  });
+
+  it("não aceita parâmetros de paginação nem etapa (o quadro já traz as três)", () => {
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", page: "2" }).success).toBe(false);
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", stage: "incoming" }).success).toBe(false);
+  });
+
+  it("mantém as mesmas regras de data e busca da lista", () => {
+    expect(
+      distributorBoardQuerySchema.safeParse({
+        scope: "distributor",
+        view: "board",
+        deliveryDate: "2026-06-01",
+        start: "2026-06-01",
+      }).success
+    ).toBe(false);
+    expect(distributorBoardQuerySchema.safeParse({ scope: "distributor", view: "board", q: "a" }).success).toBe(false);
   });
 });

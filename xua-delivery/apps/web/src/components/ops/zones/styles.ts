@@ -1,10 +1,11 @@
+import { cardVariants } from "@/src/components/ui/card";
+
 /**
  * Tokens visuais das telas de operação. Ficam centralizados aqui porque as
  * outras telas ops (distributors, drivers, products) repetem estas mesmas
  * strings literalmente em cada arquivo.
  */
-export const OPS_CARD =
-  "rounded-2xl border border-hairline bg-card";
+export const OPS_CARD = cardVariants();
 export const OPS_CTA =
   "rounded-xl bg-cta text-cta-foreground hover:bg-cta/90 shadow-none font-semibold";
 export const OPS_INPUT = "rounded-xl";

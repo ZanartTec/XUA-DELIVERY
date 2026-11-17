@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/src/components/ui/button";
 import {
   Sheet,
@@ -13,6 +13,7 @@ import {
 import { DeliveryDateCalendar } from "@/src/components/consumer/delivery-date-calendar";
 import { TimeSlotPicker } from "@/src/components/consumer/time-slot-picker";
 import { useAvailableDeliveryDates } from "@/src/hooks/use-available-delivery-dates";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface EditDeliveryDateSheetProps {
   open: boolean;
@@ -135,7 +136,7 @@ export function EditDeliveryDateSheet({
           >
             {submitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner className="mr-2 h-4 w-4" />
                 Salvando...
               </>
             ) : (

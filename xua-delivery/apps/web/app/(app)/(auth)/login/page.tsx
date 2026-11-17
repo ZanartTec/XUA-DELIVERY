@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { loginSchema, type LoginInput } from "@/src/schemas/auth";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -12,6 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { FormField } from "@/src/components/shared/form-field";
 import { PasswordInput } from "@/src/components/shared/password-input";
 import { AuthShell } from "@/src/components/auth/auth-shell";
+import { Spinner } from "@/src/components/ui/spinner";
 
 export default function LoginPage() {
   const [serverError, setServerError] = useState<string | null>(null);
@@ -70,7 +71,7 @@ export default function LoginPage() {
               inputMode="email"
               autoComplete="email"
               placeholder="nome@exemplo.com"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
               {...register("email")}
             />
           )}
@@ -82,7 +83,7 @@ export default function LoginPage() {
               {...field}
               autoComplete="current-password"
               placeholder="Sua senha"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
               {...register("password")}
             />
           )}
@@ -93,7 +94,7 @@ export default function LoginPage() {
         </Link>
 
         <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? <Spinner aria-hidden /> : null}
           {isSubmitting ? "Entrando…" : "Entrar"}
           {!isSubmitting ? <ArrowRight aria-hidden /> : null}
         </Button>

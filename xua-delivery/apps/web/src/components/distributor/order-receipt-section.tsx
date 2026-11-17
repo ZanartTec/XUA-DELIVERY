@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ReceiptPrintButton } from "@/src/components/shared/receipt-print-button";
 import { ApiError, api } from "@/src/lib/api-client";
@@ -9,6 +9,8 @@ import { formatReceiptNumber, orderReceiptUrl } from "@/src/lib/receipt";
 import { formatDate } from "@/src/lib/utils";
 import { OrderStatus } from "@/src/types/enums";
 import type { OrderDetail } from "@/src/types/order-detail";
+import { cardVariants } from "@/src/components/ui/card";
+import { Spinner } from "@/src/components/ui/spinner";
 
 /** Espelha RECEIPT_ISSUABLE_STATUSES da API: emissão manual só depois do aceite. */
 const ISSUABLE_STATUSES = new Set<string>([
@@ -39,7 +41,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
   if (!receipt && !ISSUABLE_STATUSES.has(order.status)) return null;
 
   return (
-    <section className="rounded-2xl border border-hairline bg-card p-4">
+    <section className={cardVariants({ className: "p-4" })}>
       <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <FileText className="h-3.5 w-3.5" />
         Comprovante de venda
@@ -71,7 +73,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
             disabled={issueMutation.isPending}
             onClick={() => issueMutation.mutate()}
           >
-            {issueMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            {issueMutation.isPending ? <Spinner className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
             Gerar comprovante
           </Button>
         </>

@@ -26,9 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Droplets, Eye, EyeOff, Loader2, MoreVertical, Pencil, Plus, Search } from "lucide-react";
+import { Droplets, Eye, EyeOff, MoreVertical, Pencil, Plus, Search } from "lucide-react";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
+import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type ProductKind = "WATER" | "BOTTLE" | "OTHER";
 
@@ -211,7 +213,7 @@ function ProductForm({
             value={draft.base_product_id}
             onValueChange={(value) => onChange({ ...draft, base_product_id: value })}
           >
-            <SelectTrigger className="h-11 w-full rounded-xl">
+            <SelectTrigger className="h-11 md:h-9 w-full rounded-xl">
               <SelectValue placeholder="Selecione a água refil" />
             </SelectTrigger>
             <SelectContent>
@@ -233,7 +235,7 @@ function ProductForm({
             value={draft.bottle_product_id}
             onValueChange={(value) => onChange({ ...draft, bottle_product_id: value })}
           >
-            <SelectTrigger className="h-11 w-full rounded-xl">
+            <SelectTrigger className="h-11 md:h-9 w-full rounded-xl">
               <SelectValue placeholder="Selecione o vasilhame" />
             </SelectTrigger>
             <SelectContent>
@@ -269,7 +271,7 @@ function ProductForm({
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="Nome do produto"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="Descrição">
@@ -277,7 +279,7 @@ function ProductForm({
           value={draft.description}
           onChange={(e) => onChange({ ...draft, description: e.target.value })}
           placeholder="Descrição opcional"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="Preço (R$)">
@@ -288,7 +290,7 @@ function ProductForm({
           value={draft.price_cents}
           onChange={(e) => onChange({ ...draft, price_cents: e.target.value })}
           placeholder="0.00"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <div className="sm:col-span-2">
@@ -298,7 +300,7 @@ function ProductForm({
             value={draft.image_url}
             onChange={(e) => onChange({ ...draft, image_url: e.target.value })}
             placeholder="https://exemplo.com/imagem.jpg"
-            className="h-11 rounded-xl"
+            className="h-11 md:h-9 rounded-xl"
           />
         </Field>
       </div>
@@ -389,7 +391,7 @@ export default function OpsProductsPage() {
         <div className="space-y-2">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto" aria-label="Buscar produto" className="h-11 rounded-xl pl-9" />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto" aria-label="Buscar produto" className="h-11 md:h-9 rounded-xl pl-9" />
           </div>
           <ToggleGroup type="single" value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} spacing={2} className="justify-start">
             <ToggleGroupItem value="active" className="h-9 rounded-md bg-muted px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">No catálogo</ToggleGroupItem>
@@ -405,7 +407,7 @@ export default function OpsProductsPage() {
         ) : visible.length === 0 ? (
           <EmptyState icon={Droplets} title={term ? "Nenhum produto encontrado" : "Nenhum produto aqui"} />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {visible.map((product) => {
               const rule = bottleRuleLabel(product, productsById);
               return (
@@ -450,7 +452,7 @@ export default function OpsProductsPage() {
                 </li>
               );
             })}
-          </ul>
+          </ListPanel>
         )}
       </div>
 
@@ -467,7 +469,7 @@ export default function OpsProductsPage() {
         className="sm:max-w-2xl"
         footer={
           <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {form?.mode === "edit" ? "Salvar alterações" : "Criar produto"}
           </Button>
         }

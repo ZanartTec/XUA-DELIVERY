@@ -89,7 +89,7 @@ export default function ProfileEditPage() {
                   setTouched(true);
                   setName(e.target.value);
                 }}
-                className="h-11 text-base md:text-sm"
+                className="h-11 md:h-9 text-base md:text-sm"
               />
             )}
           </FormField>
@@ -104,12 +104,12 @@ export default function ProfileEditPage() {
                   setPhone(v);
                 }}
                 placeholder="(00) 00000-0000"
-                className="h-11 text-base md:text-sm"
+                className="h-11 md:h-9 text-base md:text-sm"
               />
             )}
           </FormField>
           <FormField label="E-mail" hint="O e-mail é usado para entrar e não pode ser alterado aqui.">
-            {(field) => <Input {...field} value={consumer?.email ?? ""} readOnly disabled className="h-11 text-base md:text-sm" />}
+            {(field) => <Input {...field} value={consumer?.email ?? ""} readOnly disabled className="h-11 md:h-9 text-base md:text-sm" />}
           </FormField>
           {error ? (
             <Alert variant="destructive">

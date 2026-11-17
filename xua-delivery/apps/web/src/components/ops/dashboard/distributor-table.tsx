@@ -5,6 +5,7 @@ import type { DistributorKpiRow } from "@xua/shared/types";
 import { formatDecimal, formatInt, formatPercent } from "@/src/components/charts";
 import { cn } from "@/src/lib/utils";
 import { KpiStatusPill } from "./kpi-status-pill";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 
 const HEAD_CLASS =
   "py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground";
@@ -29,24 +30,24 @@ export function DistributorTable({
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className={HEAD_CLASS}>Distribuidora</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>SLA aceite</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>Taxa aceite</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>Reentrega</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>NPS</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>Pedidos</th>
-              <th className={cn(HEAD_CLASS, "text-center")}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="w-full text-sm">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left">
+              <TableHead className={HEAD_CLASS}>Distribuidora</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>SLA aceite</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>Taxa aceite</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>Reentrega</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>NPS</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>Pedidos</TableHead>
+              <TableHead className={cn(HEAD_CLASS, "text-center")}>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => {
               const isSelected = selectedDistributor === row.distributor_id;
 
               return (
-                <tr
+                <TableRow
                   key={row.distributor_id}
                   onClick={() => onSelect(isSelected ? "" : row.distributor_id)}
                   className={cn(
@@ -54,28 +55,28 @@ export function DistributorTable({
                     isSelected && "bg-primary/5"
                   )}
                 >
-                  <td className="py-2 font-medium">{row.distributor_name}</td>
-                  <td className="py-2 text-center">{formatPercent(row.sla_acceptance_pct)}</td>
-                  <td className="py-2 text-center">{formatPercent(row.acceptance_rate_pct)}</td>
-                  <td className="py-2 text-center">{formatPercent(row.redelivery_rate_pct)}</td>
-                  <td className="py-2 text-center text-muted-foreground">
+                  <TableCell className="py-2 font-medium">{row.distributor_name}</TableCell>
+                  <TableCell className="py-2 text-center">{formatPercent(row.sla_acceptance_pct)}</TableCell>
+                  <TableCell className="py-2 text-center">{formatPercent(row.acceptance_rate_pct)}</TableCell>
+                  <TableCell className="py-2 text-center">{formatPercent(row.redelivery_rate_pct)}</TableCell>
+                  <TableCell className="py-2 text-center text-muted-foreground">
                     {row.avg_nps === null ? "—" : formatDecimal(row.avg_nps)}
-                  </td>
-                  <td className="py-2 text-center text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="py-2 text-center text-muted-foreground">
                     {formatInt(row.orders_received)}
-                  </td>
-                  <td className="py-2 text-center">
+                  </TableCell>
+                  <TableCell className="py-2 text-center">
                     {row.orders_received === 0 ? (
                       <span className="text-xs text-muted-foreground">Sem volume</span>
                     ) : (
                       <KpiStatusPill status={row.status} />
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="mx-auto flex w-full max-w-3xl items-start gap-2">
+      <div className="flex w-full items-start gap-2">
         {back ? (
           typeof back === "string" ? (
             <Button asChild variant="ghost" size="icon-touch" className="-ml-2 shrink-0">
@@ -79,7 +79,7 @@ export function PageHeader({
         {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
       </div>
 
-      {children ? <div className="mx-auto mt-3 w-full max-w-3xl">{children}</div> : null}
+      {children ? <div className="mt-3 w-full">{children}</div> : null}
     </header>
   );
 }

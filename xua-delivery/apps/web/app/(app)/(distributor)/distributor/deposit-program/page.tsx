@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Search, Recycle, UserPlus } from "lucide-react";
+import { Search, Recycle, UserPlus } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api, ApiError } from "@/src/lib/api-client";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type LookupResult = {
   consumer: { id: string; name: string; document: string | null; email: string };
@@ -138,7 +139,7 @@ export default function DepositProgramPage() {
             className="flex-1 rounded-xl border border-hairline px-3 py-2 text-sm"
           />
           <Button onClick={handleLookup} disabled={searching || document.trim().length < 11}>
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            {searching ? <Spinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
           </Button>
         </div>
         {lookupError && <p className="mt-2 text-sm text-destructive">{lookupError}</p>}
@@ -177,7 +178,7 @@ export default function DepositProgramPage() {
       <section className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-bold text-foreground">Consumidores habilitados</h2>
         {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Spinner className="h-5 w-5 text-muted-foreground" />
         ) : programs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum consumidor no programa.</p>
         ) : (

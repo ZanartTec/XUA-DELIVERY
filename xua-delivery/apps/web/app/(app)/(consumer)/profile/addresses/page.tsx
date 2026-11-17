@@ -22,6 +22,7 @@ import { AddressForm } from "@/src/components/consumer/address-form";
 import { formatAddressLine, useAddressMutations, useAddresses } from "@/src/hooks/consumer/use-addresses";
 import { ApiError } from "@/src/lib/api-client";
 import type { Address } from "@/src/types";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type Editing = { mode: "new" } | { mode: "edit"; address: Address } | null;
 
@@ -66,7 +67,7 @@ export default function AddressesPage() {
         ) : list.length === 0 ? (
           <EmptyState icon={MapPin} title="Nenhum endereço cadastrado" description="Cadastre onde quer receber a água." />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {list.map((addr) => (
               <li key={addr.id} className="flex items-center gap-3 px-4 py-3">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
@@ -105,7 +106,7 @@ export default function AddressesPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
           Para mudar a rua ou o CEP, cadastre um novo endereço e exclua o antigo. Seus pedidos anteriores não são afetados.

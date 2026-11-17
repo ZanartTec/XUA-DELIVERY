@@ -21,8 +21,10 @@ import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Building2, FileText, Loader2, MoreVertical, Pencil, Plus, Power, Search, UserPlus } from "lucide-react";
+import { Building2, FileText, MoreVertical, Pencil, Plus, Power, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -250,7 +252,7 @@ function CoreFields<T extends DistributorCoreDraft>({
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="Ex: Distribuidora São Luiz"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="CNPJ">
@@ -258,7 +260,7 @@ function CoreFields<T extends DistributorCoreDraft>({
           value={draft.cnpj}
           onChange={(e) => onChange({ ...draft, cnpj: e.target.value })}
           placeholder="00.000.000/0000-00"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="Telefone">
@@ -266,7 +268,7 @@ function CoreFields<T extends DistributorCoreDraft>({
           value={draft.phone}
           onChange={(e) => onChange({ ...draft, phone: e.target.value })}
           placeholder="(11) 98888-7777"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="E-mail">
@@ -275,7 +277,7 @@ function CoreFields<T extends DistributorCoreDraft>({
           value={draft.email}
           onChange={(e) => onChange({ ...draft, email: e.target.value })}
           placeholder="contato@distribuidora.com"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <Field label="Prazo para aceitar pedido (minutos)" hint="A distribuidora vê esse prazo na fila e o indicador mede contra ele. Vazio = padrão do sistema (3 min).">
@@ -289,7 +291,7 @@ function CoreFields<T extends DistributorCoreDraft>({
             onChange({ ...draft, acceptance_sla_seconds: e.target.value ? String(Math.max(1, Number(e.target.value)) * 60) : "" })
           }
           placeholder="Ex.: 5"
-          className="h-11 rounded-xl"
+          className="h-11 md:h-9 rounded-xl"
         />
       </Field>
       <div className="flex items-start gap-3 rounded-xl border border-hairline p-3">
@@ -356,7 +358,7 @@ function IssuerFields<T extends DistributorCoreDraft>({
       value={issuer[key]}
       onChange={(e) => setIssuer({ [key]: e.target.value })}
       placeholder={placeholder}
-      className="h-11 rounded-xl"
+      className="h-11 md:h-9 rounded-xl"
       {...extra}
     />
   );
@@ -375,7 +377,7 @@ function IssuerFields<T extends DistributorCoreDraft>({
           <div className="relative">
             {input("zip_code", "00000-000", { onBlur: lookupCep, inputMode: "numeric" })}
             {cepLoading && (
-              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              <Spinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             )}
           </div>
         </Field>
@@ -410,7 +412,7 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
               value={draft.admin_name}
               onChange={(e) => onChange({ ...draft, admin_name: e.target.value })}
               placeholder="Nome completo"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="E-mail">
@@ -419,7 +421,7 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
               value={draft.admin_email}
               onChange={(e) => onChange({ ...draft, admin_email: e.target.value })}
               placeholder="admin@distribuidora.com"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="Telefone">
@@ -427,7 +429,7 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
               value={draft.admin_phone}
               onChange={(e) => onChange({ ...draft, admin_phone: e.target.value })}
               placeholder="(11) 98888-6666"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="Senha inicial" hint="Mínimo de 8 caracteres. O admin troca depois em Conta.">
@@ -435,7 +437,7 @@ function CreateForm({ draft, onChange }: { draft: CreateDraft; onChange: (d: Cre
               value={draft.admin_password}
               onChange={(e) => onChange({ ...draft, admin_password: e.target.value })}
               autoComplete="new-password"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
         </div>
@@ -531,7 +533,7 @@ export default function OpsDistributorsPage() {
       <PageHeader title="Distribuidoras" description="Quem atende os pedidos em cada região." sticky>
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, CNPJ ou cidade" aria-label="Buscar distribuidora" className="h-11 rounded-xl pl-9" />
+          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome, CNPJ ou cidade" aria-label="Buscar distribuidora" className="h-11 md:h-9 rounded-xl pl-9" />
         </div>
       </PageHeader>
 
@@ -541,7 +543,7 @@ export default function OpsDistributorsPage() {
         ) : visible.length === 0 ? (
           <EmptyState icon={Building2} title={term ? "Nenhuma distribuidora encontrada" : "Nenhuma distribuidora cadastrada"} />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {visible.map((d) => (
               <li key={d.id} className={cn("flex items-center gap-3 px-4 py-3", !d.is_active && "bg-surface-low")}>
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
@@ -581,7 +583,7 @@ export default function OpsDistributorsPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 
@@ -599,7 +601,7 @@ export default function OpsDistributorsPage() {
         className="sm:max-w-2xl"
         footer={
           <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {form?.mode === "edit" ? "Salvar alterações" : "Criar distribuidora"}
           </Button>
         }

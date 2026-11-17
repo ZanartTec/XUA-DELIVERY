@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Textarea } from "@/src/components/ui/textarea";
 import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
 import { cn } from "@/src/lib/utils";
+import { Spinner } from "@/src/components/ui/spinner";
 
 export const REJECT_REASON_OPTIONS = [
   { value: "out_of_stock", label: "Falta de estoque" },
@@ -57,7 +58,7 @@ export function RejectOrderDialog({ open, onOpenChange, orderLabel, loading = fa
             disabled={!ready || loading}
             onClick={() => reason && onConfirm({ reason, details: needsDetails ? details.trim() : undefined })}
           >
-            {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {loading ? <Spinner aria-hidden /> : null}
             Recusar pedido
           </Button>
         </>

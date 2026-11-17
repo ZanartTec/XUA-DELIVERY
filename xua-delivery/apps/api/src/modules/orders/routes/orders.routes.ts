@@ -32,6 +32,13 @@ router.get(
 );
 
 /**
+ * GET /api/orders/queue-summary
+ * Contadores da fila do distribuidor (sem pedidos). Declarada antes de "/:id", senão
+ * "queue-summary" seria lido como um id de pedido.
+ */
+router.get("/queue-summary", requireRole("distributor_admin"), ordersReadLimit, ordersController.queueSummary);
+
+/**
  * POST /api/orders
  * Cria novo pedido.
  * Apenas consumers podem criar pedidos.

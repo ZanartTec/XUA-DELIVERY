@@ -89,6 +89,63 @@ export const ORDER_TERMINAL_STATUS_VALUES = [
 // com os callers existentes do contexto de fila do distribuidor.
 export const DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES = ORDER_TERMINAL_STATUS_VALUES;
 
+/** Filtros comuns à lista e ao quadro da fila do distribuidor. */
+const distributorQueueFilterShape = {
+  q: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(2, "Busca deve ter ao menos 2 caracteres").max(120).optional()
+  ),
+  origin: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(DISTRIBUTOR_QUEUE_ORIGIN_VALUES).default("all")
+  ),
+  deliveryDate: optionalDateQuery,
+  start: optionalDateQuery,
+  end: optionalDateQuery,
+  driverId: z.preprocess(
+    emptyStringToUndefined,
+    z.union([z.string().uuid("Motorista inválido"), z.literal("unassigned")]).optional()
+  ),
+  sort: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(DISTRIBUTOR_QUEUE_SORT_VALUES).default("created_desc")
+  ),
+};
+
+function refineQueueDates(
+  data: { deliveryDate?: string; start?: string; end?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.deliveryDate && (data.start || data.end)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["deliveryDate"],
+      message: "deliveryDate não pode ser combinado com start/end",
+    });
+  }
+
+  if (!data.start || !data.end) return;
+
+  const start = Date.parse(`${data.start}T00:00:00.000Z`);
+  const end = Date.parse(`${data.end}T00:00:00.000Z`);
+  if (start > end) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["end"],
+      message: "end deve ser posterior ou igual a start",
+    });
+  }
+
+  const maxRangeMs = 31 * 24 * 60 * 60 * 1000;
+  if (end - start > maxRangeMs) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["end"],
+      message: "Intervalo máximo para a fila é de 31 dias",
+    });
+  }
+}
+
 export const distributorQueueQuerySchema = z
   .object({
     scope: z.literal("distributor"),
@@ -102,59 +159,39 @@ export const distributorQueueQuerySchema = z
         .enum([...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES, ...DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES])
         .optional()
     ),
-    q: z.preprocess(
-      emptyStringToUndefined,
-      z.string().trim().min(2, "Busca deve ter ao menos 2 caracteres").max(120).optional()
-    ),
-    origin: z.preprocess(
-      emptyStringToUndefined,
-      z.enum(DISTRIBUTOR_QUEUE_ORIGIN_VALUES).default("all")
-    ),
-    deliveryDate: optionalDateQuery,
-    start: optionalDateQuery,
-    end: optionalDateQuery,
-    driverId: z.preprocess(
-      emptyStringToUndefined,
-      z.union([z.string().uuid("Motorista inválido"), z.literal("unassigned")]).optional()
-    ),
-    sort: z.preprocess(
-      emptyStringToUndefined,
-      z.enum(DISTRIBUTOR_QUEUE_SORT_VALUES).default("created_desc")
-    ),
+    ...distributorQueueFilterShape,
     page: pageQuery,
     limit: limitQuery,
   })
   .strict()
-  .superRefine((data, ctx) => {
-    if (data.deliveryDate && (data.start || data.end)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["deliveryDate"],
-        message: "deliveryDate não pode ser combinado com start/end",
-      });
-    }
+  .superRefine(refineQueueDates);
 
-    if (!data.start || !data.end) return;
+/** Quantos pedidos cada coluna do quadro traz (o resto fica na lista da etapa). */
+export const DISTRIBUTOR_BOARD_DEFAULT_PER_COLUMN = 12;
+export const DISTRIBUTOR_BOARD_MAX_PER_COLUMN = 30;
 
-    const start = Date.parse(`${data.start}T00:00:00.000Z`);
-    const end = Date.parse(`${data.end}T00:00:00.000Z`);
-    if (start > end) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["end"],
-        message: "end deve ser posterior ou igual a start",
-      });
-    }
-
-    const maxRangeMs = 31 * 24 * 60 * 60 * 1000;
-    if (end - start > maxRangeMs) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["end"],
-        message: "Intervalo máximo para a fila é de 31 dias",
-      });
-    }
-  });
+/**
+ * Quadro da fila (aba "Todos"): uma consulta devolve as três etapas ativas, cada uma
+ * com os primeiros pedidos e o total real. A etapa é fixa, então não há `stage`/`page`.
+ */
+export const distributorBoardQuerySchema = z
+  .object({
+    scope: z.literal("distributor"),
+    view: z.literal("board"),
+    ...distributorQueueFilterShape,
+    perColumn: z.preprocess(
+      emptyStringToUndefined,
+      z.coerce
+        .number()
+        .int("Quantidade por coluna inválida")
+        .min(1, "Quantidade por coluna inválida")
+        .max(DISTRIBUTOR_BOARD_MAX_PER_COLUMN, `Máximo de ${DISTRIBUTOR_BOARD_MAX_PER_COLUMN} por coluna`)
+        .default(DISTRIBUTOR_BOARD_DEFAULT_PER_COLUMN)
+    ),
+  })
+  .strict()
+  .superRefine(refineQueueDates);
+export type DistributorBoardQueryInput = z.infer<typeof distributorBoardQuerySchema>;
 export type DistributorQueueQueryInput = z.infer<typeof distributorQueueQuerySchema>;
 export type DistributorQueueStageInput = (typeof DISTRIBUTOR_QUEUE_STAGE_VALUES)[number];
 export type DistributorQueueOriginInput = (typeof DISTRIBUTOR_QUEUE_ORIGIN_VALUES)[number];

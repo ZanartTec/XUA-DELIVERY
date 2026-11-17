@@ -15,6 +15,7 @@ import { useOrderDetail } from "@/src/hooks/consumer/use-order-detail";
 import { cn, formatCurrency, formatDate } from "@/src/lib/utils";
 import { formatScheduledTime, formatShortOrderId } from "@/src/lib/order-detail-format";
 import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type PaymentViewStatus = "loading" | "approved" | "pending" | "failed" | "created" | "cash_pending";
 
@@ -216,7 +217,7 @@ export default function CheckoutConfirmationPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[60vh] items-center justify-center px-4">
-          <Loader2 className="size-8 animate-spin text-primary" aria-label="Carregando" />
+          <Spinner className="size-8 text-primary" aria-label="Carregando" />
         </div>
       }
     >

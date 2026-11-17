@@ -46,6 +46,7 @@ import {
   type StockStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDateShort, formatTime } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface Pagination {
   limit: number;
@@ -224,7 +225,7 @@ export default function OpsInventoryPage() {
                 }}
                 placeholder="Buscar item ou código"
                 aria-label="Buscar item"
-                className="h-11 rounded-xl pl-9"
+                className="h-11 md:h-9 rounded-xl pl-9"
               />
             </div>
             <Button variant="outline" className="relative h-11 rounded-xl" onClick={() => setFiltersOpen(true)}>
@@ -272,7 +273,7 @@ export default function OpsInventoryPage() {
             ) : balances.length === 0 ? (
               <EmptyState icon={PackageSearch} title="Nenhum saldo encontrado" description={activeFilters || search ? "Tente limpar os filtros." : undefined} />
             ) : (
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {balances.map((balance) => (
                   <li key={balance.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
@@ -292,7 +293,7 @@ export default function OpsInventoryPage() {
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ListPanel>
             )}
             <Pager
               offset={balanceOffset}
@@ -315,7 +316,7 @@ export default function OpsInventoryPage() {
                     setStart(event.target.value);
                     setMovementOffset(0);
                   }}
-                  className="h-11 w-full min-w-0 rounded-xl"
+                  className="h-11 md:h-9 w-full min-w-0 rounded-xl"
                 />
               </label>
               <label className="min-w-0 space-y-1.5">
@@ -328,7 +329,7 @@ export default function OpsInventoryPage() {
                     setEnd(event.target.value);
                     setMovementOffset(0);
                   }}
-                  className="h-11 w-full min-w-0 rounded-xl"
+                  className="h-11 md:h-9 w-full min-w-0 rounded-xl"
                 />
               </label>
             </div>
@@ -340,7 +341,7 @@ export default function OpsInventoryPage() {
             ) : movements.length === 0 ? (
               <EmptyState icon={History} title="Nenhum movimento no período" />
             ) : (
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {movements.map((movement) => {
                   const positive = movement.quantity_delta > 0;
                   const DirectionIcon = positive ? ArrowUp : ArrowDown;
@@ -372,7 +373,7 @@ export default function OpsInventoryPage() {
                     </li>
                   );
                 })}
-              </ul>
+              </ListPanel>
             )}
             <Pager
               offset={movementOffset}
@@ -480,7 +481,7 @@ function FilterSelect({
     <div className="space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-11 w-full rounded-xl" aria-label={label}>
+        <SelectTrigger className="h-11 md:h-9 w-full rounded-xl" aria-label={label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

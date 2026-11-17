@@ -15,6 +15,7 @@ import { PushNotificationsCard } from "@/src/components/shared/push-notification
 import { api } from "@/src/lib/api-client";
 import { formatPhone } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { cardVariants } from "@/src/components/ui/card";
 
 const ROLE_LABEL: Record<string, string> = {
   CONSUMER: "Cliente",
@@ -54,7 +55,7 @@ export function AccountPage() {
         {me.isLoading ? (
           <Skeleton className="h-20 rounded-2xl" />
         ) : user ? (
-          <section className="flex items-center gap-4 rounded-2xl border border-hairline bg-card p-4">
+          <section className={cardVariants({ className: "flex items-center gap-4 p-4" })}>
             <Avatar className="size-14">
               <AvatarFallback className="bg-linear-to-br from-primary to-sky font-heading text-lg font-bold text-primary-foreground">
                 {initials(user.name)}
@@ -77,7 +78,7 @@ export function AccountPage() {
           <PushNotificationsCard description="Aviso de entrega nova e de cancelamento em rota." />
         ) : null}
 
-        <Collapsible open={pwOpen} onOpenChange={setPwOpen} className="rounded-2xl border border-hairline bg-card">
+        <Collapsible open={pwOpen} onOpenChange={setPwOpen} className={cardVariants()}>
           <CollapsibleTrigger className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left">
             <span className="flex size-10 items-center justify-center rounded-xl bg-sky/10 text-primary">
               <KeyRound className="size-5" aria-hidden />

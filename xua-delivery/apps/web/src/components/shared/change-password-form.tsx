@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+
 import { changePasswordSchema } from "@/src/schemas/auth";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -13,6 +13,7 @@ import { FormField } from "@/src/components/shared/form-field";
 import { PasswordInput } from "@/src/components/shared/password-input";
 import { logout } from "@/src/components/shared/logout-button";
 import { ApiError, api } from "@/src/lib/api-client";
+import { Spinner } from "@/src/components/ui/spinner";
 
 const formSchema = changePasswordSchema
   .and(z.object({ confirm: z.string() }))
@@ -54,19 +55,19 @@ export function ChangePasswordForm({ formId = "change-password" }: { formId?: st
       ) : null}
       <FormField label="Senha atual" error={errors.current_password?.message}>
         {(field) => (
-          <PasswordInput {...field} autoComplete="current-password" className="h-11 rounded-xl" {...register("current_password")} />
+          <PasswordInput {...field} autoComplete="current-password" className="h-11 md:h-9 rounded-xl" {...register("current_password")} />
         )}
       </FormField>
       <FormField label="Nova senha" hint="Mínimo de 8 caracteres." error={errors.new_password?.message}>
         {(field) => (
-          <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("new_password")} />
+          <PasswordInput {...field} autoComplete="new-password" className="h-11 md:h-9 rounded-xl" {...register("new_password")} />
         )}
       </FormField>
       <FormField label="Confirme a nova senha" error={errors.confirm?.message}>
-        {(field) => <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("confirm")} />}
+        {(field) => <PasswordInput {...field} autoComplete="new-password" className="h-11 md:h-9 rounded-xl" {...register("confirm")} />}
       </FormField>
       <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
-        {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+        {isSubmitting ? <Spinner aria-hidden /> : null}
         {isSubmitting ? "Salvando…" : "Alterar senha"}
       </Button>
     </form>

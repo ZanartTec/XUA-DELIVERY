@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Link2, Loader2, Mail, MoreVertical, Pencil, Phone, Plus, Power, Search, UserCog } from "lucide-react";
+import { Link2, Mail, MoreVertical, Pencil, Phone, Plus, Power, Search, UserCog } from "lucide-react";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -26,6 +26,8 @@ import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 /**
  * GET /api/distributor/drivers/all — todos os motoristas do sistema, inclusive
@@ -102,7 +104,7 @@ function DistributorSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-11 w-full rounded-xl" aria-label="Distribuidora">
+      <SelectTrigger className="h-11 md:h-9 w-full rounded-xl" aria-label="Distribuidora">
         <SelectValue placeholder="Escolha a distribuidora" />
       </SelectTrigger>
       <SelectContent>
@@ -260,7 +262,7 @@ export default function OpsDriversPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Nome, e-mail, telefone ou distribuidora"
               aria-label="Buscar motorista"
-              className="h-11 rounded-xl pl-9"
+              className="h-11 md:h-9 rounded-xl pl-9"
             />
           </div>
           <ToggleGroup
@@ -299,7 +301,7 @@ export default function OpsDriversPage() {
             title={term || filter !== "all" ? "Nenhum motorista encontrado" : "Nenhum motorista cadastrado"}
           />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {visible.map((d) => (
               <li key={d.id} className={cn("flex items-center gap-3 px-4 py-3", !d.is_active && "bg-surface-low")}>
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary font-heading text-sm font-semibold text-primary">
@@ -363,7 +365,7 @@ export default function OpsDriversPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 
@@ -386,7 +388,7 @@ export default function OpsDriversPage() {
         }
         footer={
           <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {dialog?.kind === "new" ? "Cadastrar motorista" : dialog?.kind === "link" ? "Confirmar vínculo" : "Salvar alterações"}
           </Button>
         }
@@ -394,16 +396,16 @@ export default function OpsDriversPage() {
         {dialog?.kind === "new" ? (
           <div className="space-y-4">
             <Field label="Nome">
-              <Input value={createDraft.name} onChange={(e) => setCreateDraft({ ...createDraft, name: e.target.value })} autoComplete="off" className="h-11 rounded-xl" />
+              <Input value={createDraft.name} onChange={(e) => setCreateDraft({ ...createDraft, name: e.target.value })} autoComplete="off" className="h-11 md:h-9 rounded-xl" />
             </Field>
             <Field label="E-mail">
-              <Input type="email" value={createDraft.email} onChange={(e) => setCreateDraft({ ...createDraft, email: e.target.value })} autoComplete="off" className="h-11 rounded-xl" />
+              <Input type="email" value={createDraft.email} onChange={(e) => setCreateDraft({ ...createDraft, email: e.target.value })} autoComplete="off" className="h-11 md:h-9 rounded-xl" />
             </Field>
             <Field label="Telefone" hint="Opcional. A distribuidora usa para falar com ele na rota.">
-              <MaskedInput mask="phone" value={createDraft.phone} onValueChange={(v) => setCreateDraft({ ...createDraft, phone: v })} className="h-11 rounded-xl" />
+              <MaskedInput mask="phone" value={createDraft.phone} onValueChange={(v) => setCreateDraft({ ...createDraft, phone: v })} className="h-11 md:h-9 rounded-xl" />
             </Field>
             <Field label="Senha inicial" hint="Mínimo de 8 caracteres. Ele troca depois em Conta.">
-              <PasswordInput value={createDraft.password} onChange={(e) => setCreateDraft({ ...createDraft, password: e.target.value })} autoComplete="new-password" className="h-11 rounded-xl" />
+              <PasswordInput value={createDraft.password} onChange={(e) => setCreateDraft({ ...createDraft, password: e.target.value })} autoComplete="new-password" className="h-11 md:h-9 rounded-xl" />
             </Field>
             <Field label="Distribuidora">
               <DistributorSelect value={createDraft.distributor_id} onChange={(id) => setCreateDraft({ ...createDraft, distributor_id: id })} distributors={distributors} />
@@ -412,10 +414,10 @@ export default function OpsDriversPage() {
         ) : dialog?.kind === "edit" ? (
           <div className="space-y-4">
             <Field label="Nome">
-              <Input value={editDraft.name} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} className="h-11 rounded-xl" />
+              <Input value={editDraft.name} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} className="h-11 md:h-9 rounded-xl" />
             </Field>
             <Field label="Telefone">
-              <MaskedInput mask="phone" value={editDraft.phone} onValueChange={(v) => setEditDraft({ ...editDraft, phone: v })} className="h-11 rounded-xl" />
+              <MaskedInput mask="phone" value={editDraft.phone} onValueChange={(v) => setEditDraft({ ...editDraft, phone: v })} className="h-11 md:h-9 rounded-xl" />
             </Field>
             <p className="text-xs text-muted-foreground">O e-mail de acesso não muda por aqui.</p>
           </div>

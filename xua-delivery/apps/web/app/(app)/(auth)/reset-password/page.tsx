@@ -6,13 +6,14 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Loader2, LinkIcon } from "lucide-react";
+import { CheckCircle2, LinkIcon } from "lucide-react";
 import { resetPasswordSchema } from "@/src/schemas/auth";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { FormField } from "@/src/components/shared/form-field";
 import { PasswordInput } from "@/src/components/shared/password-input";
 import { AuthShell } from "@/src/components/auth/auth-shell";
+import { Spinner } from "@/src/components/ui/spinner";
 
 // Estende o schema compartilhado com confirmação de senha (validação só no cliente).
 const formSchema = resetPasswordSchema
@@ -89,16 +90,16 @@ function ResetPasswordContent() {
         ) : null}
         <FormField label="Nova senha" error={errors.password?.message}>
           {(field) => (
-            <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("password")} />
+            <PasswordInput {...field} autoComplete="new-password" className="h-11 md:h-9 rounded-xl" {...register("password")} />
           )}
         </FormField>
         <FormField label="Confirme a nova senha" error={errors.confirm?.message}>
           {(field) => (
-            <PasswordInput {...field} autoComplete="new-password" className="h-11 rounded-xl" {...register("confirm")} />
+            <PasswordInput {...field} autoComplete="new-password" className="h-11 md:h-9 rounded-xl" {...register("confirm")} />
           )}
         </FormField>
         <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? <Spinner aria-hidden /> : null}
           {isSubmitting ? "Salvando…" : "Salvar nova senha"}
         </Button>
       </form>
