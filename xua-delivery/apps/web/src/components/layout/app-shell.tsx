@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/src/lib/utils";
 import type { UserRole } from "@/src/lib/role-utils";
@@ -11,6 +12,9 @@ import { AppSidebar } from "./app-sidebar";
 import { BottomNav, MobileHeader } from "./mobile-nav";
 import { ROLE_NAV, resolveActiveItem } from "./nav-config";
 import { useNavBadges } from "./use-nav-badges";
+
+/** Abaixo disto a sidebar abre recolhida, se o usuário ainda não escolheu. */
+const NOTEBOOK_MAX_WIDTH = 1280;
 
 interface AppShellProps {
   role: UserRole;
@@ -33,15 +37,25 @@ export function AppShell({ role, userName, defaultSidebarOpen = true, children, 
   const pathname = usePathname();
   const storeUser = useAuthStore((state) => state.user);
   const nav = ROLE_NAV[role];
+  const [sidebarOpen, setSidebarOpen] = useState(defaultSidebarOpen);
   const isConsumer = role === "consumer";
   const name = storeUser?.name ?? userName ?? null;
   const firstName = name?.trim().split(/\s+/)[0];
   const activeHref = resolveActiveItem(pathname, nav.items)?.href ?? null;
   const badges = useNavBadges(role);
 
+  // Sem preferência salva, o notebook (< 1280px) abre com a sidebar recolhida para dar espaço ao conteúdo.
+  // Muda o estado direto (sem passar pelo provider) para não gravar o cookie de preferência.
+  useEffect(() => {
+    const hasPreference = document.cookie.split("; ").some((pair) => pair.startsWith("sidebar_state="));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- depende da largura da janela, só conhecida no cliente
+    if (!hasPreference && window.innerWidth < NOTEBOOK_MAX_WIDTH) setSidebarOpen(false);
+  }, []);
+
   return (
     <SidebarProvider
-      defaultOpen={defaultSidebarOpen}
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
       className={cn(
         "overflow-x-clip bg-background",
         "[--bottom-nav-h:calc(4rem+env(safe-area-inset-bottom))] md:[--bottom-nav-h:0px]",
