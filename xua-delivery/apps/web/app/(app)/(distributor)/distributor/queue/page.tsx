@@ -22,13 +22,14 @@ import { QueueBoard } from "@/src/components/distributor/queue/queue-board";
 import { QueueFilterFields } from "@/src/components/distributor/queue/queue-filters";
 import {
   SUMMARY_FALLBACK,
-  STAGES,
+  buildBoardQuery,
   buildQueueQuery,
   countActiveFilters,
   isQueueOrigin,
   isQueueSort,
   isQueueTab,
   parsePage,
+  type QueueBoardResponse,
   type QueueOrder,
   type QueueOrigin,
   type QueueResponse,
@@ -45,7 +46,7 @@ import { useIsDesktop, useMediaQuery } from "@/src/hooks/use-media-query";
 import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
 import { playNewOrderSound, setNewOrderSoundEnabled, useNewOrderSoundEnabled } from "@/src/realtime/alert-sound";
 import { ApiError, api } from "@/src/lib/api-client";
-import { formatShortOrderId, matchesStatuses } from "@/src/lib/order-detail-format";
+import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { cn, formatTime } from "@/src/lib/utils";
 
 function errorMessage(error: unknown) {
@@ -125,17 +126,29 @@ function DistributorQueueContent() {
     updateQuery({ q: nextQ || null }, true);
   }, [deferredSearch, qParam, updateQuery]);
 
-  const queueQueryString = useMemo(
-    () => buildQueueQuery({ stage: activeTab, page, q: qParam, origin, deliveryDate, driverId, sort }),
-    [activeTab, deliveryDate, driverId, origin, page, qParam, sort],
-  );
+  // "Todos" no quadro (desktop largo ou celular): o backend devolve as três etapas já separadas, cada uma
+  // com os primeiros pedidos e o total real. Qualquer outra visão é a lista de UMA etapa, filtrada e
+  // paginada no banco. Só a consulta da visão atual roda (a outra fica desligada).
+  const boardMode = activeTab === "all" && (!isDesktop || (view === "board" && isWide));
+  const filterQuery = { q: qParam, origin, deliveryDate, driverId, sort };
 
-  const queueQuery = useQuery<QueueResponse>({
-    queryKey: ["distributor-queue", activeTab, page, qParam, origin, deliveryDate, driverId, sort],
-    queryFn: () => api.get(`/api/orders?${queueQueryString}`),
+  const listQuery = useQuery<QueueResponse>({
+    queryKey: ["distributor-queue", "list", activeTab, page, qParam, origin, deliveryDate, driverId, sort],
+    queryFn: () => api.get(`/api/orders?${buildQueueQuery({ stage: activeTab, page, ...filterQuery })}`),
+    enabled: !boardMode,
     placeholderData: (previousData) => previousData,
     refetchInterval: fallbackInterval,
   });
+
+  const boardQuery = useQuery<QueueBoardResponse>({
+    queryKey: ["distributor-queue", "board", qParam, origin, deliveryDate, driverId, sort],
+    queryFn: () => api.get(`/api/orders?${buildBoardQuery(filterQuery)}`),
+    enabled: boardMode,
+    placeholderData: (previousData) => previousData,
+    refetchInterval: fallbackInterval,
+  });
+
+  const queueQuery = boardMode ? boardQuery : listQuery;
 
   const driversQuery = useDistributorDrivers();
 
@@ -157,25 +170,24 @@ function DistributorQueueContent() {
   });
 
   useEffect(() => {
-    if (!queueQuery.data) return;
-    if (queueQuery.data.totalPages > 0 && page > queueQuery.data.totalPages) {
-      updateQuery({ page: String(queueQuery.data.totalPages) }, false);
+    if (!listQuery.data) return;
+    if (listQuery.data.totalPages > 0 && page > listQuery.data.totalPages) {
+      updateQuery({ page: String(listQuery.data.totalPages) }, false);
     }
-  }, [page, queueQuery.data, updateQuery]);
+  }, [page, listQuery.data, updateQuery]);
 
-  const orders = useMemo(() => queueQuery.data?.orders ?? [], [queueQuery.data]);
-  const summary = queueQuery.data?.summary ?? SUMMARY_FALLBACK;
-  const total = queueQuery.data?.total ?? 0;
-  const totalPages = queueQuery.data?.totalPages ?? 0;
+  const orders = useMemo(() => listQuery.data?.orders ?? [], [listQuery.data]);
+  const summary = (boardMode ? boardQuery.data?.summary : listQuery.data?.summary) ?? SUMMARY_FALLBACK;
+  const total = listQuery.data?.total ?? 0;
+  const totalPages = listQuery.data?.totalPages ?? 0;
+  const boardColumns = boardQuery.data?.columns;
+  const isEmpty = boardMode
+    ? !boardColumns || Object.values(boardColumns).every((column) => column.orders.length === 0)
+    : orders.length === 0;
   const drivers = driversQuery.data ?? [];
   const actionLoadingId = actionMutation.isPending ? (actionMutation.variables?.orderId ?? null) : null;
   const activeFilterCount = countActiveFilters({ origin, deliveryDate, driverId, sort });
   const hasFilters = Boolean(qParam) || activeFilterCount > 0;
-
-  const grouped = useMemo(
-    () => STAGES.map((stage) => ({ ...stage, orders: orders.filter((o) => matchesStatuses(o.status, stage.statuses)) })),
-    [orders],
-  );
 
   function openOrder(order: QueueOrder) {
     if (isDesktop) setPanelOrderId(order.id);
@@ -202,18 +214,24 @@ function DistributorQueueContent() {
   ];
 
   const filterValues = { origin, deliveryDate, driverId, sort };
-  const showBoard = activeTab === "all" && view === "board";
   const fetching = queueQuery.isFetching;
 
   function renderOrders() {
-    if (isDesktop && !(showBoard && isWide)) {
-      return <QueueTable orders={orders} actionLoadingId={actionLoadingId} dimmed={fetching} {...handlers} />;
-    }
-    if (activeTab === "all") {
+    if (boardMode && boardColumns) {
       // Celular: etapas empilhadas (Novos primeiro). Desktop largo: quadro em 3 colunas.
       return (
-        <QueueBoard groups={grouped} actionLoadingId={actionLoadingId} columns={isWide} dimmed={fetching} {...handlers} />
+        <QueueBoard
+          stages={boardColumns}
+          onViewAll={(stage) => updateQuery({ stage }, true)}
+          actionLoadingId={actionLoadingId}
+          columns={isWide}
+          dimmed={fetching}
+          {...handlers}
+        />
       );
+    }
+    if (isDesktop) {
+      return <QueueTable orders={orders} actionLoadingId={actionLoadingId} dimmed={fetching} {...handlers} />;
     }
     return (
       <div className={cn("grid gap-3", fetching && "opacity-80")}>
@@ -352,7 +370,7 @@ function DistributorQueueContent() {
             <Skeleton className="h-48 rounded-2xl" />
             <Skeleton className="h-48 rounded-2xl" />
           </div>
-        ) : orders.length === 0 ? (
+        ) : isEmpty ? (
           <div className="rounded-2xl border border-dashed border-hairline bg-card">
             <EmptyState
               icon={ClipboardList}
@@ -371,10 +389,10 @@ function DistributorQueueContent() {
           renderOrders()
         )}
 
-        {totalPages > 1 ? (
+        {!boardMode && totalPages > 1 ? (
           <Pagination page={page} totalPages={totalPages} onPageChange={(next) => updateQuery({ page: String(next) }, false)} />
         ) : null}
-        {total > 0 ? <p className="text-center text-xs text-muted-foreground">{total} pedidos</p> : null}
+        {!boardMode && total > 0 ? <p className="text-center text-xs text-muted-foreground">{total} pedidos</p> : null}
       </div>
 
       <ResponsiveDialog

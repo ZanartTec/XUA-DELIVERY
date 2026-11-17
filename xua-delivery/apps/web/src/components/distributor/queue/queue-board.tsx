@@ -1,24 +1,21 @@
 "use client";
 
+import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
 import { OrderCard, type OrderActions } from "./order-card";
-import { STAGES, type QueueOrder } from "./queue-model";
+import { STAGES, type QueueBoardColumn, type QueueBoardStage } from "./queue-model";
 
-const STAGE_DOT: Record<(typeof STAGES)[number]["key"], string> = {
+const STAGE_DOT: Record<QueueBoardStage, string> = {
   incoming: "bg-warning",
   preparation: "bg-primary",
   route: "bg-success",
 };
 
-interface StageGroup {
-  key: (typeof STAGES)[number]["key"];
-  label: string;
-  hint: string;
-  orders: QueueOrder[];
-}
-
 interface QueueBoardProps {
-  groups: readonly StageGroup[];
+  /** Já separado por etapa pelo backend (cada coluna com os primeiros pedidos e o total real). */
+  stages: Record<QueueBoardStage, QueueBoardColumn>;
+  /** Abre a lista completa da etapa quando há mais pedidos do que cabem na coluna. */
+  onViewAll: (stage: QueueBoardStage) => void;
   actionLoadingId: string | null;
   onOpen: OrderActions["onOpen"];
   onAccept: OrderActions["onAccept"];
@@ -29,10 +26,19 @@ interface QueueBoardProps {
 }
 
 /** Quadro da operação: uma coluna por etapa (Novos, Preparo, Em rota). */
-export function QueueBoard({ groups, actionLoadingId, onOpen, onAccept, onReject, columns, dimmed }: QueueBoardProps) {
+export function QueueBoard({
+  stages: data,
+  onViewAll,
+  actionLoadingId,
+  onOpen,
+  onAccept,
+  onReject,
+  columns,
+  dimmed,
+}: QueueBoardProps) {
   return (
     <div className={cn("grid gap-6 lg:grid-cols-3 lg:gap-4", dimmed && "opacity-80")}>
-      {groups.map((stage) => (
+      {STAGES.map((stage) => ({ ...stage, ...data[stage.key] })).map((stage) => (
         <section
           key={stage.key}
           aria-labelledby={`st-${stage.key}`}
@@ -46,7 +52,7 @@ export function QueueBoard({ groups, actionLoadingId, onOpen, onAccept, onReject
             <span>{stage.label}</span>
             <span className="hidden font-normal text-muted-foreground xl:inline">· {stage.hint}</span>
             <span className="ml-auto rounded-md bg-background px-1.5 text-xs text-muted-foreground tabular-nums lg:border lg:border-hairline">
-              {stage.orders.length}
+              {stage.total}
             </span>
           </h2>
           {stage.orders.length === 0 ? (
@@ -67,6 +73,18 @@ export function QueueBoard({ groups, actionLoadingId, onOpen, onAccept, onReject
                   />
                 </li>
               ))}
+              {stage.total > stage.orders.length ? (
+                <li className="pt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-muted-foreground"
+                    onClick={() => onViewAll(stage.key)}
+                  >
+                    Ver os {stage.total} em {stage.label.toLowerCase()}
+                  </Button>
+                </li>
+              ) : null}
             </ul>
           )}
         </section>

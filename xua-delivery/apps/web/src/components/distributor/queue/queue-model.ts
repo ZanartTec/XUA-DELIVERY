@@ -39,6 +39,23 @@ export interface QueueResponse {
   summary: QueueSummary;
 }
 
+/** Coluna do quadro: os primeiros pedidos da etapa e o total real (pode ser maior que `orders`). */
+export interface QueueBoardColumn {
+  orders: QueueOrder[];
+  total: number;
+}
+
+export type QueueBoardStage = "incoming" | "preparation" | "route";
+
+export interface QueueBoardResponse {
+  columns: Record<QueueBoardStage, QueueBoardColumn>;
+  perColumn: number;
+  summary: QueueSummary;
+}
+
+/** Quantos pedidos cada coluna do quadro pede ao backend; o resto fica na lista da etapa. */
+export const BOARD_PER_COLUMN = 12;
+
 export const SUMMARY_FALLBACK: QueueSummary = { active: 0, incoming: 0, preparation: 0, route: 0, overdue: 0 };
 
 export const STAGES = [
@@ -78,26 +95,43 @@ export function shortAddress(address: string) {
   return neighborhood ? `${streetAndNumber} · ${neighborhood}` : streetAndNumber || address;
 }
 
-export function buildQueueQuery(input: {
-  stage: QueueTabValue;
-  page: number;
+interface QueueFilterQuery {
   q: string;
   origin: QueueOrigin;
   deliveryDate: string;
   driverId: string;
   sort: QueueSort;
-}) {
+}
+
+/** Filtros que a lista e o quadro compartilham. Valor "padrão" não vai na URL. */
+function appendFilters(params: URLSearchParams, input: QueueFilterQuery) {
+  params.set("sort", input.sort);
+  if (input.q) params.set("q", input.q);
+  if (input.origin !== "all") params.set("origin", input.origin);
+  if (input.deliveryDate) params.set("deliveryDate", input.deliveryDate);
+  if (input.driverId !== "all") params.set("driverId", input.driverId);
+}
+
+/** Uma página da lista de uma etapa (os filtros e a paginação são resolvidos no banco). */
+export function buildQueueQuery(input: QueueFilterQuery & { stage: QueueTabValue; page: number }) {
   const params = new URLSearchParams({
     scope: "distributor",
     stage: input.stage,
     page: String(input.page),
     limit: String(PAGE_SIZE),
-    sort: input.sort,
   });
-  if (input.q) params.set("q", input.q);
-  if (input.origin !== "all") params.set("origin", input.origin);
-  if (input.deliveryDate) params.set("deliveryDate", input.deliveryDate);
-  if (input.driverId !== "all") params.set("driverId", input.driverId);
+  appendFilters(params, input);
+  return params.toString();
+}
+
+/** As três etapas ativas numa consulta só: cada coluna já vem separada e com o total real. */
+export function buildBoardQuery(input: QueueFilterQuery) {
+  const params = new URLSearchParams({
+    scope: "distributor",
+    view: "board",
+    perColumn: String(BOARD_PER_COLUMN),
+  });
+  appendFilters(params, input);
   return params.toString();
 }
 
