@@ -16,6 +16,7 @@ import {
   type DistributorQueueOriginInput,
   type DistributorQueueSortInput,
 } from "@xua/shared/schemas/order";
+import { operationDayIso } from "@xua/shared/utils/operation-day";
 import { getPrisma } from "../../../infra/prisma/client.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -228,9 +229,12 @@ function sumStatusCounts(counts: Partial<Record<OrderStatus, number>>, statuses:
   return statuses.reduce((sum, status) => sum + (counts[status] ?? 0), 0);
 }
 
-/** Atrasado (aproximação por dia de calendário): entrega marcada para antes de hoje, ainda ativo. */
-function overdueWhereFor(summaryWhere: Prisma.OrderWhereInput): Prisma.OrderWhereInput {
-  return { ...summaryWhere, delivery_date: { lt: parseDateBoundary(new Date().toISOString().slice(0, 10)) } };
+/**
+ * Atrasado (aproximação por dia de calendário): entrega marcada para antes de hoje, ainda ativo.
+ * "Hoje" é o dia de Brasília: com o dia em UTC, depois das 21h os pedidos de hoje contavam como atrasados.
+ */
+function overdueWhereFor(summaryWhere: Prisma.OrderWhereInput, now: Date = new Date()): Prisma.OrderWhereInput {
+  return { ...summaryWhere, delivery_date: { lt: parseDateBoundary(operationDayIso(now)) } };
 }
 
 function groupStatusCounts(rows: Array<{ status: string; _count: { id: number } }>) {

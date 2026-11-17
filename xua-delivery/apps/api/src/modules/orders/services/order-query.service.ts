@@ -1,5 +1,6 @@
 import { OrderStatus } from "@xua/shared/enums";
 import { DEFAULT_ACCEPTANCE_SLA_SECONDS } from "@xua/shared/constants/kpi";
+import { addDaysToIsoDay, operationDayIso } from "@xua/shared/utils/operation-day";
 import {
   DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES,
 
@@ -49,13 +50,12 @@ function resolveHistoryDateWindow(
     return dates;
   }
 
-  const today = new Date();
-  const from = new Date(today);
-  from.setUTCDate(from.getUTCDate() - HISTORY_DEFAULT_WINDOW_DAYS);
+  // Dia de calendário de Brasília (não UTC): às 21h o UTC já virou o dia seguinte.
+  const today = operationDayIso();
 
   return {
-    start: from.toISOString().slice(0, 10),
-    end: today.toISOString().slice(0, 10),
+    start: addDaysToIsoDay(today, -HISTORY_DEFAULT_WINDOW_DAYS),
+    end: today,
   };
 }
 

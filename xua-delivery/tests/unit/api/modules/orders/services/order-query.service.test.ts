@@ -424,3 +424,34 @@ describe("orderQueryService.getDistributorQueueSummary", () => {
     await expect(orderQueryService.getDistributorQueueSummary(userId, "driver")).rejects.toThrow("Acesso negado");
   });
 });
+
+describe("orderQueryService.listDistributorQueue — janela do histórico no fuso de Brasília", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+    mocks.orderRepository.findByDistributorPaged.mockResolvedValue(emptyPagedResult());
+    vi.useFakeTimers();
+    // 12/06/2026 21:30 em Brasília = 13/06/2026 00:30 UTC
+    vi.setSystemTime(new Date("2026-06-13T00:30:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("a janela de 30 dias termina em hoje de Brasília, não no dia seguinte em UTC", async () => {
+    await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "history",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(mocks.orderRepository.findByDistributorPaged).toHaveBeenCalledWith(
+      distributorId,
+      expect.objectContaining({ start: "2026-05-13", end: "2026-06-12" })
+    );
+  });
+});

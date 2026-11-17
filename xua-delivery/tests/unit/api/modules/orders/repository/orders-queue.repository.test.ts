@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderStatus } from "@xua/shared/enums";
 
 const prisma = vi.hoisted(() => ({
@@ -179,5 +179,46 @@ describe("orderRepository.countDistributorQueue", () => {
 
     expect(prisma.order.findMany).not.toHaveBeenCalled();
     expect(result).toEqual({ statusCounts: { [OrderStatus.SENT_TO_DISTRIBUTOR]: 3 }, overdueActive: 1 });
+  });
+});
+
+describe("atrasados usa o dia de Brasília, não o de UTC", () => {
+  const base = { summaryStatuses: ACTIVE, page: 1, limit: 30, sort: "created_desc" as const };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("às 21h30 de Brasília (00h30 UTC do dia seguinte) o pedido de hoje NÃO conta como atrasado", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-13T00:30:00.000Z")); // 12/06 21:30 em Brasília
+
+    await orderRepository.findByDistributorPaged(distributorId, {
+      ...base,
+      statuses: [OrderStatus.SENT_TO_DISTRIBUTOR],
+    });
+
+    // Atrasado = entrega anterior a 12/06 (hoje em Brasília). Com UTC seria 13/06, e os pedidos de hoje entrariam.
+    const overdueCall = prisma.order.count.mock.calls
+      .map(([args]) => args.where)
+      .find((where: { delivery_date?: { lt?: Date } }) => where.delivery_date?.lt);
+    expect(overdueCall.delivery_date.lt).toEqual(new Date("2026-06-12T00:00:00.000Z"));
+  });
+
+  it("o quadro e o resumo leve usam o mesmo corte", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-13T00:30:00.000Z"));
+
+    await orderRepository.findDistributorBoard(distributorId, {
+      columns: { incoming: [OrderStatus.SENT_TO_DISTRIBUTOR] },
+      summaryStatuses: ACTIVE,
+      perColumn: 5,
+      sort: "created_desc",
+    });
+    await orderRepository.countDistributorQueue(distributorId, ACTIVE);
+
+    const cuts = prisma.order.count.mock.calls.map(([args]) => args.where.delivery_date?.lt);
+    expect(cuts).toHaveLength(2);
+    for (const cut of cuts) expect(cut).toEqual(new Date("2026-06-12T00:00:00.000Z"));
   });
 });
