@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { RoleAppShell } from "@/src/components/shared/role-app-shell";
+import { AppShell } from "@/src/components/layout/app-shell";
 import { normalizeUserRole } from "@/src/lib/role-utils";
+import { readSidebarOpen } from "@/src/lib/sidebar-state";
 import { OpsRealtimeAlerts } from "@/src/components/ops/ops-realtime-alerts";
 
 export default async function OpsLayout({
@@ -23,14 +24,17 @@ export default async function OpsLayout({
     redirect("/");
   }
 
+  const defaultSidebarOpen = await readSidebarOpen();
+
   return (
-    <RoleAppShell
+    <AppShell
       role={role}
+      defaultSidebarOpen={defaultSidebarOpen}
       userName={requestHeaders.get("x-user-name")}
       contentClassName="pb-24 md:px-4 md:pb-28"
     >
       <OpsRealtimeAlerts />
       {children}
-    </RoleAppShell>
+    </AppShell>
   );
 }

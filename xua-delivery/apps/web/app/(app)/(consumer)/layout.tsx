@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { RoleAppShell } from "@/src/components/shared/role-app-shell";
+import { AppShell } from "@/src/components/layout/app-shell";
 import { normalizeUserRole } from "@/src/lib/role-utils";
+import { readSidebarOpen } from "@/src/lib/sidebar-state";
 
 export default async function ConsumerLayout({
   children,
@@ -24,9 +25,11 @@ export default async function ConsumerLayout({
     redirect("/");
   }
 
+  const defaultSidebarOpen = await readSidebarOpen();
+
   return (
-    <RoleAppShell role={role} userName={requestHeaders.get("x-user-name")}>
+    <AppShell role={role} defaultSidebarOpen={defaultSidebarOpen} userName={requestHeaders.get("x-user-name")}>
       {children}
-    </RoleAppShell>
+    </AppShell>
   );
 }
