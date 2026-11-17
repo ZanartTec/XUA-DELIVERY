@@ -55,6 +55,9 @@ const envSchema = z.object({
   QUEUE_REDIS_URL: url.optional(),
   REDIS_KEY_PREFIX: z.string().trim().min(1).optional(),
   QUEUE_PREFIX: z.string().trim().min(1).optional(),
+  // Tempo real entre processos (API ↔ worker ↔ outras instâncias) via Redis.
+  // "off" volta ao Socket.IO só em memória — o worker deixa de emitir.
+  REALTIME_REDIS_ADAPTER: z.enum(["on", "off"]).optional(),
 
   // ─── Segurança ───────────────────────────────────────────────────
   // Mesmas regras de infra/auth/jwt.ts (validateJwtSecret).
@@ -114,6 +117,8 @@ const envSchema = z.object({
   PAYMENTS_WORKER_CONCURRENCY: positiveInt.optional(),
   PAYMENT_REFUNDS_WORKER_CONCURRENCY: positiveInt.optional(),
   SUBSCRIPTION_EXPIRATION_WORKER_CONCURRENCY: positiveInt.optional(),
+  // Envio de Web Push é I/O externo curto; paralelismo baixo já basta.
+  NOTIFICATIONS_WORKER_CONCURRENCY: positiveInt.optional(),
 
   // ─── Rollout BullMQ ──────────────────────────────────────────────
   USE_BULLMQ_OTP_CLEANUP: booleanish.optional(),

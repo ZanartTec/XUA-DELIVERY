@@ -20,18 +20,74 @@ import { ScrollEffects } from "./_components/scroll-effects";
 import { Sprout } from "./_components/sprout";
 import { SiteHeader } from "./_components/site-header";
 import { CONTACT, DISTRIBUIDOR_MSG, whatsappUrl } from "./_lib/site-config";
+import { SITE_URL } from "./_lib/site-url";
 
+const DESCRIPTION =
+  "Água Mineral Natural Xuá, de Juiz de Fora/MG. Galão retornável de 20 litros, hidratação consciente e menos plástico descartável. Peça pelo app ou seja um distribuidor.";
+
+// A imagem de compartilhamento vem de ./opengraph-image.tsx (arquivo tem prioridade).
 export const metadata: Metadata = {
   title: "Água Mineral Xuá · A pureza que te move em cada gota",
-  description:
-    "Água Mineral Natural Xuá, de Juiz de Fora/MG. Galão retornável de 20 litros, hidratação consciente e menos plástico descartável. Peça pelo app ou seja um distribuidor.",
+  description: DESCRIPTION,
+  // "/institucional" reaproveita esta página: os dois endereços apontam para "/" como oficial.
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Água Mineral Xuá",
     description: "A pureza que te move em cada gota. Galão retornável de 20 L direto da Fonte Estância São Luiz.",
-    images: ["/site/fonte.jpg"],
+    url: "/",
+    siteName: "Água Mineral Xuá",
     locale: "pt_BR",
     type: "website",
   },
+};
+
+/** Dados estruturados (schema.org) para o Google entender quem é a empresa. */
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#org`,
+      name: "Água Mineral Xuá",
+      legalName: "São Luiz Empresa de Mineração e Águas Imp. Exp. Ltda.",
+      url: `${SITE_URL}/`,
+      logo: `${SITE_URL}/site/logo.svg`,
+      slogan: "A pureza que te move em cada gota",
+      description: DESCRIPTION,
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Juiz de Fora",
+        addressRegion: "MG",
+        addressCountry: "BR",
+      },
+      areaServed: { "@type": "City", name: "Juiz de Fora" },
+      sameAs: [CONTACT.instagramUrl],
+      contactPoint: [
+        {
+          "@type": "ContactPoint",
+          contactType: "customer service",
+          telephone: CONTACT.phoneFonte,
+          areaServed: "BR",
+          availableLanguage: "Portuguese",
+        },
+        {
+          "@type": "ContactPoint",
+          contactType: "sales",
+          telephone: `+${CONTACT.whatsappDistribuidor}`,
+          areaServed: "BR",
+          availableLanguage: "Portuguese",
+        },
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#site`,
+      url: `${SITE_URL}/`,
+      name: "Água Mineral Xuá",
+      inLanguage: "pt-BR",
+      publisher: { "@id": `${SITE_URL}/#org` },
+    },
+  ],
 };
 
 const d = (i: number) => ({ "--d": i }) as React.CSSProperties;
@@ -75,6 +131,7 @@ const GALLERY = [
 export default function InstitutionalPage() {
   return (
     <div className="xs-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD).replace(/</g, "\\u003c") }} />
       <noscript>
         <style>{"html .xs [data-play]:not(.is-in) *{animation-play-state:running!important}"}</style>
       </noscript>

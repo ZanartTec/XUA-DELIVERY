@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import { SITE_URL } from "./_lib/site-url";
 import "./site.css";
 
 const display = Bricolage_Grotesque({
@@ -14,12 +15,12 @@ const body = Figtree({
   weight: ["400", "500", "600", "700"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
 export const metadata: Metadata = {
-  // Endereço público usado nas imagens de compartilhamento (WhatsApp, Instagram).
-  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
+  // Endereço público: resolve canonical e imagens de compartilhamento em URLs absolutas.
+  metadataBase: new URL(SITE_URL),
   title: "Água Mineral Xuá",
+  applicationName: "Água Mineral Xuá",
+  twitter: { card: "summary_large_image" },
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

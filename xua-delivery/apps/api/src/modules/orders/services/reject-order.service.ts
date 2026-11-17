@@ -9,6 +9,7 @@ import { enqueueRefundPaymentJob } from "../../../infra/queue/payment-jobs.produ
 import { OrderServiceError } from "../errors.js";
 import { assertTransition } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import { orderNotifications } from "../notifications/order-notifications.js";
 import {
   subscriptionSettlementService,
   type PersistentFailureNotice,
@@ -116,6 +117,12 @@ export const rejectOrderService = {
       status: OrderStatus.REJECTED_BY_DISTRIBUTOR,
     });
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.REJECTED_BY_DISTRIBUTOR);
+    void orderNotifications.onTransition(
+      order,
+      OrderStatus.SENT_TO_DISTRIBUTOR,
+      OrderStatus.REJECTED_BY_DISTRIBUTOR,
+      { actor: "distributor" }
+    );
 
     return order;
   },

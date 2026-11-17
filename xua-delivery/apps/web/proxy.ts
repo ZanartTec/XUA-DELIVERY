@@ -28,6 +28,11 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/links",
   "/institucional",
+  // SEO: robôs e prévias de link precisam ler sem login
+  "/robots.txt",
+  "/sitemap.xml",
+  "/opengraph-image",
+  "/twitter-image",
 ];
 
 /** Atalho "/app": sem sessão vai para o login; com sessão, para a home da role. */

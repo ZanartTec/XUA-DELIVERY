@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, CheckCircle2, CreditCard, MapPin, MessageSquareText, Navigation, PackageOpen, Phone, Recycle, Truck } from "lucide-react";
-import { useSocket } from "@/src/hooks/use-socket";
+import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -38,24 +37,14 @@ const isPending = (s: string) => s === "OUT_FOR_DELIVERY";
 const isDone = (s: string) => s === "DELIVERED" || s === "DELIVERY_FAILED";
 
 export default function DeliveriesPage() {
-  const { on, off } = useSocket();
+  // Entrega despachada ou cancelada aparece sozinha: o RealtimeProvider invalida
+  // ["driver-deliveries"]. O polling é só a reserva para quando o socket cair.
+  const fallbackInterval = useFallbackRefetchInterval();
   const query = useQuery({
     queryKey: ["driver-deliveries"],
     queryFn: async () => (await api.get<{ deliveries?: Delivery[] }>("/api/driver/deliveries")).deliveries ?? [],
-    refetchInterval: 60_000,
+    refetchInterval: fallbackInterval,
   });
-  const refetch = query.refetch;
-  const refresh = useCallback(() => void refetch(), [refetch]);
-
-  // Entrega despachada ou cancelada com o app aberto aparece sem precisar sair e voltar.
-  useEffect(() => {
-    on("new_delivery", refresh);
-    on("order_status_changed", refresh);
-    return () => {
-      off("new_delivery", refresh);
-      off("order_status_changed", refresh);
-    };
-  }, [on, off, refresh]);
 
   const deliveries = query.data ?? [];
   const pending = deliveries.filter((d) => isPending(d.status));
@@ -96,7 +85,7 @@ export default function DeliveriesPage() {
             icon={AlertTriangle}
             title="Não foi possível carregar as entregas"
             action={
-              <Button variant="outline" size="xl" onClick={refresh}>
+              <Button variant="outline" size="xl" onClick={() => void query.refetch()}>
                 Tentar de novo
               </Button>
             }

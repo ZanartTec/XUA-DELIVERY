@@ -258,6 +258,24 @@ export const orderRepository = {
     return (tx ?? prisma).order.findUnique({ where: { id } });
   },
 
+  /**
+   * Resumo para o aviso de pedido novo (toast/push da distribuidora): total de
+   * unidades, nome do cliente e se veio de assinatura.
+   */
+  async findNewOrderSummary(id: string, tx?: TxClient) {
+    const prisma = getPrisma();
+    return (tx ?? prisma).order.findUnique({
+      where: { id },
+      select: {
+        total_cents: true,
+        delivery_date: true,
+        items: { select: { quantity: true } },
+        consumer: { select: { name: true } },
+        subscription_delivery_date: { select: { id: true } },
+      },
+    });
+  },
+
   async findByIdWithItems(
     id: string,
     tx?: TxClient

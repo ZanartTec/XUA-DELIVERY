@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,7 +17,6 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
-import { useSocket } from "@/src/hooks/use-socket";
 import { api, ApiError } from "@/src/lib/api-client";
 import { plural } from "@/src/lib/format";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
@@ -30,7 +29,6 @@ export default function ChecklistPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { on, off } = useSocket();
   const { order, isLoading } = useOrderDetail(id);
   // Motorista desativado não pode receber entrega.
   const drivers = useDistributorDrivers({ activeOnly: true });
@@ -40,15 +38,8 @@ export default function ChecklistPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pedido mudou de status em outra tela (ex.: cancelado): recarrega.
-  useEffect(() => {
-    const handler = (...args: unknown[]) => {
-      const data = args[0] as { orderId?: string } | undefined;
-      if (data?.orderId === id) void queryClient.invalidateQueries({ queryKey: ["distributor-order-detail", id] });
-    };
-    on("order_status_changed", handler);
-    return () => off("order_status_changed", handler);
-  }, [id, on, off, queryClient]);
+  // Pedido mudou de status em outra tela (ex.: cancelado): o RealtimeProvider
+  // invalida ["order", id] sozinho, então a tela recarrega sem ouvinte próprio.
 
   // Conferência real: cada item do pedido + vazios + endereço/contato.
   const checklist = order

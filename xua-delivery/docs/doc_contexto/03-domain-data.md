@@ -58,7 +58,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 
 | Tabela | Campos principais | Descrição |
 |---|---|---|
-| `08_sec_consumer_push_tokens` | `consumer_id`, token Web Push | Notificações no navegador/PWA |
+| `08_sec_consumer_push_tokens` | `consumer_id`, `endpoint` (unique), `p256dh`, `auth_key`, `user_agent`, `last_success_at` | Web Push por navegador. Um endpoint tem um dono: o `subscribe` faz upsert por endpoint (aparelho compartilhado passa para quem logou); 404/410 do serviço de push apaga o token (migration `20261116230000`) |
 | `16_sec_order_otps` | `order_id`, `otp_hash` (HMAC-SHA256), `status` (OtpStatus), `attempts`, `expires_at` | POD; texto claro nunca persistido; novo OTP por tentativa de entrega |
 | `38_sec_password_reset_tokens` | `consumer_id`, `token_hash` (unique, HMAC-SHA256), `expires_at` (30 min), `used_at` | Reset de senha, uso único |
 | `18_aud_audit_events` | `event_type` (AuditEventType, 39 valores), `actor_type` (ActorType), `actor_id`, `order_id?`, `source_app` (SourceApp), `payload` jsonb, `occurred_at` | **APPEND-ONLY** — nunca UPDATE/DELETE. Fonte de verdade para KPIs. Modelo plano (sem `recorded_at`/`geo`/`correlation`) |
@@ -102,7 +102,7 @@ Convenção: `<numero>_<tipo>_<nome>` · UUID em todas as chaves · dinheiro em 
 | `DRAFT → CREATED` | endereço válido e coberto + janela selecionada + `validateDeliveryDate()` (agenda ativa, sem bloqueio, lead-time ok — senão HTTP 422) | `ORDER_CREATED` (payload inclui `distributor_selection_mode: manual\|auto`) |
 | `CREATED → PAYMENT_PENDING` | preço final calculado | `ORDER_PRICING_FINALIZED`, `PAYMENT_CREATED` |
 | `PAYMENT_PENDING → CONFIRMED` | pagamento capturado via webhook | `PAYMENT_CAPTURED`, `ORDER_CONFIRMED` (o evento `DEPOSIT_HELD` da caução v1 não é mais emitido — removida jul/2026) |
-| `CONFIRMED → SENT_TO_DISTRIBUTOR` | distribuidora resolvida (`resolveDistributor()`) | `ORDER_RECEIVED_BY_DISTRIBUTOR` + Socket.io `new_order` na sala `distributor:{id}` |
+| `CONFIRMED → SENT_TO_DISTRIBUTOR` | distribuidora resolvida (`resolveDistributor()`) | `ORDER_RECEIVED_BY_DISTRIBUTOR` + Socket.io `new_order` na sala `distributor:{id}` (só quando a transição de fato ocorreu; payload com origem, data, total, itens e primeiro nome) + push "Novo pedido" (exceto assinatura: 1 push-resumo por distribuidora ao fim da geração) |
 | `SENT → ACCEPTED_BY_DISTRIBUTOR` | dentro do SLA (`acceptance_sla_seconds`) | `ORDER_ACCEPTED_BY_DISTRIBUTOR` |
 | `ACCEPTED → PICKING → READY_FOR_DISPATCH` | checklist 3 itens 100% (itens, vasilhames, endereço/contato) — sem bypass | `DISPATCH_CHECKLIST_COMPLETED` |
 | `READY → OUT_FOR_DELIVERY` | motorista atribuído; OTP gerado e enviado; comprovante de venda emitido na mesma transação (idempotente na reentrega) | `ORDER_DRIVER_ASSIGNED`, `ORDER_DISPATCHED`, `OTP_GENERATED`, `OTP_SENT`, `RECEIPT_ISSUED` |
@@ -190,7 +190,7 @@ Módulo em `apps/api/src/modules/zones/`. Detalhe completo em `doc_desenvolvimen
 | Consumers | `/api/consumers` | `GET/PATCH /profile`, `GET/POST /addresses`, `DELETE /addresses/:id`, `PATCH /:id/assign-mode`, `GET /cep/:cep` | `consumer` |
 | Products / Categories / Banners | `/api/products`, `/api/categories`, `/api/banners` | `GET /` (catálogo — `consumer`/`ops`/`distributor_admin`), `GET /all`, `POST /`, `PATCH /:id` (ops; em products, create/update provisiona item de estoque vendável na mesma transação) | JWT + RBAC |
 | Zones | `/api/zones` | `GET /` (array puro, só zonas ativas — shape legado do checkout); `GET /all` (painel ops: paginado, filtros `distributor_id`/`q`/`coverage`/`status`, força `distributor_id` próprio quando chamado por `distributor_admin`); `GET /:id/available-dates?days=14`, `GET /:id/time-slots` (públicos); `POST /`, `PATCH /:id` (nome/status, não move de distribuidora), `DELETE /:id` (soft delete); `PATCH /:id/transfer` (só `ops` — muda distribuidora dona da zona); `GET /:id/coverage` (paginado), `POST /:id/coverage`, `POST /:id/coverage/bulk` (import em lote, máx 500 linhas), `POST /:id/coverage/preview` (checa conflito sem gravar), `DELETE /:id/coverage?coverageId=`. Reescrito em 09/08/2026 — ver `doc_desenvolvimento/zonas-cobertura-refactor.md` | Público (leitura) / `distributor_admin`+`ops` (escrita, com ownership check) / `ops` (transfer) |
-| Notifications | `/api/notifications` | `POST /push-subscribe`, `POST /push-notify` | JWT |
+| Notifications | `/api/notifications` | `POST /subscribe` (upsert por endpoint), `DELETE /subscribe` (só o token do próprio usuário) | JWT |
 | Subscription Plans | `/api/subscription-plans` | `GET /`, `GET /:id` (auth), `POST /`, `PATCH /:id` (ops only) | misto |
 | User Subscriptions | `/api/user-subscriptions` | `POST /`, `GET /`, `GET /:id`, `PATCH /:id/pause`, `PATCH /:id/resume`, `PATCH /:id/cancel` (sem caller na UI), `PATCH /:id/delivery-dates/:deliveryDateId` | `consumer` |
 | Ops | `/api/ops` | `GET /kpis`, `GET /audit-events`, `GET /reconciliations`, `GET /inventory/balances` (`?is_active`, default `true`), `GET /inventory/balances/:id` | `ops`/`support` (inventário: `ops`) |
@@ -220,8 +220,8 @@ Módulo em `apps/api/src/modules/zones/`. Detalhe completo em `doc_desenvolvimen
 | **Mercado Pago** | Pagamentos (Pix, cartão; dinheiro na entrega registrado) | Adapter concreto; credenciais **por distribuidora** (AES-256-GCM); webhook com validação HMAC + dedup + fila BullMQ; expiração automática |
 | **Resend** | E-mail transacional | Reset de senha (fire-and-forget async) |
 | **ViaCEP** | Autocomplete de endereço | Fetch no frontend ao digitar CEP |
-| **Web Push API** | Notificações | Estados críticos do pedido, OTP, saldo baixo de assinatura |
-| **Socket.io** | Realtime | Salas `${role}:${userId}` e `distributor:${distributorId}`; eventos `new_order`, `order_status_changed`, `order_dispatched`, `sla_warning` |
+| **Web Push API** | Notificações | Fila BullMQ `notifications`: novo pedido e cancelamento (distribuidora), aceite/recusa/saída/entrega/falha/reentrega/cancelamento (cliente), nova entrega e cancelamento em rota (motorista), saldo baixo e falha de assinatura. Não carrega o OTP |
+| **Socket.io** | Realtime | Salas `${role}:${userId}`, `distributor:${distributorId}`, `ops:broadcast`; eventos `new_order`, `order_status_changed`, `new_delivery`, `delivery_assigned`, `otp_generated`, `otp_locked`, `bottle_step_recorded` (contrato em `packages/shared/src/realtime/events.ts`; matriz status × aviso em `orders/realtime/order-realtime-matrix.ts`). Não existem `order_dispatched` nem `sla_warning` |
 | **Google Maps** | Link externo | "Abrir no Google Maps" na lista de paradas (sem API integrada) |
 
 ---

@@ -27,7 +27,8 @@
     "./utils/zip": "./src/utils/zip.ts",
     "./constants/roles": "./src/constants/roles.ts",
     "./constants/kpi": "./src/constants/kpi.ts",
-    "./contracts/api": "./src/contracts/api.ts"
+    "./contracts/api": "./src/contracts/api.ts",
+    "./realtime/events": "./src/realtime/events.ts"
   },
   "dependencies": {
     "zod": "^4.3.6"

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
+import { removePushSubscription } from "@/src/hooks/use-push-subscription";
 
 interface LogoutButtonProps {
   variant?: "icon" | "full" | "nav";
@@ -12,6 +13,13 @@ interface LogoutButtonProps {
 
 /** Encerra a sessão (revoga o token), limpa o estado local e volta ao login. */
 export async function logout() {
+  // Antes de encerrar a sessão (o DELETE precisa do login): este navegador
+  // para de receber push desta conta (T5.8). Limitado a 3 s para nunca
+  // travar o logout se o service worker ou a rede demorarem.
+  await Promise.race([
+    removePushSubscription().catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, 3_000)),
+  ]);
   try {
     await fetch("/api/auth/logout", {
       method: "POST",

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { RoleAppShell } from "@/src/components/shared/role-app-shell";
 import { normalizeUserRole } from "@/src/lib/role-utils";
+import { DistributorAlerts } from "@/src/components/distributor/distributor-alerts";
 
 export default async function DistributorLayout({
   children,
@@ -27,6 +28,7 @@ export default async function DistributorLayout({
       userName={requestHeaders.get("x-user-name")}
       contentClassName="pb-24 md:px-4 md:pb-28"
     >
+      <DistributorAlerts />
       {children}
     </RoleAppShell>
   );

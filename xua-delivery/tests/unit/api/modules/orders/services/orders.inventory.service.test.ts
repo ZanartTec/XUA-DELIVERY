@@ -56,9 +56,11 @@ vi.mock("@api/infra/prisma/client.js", () => ({
   getPrisma: () => ({ $transaction: mocks.transaction }),
 }));
 
-vi.mock("@api/infra/socket/gateway.js", () => ({
-  getIO: () => ({ to: mocks.socketTo }),
-  OPS_BROADCAST_ROOM: "ops:broadcast",
+// Publicador de tempo real simulado sobre o mesmo par socketTo/socketEmit.
+vi.mock("@api/infra/realtime/publisher.js", () => ({
+  realtimePublisher: {
+    publish: (room: string, event: string, payload: unknown) => mocks.socketTo(room).emit(event, payload),
+  },
 }));
 
 vi.mock("@api/infra/logger/index.js", () => ({
@@ -743,6 +745,9 @@ describe("orderService inventory integration", () => {
     expect(result.otpCode).toBe("123456");
     expect(mocks.otpService.generateInTx).toHaveBeenCalledWith(orderId, distributorUserId, tx);
     expect(mocks.otpService.cacheCode).toHaveBeenCalledWith(orderId, "123456");
+    // OTP em tempo real para o cliente, emitido pelo serviço (não mais pelo controller).
+    expect(mocks.socketTo).toHaveBeenCalledWith(`consumer:${current.consumer_id}`);
+    expect(mocks.socketEmit).toHaveBeenCalledWith("otp_generated", { orderId, code: "123456" });
     // Comprovante de venda emitido na MESMA transação do despacho.
     expect(mocks.receiptService.issueInTx).toHaveBeenCalledWith(
       orderId,

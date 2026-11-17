@@ -11,6 +11,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { ConfirmAction } from "@/src/components/shared/confirm-action";
 import { ChangePasswordForm } from "@/src/components/shared/change-password-form";
 import { logout } from "@/src/components/shared/logout-button";
+import { PushNotificationsCard } from "@/src/components/shared/push-notifications-card";
 import { api } from "@/src/lib/api-client";
 import { formatPhone } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -68,6 +69,12 @@ export function AccountPage() {
               </p>
             </div>
           </section>
+        ) : null}
+
+        {user?.role === "DISTRIBUTOR_ADMIN" ? (
+          <PushNotificationsCard description="Aviso de pedido novo e de cancelamento, mesmo com o app fechado." />
+        ) : user?.role === "DRIVER" ? (
+          <PushNotificationsCard description="Aviso de entrega nova e de cancelamento em rota." />
         ) : null}
 
         <Collapsible open={pwOpen} onOpenChange={setPwOpen} className="rounded-2xl border border-hairline bg-card">

@@ -18,5 +18,12 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // E2E_BROWSER_CHANNEL=chrome usa o Chrome instalado (perfil temporário) em
+  // vez de baixar o Chromium do Playwright.
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], channel: process.env.E2E_BROWSER_CHANNEL || undefined },
+    },
+  ],
 });

@@ -1,3 +1,4 @@
+import type { BottleStepRecordedPayload } from "@xua/shared/realtime/events";
 import type { Prisma } from "@prisma/client";
 import type { Order } from "@prisma/client";
 import {
@@ -295,8 +296,8 @@ export type BottleStep =
 /** Descreve o que foi gravado, para o chamador emitir os eventos pós-commit. */
 export type BottleStepResult = {
   order: Order;
-  consumerPayload: Record<string, unknown>;
-  distributorPayload: Record<string, unknown>;
+  consumerPayload: BottleStepRecordedPayload;
+  distributorPayload: BottleStepRecordedPayload;
 };
 
 /**

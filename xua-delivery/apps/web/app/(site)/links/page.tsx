@@ -17,10 +17,12 @@ import { ShareButton } from "./share-button";
 export const metadata: Metadata = {
   title: "Água Mineral Xuá · Links",
   description: "Peça sua água, conheça a Xuá, seja um distribuidor e fale com a gente.",
+  alternates: { canonical: "/links" },
   openGraph: {
     title: "Água Mineral Xuá",
     description: "Todo mundo pede, todo mundo bebe. Todos os nossos links em um só lugar.",
-    images: ["/site/galao.png"],
+    url: "/links",
+    siteName: "Água Mineral Xuá",
     locale: "pt_BR",
     type: "website",
   },

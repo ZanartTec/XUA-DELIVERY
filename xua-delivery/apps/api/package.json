@@ -13,6 +13,8 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "@socket.io/redis-emitter": "^5.1.0",
     "@xua/shared": "*",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.76.10",

@@ -13,4 +13,10 @@ router.post(
   notificationsController.subscribe
 );
 
+router.delete(
+  "/subscribe",
+  requireRole("consumer", "distributor_admin", "driver", "ops", "support"),
+  notificationsController.unsubscribe
+);
+
 export { router as notificationsRoutes };
