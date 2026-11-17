@@ -2,6 +2,24 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.5.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.4.1...v1.5.0) (2026-11-17)
+
+### Funcionalidades
+
+* **web:** DataView e tabelas no desktop para motoristas e estoque do distribuidor ([476c752](https://github.com/ZanartTec/XUA-DELIVERY/commit/476c75221a81561724a451e90794e7ee991336d8))
+* **web:** novo shell desktop com sidebar recolhível, header e paleta ⌘K ([b60f8f1](https://github.com/ZanartTec/XUA-DELIVERY/commit/b60f8f1710328891ee5ec52ebf5f0ff7551b56cf))
+* **web:** repagina a fila de pedidos (/distributor/queue) para o desktop ([de728e3](https://github.com/ZanartTec/XUA-DELIVERY/commit/de728e34ad1d2999ab5202bda92b0a464d4674a9))
+
+### Performance
+
+* **api:** fila do distribuidor enxuta, quadro por etapa e resumo leve ([a046d6f](https://github.com/ZanartTec/XUA-DELIVERY/commit/a046d6faa45d23b25f081caeabfcac62b3e57b01))
+* **web:** fila consome o quadro e o resumo do backend ([50bb32a](https://github.com/ZanartTec/XUA-DELIVERY/commit/50bb32a656d2931b1cf8495488634084e050f7b8))
+
+### Refatoração
+
+* **web:** consolida Card e ListPanel e alinha PageHeader ao wrapper ([8f69aa2](https://github.com/ZanartTec/XUA-DELIVERY/commit/8f69aa21aedb1ebddc1c61388cf383adf1293032))
+* **web:** padroniza em componentes shadcn e reduz a densidade no desktop ([9ae2cae](https://github.com/ZanartTec/XUA-DELIVERY/commit/9ae2cae36068147fcd00e1dfb116fe077dd8e627))
+
 ## [1.4.1](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.4.0...v1.4.1) (2026-11-17)
 
 ### Correções
