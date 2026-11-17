@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  notificationService: { send: vi.fn().mockResolvedValue(undefined) },
+  pushDispatcher: { enqueue: vi.fn().mockResolvedValue(undefined) },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@api/modules/notifications/services/notification.service.js", () => ({
-  notificationService: mocks.notificationService,
+vi.mock("@api/modules/notifications/services/push-dispatcher.js", () => ({
+  pushDispatcher: mocks.pushDispatcher,
 }));
 vi.mock("@api/infra/logger/index.js", () => ({ createLogger: () => mocks.logger }));
 
@@ -130,7 +130,13 @@ describe("notifyPersistentFailure", () => {
       remainingQuantity: 2,
     });
 
-    expect(mocks.notificationService.send).toHaveBeenCalled();
+    expect(mocks.pushDispatcher.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { kind: "user", id: "c1" },
+        url: "/subscription/manage",
+        dedupeKey: `subscription_delivery_failed:${deliveryId}`,
+      })
+    );
     expect(mocks.logger.error).toHaveBeenCalled();
   });
 });

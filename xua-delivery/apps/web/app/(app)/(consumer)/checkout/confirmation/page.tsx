@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtimeEvent } from "@/src/realtime/use-realtime-event";
+import { PushOptInBanner } from "@/src/components/shared/push-notifications-card";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, CheckCircle2, Clock3, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -64,6 +66,12 @@ function ConfirmationContent() {
   const [statusData, setStatusData] = useState<PaymentStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { order } = useOrderDetail(orderId ?? "");
+  // Aviso em tempo real do pagamento: relê o status na hora em vez de esperar
+  // o próximo ciclo do polling, que continua como reserva.
+  const loadStatusRef = useRef<(() => Promise<void>) | null>(null);
+  useRealtimeEvent("order_status_changed", (data) => {
+    if (data.orderId === orderId) void loadStatusRef.current?.();
+  });
 
   const viewStatus = useMemo(() => getViewStatus(statusData, paymentStatusParam), [statusData, paymentStatusParam]);
 
@@ -88,6 +96,7 @@ function ConfirmationContent() {
       }
     }
 
+    loadStatusRef.current = loadStatus;
     const interval = window.setInterval(() => {
       attempts += 1;
       if (attempts > 30) {
@@ -100,6 +109,7 @@ function ConfirmationContent() {
 
     return () => {
       cancelled = true;
+      loadStatusRef.current = null;
       window.clearInterval(interval);
     };
   }, [orderId, paymentStatusParam]);
@@ -171,6 +181,13 @@ function ConfirmationContent() {
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
         </Card>
       ) : null}
+
+      <PushOptInBanner
+        storageKey="xua:push-banner:order-confirmation"
+        title="Quer ser avisado quando sair para entrega?"
+        description="Ative as notificações e acompanhe o pedido mesmo com o app fechado."
+        className="mt-4"
+      />
 
       <div className="mt-4 text-center">
         <Button asChild variant="link">

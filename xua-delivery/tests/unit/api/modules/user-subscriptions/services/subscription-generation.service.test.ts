@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
     userSubscription: { update: vi.fn() },
   },
   prisma: { $transaction: vi.fn() },
+  orderNotifications: {
+    onSubscriptionBatch: vi.fn(async (_counts: Map<string, number>, _runKey: string) => {}),
+  },
 }));
 
 vi.mock("@api/infra/prisma/client.js", () => ({ getPrisma: () => mocks.prisma }));
@@ -25,6 +28,9 @@ vi.mock("@api/modules/orders/services/orders.service.js", () => ({ orderService:
 vi.mock("@api/modules/distributor/services/schedule.service.js", () => ({
   scheduleService: mocks.scheduleService,
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), fatal: vi.fn() },
+}));
+vi.mock("@api/modules/orders/notifications/order-notifications.js", () => ({
+  orderNotifications: mocks.orderNotifications,
 }));
 vi.mock("@api/modules/user-subscriptions/repository/user-subscriptions.repository.js", () => ({
   userSubscriptionsRepository: mocks.repo,
@@ -66,7 +72,10 @@ beforeEach(() => {
   );
   mocks.repo.findOrphanConfirmedDeliveries.mockResolvedValue([]);
   mocks.orderService.createPrepaidOrderInTx.mockResolvedValue({ id: orderId });
-  mocks.orderService.sendToDistributor.mockResolvedValue({ id: orderId, status: "SENT_TO_DISTRIBUTOR" });
+  mocks.orderService.sendToDistributor.mockResolvedValue({
+    order: { id: orderId, status: "SENT_TO_DISTRIBUTOR", distributor_id: "dist-1" },
+    transitioned: true,
+  });
 });
 
 describe("subscriptionGenerationService.generateDueDeliveries", () => {
@@ -148,5 +157,36 @@ describe("subscriptionGenerationService.generateDueDeliveries", () => {
 
     expect(mocks.orderService.sendToDistributor).toHaveBeenCalledWith(orderId);
     expect(result).toMatchObject({ resent: 1 });
+  });
+
+  it("D6: 1 push-resumo por distribuidora, contando só o que de fato chegou à fila", async () => {
+    const otherDelivery = "66666666-6666-4666-8666-666666666666";
+    mocks.repo.findDueDeliveries.mockResolvedValue([
+      { id: deliveryId, user_subscription_id: subId },
+      { id: otherDelivery, user_subscription_id: subId },
+    ]);
+    mocks.repo.lockDueDeliveryForUpdate.mockResolvedValue(deliveryId);
+    mocks.tx.subscriptionDeliveryDate.findUnique.mockResolvedValue(eligibleDelivery());
+    mocks.tx.userSubscription.update.mockResolvedValue({ remaining_quantity: 4 });
+    mocks.repo.findOrphanConfirmedDeliveries.mockResolvedValue([{ id: "orphan-1", order_id: "order-orphan" }]);
+    mocks.orderService.sendToDistributor
+      .mockResolvedValueOnce({ order: { distributor_id: "dist-1" }, transitioned: true })
+      .mockResolvedValueOnce({ order: { distributor_id: "dist-1" }, transitioned: true })
+      // órfão que outro processo já tinha enviado: não conta
+      .mockResolvedValueOnce({ order: { distributor_id: "dist-2" }, transitioned: false });
+
+    await subscriptionGenerationService.generateDueDeliveries();
+
+    expect(mocks.orderNotifications.onSubscriptionBatch).toHaveBeenCalledTimes(1);
+    const [counts] = mocks.orderNotifications.onSubscriptionBatch.mock.calls[0];
+    expect(Object.fromEntries(counts)).toEqual({ "dist-1": 2 });
+  });
+
+  it("D6: nada enviado → nenhum push-resumo", async () => {
+    mocks.repo.findDueDeliveries.mockResolvedValue([]);
+
+    await subscriptionGenerationService.generateDueDeliveries();
+
+    expect(mocks.orderNotifications.onSubscriptionBatch).not.toHaveBeenCalled();
   });
 });

@@ -25,6 +25,10 @@ export const PAYMENT_JOB_NAMES = {
   refundPayment: "refund-payment",
 } as const;
 
+export const NOTIFICATION_JOB_NAMES = {
+  sendPush: "send-push",
+} as const;
+
 export const SUBSCRIPTION_JOB_NAMES = {
   expireSubscription: "expire-subscription",
 } as const;
@@ -80,6 +84,34 @@ export interface PaymentRefundJobPayload extends BaseJobPayload {
   paymentId: string;
 }
 
+/**
+ * Intenção de push (Web Push): quem recebe e o que recebe. As regras de
+ * domínio montam; o processor da fila `notifications` resolve os tokens e envia.
+ */
+export interface PushIntent {
+  /** `user`: um usuário (cliente, motorista, ops). `distributor`: todos os admins ativos da distribuidora. */
+  target: { kind: "user" | "distributor"; id: string };
+  title: string;
+  body: string;
+  /** Tela aberta ao tocar na notificação. */
+  url: string;
+  /** Agrupa notificações do mesmo assunto (ex.: `order-<id>`). */
+  tag: string;
+  urgency: "high" | "normal" | "low";
+  ttlSeconds: number;
+  /** Vira o `jobId` do BullMQ: dois enfileiramentos iguais geram um job só. */
+  dedupeKey: string;
+  /** Usado pelo service worker (ex.: `new_order` pede interação). */
+  kind: string;
+  /** Sem som/vibração (resumo de assinaturas — D6). */
+  silent?: boolean;
+}
+
+export interface PushNotificationJobPayload extends BaseJobPayload {
+  jobName: typeof NOTIFICATION_JOB_NAMES.sendPush;
+  intent: PushIntent;
+}
+
 export interface SubscriptionExpirationJobPayload extends BaseJobPayload {
   jobName: typeof SUBSCRIPTION_JOB_NAMES.expireSubscription;
   subscriptionId: string;
@@ -92,4 +124,5 @@ export type QueueJobPayload =
   | PaymentReconciliationJobPayload
   | PaymentExpirationJobPayload
   | PaymentRefundJobPayload
-  | SubscriptionExpirationJobPayload;
+  | SubscriptionExpirationJobPayload
+  | PushNotificationJobPayload;

@@ -5,6 +5,7 @@ import { orderService } from "../../orders/services/orders.service.js";
 import { scheduleService } from "../../distributor/services/schedule.service.js";
 import { userSubscriptionsRepository } from "../repository/user-subscriptions.repository.js";
 import { createLogger } from "../../../infra/logger/index.js";
+import { orderNotifications } from "../../orders/notifications/order-notifications.js";
 
 const log = createLogger("subscription-generation");
 
@@ -197,6 +198,15 @@ export const subscriptionGenerationService = {
       failed: 0,
     };
 
+    // D6: pedido de assinatura não gera push individual; ao fim da execução
+    // sai 1 push-resumo por distribuidora com o que de fato chegou à fila.
+    const sentByDistributor = new Map<string, number>();
+    const countSent = (sent: { order: { distributor_id: string }; transitioned: boolean }) => {
+      if (!sent.transitioned) return;
+      const id = sent.order.distributor_id;
+      sentByDistributor.set(id, (sentByDistributor.get(id) ?? 0) + 1);
+    };
+
     const { utc: todayUtc } = todayInSaoPaulo();
     const due = await userSubscriptionsRepository.findDueDeliveries(todayUtc, opts?.subscriptionId);
 
@@ -214,7 +224,7 @@ export const subscriptionGenerationService = {
 
         // Pós-commit: envia ao distribuidor (idempotente). Falha aqui deixa o
         // pedido em CONFIRMED — recuperado pela varredura de órfãos abaixo.
-        await orderService.sendToDistributor(outcome.orderId);
+        countSent(await orderService.sendToDistributor(outcome.orderId));
       } catch (err) {
         result.failed++;
         log.warn(
@@ -232,7 +242,7 @@ export const subscriptionGenerationService = {
     for (const orphan of orphans) {
       if (!orphan.order_id) continue;
       try {
-        await orderService.sendToDistributor(orphan.order_id);
+        countSent(await orderService.sendToDistributor(orphan.order_id));
         result.resent++;
       } catch (err) {
         result.failed++;
@@ -241,6 +251,10 @@ export const subscriptionGenerationService = {
           "subscription-generation: falha ao reenviar pedido órfão"
         );
       }
+    }
+
+    if (sentByDistributor.size > 0) {
+      await orderNotifications.onSubscriptionBatch(sentByDistributor, new Date().toISOString());
     }
 
     return result;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ import {
   Star,
   UserRound,
 } from "lucide-react";
-import { useSocket } from "@/src/hooks/use-socket";
+import { useRealtimeEvent } from "@/src/realtime/use-realtime-event";
 import { useOrderDetail } from "@/src/hooks/consumer/use-order-detail";
 import { useSubmitRating } from "@/src/hooks/consumer/use-submit-rating";
 import { OrderTimeline } from "@/src/components/shared/order-timeline";
@@ -89,7 +89,6 @@ export default function OrderDetailPage() {
   const { order, isLoading, error: loadErrorRaw, refetch } = useOrderDetail(id);
   const loadError = loadErrorRaw instanceof Error ? loadErrorRaw.message : null;
   const [otpCode, setOtpCode] = useState<string | null>(null);
-  const { on, off } = useSocket();
 
   const [nps, setNps] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
@@ -97,14 +96,9 @@ export default function OrderDetailPage() {
   const [npsError, setNpsError] = useState<string | null>(null);
   const submitRating = useSubmitRating();
 
-  useEffect(() => {
-    const handler = (...args: unknown[]) => {
-      const data = args[0] as { orderId: string; code: string };
-      if (data.orderId === id) setOtpCode(data.code);
-    };
-    on("otp_generated", handler);
-    return () => off("otp_generated", handler);
-  }, [id, on, off]);
+  useRealtimeEvent("otp_generated", (data) => {
+    if (data.orderId === id) setOtpCode(data.code);
+  });
 
   async function submitNps() {
     if (nps === null || submitRating.isPending) return;

@@ -9,7 +9,6 @@ import type { BottleStepInput } from "@xua/shared/schemas/order";
 import { orderPolicy } from "../policies/order.policy.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { otpService } from "../../driver/services/otp.service.js";
-import { getIO } from "../../../infra/socket/gateway.js";
 import {
   createOrderSchema,
   ratingSchema,
@@ -345,11 +344,6 @@ export const ordersController = {
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const result = await orderService.dispatch(existing.id, req.user!.sub, parsed.data.driver_id);
-      // Envia OTP em tempo real ao consumer via Socket.IO
-      getIO().to(`consumer:${result.order.consumer_id}`).emit("otp_generated", {
-        orderId: existing.id,
-        code: result.otpCode,
-      });
       res.json({ order: result.order, otp: result.otpCode, receipt_number: result.receiptNumber });
     } catch (error) {
       next(error);
@@ -368,10 +362,6 @@ export const ordersController = {
       if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
 
       const result = await orderService.dispatchWithChecklist(existing.id, req.user!.sub, parsed.data.driver_id);
-      getIO().to(`consumer:${result.order.consumer_id}`).emit("otp_generated", {
-        orderId: existing.id,
-        code: result.otpCode,
-      });
       res.json({ order: result.order, otp: result.otpCode, receipt_number: result.receiptNumber });
     } catch (error) {
       next(error);

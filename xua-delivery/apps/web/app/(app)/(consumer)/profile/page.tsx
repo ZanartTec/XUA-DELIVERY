@@ -1,5 +1,6 @@
 "use client";
 
+import { PushNotificationsCard } from "@/src/components/shared/push-notifications-card";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -190,6 +191,8 @@ export default function ProfilePage() {
           />
         </div>
       ) : null}
+
+      <PushNotificationsCard description="Aviso quando o pedido for aceito, sair para entrega ou tiver algum problema." />
 
       <nav aria-label="Ajuda" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
         <MenuRow icon={HelpCircle} label="Ajuda e suporte" hint="Perguntas frequentes e contato" href="/profile/help" />

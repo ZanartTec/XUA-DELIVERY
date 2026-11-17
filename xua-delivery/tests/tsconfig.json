@@ -1,14 +1,15 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2020"],
+    "lib": ["ES2021"],
     "noEmit": true,
     "types": ["node", "vitest/globals"],
     "paths": {
       "@api/*": ["../apps/api/src/*"],
       "@xua/shared": ["../packages/shared/src/index.ts"],
       "@xua/shared/*": ["../packages/shared/src/*"],
-      "@tests/*": ["./*"]
+      "@tests/*": ["./*"],
+      "@/src/*": ["../apps/web/src/*"]
     }
   },
   "include": ["**/*.ts"],

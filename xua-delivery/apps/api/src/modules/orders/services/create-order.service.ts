@@ -29,6 +29,8 @@ import { createLogger } from "../../../infra/logger/index.js";
 import { OrderServiceError } from "../errors.js";
 import { assertTransition } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import { orderNotifications } from "../notifications/order-notifications.js";
+import type { NewOrderPayload } from "@xua/shared/realtime/events";
 import {
   CASH_PAYMENT_PROVIDER,
   CASH_PAYMENT_PENDING_STATUS,
@@ -299,6 +301,31 @@ async function buildOrderInTx(
 }
 
 /**
+ * Payload do `new_order`: o bastante para o toast da distribuidora não precisar
+ * consultar a API. Se a leitura falhar, sai o payload mínimo — o aviso não
+ * pode depender de um detalhe de apresentação.
+ */
+async function buildNewOrderPayload(order: Order): Promise<NewOrderPayload> {
+  const base: NewOrderPayload = { orderId: order.id, status: OrderStatus.SENT_TO_DISTRIBUTOR };
+  try {
+    const summary = await orderRepository.findNewOrderSummary(order.id);
+    if (!summary) return base;
+    const firstName = summary.consumer?.name?.trim().split(/\s+/)[0] || null;
+    return {
+      ...base,
+      origin: summary.subscription_delivery_date ? "assinatura" : "avulso",
+      deliveryDate: summary.delivery_date ? summary.delivery_date.toISOString().slice(0, 10) : null,
+      totalCents: summary.total_cents,
+      itemsCount: summary.items.reduce((acc, item) => acc + item.quantity, 0),
+      customerFirstName: firstName,
+    };
+  } catch (err) {
+    log.warn({ err, orderId: order.id }, "new_order payload enrichment failed");
+    return base;
+  }
+}
+
+/**
  * createOrderService — criação de pedido e seu trajeto inicial até chegar à
  * distribuidora (CREATED/CONFIRMED → PAYMENT_PENDING → CONFIRMED → SENT_TO_DISTRIBUTOR).
  */
@@ -336,7 +363,7 @@ export const createOrderService = {
 
     log.info({ orderId: order.id }, "Order created");
     if (isOfflinePayment) {
-      const sent = await createOrderService.sendToDistributor(order.id);
+      const { order: sent } = await createOrderService.sendToDistributor(order.id);
       log.info({ orderId: sent.id, paymentMethod }, "Pay-on-delivery order sent to distributor");
       return sent;
     }
@@ -420,6 +447,12 @@ export const createOrderService = {
       return updated;
     }, { maxWait: 10000, timeout: 10000 });
 
+    // A tela de confirmação do PIX vira na hora (o polling dela fica de reserva).
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
+      orderId,
+      status: OrderStatus.CONFIRMED,
+    });
+
     return order;
   },
 
@@ -429,16 +462,20 @@ export const createOrderService = {
    * Idempotente: se o pedido já está em SENT_TO_DISTRIBUTOR (ou além), é no-op —
    * permite que a geração de assinatura reenvie pedidos presos em CONFIRMED
    * (falha pós-commit) sem erro. Ver D12 da arquitetura.
+   *
+   * `transitioned` diz se ESTA chamada fez a transição. Só nesse caso sai o
+   * `new_order`: reprocessar um webhook não pode avisar a distribuidora duas
+   * vezes (F11).
    */
-  async sendToDistributor(orderId: string): Promise<Order> {
+  async sendToDistributor(orderId: string): Promise<{ order: Order; transitioned: boolean }> {
     const prisma = getPrisma();
-    const order = await prisma.$transaction(async (tx: TxClient) => {
+    const { order, transitioned } = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
 
       // Idempotência: já enviado → no-op (não relança transição inválida).
       if (current.status !== OrderStatus.CONFIRMED) {
-        return current;
+        return { order: current, transitioned: false };
       }
 
       assertTransition(current.status, OrderStatus.SENT_TO_DISTRIBUTOR);
@@ -460,17 +497,23 @@ export const createOrderService = {
         tx
       );
 
-      return updated;
+      return { order: updated, transitioned: true };
     }, { maxWait: 10000, timeout: 10000 });
 
-    // Socket.io pós-commit: notifica distribuidor (sala da empresa)
-    if (order.status === OrderStatus.SENT_TO_DISTRIBUTOR) {
-      orderEventsPublisher.notifyDistributor(order.distributor_id, "new_order", {
-        orderId,
-        status: OrderStatus.SENT_TO_DISTRIBUTOR,
-      });
-    }
+    if (!transitioned) return { order, transitioned };
 
-    return order;
+    // Pós-commit: distribuidora (fila + alerta), cliente (tela do pedido) e push.
+    const payload = await buildNewOrderPayload(order);
+    orderEventsPublisher.notifyDistributor(order.distributor_id, "new_order", payload);
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
+      orderId,
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+    });
+    void orderNotifications.onTransition(order, OrderStatus.CONFIRMED, OrderStatus.SENT_TO_DISTRIBUTOR, {
+      actor: "system",
+      newOrder: payload,
+    });
+
+    return { order, transitioned };
   },
 };

@@ -2,7 +2,7 @@ import http from "node:http";
 import { createApp } from "../http/app";
 import { getEnv } from "../config/env";
 import { logger } from "../infra/logger";
-import { createSocketGateway } from "../infra/socket/gateway";
+import { closeSocketGateway, createSocketGateway } from "../infra/socket/gateway";
 import { disconnectPrisma } from "../infra/prisma/client";
 import { disconnectRedis } from "../infra/redis/client";
 
@@ -31,7 +31,7 @@ export function startServer(): void {
   async function shutdown(signal: string): Promise<void> {
     logger.info({ signal }, "Shutdown signal received — closing server");
 
-    io.close();
+    await closeSocketGateway(io);
 
     await disconnectPrisma();
     await disconnectRedis();

@@ -20,6 +20,8 @@ import {
   SlidersHorizontal,
   Truck,
   X,
+  Bell,
+  BellOff,
 } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -52,7 +54,9 @@ import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useIsDesktop } from "@/src/hooks/use-media-query";
-import { useSocket } from "@/src/hooks/use-socket";
+import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
+import { PushOptInBanner } from "@/src/components/shared/push-notifications-card";
+import { playNewOrderSound, setNewOrderSoundEnabled, useNewOrderSoundEnabled } from "@/src/realtime/alert-sound";
 import { ApiError, api } from "@/src/lib/api-client";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort, formatTime } from "@/src/lib/utils";
 import { formatScheduledTime, formatShortOrderId, isFromSubscription, matchesStatuses } from "@/src/lib/order-detail-format";
@@ -320,7 +324,9 @@ function DistributorQueueContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
-  const { on, off } = useSocket();
+  // Reserva caso o socket caia (T3.5): 2 min ao vivo, 20 s sem tempo real.
+  const fallbackInterval = useFallbackRefetchInterval();
+  const soundEnabled = useNewOrderSoundEnabled();
 
   const stageParam = searchParams.get("stage");
   const activeTab: QueueTabValue = isQueueTab(stageParam) ? stageParam : "all";
@@ -389,6 +395,7 @@ function DistributorQueueContent() {
     queryKey: ["distributor-queue", activeTab, page, qParam, origin, deliveryDate, driverId, sort],
     queryFn: () => api.get(`/api/orders?${queueQueryString}`),
     placeholderData: (previousData) => previousData,
+    refetchInterval: fallbackInterval,
   });
 
   const driversQuery = useDistributorDrivers();
@@ -409,19 +416,6 @@ function DistributorQueueContent() {
       }
     },
   });
-
-  useEffect(() => {
-    const handler = () => {
-      void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
-      void queryClient.invalidateQueries({ queryKey: ["distributor-order-detail"] });
-    };
-    on("new_order", handler);
-    on("order_status_changed", handler);
-    return () => {
-      off("new_order", handler);
-      off("order_status_changed", handler);
-    };
-  }, [on, off, queryClient]);
 
   useEffect(() => {
     if (!queueQuery.data) return;
@@ -476,6 +470,22 @@ function DistributorQueueContent() {
         sticky
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="icon-touch"
+              aria-label={soundEnabled ? "Som de novos pedidos: ligado" : "Som de novos pedidos: desligado"}
+              aria-pressed={soundEnabled}
+              title={soundEnabled ? "Som de novos pedidos: ligado" : "Som de novos pedidos: desligado"}
+              onClick={() => {
+                const next = !soundEnabled;
+                setNewOrderSoundEnabled(next);
+                // O clique também libera o áudio: tocar aqui confirma que funciona.
+                if (next) playNewOrderSound();
+                toast(next ? "Som de novos pedidos ligado" : "Som de novos pedidos desligado");
+              }}
+            >
+              {soundEnabled ? <Bell /> : <BellOff />}
+            </Button>
             <Button asChild variant="ghost" size="icon-touch" aria-label="Rota do dia">
               <Link href="/distributor/routes/today">
                 <Route />
@@ -533,6 +543,11 @@ function DistributorQueueContent() {
       </PageHeader>
 
       <div className="space-y-4 px-4 pb-6">
+        <PushOptInBanner
+          storageKey="xua:push-banner:distributor-queue"
+          title="Não perca pedidos com o app fechado"
+          description="Ative as notificações para ser avisado de pedidos novos mesmo com a tela desligada."
+        />
         {summary.overdue > 0 && activeTab !== "history" ? (
           <Alert variant="destructive" className="border-destructive/30 bg-danger-surface">
             <AlertTriangle aria-hidden />

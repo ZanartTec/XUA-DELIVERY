@@ -47,7 +47,7 @@
 - [x] Rate limiting por escopo; headers de segurança
 
 ### Plataforma
-- [x] Realtime Socket.io (salas por role/distribuidora; `new_order`, `order_status_changed`, `sla_warning`)
+- [x] Realtime Socket.io entre processos via Redis (API e worker), cliente único por aba com resync e polling de reserva, alerta de pedido novo na distribuidora (toast, som, badge, título) e Web Push pela fila `notifications` (nov/2026, `.claude/plans/tempo-real-notificacoes-plano-implementacao.md`)
 - [x] PWA offline do motorista (Service Worker + IndexedDB + sync idempotente por UUID)
 - [x] KPIs via auditoria (SLA aceite, taxa de aceite, reentrega, NPS) — dashboards distribuidor e ops
 - [x] Console de suporte (busca + timeline), override de OTP, exportação CSV de auditoria
@@ -96,7 +96,7 @@
 | 5 | **Eventos idealizados não implementados** | `payment_authorized`, `redelivery_completed`, `route_assigned`, `cart_created`, `consumer_registered`, `coverage_resolved` etc. constam apenas no rascunho — não existem no enum real |
 | 6 | **Sem geocoding** | Endereços não têm lat/lng; cobertura resolvida por CEP/bairro (ViaCEP + `05_mst_zone_coverage`). Roteirização real exigirá geocoding |
 | 7 | **Scheduler externo indefinido** | Jobs dependem de cron externo (Railway Cron ou Render citados). [A DEFINIR: provedor e frequências oficiais em produção] |
-| 8 | **Socket.io monolítico** | Roda no mesmo processo da API — ok para MVP; extrair para serviço dedicado se precisar de escala horizontal |
+| 8 | ~~**Socket.io monolítico**~~ | **Resolvido em nov/2026:** adapter Redis entre instâncias da API e emitter no worker; teste de carga em `tests/load/realtime-load.ts` |
 | 9 | **LGPD / retenção** | Política de retenção de dados e evidências [A DEFINIR] |
 | 10 | **CI/CD e ambientes** | Pipeline, staging e estratégia de migrations em produção não documentados [A DEFINIR] |
 | 11 | **`OTP_SENT` nunca implementado (nem auditoria, nem envio real)** | Confirmado em 26/07/2026: não existe SMS em nenhum lugar do backend, e o Web Push real (`"Pedido saiu para entrega!"`) não carrega o código — é só aviso de status. O código chega ao consumidor via Socket.io (`otp_generated`) ou fallback `GET /api/orders/:id` (role `consumer`, lido do Redis). O evento de auditoria `OTP_SENT` nunca é emitido porque não há o que auditar. Doc técnica corrigida (`guia-tecnico.md`) para não descrever um envio inexistente. [A DEFINIR: implementar SMS/push com código de fato, ou remover o evento do enum] |

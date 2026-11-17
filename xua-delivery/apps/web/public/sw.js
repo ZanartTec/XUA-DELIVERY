@@ -126,16 +126,30 @@ self.addEventListener("sync", (event) => {
 // ─────────────────────────────────────────────
 //  PUSH NOTIFICATIONS
 // ─────────────────────────────────────────────
+// Payload (API, fila `notifications`): { title, body, url, tag, kind, silent }.
+// Sempre mostra a notificação (supressão com aba aberta foi adiada — T5.9).
 self.addEventListener("push", (event) => {
   if (!event.data) return;
-  const data = event.data.json();
+  let data;
+  try {
+    data = event.data.json();
+  } catch {
+    data = { body: event.data.text() };
+  }
+  // Pedido novo fica na tela até alguém tocar e alerta de novo se outro
+  // aviso do mesmo pedido chegar (renotify exige tag).
+  const isNewOrder = data.kind === "new_order";
+  const tag = data.tag || "xua-notification";
   event.waitUntil(
     self.registration.showNotification(data.title || "Xuá Delivery", {
       body: data.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      tag: data.tag || "xua-notification",
-      data: { url: data.url || "/" },
+      tag,
+      renotify: isNewOrder,
+      requireInteraction: isNewOrder,
+      silent: data.silent === true,
+      data: { url: data.url || "/", kind: data.kind || null },
     })
   );
 });

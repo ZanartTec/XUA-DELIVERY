@@ -49,6 +49,30 @@ Roda no CI como job informativo (`e2e-smoke`, `continue-on-error: true`), não
 bloqueia merge ainda. Adicione mais fluxos (checkout completo, aceite do
 distribuidor, entrega + OTP) antes de promovê-lo a required check.
 
+`tests/e2e/realtime.spec.ts` cobre o tempo real (E1–E6 do plano
+`.claude/plans/tempo-real-notificacoes-plano-implementacao.md`): pedido novo na
+fila sem recarregar, F5, queda de rede com resync, PIX confirmado por processo
+separado (como o worker), toast de cancelamento e OTP na tela do cliente. Usa
+os usuários do seed e cancela os pedidos que cria. Sem o Chromium do
+Playwright baixado, use o Chrome instalado:
+
+```bash
+E2E_BROWSER_CHANNEL=chrome npx playwright test --config tests/e2e/playwright.config.ts realtime
+```
+
+### Carga do tempo real (fora do CI)
+
+`tests/load/realtime-load.ts` sobe 2 instâncias do gateway real (processos
+filhos, adapter Redis), conecta ~550 sockets (50 distribuidoras × 3 abas + 400
+clientes) e publica 300 pedidos em 5 min, metade pelo redis-emitter (caminho do
+worker) e metade de dentro das instâncias. Aprova com p95 < 1 s, 100% entregue,
+0 evento em sala errada e CPU < 50% de um núcleo por instância. Usa um prefixo
+Redis próprio (`xua:loadtest:*`), então não interfere na API de dev:
+
+```bash
+cd apps/api && node --env-file=.env --import tsx ../../tests/load/realtime-load.ts
+```
+
 ## Rodando localmente
 
 ```bash

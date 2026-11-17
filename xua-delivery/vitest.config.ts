@@ -8,6 +8,8 @@ export default defineConfig({
     // Os testes vivem fora do src desde a centralizacao em tests/ — ver tests/README.md.
     include: ["tests/unit/**/*.test.ts"],
     exclude: [...configDefaults.exclude, "**/*.integration.test.ts"],
+    // Bloqueia jobs reais de push em teste unitário (ver o arquivo).
+    setupFiles: ["./tests/support/no-real-push-queue.ts"],
     coverage: {
       provider: "v8",
       include: ["apps/api/src/**", "packages/shared/src/**"],
