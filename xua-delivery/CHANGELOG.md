@@ -2,6 +2,12 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.4.1](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.4.0...v1.4.1) (2026-11-17)
+
+### Correções
+
+* **realtime:** passe curto do socket entre domínios e menos conexões no Redis ([d0da4f1](https://github.com/ZanartTec/XUA-DELIVERY/commit/d0da4f16c2f84a6a6f6634928e0d966f54aa9e5e))
+
 ## [1.4.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.3.0...v1.4.0) (2026-11-17)
 
 ### Funcionalidades
