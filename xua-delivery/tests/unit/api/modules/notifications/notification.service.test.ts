@@ -25,7 +25,7 @@ vi.mock("@api/infra/logger/index.js", () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() }),
 }));
 
-const { notificationService } = await import("@api/modules/notifications/services/notification.service.js");
+const { notificationService, classifyPushError } = await import("@api/modules/notifications/services/notification.service.js");
 
 const sub = { endpoint: "https://push.example/abc", keys: { p256dh: "p", auth: "a" } };
 
@@ -105,5 +105,26 @@ describe("sendToUsers", () => {
     expect(await notificationService.sendToUsers([], { title: "x", body: "y" })).toMatchObject({ sent: 0 });
     expect(await notificationService.sendToUsers(["u"], { title: "x", body: "y" })).toMatchObject({ sent: 0 });
     expect(mocks.webPush.sendNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe("classifyPushError", () => {
+  it("chave da inscrição inválida (web-push recusa antes de enviar) apaga o token, sem nova tentativa", () => {
+    expect(classifyPushError(new Error("The subscription p256dh value should be 65 bytes long."))).toBe("gone");
+    expect(classifyPushError(new Error("The subscription auth key should be at least 16 bytes long"))).toBe("gone");
+  });
+
+  it("404/410 apaga; 429 e 5xx tentam de novo", () => {
+    expect(classifyPushError({ statusCode: 410 })).toBe("gone");
+    expect(classifyPushError({ statusCode: 404 })).toBe("gone");
+    expect(classifyPushError({ statusCode: 429 })).toBe("retryable");
+    expect(classifyPushError({ statusCode: 503 })).toBe("retryable");
+  });
+
+  it("só erro de rede de verdade é temporário", () => {
+    expect(classifyPushError(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }))).toBe("retryable");
+    expect(classifyPushError(Object.assign(new Error("x"), { code: "ETIMEDOUT" }))).toBe("retryable");
+    expect(classifyPushError(new Error("algo inesperado"))).toBe("permanent");
+    expect(classifyPushError({ statusCode: 400 })).toBe("permanent");
   });
 });

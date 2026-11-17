@@ -16,6 +16,26 @@ const RESYNC_AFTER_HIDDEN_MS = 3_000;
 /** Servidor recusou ou derrubou a conexão (login expirado, deploy): nova tentativa. */
 const SERVER_REJECT_RETRY_MS = 30_000;
 
+/**
+ * Passe curto do socket, pedido a cada tentativa de conexão.
+ *
+ * Em produção o site e a API ficam em domínios diferentes: o cookie de sessão
+ * é do site e não acompanha o handshake, que vai direto à API. A rota abaixo
+ * passa pelo proxy `/api` do próprio site (com o cookie) e devolve um passe de
+ * 60 s, uso único. Sem passe (falha de rede, logout), segue sem `token`: no
+ * mesmo domínio (dev) o cookie ainda autentica.
+ */
+async function fetchSocketTicket(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/auth/socket-ticket", { credentials: "include", cache: "no-store" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { ticket?: unknown };
+    return typeof body.ticket === "string" ? body.ticket : null;
+  } catch {
+    return null;
+  }
+}
+
 export type RealtimeStatus = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 
 const RegistryContext = createContext<ListenerRegistry | null>(null);
@@ -59,6 +79,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     const socket: Socket = io(API_URL, {
       withCredentials: true,
+      // Chamado a cada (re)conexão: sempre um passe novo, nunca um já usado.
+      auth: (cb) => {
+        void fetchSocketTicket().then((ticket) => cb(ticket ? { token: ticket } : {}));
+      },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,

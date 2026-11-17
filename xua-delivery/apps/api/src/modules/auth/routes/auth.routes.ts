@@ -46,6 +46,8 @@ router.post(
 // Rotas autenticadas
 router.post("/logout", authController.logout); // Pode funcionar sem auth para limpar cookie
 router.get("/me", authMiddleware, authController.me);
+// Passe curto para abrir o socket do tempo real (site e API em domínios diferentes).
+router.get("/socket-ticket", authMiddleware, authController.socketTicket);
 
 // Trocar a senha estando logado. Mesmo rate limit do reset por e-mail: a rota
 // exige a senha atual, então é um alvo de força bruta como o login.

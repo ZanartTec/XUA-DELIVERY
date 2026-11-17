@@ -6,7 +6,7 @@ import {
   resetPasswordSchema,
   changePasswordSchema,
 } from "@xua/shared/schemas/auth";
-import { verifyToken } from "../../../infra/auth/jwt.js";
+import { signSocketTicket, verifyToken } from "../../../infra/auth/jwt.js";
 import { isBlacklisted } from "../../../infra/auth/blacklist.js";
 import { isTokenStale } from "../../../infra/auth/password-change.js";
 import { authService } from "../services/auth.service.js";
@@ -163,6 +163,24 @@ export const authController = {
    * GET /api/auth/me
    * Requer autenticação (authMiddleware deve estar ativo).
    */
+  /**
+   * GET /api/auth/socket-ticket — passe de 60 s, uso único, para o handshake
+   * do Socket.IO (ver `signSocketTicket`). Nunca vai para cache.
+   */
+  async socketTicket(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        next(unauthorized("Não autenticado"));
+        return;
+      }
+      const { ticket, expiresAt } = await signSocketTicket(req.user);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ticket, expiresAt });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async me(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.sub;

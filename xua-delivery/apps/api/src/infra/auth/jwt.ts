@@ -50,6 +50,51 @@ export async function signToken(payload: {
     .sign(JWT_SECRET);
 }
 
+/**
+ * Passe curto do socket (tempo real).
+ *
+ * Em produção o site e a API ficam em domínios diferentes: o cookie de sessão
+ * (`httpOnly`, gravado no domínio do site) não chega ao handshake do socket,
+ * que vai direto à API. O site pede este passe pela rota autenticada por
+ * cookie e o entrega em `auth.token`. Ele vale 60 s, serve só para abrir o
+ * socket (o HTTP recusa `typ: "socket"`) e carrega a sessão de origem:
+ * `sid`/`siat`/`sexp` = jti/iat/exp da sessão, para que logout, troca de
+ * senha e expiração da sessão continuem valendo para a conexão aberta.
+ */
+export const SOCKET_TICKET_TTL_SECONDS = 60;
+
+export interface SocketTicketPayload extends JwtPayload {
+  typ: "socket";
+  sid: string;
+  siat: number;
+  sexp: number;
+}
+
+export async function signSocketTicket(session: JwtPayload): Promise<{ ticket: string; expiresAt: number }> {
+  const expiresAt = Math.floor(Date.now() / 1000) + SOCKET_TICKET_TTL_SECONDS;
+  const ticket = await new SignJWT({
+    sub: session.sub,
+    role: session.role,
+    name: session.name,
+    ...(session.distributor_id ? { distributor_id: session.distributor_id } : {}),
+    typ: "socket",
+    sid: session.jti,
+    siat: session.iat,
+    sexp: session.exp,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(JWT_ISSUER)
+    .setJti(randomUUID())
+    .setIssuedAt()
+    .setExpirationTime(expiresAt)
+    .sign(JWT_SECRET);
+  return { ticket, expiresAt };
+}
+
+export function isSocketTicket(payload: JwtPayload): payload is SocketTicketPayload {
+  return (payload as Partial<SocketTicketPayload>).typ === "socket";
+}
+
 export async function verifyToken(token: string): Promise<JwtPayload> {
   const { payload } = await jwtVerify(token, JWT_SECRET, {
     issuer: JWT_ISSUER,
