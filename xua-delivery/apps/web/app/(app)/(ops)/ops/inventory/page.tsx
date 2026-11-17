@@ -46,6 +46,7 @@ import {
   type StockStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDateShort, formatTime } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface Pagination {
   limit: number;
@@ -272,7 +273,7 @@ export default function OpsInventoryPage() {
             ) : balances.length === 0 ? (
               <EmptyState icon={PackageSearch} title="Nenhum saldo encontrado" description={activeFilters || search ? "Tente limpar os filtros." : undefined} />
             ) : (
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {balances.map((balance) => (
                   <li key={balance.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
@@ -292,7 +293,7 @@ export default function OpsInventoryPage() {
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ListPanel>
             )}
             <Pager
               offset={balanceOffset}
@@ -340,7 +341,7 @@ export default function OpsInventoryPage() {
             ) : movements.length === 0 ? (
               <EmptyState icon={History} title="Nenhum movimento no período" />
             ) : (
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {movements.map((movement) => {
                   const positive = movement.quantity_delta > 0;
                   const DirectionIcon = positive ? ArrowUp : ArrowDown;
@@ -372,7 +373,7 @@ export default function OpsInventoryPage() {
                     </li>
                   );
                 })}
-              </ul>
+              </ListPanel>
             )}
             <Pager
               offset={movementOffset}

@@ -23,6 +23,7 @@ import { cn } from "@/src/lib/utils";
 import { Eye, EyeOff, Image, Info, Layers, Loader2, MoreVertical, Palette, Pencil, Plus, Trash2, Type } from "lucide-react";
 import { toast } from "sonner";
 import type { BannerType } from "@xua/shared/enums";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface BannerItem {
   id: string;
@@ -500,7 +501,7 @@ export default function OpsBannersPage() {
         ) : sorted.length === 0 ? (
           <EmptyState icon={Image} title="Nenhum banner" description="Banners aparecem no topo do catálogo do cliente." />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {sorted.map((banner) => (
               <li key={banner.id} className={cn("flex items-center gap-3 px-4 py-3", !banner.is_active && "bg-surface-low")}>
                 <span
@@ -542,7 +543,7 @@ export default function OpsBannersPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 

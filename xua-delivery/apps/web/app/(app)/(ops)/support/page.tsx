@@ -17,6 +17,7 @@ import { formatPhone } from "@/src/lib/format";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
 import type { Order } from "@/src/types";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface SearchResult extends Order {
   consumer_name: string;
@@ -42,7 +43,7 @@ function useSearch(params: string | null) {
 
 function ResultList({ orders }: { orders: SearchResult[] }) {
   return (
-    <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+    <ListPanel>
       {orders.map((order) => (
         <li key={order.id}>
           <Link href={`/support/${order.id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted">
@@ -61,7 +62,7 @@ function ResultList({ orders }: { orders: SearchResult[] }) {
           </Link>
         </li>
       ))}
-    </ul>
+    </ListPanel>
   );
 }
 

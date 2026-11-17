@@ -18,6 +18,7 @@ import { cn, formatCurrency } from "@/src/lib/utils";
 import { phoneHref, plural } from "@/src/lib/format";
 import { openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
+import { cardVariants } from "@/src/components/ui/card";
 
 const CONDITIONS = [
   { value: "ok", label: "OK" },
@@ -266,7 +267,7 @@ export default function CompleteDeliveryPage() {
         ) : null}
 
         {/* Passo 1 — vazios recebidos */}
-        <section aria-labelledby="passo-vazios" className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+        <section aria-labelledby="passo-vazios" className={cardVariants({ className: "space-y-3 p-4" })}>
           <div>
             <h2 id="passo-vazios" className="text-sm font-semibold text-foreground">
               1. Quantos vasilhames vazios você recebeu?

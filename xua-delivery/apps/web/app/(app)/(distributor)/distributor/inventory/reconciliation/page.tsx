@@ -19,6 +19,7 @@ import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { ApiError, api } from "@/src/lib/api-client";
 import { formatInventoryQuantity, INVENTORY_ITEM_TYPE_LABEL } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
+import { cardVariants } from "@/src/components/ui/card";
 
 const EMPTY_COUNTS: Record<string, string> = {};
 
@@ -244,7 +245,7 @@ export default function DistributorInventoryReconciliationPage() {
                 const ok = displayDelta === 0;
                 const valid = Number.isFinite(displayDelta);
                 return (
-                  <li key={item.id} className="rounded-2xl border border-hairline bg-card p-4">
+                  <li key={item.id} className={cardVariants({ className: "p-4" })}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-foreground">{item.item.name}</p>

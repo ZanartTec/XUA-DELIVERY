@@ -23,6 +23,7 @@ import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { formatReceiptNumber, openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { cn } from "@/src/lib/utils";
 import { OrderStatus } from "@xua/shared/enums";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 
 export default function ChecklistPage() {
@@ -118,7 +119,7 @@ export default function ChecklistPage() {
             <h2 id="sec-conf" className="text-sm font-semibold text-foreground">
               1. Confira antes de carregar
             </h2>
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {checklist.map((item) => (
                 <li key={item.key}>
                   <Label
@@ -138,7 +139,7 @@ export default function ChecklistPage() {
                   </Label>
                 </li>
               ))}
-            </ul>
+            </ListPanel>
           </section>
         ) : null}
 

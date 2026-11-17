@@ -23,6 +23,7 @@ import { todayIso } from "@/src/lib/datetime";
 import { Eye, EyeOff, Loader2, MoreVertical, Pencil, Plus, Repeat } from "lucide-react";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -358,7 +359,7 @@ export default function OpsSubscriptionPlansPage() {
         ) : plans.length === 0 ? (
           <EmptyState icon={Repeat} title="Nenhum plano criado" description="Sem plano, o cliente não vê a opção de assinatura no app." />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {plans.map((plan) => (
               <li key={plan.id} className={cn("flex items-center gap-3 px-4 py-3", !plan.is_active && "bg-surface-low")}>
                 <div className="min-w-0 flex-1">
@@ -394,7 +395,7 @@ export default function OpsSubscriptionPlansPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 

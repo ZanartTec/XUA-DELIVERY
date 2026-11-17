@@ -18,6 +18,7 @@ import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { isoDayToDate, todayIso } from "@/src/lib/datetime";
 import { cn } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type WeekdayConfig = { weekday: number; is_active: boolean; lead_time_hours: number };
 type BlockedDate = { id: string; blocked_date: string; reason: string | null };
@@ -243,7 +244,7 @@ export default function DistributorSchedulePage() {
           {loading ? (
             <Skeleton className="h-80 rounded-2xl" />
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {weekdays.map((w) => (
                 <li key={w.weekday} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                   <Switch id={`day-${w.weekday}`} checked={w.is_active} onCheckedChange={(v) => updateDay(w.weekday, { is_active: v })} />
@@ -276,7 +277,7 @@ export default function DistributorSchedulePage() {
                   ) : null}
                 </li>
               ))}
-            </ul>
+            </ListPanel>
           )}
         </TabsContent>
 
@@ -285,7 +286,7 @@ export default function DistributorSchedulePage() {
           {timeSlots.length === 0 ? (
             <EmptyState icon={Clock} title="Nenhum horário configurado" description="Usando Manhã e Tarde como padrão." />
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {timeSlots.map((slot) => (
                 <li key={slot.id} className={cn("flex items-center gap-3 px-4 py-3", !slot.is_active && "bg-surface-low")}>
                   <Switch
@@ -313,7 +314,7 @@ export default function DistributorSchedulePage() {
                   />
                 </li>
               ))}
-            </ul>
+            </ListPanel>
           )}
         </TabsContent>
 
@@ -322,7 +323,7 @@ export default function DistributorSchedulePage() {
           {sortedBlocked.length === 0 ? (
             <EmptyState icon={CalendarOff} title="Nenhuma data bloqueada" />
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {sortedBlocked.map((b) => (
                 <li key={b.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
@@ -344,7 +345,7 @@ export default function DistributorSchedulePage() {
                   />
                 </li>
               ))}
-            </ul>
+            </ListPanel>
           )}
         </TabsContent>
       </Tabs>

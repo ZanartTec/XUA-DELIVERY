@@ -29,6 +29,7 @@ import {
 import { Droplets, Eye, EyeOff, Loader2, MoreVertical, Pencil, Plus, Search } from "lucide-react";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type ProductKind = "WATER" | "BOTTLE" | "OTHER";
 
@@ -405,7 +406,7 @@ export default function OpsProductsPage() {
         ) : visible.length === 0 ? (
           <EmptyState icon={Droplets} title={term ? "Nenhum produto encontrado" : "Nenhum produto aqui"} />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {visible.map((product) => {
               const rule = bottleRuleLabel(product, productsById);
               return (
@@ -450,7 +451,7 @@ export default function OpsProductsPage() {
                 </li>
               );
             })}
-          </ul>
+          </ListPanel>
         )}
       </div>
 

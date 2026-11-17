@@ -9,6 +9,7 @@ import { formatReceiptNumber, orderReceiptUrl } from "@/src/lib/receipt";
 import { formatDate } from "@/src/lib/utils";
 import { OrderStatus } from "@/src/types/enums";
 import type { OrderDetail } from "@/src/types/order-detail";
+import { cardVariants } from "@/src/components/ui/card";
 
 /** Espelha RECEIPT_ISSUABLE_STATUSES da API: emissão manual só depois do aceite. */
 const ISSUABLE_STATUSES = new Set<string>([
@@ -39,7 +40,7 @@ export function OrderReceiptSection({ order }: { order: OrderDetail }) {
   if (!receipt && !ISSUABLE_STATUSES.has(order.status)) return null;
 
   return (
-    <section className="rounded-2xl border border-hairline bg-card p-4">
+    <section className={cardVariants({ className: "p-4" })}>
       <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <FileText className="h-3.5 w-3.5" />
         Comprovante de venda

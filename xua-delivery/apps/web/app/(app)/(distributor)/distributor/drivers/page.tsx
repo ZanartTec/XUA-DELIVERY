@@ -29,6 +29,7 @@ import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type Driver = DistributorDriver;
 
@@ -174,9 +175,9 @@ export default function DistributorDriversPage() {
           <EmptyState icon={Truck} title="Nenhum motorista cadastrado" description="Cadastre quem vai entregar para poder despachar pedidos." />
         ) : (
           <>
-            <ul aria-label="Motoristas ativos" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel aria-label="Motoristas ativos">
               {active.map(row)}
-            </ul>
+            </ListPanel>
             {inactive.length > 0 ? (
               <section aria-labelledby="sec-inativos" className="space-y-2">
                 <h2 id="sec-inativos" className="text-sm font-semibold text-muted-foreground">

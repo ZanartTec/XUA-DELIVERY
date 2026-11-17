@@ -6,6 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 import { cn } from "@/src/lib/utils";
 import { usePushSubscription, type PushState } from "@/src/hooks/use-push-subscription";
+import { Card } from "@/src/components/ui/card";
 
 const HINT: Partial<Record<PushState, string>> = {
   denied: "Bloqueadas no navegador. Libere nas configurações do site para ativar.",
@@ -27,7 +28,7 @@ export function PushNotificationsCard({ description }: { description: string }) 
   const hint = HINT[state];
 
   return (
-    <div className="rounded-2xl border border-hairline bg-card px-4 py-3">
+    <Card className="px-4 py-3">
       <div className="flex min-h-10 items-center gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10 text-primary">
           {subscribed ? <Bell className="size-5" aria-hidden /> : <BellOff className="size-5" aria-hidden />}
@@ -46,7 +47,7 @@ export function PushNotificationsCard({ description }: { description: string }) 
         ) : null}
       </div>
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
-    </div>
+    </Card>
   );
 }
 

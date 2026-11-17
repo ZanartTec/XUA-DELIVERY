@@ -28,6 +28,7 @@ import {
   type StockStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface Pagination {
   limit: number;
@@ -218,7 +219,7 @@ export default function DistributorInventoryPage() {
               description={search || stockStatus !== "ALL" ? undefined : "Registre a carga inicial para começar a controlar os saldos."}
             />
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {balances.map((b) => (
                 <li key={b.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
@@ -237,7 +238,7 @@ export default function DistributorInventoryPage() {
                   {b.is_low_stock ? <StatusBadge label="Baixo" tone="danger" className="h-5 px-2 text-[11px]" /> : null}
                 </li>
               ))}
-            </ul>
+            </ListPanel>
           )}
           {total > PAGE ? (
             <div className="flex items-center justify-between">
@@ -285,7 +286,7 @@ export default function DistributorInventoryPage() {
           ) : movements.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-hairline p-4 text-center text-sm text-muted-foreground">Nenhuma movimentação ainda.</p>
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+            <ListPanel>
               {movements.map((m) => {
                 const positive = m.quantity_delta > 0;
                 const Icon = positive ? ArrowUp : ArrowDown;
@@ -312,7 +313,7 @@ export default function DistributorInventoryPage() {
                   </li>
                 );
               })}
-            </ul>
+            </ListPanel>
           )}
           {(movementsQuery.data?.pagination.total ?? 0) > 10 ? (
             <div className="flex justify-between">

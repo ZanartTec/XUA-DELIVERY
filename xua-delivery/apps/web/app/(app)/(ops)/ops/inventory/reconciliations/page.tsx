@@ -27,6 +27,7 @@ import {
   type ReconciliationStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDateShort, formatTime } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface Pagination {
   limit: number;
@@ -177,7 +178,7 @@ export default function OpsInventoryReconciliationsPage() {
         ) : sessions.length === 0 ? (
           <EmptyState icon={ClipboardList} title="Nenhuma conferência encontrada" />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {sessions.map((session) => (
               <li key={session.id}>
                 <button
@@ -200,7 +201,7 @@ export default function OpsInventoryReconciliationsPage() {
                 </button>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
 
         {total > PAGE_SIZE ? (

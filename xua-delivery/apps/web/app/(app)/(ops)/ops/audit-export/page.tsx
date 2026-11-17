@@ -11,6 +11,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { addDaysIso, todayIso } from "@/src/lib/datetime";
 import { useOpsDistributors } from "@/src/hooks/ops/use-ops-zones";
+import { cardVariants } from "@/src/components/ui/card";
 
 /**
  * Grupos de eventos em linguagem de operação. O CSV continua trazendo o código
@@ -128,7 +129,7 @@ export default function AuditExportPage() {
       />
 
       <div className="space-y-5 px-4 pb-4">
-        <section className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+        <section className={cardVariants({ className: "space-y-3 p-4" })}>
           <h2 className="font-heading text-base font-semibold">Período</h2>
           <ToggleGroup
             type="single"
@@ -161,7 +162,7 @@ export default function AuditExportPage() {
           {invalidRange ? <p className="text-sm text-destructive">A data inicial precisa ser antes da final.</p> : null}
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+        <section className={cardVariants({ className: "space-y-3 p-4" })}>
           <div>
             <h2 className="font-heading text-base font-semibold">O que incluir</h2>
             <p className="text-sm text-muted-foreground">Sem nada marcado, vão todos os eventos.</p>
@@ -185,7 +186,7 @@ export default function AuditExportPage() {
           </ToggleGroup>
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+        <section className={cardVariants({ className: "space-y-3 p-4" })}>
           <div>
             <h2 className="font-heading text-base font-semibold">Distribuidora</h2>
             <p className="text-sm text-muted-foreground">Ao escolher uma, só entram eventos de pedidos dela.</p>

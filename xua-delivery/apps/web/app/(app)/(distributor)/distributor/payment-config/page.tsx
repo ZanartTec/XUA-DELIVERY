@@ -19,6 +19,8 @@ import type {
   DistributorPaymentSettingsUpdateInput,
   DistributorPaymentSettingsView,
 } from "@xua/shared/schemas/distributor-payment-settings";
+import { cardVariants } from "@/src/components/ui/card";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type Methods = {
   accepts_pix_online: boolean;
@@ -175,9 +177,9 @@ export default function DistributorPaymentConfigPage() {
               <h2 id="sec-entrega" className="text-sm font-semibold text-foreground">
                 Na entrega
               </h2>
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {METHOD_LABELS.filter((m) => !m.online).map(methodRow)}
-              </ul>
+              </ListPanel>
             </section>
 
             <section aria-labelledby="sec-app" className="space-y-2">
@@ -187,16 +189,16 @@ export default function DistributorPaymentConfigPage() {
                 </h2>
                 <StatusBadge label={mpConnected ? "Conectado" : "Não conectado"} tone={mpConnected ? "success" : "neutral"} />
               </div>
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {METHOD_LABELS.filter((m) => m.online).map(methodRow)}
-              </ul>
+              </ListPanel>
               {!wantsOnline && !mpConnected ? (
                 <p className="text-xs text-muted-foreground">Ative Pix ou cartão no app para conectar sua conta do Mercado Pago.</p>
               ) : null}
             </section>
 
             {wantsOnline ? (
-              <section aria-labelledby="sec-mp" className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+              <section aria-labelledby="sec-mp" className={cardVariants({ className: "space-y-3 p-4" })}>
                 <h2 id="sec-mp" className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <KeyRound className="size-4 text-primary" aria-hidden /> Credenciais do Mercado Pago
                 </h2>

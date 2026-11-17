@@ -13,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { EmptyState } from "@/src/components/shared/empty-state";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { api } from "@/src/lib/api-client";
+import { cardVariants } from "@/src/components/ui/card";
 
 interface KpiData {
   sla_acceptance_pct: number;
@@ -89,7 +90,7 @@ export default function KpisPage() {
                 const value = kpis?.[card.valueKey] ?? 0;
                 const target = KPI_TARGETS[card.kpi];
                 return (
-                  <section key={card.valueKey} className="rounded-2xl border border-hairline bg-card p-4">
+                  <section key={card.valueKey} className={cardVariants({ className: "p-4" })}>
                     <div className="flex items-start justify-between gap-2">
                       <h2 className="text-sm font-semibold text-foreground">{card.label}</h2>
                       {!isLoading ? <KpiStatusPill status={classifyKpi(card.kpi, value)} /> : null}

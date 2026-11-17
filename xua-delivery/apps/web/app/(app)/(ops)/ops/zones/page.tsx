@@ -45,7 +45,7 @@ export default function ZonesPage() {
   }
 
   return (
-    <div className="space-y-4 px-4">
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4">
       <PageHeader
         className="px-0"
         title="Zonas de atendimento"

@@ -27,6 +27,7 @@ import { formatPhone, phoneHref, plural, whatsappHref } from "@/src/lib/format";
 import { formatScheduledTime, formatShortOrderId } from "@/src/lib/order-detail-format";
 import { openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { cn, formatCurrency } from "@/src/lib/utils";
+import { cardVariants } from "@/src/components/ui/card";
 
 /** Detalhe da parada: tudo que o motorista precisa antes de tocar a campainha. */
 export default function DriverDeliveryDetailPage() {
@@ -78,7 +79,7 @@ export default function DriverDeliveryDetailPage() {
         <StatusBadge status={order.status} />
 
         {/* Endereço + navegação */}
-        <section className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+        <section className={cardVariants({ className: "space-y-3 p-4" })}>
           <p className="flex items-start gap-2 text-base font-medium text-foreground">
             <MapPin className="mt-1 size-4 shrink-0 text-primary" aria-hidden />
             <span>
@@ -162,7 +163,7 @@ export default function DriverDeliveryDetailPage() {
         ) : null}
 
         {/* Itens a levar */}
-        <section className="rounded-2xl border border-hairline bg-card p-4">
+        <section className={cardVariants({ className: "p-4" })}>
           <h2 className="mb-2 text-sm font-semibold text-foreground">Levar ({plural(order.total_items_qty, "item", "itens")})</h2>
           <ul className="divide-y divide-hairline">
             {order.items.map((item, i) => (

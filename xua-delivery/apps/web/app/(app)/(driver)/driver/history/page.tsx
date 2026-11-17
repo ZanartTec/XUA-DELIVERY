@@ -12,6 +12,7 @@ import { APP_TIME_ZONE, toIsoDay, todayIso, addDaysIso, isoDayToDate } from "@/s
 import { plural } from "@/src/lib/format";
 import { formatCurrency } from "@/src/lib/utils";
 import { isCashPaymentMethod } from "@xua/shared/mappers/payment";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface DriverHistoryItem {
   order_id: string;
@@ -77,7 +78,7 @@ export default function DriverHistoryPage() {
                     {cash > 0 ? ` · ${formatCurrency(cash)} em dinheiro` : ""}
                   </p>
                 </div>
-                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                <ListPanel>
                   {list.map((item) => (
                     <li key={item.order_id}>
                       <Link href={`/driver/deliveries/${item.order_id}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted">
@@ -100,7 +101,7 @@ export default function DriverHistoryPage() {
                       </Link>
                     </li>
                   ))}
-                </ul>
+                </ListPanel>
               </section>
             );
           })

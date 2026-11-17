@@ -23,6 +23,7 @@ import { formatPhone } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Building2, FileText, Loader2, MoreVertical, Pencil, Plus, Power, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -541,7 +542,7 @@ export default function OpsDistributorsPage() {
         ) : visible.length === 0 ? (
           <EmptyState icon={Building2} title={term ? "Nenhuma distribuidora encontrada" : "Nenhuma distribuidora cadastrada"} />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {visible.map((d) => (
               <li key={d.id} className={cn("flex items-center gap-3 px-4 py-3", !d.is_active && "bg-surface-low")}>
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
@@ -581,7 +582,7 @@ export default function OpsDistributorsPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 

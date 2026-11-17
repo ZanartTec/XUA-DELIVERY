@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/src/components/ui/calendar";
 import type { AvailableDeliveryDate } from "@/src/hooks/use-available-delivery-dates";
+import { cardVariants } from "@/src/components/ui/card";
 
 interface DeliveryDateCalendarProps {
   selectedDates: string[];
@@ -129,7 +130,7 @@ export function DeliveryDateCalendar({
         onSelect={handleSelect}
         disabled={disabled}
         locale={ptBR}
-        className="rounded-2xl border border-hairline bg-card shadow-sm"
+        className={cardVariants({ className: "shadow-sm" })}
       />
     </div>
   );

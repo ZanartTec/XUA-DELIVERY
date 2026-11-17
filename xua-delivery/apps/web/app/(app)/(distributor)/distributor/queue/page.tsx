@@ -62,6 +62,7 @@ import { cn, formatCurrency, formatDateShort, formatRelativeShort, formatTime } 
 import { formatScheduledTime, formatShortOrderId, isFromSubscription, matchesStatuses } from "@/src/lib/order-detail-format";
 import type { Order } from "@/src/types";
 import { OrderStatus } from "@/src/types/enums";
+import { cardVariants } from "@/src/components/ui/card";
 
 const PAGE_SIZE = 30;
 
@@ -187,7 +188,7 @@ function OrderCard({
   const toPrepare = matchesStatuses(order.status, STAGES[1].statuses);
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-hairline bg-card shadow-sm">
+    <article className={cardVariants({ className: "relative overflow-hidden shadow-sm" })}>
       {URGENCY_STRIPE[urgency.level] ? (
         <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", URGENCY_STRIPE[urgency.level])} />
       ) : null}

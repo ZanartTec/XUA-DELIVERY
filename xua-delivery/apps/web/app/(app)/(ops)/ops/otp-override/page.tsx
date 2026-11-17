@@ -20,6 +20,7 @@ import { formatPhone } from "@/src/lib/format";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { cn, formatDate } from "@/src/lib/utils";
 import type { Order } from "@/src/types";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 interface SearchResult extends Order {
   consumer_name: string;
@@ -126,7 +127,7 @@ function OtpOverrideContent() {
         ) : (query.data ?? []).length === 0 ? (
           <EmptyState icon={Truck} title="Nenhuma entrega em rota encontrada" description="Só pedidos que saíram para entrega podem ser liberados." />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {(query.data ?? []).map((order) => (
               <li key={order.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
@@ -144,7 +145,7 @@ function OtpOverrideContent() {
                 </Button>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 

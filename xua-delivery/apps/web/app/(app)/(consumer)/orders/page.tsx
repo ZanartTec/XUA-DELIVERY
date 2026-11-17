@@ -18,6 +18,7 @@ import { useHasActivePlans } from "@/src/hooks/consumer/use-subscription-plans";
 import { ACTIVE_ORDER_STATUSES } from "@/src/lib/order-status";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { formatCurrency, formatDate } from "@/src/lib/utils";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 function isActive(order: Order) {
   return ACTIVE_ORDER_STATUSES.includes(order.status);
@@ -141,7 +142,7 @@ export default function OrdersPage() {
                     Histórico
                   </h2>
                 ) : null}
-                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                <ListPanel>
                   {pastOrders.map((order) => (
                     <li key={order.id}>
                       <Link
@@ -159,7 +160,7 @@ export default function OrdersPage() {
                       </Link>
                     </li>
                   ))}
-                </ul>
+                </ListPanel>
               </section>
             ) : null}
 

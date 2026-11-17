@@ -36,6 +36,7 @@ import { ConfirmAction } from "@/src/components/shared/confirm-action";
 import { logout } from "@/src/components/shared/logout-button";
 import { PwaIosInstructionsSheet } from "@/src/components/shared/pwa-ios-instructions-sheet";
 import type { Consumer } from "@/src/types";
+import { Card, cardVariants } from "@/src/components/ui/card";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
@@ -160,7 +161,7 @@ export default function ProfilePage() {
         </section>
       ) : null}
 
-      <nav aria-label="Minha conta" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+      <nav aria-label="Minha conta" className={cardVariants({ className: "divide-y divide-hairline overflow-hidden" })}>
         <MenuRow icon={ReceiptText} label="Meus pedidos" href="/orders" />
         <MenuRow
           icon={MapPin}
@@ -173,7 +174,7 @@ export default function ProfilePage() {
       </nav>
 
       {consumer ? (
-        <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-3">
+        <Card className="flex min-h-16 items-center gap-3 px-4 py-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10 text-primary">
             <Building2 className="size-5" aria-hidden />
           </span>
@@ -189,12 +190,12 @@ export default function ProfilePage() {
             disabled={assignSaving}
             onCheckedChange={toggleAutoAssign}
           />
-        </div>
+        </Card>
       ) : null}
 
       <PushNotificationsCard description="Aviso quando o pedido for aceito, sair para entrega ou tiver algum problema." />
 
-      <nav aria-label="Ajuda" className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+      <nav aria-label="Ajuda" className={cardVariants({ className: "divide-y divide-hairline overflow-hidden" })}>
         <MenuRow icon={HelpCircle} label="Ajuda e suporte" hint="Perguntas frequentes e contato" href="/profile/help" />
         <MenuRow icon={Info} label="Sobre o Xuá" href="/profile/help#sobre" />
         {pwaStatus === "installed" ? (
