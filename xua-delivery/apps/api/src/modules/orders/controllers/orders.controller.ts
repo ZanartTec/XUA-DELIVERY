@@ -24,6 +24,7 @@ import {
   deliveryFailedSchema,
   scheduleRedeliverySchema,
   distributorQueueQuerySchema,
+  distributorBoardQuerySchema,
   consumerOrdersQuerySchema,
 } from "@xua/shared/schemas/order";
 import { AppError, badRequest, conflict, forbidden, notFound } from "../../../errors/index.js";
@@ -71,6 +72,21 @@ function stockReturnOptions(payload: Record<string, unknown>) {
  * OrdersController — handlers HTTP para rotas de pedidos.
  */
 export const ordersController = {
+  /**
+   * GET /api/orders/queue-summary
+   * Contadores da fila do distribuidor (novos, preparo, em rota, atrasados) sem listar pedidos.
+   * Alimenta o badge do menu; é só agregação no banco.
+   */
+  async queueSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user!;
+      if (user.role !== "distributor_admin") throw forbidden();
+      res.json({ summary: await orderService.getDistributorQueueSummary(user.sub, user.role) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   /**
    * GET /api/orders
    * Lista pedidos com base no scope e role do usuário.
@@ -167,6 +183,18 @@ export const ordersController = {
       if (scope === "distributor") {
         if (user.role !== "distributor_admin") {
           throw forbidden();
+        }
+
+        // view=board: as três etapas ativas numa chamada só (aba "Todos"); o resto é lista paginada.
+        if (req.query.view === "board") {
+          const board = distributorBoardQuerySchema.safeParse(req.query);
+          if (!board.success) {
+            throw new AppError("INVALID_QUERY", board.error.issues[0]?.message ?? "Query inválida", {
+              status: 400,
+            });
+          }
+          res.json(await orderService.listDistributorBoard(user.sub, user.role, board.data));
+          return;
         }
 
         const parsed = distributorQueueQuerySchema.safeParse(req.query);

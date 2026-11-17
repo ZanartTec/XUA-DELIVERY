@@ -22,7 +22,7 @@ type TxClient = Prisma.TransactionClient;
 
 type OrderWithConsumer = Order & { consumer: Pick<Consumer, "name" | "email" | "phone"> };
 
-type SubscriptionDeliveryContext = {
+export type SubscriptionDeliveryContext = {
   id: string;
   user_subscription_id: string;
   delivery_date: Date;
@@ -54,12 +54,32 @@ type SubscriptionDeliveryContext = {
   };
 };
 
-export type OrderForQueue = Order & {
-  consumer: Pick<Consumer, "name">;
-  address: Pick<Address, "street" | "number" | "neighborhood">;
-  items: Pick<OrderItem, "quantity" | "product_name">[];
-  subscription_delivery_date: SubscriptionDeliveryContext | null;
-};
+/**
+ * Colunas que a fila do distribuidor realmente usa. O pedido tem 60+ colunas e a fila lista
+ * dezenas de pedidos de uma vez: o `select` evita trafegar o resto. A assinatura entra só como
+ * `{ id }` (basta para saber a origem); o contexto completo fica no detalhe do pedido.
+ */
+const QUEUE_ORDER_SELECT = {
+  id: true,
+  status: true,
+  driver_id: true,
+  total_cents: true,
+  delivery_date: true,
+  delivery_window: true,
+  scheduled_time_label: true,
+  scheduled_time_start_hour: true,
+  scheduled_time_start_minute: true,
+  scheduled_time_end_hour: true,
+  scheduled_time_end_minute: true,
+  created_at: true,
+  updated_at: true,
+  consumer: { select: { name: true } },
+  address: { select: { street: true, number: true, neighborhood: true } },
+  items: { select: { quantity: true, product_name: true } },
+  subscription_delivery_date: { select: { id: true } },
+} satisfies Prisma.OrderSelect;
+
+export type OrderForQueue = Prisma.OrderGetPayload<{ select: typeof QUEUE_ORDER_SELECT }>;
 
 export type DistributorQueuePagedOptions = {
   statuses: OrderStatus[];
@@ -80,6 +100,18 @@ export type DistributorQueuePagedResult = {
   total: number;
   statusCounts: Partial<Record<OrderStatus, number>>;
   /** Ativos (summaryStatuses) com delivery_date já no passado (dia de calendário — ver order-query.service.ts). */
+  overdueActive: number;
+};
+
+export type DistributorBoardOptions = Omit<DistributorQueuePagedOptions, "statuses" | "page" | "limit"> & {
+  /** Etapa → status que a compõem. Cada etapa vira uma coluna do quadro. */
+  columns: Record<string, OrderStatus[]>;
+  perColumn: number;
+};
+
+export type DistributorBoardResult = {
+  columns: Record<string, { orders: OrderForQueue[]; total: number }>;
+  statusCounts: Partial<Record<OrderStatus, number>>;
   overdueActive: number;
 };
 
@@ -190,6 +222,21 @@ function distributorQueueOrderBy(sort: DistributorQueueSortInput): Prisma.OrderO
     default:
       return [{ created_at: "desc" }, { id: "desc" }];
   }
+}
+
+function sumStatusCounts(counts: Partial<Record<OrderStatus, number>>, statuses: readonly OrderStatus[]): number {
+  return statuses.reduce((sum, status) => sum + (counts[status] ?? 0), 0);
+}
+
+/** Atrasado (aproximação por dia de calendário): entrega marcada para antes de hoje, ainda ativo. */
+function overdueWhereFor(summaryWhere: Prisma.OrderWhereInput): Prisma.OrderWhereInput {
+  return { ...summaryWhere, delivery_date: { lt: parseDateBoundary(new Date().toISOString().slice(0, 10)) } };
+}
+
+function groupStatusCounts(rows: Array<{ status: string; _count: { id: number } }>) {
+  const counts: Partial<Record<OrderStatus, number>> = {};
+  for (const row of rows) counts[row.status as OrderStatus] = row._count.id;
+  return counts;
 }
 
 function buildDistributorQueueWhere(
@@ -371,6 +418,11 @@ export const orderRepository = {
     return { orders, total, summary };
   },
 
+  /**
+   * Uma página da fila de uma etapa. O `total` sai do mesmo `groupBy` do resumo quando a etapa é
+   * ativa (mesmos filtros, só muda o conjunto de status), economizando uma contagem; no histórico
+   * (status finais, fora do resumo) continua sendo um `count`.
+   */
   async findByDistributorPaged(
     distributorId: string,
     options: DistributorQueuePagedOptions,
@@ -387,41 +439,94 @@ export const orderRepository = {
     };
     const whereFilter = buildDistributorQueueWhere(distributorId, options.statuses, filterOptions);
     const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
-    // Aproximação por dia de calendário (não considera se a janela de hoje já venceu) —
-    // indicador de cabeçalho, não a ferramenta de triagem exata (essa é o próprio card).
-    const overdueWhere: Prisma.OrderWhereInput = {
-      ...summaryWhere,
-      delivery_date: { lt: parseDateBoundary(new Date().toISOString().slice(0, 10)) },
-    };
+    const stageInsideSummary = options.statuses.every((status) => options.summaryStatuses.includes(status));
 
-    const [orders, total, statusGroups, overdueActive] = await Promise.all([
+    const [orders, statusGroups, overdueActive, countedTotal] = await Promise.all([
       prisma.order.findMany({
         where: whereFilter,
         orderBy: distributorQueueOrderBy(options.sort),
         skip: (options.page - 1) * options.limit,
         take: options.limit,
-        include: {
-          consumer: { select: { name: true } },
-          address: { select: { street: true, number: true, neighborhood: true } },
-          items: { select: { quantity: true, product_name: true } },
-          subscription_delivery_date: newSubscriptionDeliveryInclude,
-        },
-      }) as unknown as Promise<OrderForQueue[]>,
-      prisma.order.count({ where: whereFilter }),
-      prisma.order.groupBy({
-        by: ["status"],
-        where: summaryWhere,
-        _count: { id: true },
+        select: QUEUE_ORDER_SELECT,
       }),
-      prisma.order.count({ where: overdueWhere }),
+      prisma.order.groupBy({ by: ["status"], where: summaryWhere, _count: { id: true } }),
+      prisma.order.count({ where: overdueWhereFor(summaryWhere) }),
+      stageInsideSummary ? Promise.resolve(null) : prisma.order.count({ where: whereFilter }),
     ]);
 
-    const statusCounts: Partial<Record<OrderStatus, number>> = {};
-    for (const row of statusGroups) {
-      statusCounts[row.status as OrderStatus] = row._count.id;
-    }
+    const statusCounts = groupStatusCounts(statusGroups);
+    const total = countedTotal ?? sumStatusCounts(statusCounts, options.statuses);
 
     return { orders, total, statusCounts, overdueActive };
+  },
+
+  /**
+   * Quadro da fila: os primeiros pedidos de cada etapa + o total real de cada uma, numa só ida
+   * ao banco (uma consulta por coluna, em paralelo, e um `groupBy` para os totais e o resumo).
+   * Antes o front trazia uma página de "todos" e separava por etapa no navegador, deixando
+   * colunas incompletas e com contagem errada.
+   */
+  async findDistributorBoard(
+    distributorId: string,
+    options: DistributorBoardOptions,
+    tx?: TxClient
+  ): Promise<DistributorBoardResult> {
+    const prisma = tx ?? getPrisma();
+    const filterOptions = {
+      q: options.q,
+      origin: options.origin,
+      deliveryDate: options.deliveryDate,
+      start: options.start,
+      end: options.end,
+      driverId: options.driverId,
+    };
+    const orderBy = distributorQueueOrderBy(options.sort);
+    const columnKeys = Object.keys(options.columns);
+    const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
+
+    const [columnOrders, statusGroups, overdueActive] = await Promise.all([
+      Promise.all(
+        columnKeys.map((key) =>
+          prisma.order.findMany({
+            where: buildDistributorQueueWhere(distributorId, options.columns[key], filterOptions),
+            orderBy,
+            take: options.perColumn,
+            select: QUEUE_ORDER_SELECT,
+          })
+        )
+      ),
+      prisma.order.groupBy({ by: ["status"], where: summaryWhere, _count: { id: true } }),
+      prisma.order.count({ where: overdueWhereFor(summaryWhere) }),
+    ]);
+
+    const statusCounts = groupStatusCounts(statusGroups);
+    const columns: DistributorBoardResult["columns"] = {};
+    columnKeys.forEach((key, index) => {
+      columns[key] = {
+        orders: columnOrders[index],
+        total: sumStatusCounts(statusCounts, options.columns[key]),
+      };
+    });
+
+    return { columns, statusCounts, overdueActive };
+  },
+
+  /**
+   * Contadores da fila SEM filtros (badge do menu e indicadores): só `groupBy` + atrasados, sem
+   * trazer nenhum pedido. Antes o badge chamava a lista inteira com limit=1.
+   */
+  async countDistributorQueue(
+    distributorId: string,
+    summaryStatuses: OrderStatus[],
+    tx?: TxClient
+  ): Promise<{ statusCounts: Partial<Record<OrderStatus, number>>; overdueActive: number }> {
+    const prisma = tx ?? getPrisma();
+    const where = buildDistributorQueueWhere(distributorId, summaryStatuses, {});
+    const [statusGroups, overdueActive] = await Promise.all([
+      prisma.order.groupBy({ by: ["status"], where, _count: { id: true } }),
+      prisma.order.count({ where: overdueWhereFor(where) }),
+    ]);
+    return { statusCounts: groupStatusCounts(statusGroups), overdueActive };
   },
 
   async findAll(

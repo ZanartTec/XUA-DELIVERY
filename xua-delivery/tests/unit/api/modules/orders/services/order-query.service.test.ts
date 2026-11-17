@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderStatus } from "@xua/shared/enums";
 
 const mocks = vi.hoisted(() => ({
+  prisma: {
+    consumer: { findMany: vi.fn(async () => [] as Array<{ id: string; name: string }>) },
+    distributor: { findUnique: vi.fn(async () => ({ acceptance_sla_seconds: 180 })) },
+  },
   orderRepository: {
     findByDistributorPaged: vi.fn(),
+    findDistributorBoard: vi.fn(),
+    countDistributorQueue: vi.fn(),
   },
   distributorRepository: {
     resolveDistributorId: vi.fn(),
@@ -14,10 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@api/infra/prisma/client.js", () => ({
-  getPrisma: () => ({
-    consumer: { findMany: vi.fn(async () => []) },
-    distributor: { findUnique: vi.fn(async () => ({ acceptance_sla_seconds: 180 })) },
-  }),
+  getPrisma: () => mocks.prisma,
 }));
 
 vi.mock("@api/infra/redis/client.js", () => ({
@@ -203,5 +206,221 @@ describe("acceptanceDeadline (D-05)", () => {
     expect(
       acceptanceDeadline({ status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR, created_at: "2026-11-05T10:00:00.000Z", updated_at: "2026-11-05T10:01:00.000Z" }, 180),
     ).toBeNull();
+  });
+});
+
+function queueRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "order-1",
+    status: OrderStatus.SENT_TO_DISTRIBUTOR,
+    driver_id: null,
+    total_cents: 4800,
+    delivery_date: new Date("2026-06-12T00:00:00.000Z"),
+    delivery_window: "AFTERNOON",
+    scheduled_time_label: null,
+    scheduled_time_start_hour: null,
+    scheduled_time_start_minute: null,
+    scheduled_time_end_hour: null,
+    scheduled_time_end_minute: null,
+    created_at: new Date("2026-06-12T10:00:00.000Z"),
+    updated_at: new Date("2026-06-12T10:00:00.000Z"),
+    consumer: { name: "Maria" },
+    address: { street: "Rua A", number: "10", neighborhood: "Centro" },
+    items: [{ quantity: 2, product_name: "Galão 20L" }],
+    subscription_delivery_date: null,
+    ...overrides,
+  };
+}
+
+describe("orderQueryService.listDistributorQueue — apresentação enxuta", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+  });
+
+  it("marca a origem pela existência da assinatura e não vaza contexto de assinatura nem colunas internas", async () => {
+    mocks.orderRepository.findByDistributorPaged.mockResolvedValue({
+      orders: [queueRow({ subscription_delivery_date: { id: "sub-1" } })],
+      total: 1,
+      statusCounts: { [OrderStatus.SENT_TO_DISTRIBUTOR]: 1 },
+      overdueActive: 0,
+    });
+
+    const result = await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "incoming",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    const [order] = result.orders;
+    expect(order.order_origin).toBe("subscription");
+    expect(order.consumer_name).toBe("Maria");
+    expect(order.address_summary).toBe("Rua A, 10 - Centro");
+    expect(order.item_summary).toBe("2x Galão 20L");
+    expect(order).not.toHaveProperty("consumer");
+    expect(order).not.toHaveProperty("items");
+    expect(order).not.toHaveProperty("subscription_delivery_date");
+    expect(order).not.toHaveProperty("subscription_plan_name");
+  });
+
+  it("resolve o nome do motorista numa consulta só para a página e calcula o prazo de aceite", async () => {
+    mocks.orderRepository.findByDistributorPaged.mockResolvedValue({
+      orders: [
+        queueRow({ id: "a", driver_id: "drv-1" }),
+        queueRow({ id: "b", driver_id: "drv-1" }),
+        queueRow({ id: "c", driver_id: null }),
+      ],
+      total: 3,
+      statusCounts: {},
+      overdueActive: 0,
+    });
+    mocks.prisma.consumer.findMany.mockResolvedValueOnce([{ id: "drv-1", name: "Carlos" }]);
+
+    const result = await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "all",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(mocks.prisma.consumer.findMany).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.consumer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["drv-1"] } } })
+    );
+    expect(result.orders.map((o) => o.driver_name)).toEqual(["Carlos", "Carlos", null]);
+    // SLA de 180 s a partir da entrada na fila (pedido novo).
+    expect(result.orders[0].sla_deadline).toBe("2026-06-12T10:03:00.000Z");
+  });
+
+  it("não consulta motoristas quando nenhum pedido tem motorista", async () => {
+    mocks.orderRepository.findByDistributorPaged.mockResolvedValue({
+      orders: [queueRow()],
+      total: 1,
+      statusCounts: {},
+      overdueActive: 0,
+    });
+
+    await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "all",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(mocks.prisma.consumer.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("orderQueryService.listDistributorBoard", () => {
+  const boardQuery = {
+    scope: "distributor" as const,
+    view: "board" as const,
+    origin: "all" as const,
+    sort: "created_desc" as const,
+    perColumn: 12,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+  });
+
+  it("pede ao banco as três etapas e devolve cada coluna com seus pedidos e total", async () => {
+    mocks.orderRepository.findDistributorBoard.mockResolvedValue({
+      columns: {
+        incoming: { orders: [queueRow({ id: "n1" })], total: 31 },
+        preparation: { orders: [queueRow({ id: "p1", status: OrderStatus.ACCEPTED_BY_DISTRIBUTOR })], total: 62 },
+        route: { orders: [], total: 0 },
+      },
+      statusCounts: {
+        [OrderStatus.SENT_TO_DISTRIBUTOR]: 31,
+        [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: 40,
+        [OrderStatus.READY_FOR_DISPATCH]: 22,
+      },
+      overdueActive: 4,
+    });
+
+    const result = await orderQueryService.listDistributorBoard(userId, "distributor_admin", boardQuery);
+
+    expect(mocks.orderRepository.findDistributorBoard).toHaveBeenCalledWith(
+      distributorId,
+      expect.objectContaining({
+        perColumn: 12,
+        columns: {
+          incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
+          preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
+          route: [OrderStatus.OUT_FOR_DELIVERY],
+        },
+      })
+    );
+    expect(result.columns.incoming.total).toBe(31);
+    expect(result.columns.incoming.orders[0].id).toBe("n1");
+    expect(result.columns.preparation.total).toBe(62);
+    expect(result.columns.route.orders).toEqual([]);
+    expect(result.summary).toEqual({ active: 93, incoming: 31, preparation: 62, route: 0, overdue: 4 });
+    expect(result.perColumn).toBe(12);
+  });
+
+  it("busca o nome dos motoristas de todas as colunas de uma vez", async () => {
+    mocks.orderRepository.findDistributorBoard.mockResolvedValue({
+      columns: {
+        incoming: { orders: [], total: 0 },
+        preparation: { orders: [queueRow({ id: "p1", driver_id: "drv-1" })], total: 1 },
+        route: { orders: [queueRow({ id: "r1", driver_id: "drv-2" })], total: 1 },
+      },
+      statusCounts: {},
+      overdueActive: 0,
+    });
+    mocks.prisma.consumer.findMany.mockResolvedValueOnce([
+      { id: "drv-1", name: "Carlos" },
+      { id: "drv-2", name: "Ana" },
+    ]);
+
+    const result = await orderQueryService.listDistributorBoard(userId, "distributor_admin", boardQuery);
+
+    expect(mocks.prisma.consumer.findMany).toHaveBeenCalledTimes(1);
+    expect(result.columns.preparation.orders[0].driver_name).toBe("Carlos");
+    expect(result.columns.route.orders[0].driver_name).toBe("Ana");
+  });
+
+  it("nega acesso a quem não é admin de distribuidora", async () => {
+    await expect(orderQueryService.listDistributorBoard(userId, "consumer", boardQuery)).rejects.toThrow(
+      "Acesso negado"
+    );
+    expect(mocks.orderRepository.findDistributorBoard).not.toHaveBeenCalled();
+  });
+});
+
+describe("orderQueryService.getDistributorQueueSummary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+  });
+
+  it("devolve só os contadores, sem listar pedidos", async () => {
+    mocks.orderRepository.countDistributorQueue.mockResolvedValue({
+      statusCounts: {
+        [OrderStatus.SENT_TO_DISTRIBUTOR]: 3,
+        [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: 2,
+        [OrderStatus.OUT_FOR_DELIVERY]: 1,
+      },
+      overdueActive: 1,
+    });
+
+    const summary = await orderQueryService.getDistributorQueueSummary(userId, "distributor_admin");
+
+    expect(summary).toEqual({ active: 6, incoming: 3, preparation: 2, route: 1, overdue: 1 });
+    expect(mocks.orderRepository.findByDistributorPaged).not.toHaveBeenCalled();
+  });
+
+  it("nega acesso a quem não é admin de distribuidora", async () => {
+    await expect(orderQueryService.getDistributorQueueSummary(userId, "driver")).rejects.toThrow("Acesso negado");
   });
 });

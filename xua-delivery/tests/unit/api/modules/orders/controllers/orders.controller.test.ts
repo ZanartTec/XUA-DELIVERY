@@ -28,6 +28,8 @@ const mocks = await vi.hoisted(async () => {
       listOrders: vi.fn(),
       searchOrders: vi.fn(),
       listDistributorQueue: vi.fn(),
+      listDistributorBoard: vi.fn(),
+      getDistributorQueueSummary: vi.fn(),
       createOrder: vi.fn(),
       createOrderFromCheckout: vi.fn(),
       acceptOrder: vi.fn(),
@@ -353,6 +355,85 @@ describe("ordersController list distributor queue", () => {
       })
     );
     expect(response.json).toHaveBeenCalledWith(result);
+  });
+});
+
+describe("ordersController list distributor board (view=board)", () => {
+  it("valida com o schema do quadro e chama listDistributorBoard", async () => {
+    const response = res();
+    const result = { columns: {}, perColumn: 8, summary: {}, filters: {} };
+    mocks.orderService.listDistributorBoard.mockResolvedValueOnce(result);
+
+    await call(
+      ordersController.list,
+      req("distributor_admin", {}, { scope: "distributor", view: "board", perColumn: "8", q: "Maria" }),
+      response
+    );
+
+    expect(mocks.orderService.listDistributorBoard).toHaveBeenCalledWith(
+      userId,
+      "distributor_admin",
+      expect.objectContaining({ view: "board", perColumn: 8, q: "Maria", origin: "all", sort: "created_desc" })
+    );
+    expect(mocks.orderService.listDistributorQueue).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith(result);
+  });
+
+  it("usa 12 por coluna quando perColumn não vem", async () => {
+    const response = res();
+    mocks.orderService.listDistributorBoard.mockResolvedValueOnce({});
+
+    await call(ordersController.list, req("distributor_admin", {}, { scope: "distributor", view: "board" }), response);
+
+    expect(mocks.orderService.listDistributorBoard).toHaveBeenCalledWith(
+      userId,
+      "distributor_admin",
+      expect.objectContaining({ perColumn: 12 })
+    );
+  });
+
+  it("recusa perColumn acima do máximo e parâmetros de lista que não existem no quadro", async () => {
+    for (const query of [{ perColumn: "31" }, { stage: "incoming" }, { page: "2" }]) {
+      const response = res();
+      await call(
+        ordersController.list,
+        req("distributor_admin", {}, { scope: "distributor", view: "board", ...query }),
+        response
+      );
+      expect(response.status).toHaveBeenCalledWith(400);
+    }
+    expect(mocks.orderService.listDistributorBoard).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia consumer no quadro", async () => {
+    const response = res();
+
+    await call(ordersController.list, req("consumer", {}, { scope: "distributor", view: "board" }), response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(mocks.orderService.listDistributorBoard).not.toHaveBeenCalled();
+  });
+});
+
+describe("ordersController queueSummary", () => {
+  it("devolve os contadores da fila do distribuidor", async () => {
+    const response = res();
+    const summary = { active: 6, incoming: 3, preparation: 2, route: 1, overdue: 1 };
+    mocks.orderService.getDistributorQueueSummary.mockResolvedValueOnce(summary);
+
+    await call(ordersController.queueSummary, req("distributor_admin", {}), response);
+
+    expect(mocks.orderService.getDistributorQueueSummary).toHaveBeenCalledWith(userId, "distributor_admin");
+    expect(response.json).toHaveBeenCalledWith({ summary });
+  });
+
+  it("bloqueia quem não é distribuidor", async () => {
+    const response = res();
+
+    await call(ordersController.queueSummary, req("consumer", {}), response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(mocks.orderService.getDistributorQueueSummary).not.toHaveBeenCalled();
   });
 });
 
