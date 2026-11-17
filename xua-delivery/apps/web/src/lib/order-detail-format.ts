@@ -53,14 +53,6 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
   completed: "Concluída",
 };
 
-export const DELIVERY_STEPS = [
-  { key: "received", label: "Recebido", shortLabel: "Receb." },
-  { key: "accepted", label: "Aceite", shortLabel: "Aceite" },
-  { key: "dispatch", label: "Despacho", shortLabel: "Desp." },
-  { key: "route", label: "Em rota", shortLabel: "Rota" },
-  { key: "done", label: "Concluído", shortLabel: "Concl." },
-] as const;
-
 export const TERMINAL_ISSUE_STATUSES = [
   OrderStatus.REJECTED_BY_DISTRIBUTOR,
   OrderStatus.CANCELLED,
@@ -146,23 +138,6 @@ export function formatSubscriptionStatus(status?: string | null) {
 
 export function matchesStatuses(status: string, statuses: readonly string[]) {
   return statuses.includes(status);
-}
-
-export function getStatusStepIndex(status: string) {
-  switch (status) {
-    case OrderStatus.SENT_TO_DISTRIBUTOR:
-      return 0;
-    case OrderStatus.ACCEPTED_BY_DISTRIBUTOR:
-      return 1;
-    case OrderStatus.READY_FOR_DISPATCH:
-      return 2;
-    case OrderStatus.OUT_FOR_DELIVERY:
-      return 3;
-    case OrderStatus.DELIVERED:
-      return 4;
-    default:
-      return 0;
-  }
 }
 
 const DEFAULT_WINDOW_END_HOUR: Record<string, number> = { MORNING: 12, AFTERNOON: 18 };
