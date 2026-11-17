@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   tokens: new Map<string, Record<string, unknown>>(),
   blacklisted: new Set<string>(),
   stale: new Set<string>(),
+  usedTickets: new Set<string>(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
@@ -21,6 +22,14 @@ vi.mock("@api/infra/auth/jwt", () => ({
     const payload = mocks.tokens.get(token);
     if (!payload) throw new Error("invalid");
     return payload;
+  },
+  isSocketTicket: (payload: Record<string, unknown>) => payload.typ === "socket",
+}));
+vi.mock("@api/infra/auth/socket-ticket", () => ({
+  consumeSocketTicket: async (jti: string) => {
+    if (mocks.usedTickets.has(jti)) return false;
+    mocks.usedTickets.add(jti);
+    return true;
   },
 }));
 vi.mock("@api/infra/auth/blacklist", () => ({
@@ -178,4 +187,44 @@ describe("socket gateway", () => {
     const reason = await new Promise<string>((resolve) => client.once("disconnect", resolve));
     expect(reason).toBe("io server disconnect");
   }, 10_000);
+
+  describe("passe curto do socket (site e API em domínios diferentes)", () => {
+    const now = () => Math.floor(Date.now() / 1000);
+    const ticket = (name: string, extra: Record<string, unknown> = {}) =>
+      token(name, {
+        sub: `u-${name}`,
+        role: "consumer",
+        jti: `jti-${name}`,
+        typ: "socket",
+        sid: `sess-${name}`,
+        siat: now(),
+        sexp: futureExp(),
+        ...extra,
+      });
+
+    it("aceita o passe e põe o socket na sala do usuário", async () => {
+      const client = await connect(ticket("ok"));
+      const received = nextEvent(client, "order_status_changed");
+      realtimePublisher.publish("consumer:u-ok", "order_status_changed", { orderId: "o1", status: "ACCEPTED_BY_DISTRIBUTOR" } as never);
+      expect(await received).toMatchObject({ orderId: "o1" });
+    });
+
+    it("passe é de uso único: o segundo handshake com ele é recusado", async () => {
+      const name = ticket("reuse");
+      await connect(name);
+      await expect(connect(name)).rejects.toThrow("UNAUTHORIZED");
+    });
+
+    it("passe de sessão encerrada (logout) é recusado", async () => {
+      mocks.blacklisted.add("sess-logout");
+      await expect(connect(ticket("logout"))).rejects.toThrow("UNAUTHORIZED");
+    });
+
+    it("a conexão vive até o fim da SESSÃO, não do passe de 60 s", async () => {
+      // passe já vencido (o mock não confere exp), sessão válida por 1 h
+      const client = await connect(ticket("long", { exp: now() - 10 }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(client.connected).toBe(true);
+    });
+  });
 });

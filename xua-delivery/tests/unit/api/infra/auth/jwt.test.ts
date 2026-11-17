@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 process.env.JWT_SECRET = "unit-test-jwt-secret-with-32-chars-minimum";
 
-const { signToken, verifyToken } = await import("@api/infra/auth/jwt.js");
+const { signToken, verifyToken, signSocketTicket, isSocketTicket, SOCKET_TICKET_TTL_SECONDS } = await import(
+  "@api/infra/auth/jwt.js"
+);
 
 describe("signToken / verifyToken", () => {
   it("roundtrip preserva sub, role, name e distributor_id", async () => {
@@ -87,5 +89,35 @@ describe("validação de JWT_SECRET no boot (module load)", () => {
     vi.resetModules();
     await expect(import("@api/infra/auth/jwt.js")).rejects.toThrow(/placeholder/);
     process.env.JWT_SECRET = original;
+  });
+});
+
+describe("signSocketTicket (passe curto do socket)", () => {
+  it("carrega a sessão de origem e vale 60 s", async () => {
+    const session = await verifyToken(
+      await signToken({ sub: "adm-1", role: "distributor_admin", name: "Ana", distributor_id: "dist-1" })
+    );
+    const { ticket, expiresAt } = await signSocketTicket(session);
+    const payload = await verifyToken(ticket);
+
+    expect(isSocketTicket(payload)).toBe(true);
+    expect(payload).toMatchObject({
+      sub: "adm-1",
+      role: "distributor_admin",
+      distributor_id: "dist-1",
+      typ: "socket",
+      sid: session.jti,
+      siat: session.iat,
+      sexp: session.exp,
+    });
+    // jti próprio: o uso único é controlado por ele, não pelo da sessão.
+    expect(payload.jti).not.toBe(session.jti);
+    expect(payload.exp).toBe(expiresAt);
+    expect(expiresAt - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(SOCKET_TICKET_TTL_SECONDS);
+  });
+
+  it("token de sessão não é passe", async () => {
+    const session = await verifyToken(await signToken({ sub: "u", role: "consumer", name: "X" }));
+    expect(isSocketTicket(session)).toBe(false);
   });
 });

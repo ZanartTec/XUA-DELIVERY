@@ -43,13 +43,33 @@ export interface PushSendResult {
 
 const EMPTY_RESULT: PushSendResult = { sent: 0, failed: 0, removed: 0, retryable: 0 };
 
-function isGone(statusCode: number | undefined): boolean {
-  return statusCode === 404 || statusCode === 410;
-}
+/** Falhas de rede: o serviço de push nem respondeu, vale tentar de novo. */
+const NETWORK_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ESOCKETTIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  "ENETUNREACH",
+]);
 
-function isRetryable(statusCode: number | undefined): boolean {
-  // Sem statusCode = erro de rede/timeout.
-  return statusCode === undefined || statusCode === 429 || statusCode >= 500;
+type PushFailure = "gone" | "retryable" | "permanent";
+
+/**
+ * - 404/410, ou chaves da inscrição inválidas (o `web-push` recusa ANTES de
+ *   enviar, sem statusCode): o token não serve mais → apagar.
+ * - 429, 5xx ou erro de rede: temporário → nova tentativa.
+ * - O resto: permanente, sem nova tentativa (repetir não muda o resultado).
+ */
+export function classifyPushError(err: unknown): PushFailure {
+  const { statusCode, code, message } = (err ?? {}) as { statusCode?: number; code?: string; message?: string };
+  if (statusCode === 404 || statusCode === 410) return "gone";
+  if (statusCode === 429 || (statusCode !== undefined && statusCode >= 500)) return "retryable";
+  if (statusCode === undefined && code && NETWORK_ERROR_CODES.has(code)) return "retryable";
+  if (statusCode === undefined && /subscription .*(p256dh|auth)/i.test(message ?? "")) return "gone";
+  return "permanent";
 }
 
 export const notificationService = {
@@ -143,12 +163,13 @@ export const notificationService = {
           succeededIds.push(token.id);
         } catch (err) {
           const statusCode = (err as { statusCode?: number }).statusCode;
+          const failure = classifyPushError(err);
           result.failed++;
-          if (isGone(statusCode)) {
+          if (failure === "gone") {
             await prisma.consumerPushToken.deleteMany({ where: { id: token.id } });
             result.removed++;
             logger.info({ tokenId: token.id, statusCode }, "Push token expirado removido");
-          } else if (isRetryable(statusCode)) {
+          } else if (failure === "retryable") {
             result.retryable++;
             logger.warn({ tokenId: token.id, statusCode, err }, "Falha temporária no push");
           } else {

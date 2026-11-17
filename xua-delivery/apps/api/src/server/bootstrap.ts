@@ -5,6 +5,7 @@ import { logger } from "../infra/logger";
 import { closeSocketGateway, createSocketGateway } from "../infra/socket/gateway";
 import { disconnectPrisma } from "../infra/prisma/client";
 import { disconnectRedis } from "../infra/redis/client";
+import { closeQueueInfra } from "../infra/queue/queues";
 
 /**
  * Sobe o servidor HTTP + Socket.IO. Separado de index.ts para que a validação
@@ -33,6 +34,9 @@ export function startServer(): void {
 
     await closeSocketGateway(io);
 
+    // Libera a conexão compartilhada das filas: no deploy a instância antiga
+    // e a nova coexistem, e o Redis gratuito aceita só 50 conexões.
+    await closeQueueInfra();
     await disconnectPrisma();
     await disconnectRedis();
 

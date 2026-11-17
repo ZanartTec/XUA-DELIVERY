@@ -69,7 +69,7 @@ Padrão por módulo: **`routes → controllers → services → repository`**.
 | Middleware | `authMiddleware` (jwtVerify + blacklist Redis), RBAC, rate limiting por escopo |
 | Services | TODA a lógica de negócio: máquina de estados, OTP HMAC, caução, KPIs, assinaturas, `emitEvent()` |
 | Repositories | Prisma Client, transações interativas |
-| Socket.IO | Auth em `io.use` (JWT + blacklist + sessão anterior à troca de senha), desconecta no `exp`; salas `${role}:${userId}`, `distributor:${distributorId}` e `ops:broadcast`. Contrato de eventos em `packages/shared/src/realtime/events.ts`; publicação só via `realtimePublisher` (`infra/realtime`) |
+| Socket.IO | Auth em `io.use` (JWT + blacklist + sessão anterior à troca de senha), desconecta no `exp` da sessão. Site e API em domínios diferentes (Render): o cookie não chega ao handshake, então o site pede `GET /api/auth/socket-ticket` (passe de 60 s, uso único, recusado no HTTP) e o envia em `auth.token`; salas `${role}:${userId}`, `distributor:${distributorId}` e `ops:broadcast`. Contrato de eventos em `packages/shared/src/realtime/events.ts`; publicação só via `realtimePublisher` (`infra/realtime`) |
 
 **Módulos da API (16):** `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.
 

@@ -15,4 +15,4 @@ export {
 } from "./contracts";
 export { enqueueInternalJob } from "./internal-jobs.producer";
 export { enqueuePaymentWebhookJob, schedulePaymentExpiration } from "./payment-jobs.producer";
-export { closeQueueInfra, getQueue, getQueueEvents } from "./queues";
+export { closeQueueInfra, getQueue } from "./queues";

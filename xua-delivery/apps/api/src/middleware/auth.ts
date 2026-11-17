@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyToken } from "../infra/auth/jwt";
+import { isSocketTicket, verifyToken } from "../infra/auth/jwt";
 import { isBlacklisted } from "../infra/auth/blacklist";
 import { isTokenStale } from "../infra/auth/password-change";
 import { logger } from "../infra/logger";
@@ -32,6 +32,12 @@ export async function authMiddleware(
 
   try {
     const payload = await verifyToken(token);
+
+    // Passe do socket não é sessão: serve só para o handshake do tempo real.
+    if (isSocketTicket(payload)) {
+      res.status(401).json({ error: "Token inválido" });
+      return;
+    }
 
     // SEC-01: Verifica se o token foi invalidado (logout)
     if (payload.jti) {
@@ -74,6 +80,10 @@ export async function optionalAuthMiddleware(
 
   try {
     const payload = await verifyToken(token);
+    if (isSocketTicket(payload)) {
+      next();
+      return;
+    }
     const revoked = payload.jti ? await isBlacklisted(payload.jti) : false;
     const stale = await isTokenStale(payload.sub, payload.iat);
     if (!revoked && !stale) {

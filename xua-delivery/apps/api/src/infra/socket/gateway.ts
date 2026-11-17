@@ -4,7 +4,8 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import type Redis from "ioredis";
 import type { JwtPayload } from "@xua/shared/types";
 import { getAllowedAppOrigins } from "../../http/allowed-origins";
-import { verifyToken } from "../auth/jwt";
+import { isSocketTicket, verifyToken } from "../auth/jwt";
+import { consumeSocketTicket } from "../auth/socket-ticket";
 import { isBlacklisted } from "../auth/blacklist";
 import { isTokenStale } from "../auth/password-change";
 import { logger } from "../logger";
@@ -40,6 +41,10 @@ function extractToken(socket: Socket): string | undefined {
  * token anterior à última troca de senha. Roda em `io.use`, antes de o socket
  * ser aceito — assim ele já nasce dentro das salas, sem janela em que um
  * evento chega a um socket conectado mas ainda sem sala.
+ *
+ * Aceita duas credenciais: o passe curto do socket em `auth.token` (produção,
+ * site e API em domínios diferentes) ou o cookie de sessão (mesmo domínio,
+ * como no dev). Com o passe, as regras valem para a SESSÃO que o emitiu.
  */
 export async function authenticateSocket(
   socket: Socket,
@@ -52,17 +57,27 @@ export async function authenticateSocket(
     const payload: JwtPayload = await verifyToken(token);
     if (!payload?.sub || !payload?.role) return next(new Error("UNAUTHORIZED"));
 
-    if (payload.jti && (await isBlacklisted(payload.jti))) {
+    const ticket = isSocketTicket(payload) ? payload : null;
+    const session = ticket
+      ? { jti: ticket.sid, iat: ticket.siat, exp: ticket.sexp }
+      : { jti: payload.jti, iat: payload.iat, exp: payload.exp };
+
+    // Passe de uso único: um passe vazado não abre uma segunda conexão.
+    if (ticket && !(await consumeSocketTicket(ticket.jti, ticket.exp))) {
       return next(new Error("UNAUTHORIZED"));
     }
-    if (await isTokenStale(payload.sub, payload.iat)) {
+    if (session.jti && (await isBlacklisted(session.jti))) {
+      return next(new Error("UNAUTHORIZED"));
+    }
+    if (await isTokenStale(payload.sub, session.iat)) {
       return next(new Error("UNAUTHORIZED"));
     }
 
-    // Dados derivados do JWT verificado, nunca do cliente.
+    // Dados derivados do JWT verificado, nunca do cliente. A conexão vive até
+    // o fim da SESSÃO, não do passe (que expira em 60 s).
     socket.data.userId = payload.sub;
     socket.data.role = payload.role;
-    socket.data.exp = payload.exp;
+    socket.data.exp = session.exp;
     if (payload.role === "distributor_admin" && payload.distributor_id) {
       socket.data.distributorId = payload.distributor_id;
     }

@@ -1,4 +1,4 @@
-import { QueueEvents, Worker } from "bullmq";
+import { Worker } from "bullmq";
 import { getEnv } from "../config/env";
 import { createLogger } from "../infra/logger";
 import { disconnectPrisma } from "../infra/prisma/client";
@@ -51,10 +51,6 @@ export function startWorker(): void {
     }
   );
 
-  const internalJobsEvents = new QueueEvents(QUEUE_NAMES.internalJobs, {
-    connection: createQueueRedisConnection(),
-    prefix: QUEUE_PREFIX,
-  });
 
   const paymentWebhooksWorker = new Worker<PaymentWebhookJobPayload>(
     QUEUE_NAMES.paymentWebhooks,
@@ -66,10 +62,6 @@ export function startWorker(): void {
     }
   );
 
-  const paymentWebhooksEvents = new QueueEvents(QUEUE_NAMES.paymentWebhooks, {
-    connection: createQueueRedisConnection(),
-    prefix: QUEUE_PREFIX,
-  });
 
   const paymentsWorker = new Worker<PaymentExpirationJobPayload>(
     QUEUE_NAMES.payments,
@@ -81,10 +73,6 @@ export function startWorker(): void {
     }
   );
 
-  const paymentsEvents = new QueueEvents(QUEUE_NAMES.payments, {
-    connection: createQueueRedisConnection(),
-    prefix: QUEUE_PREFIX,
-  });
 
   const paymentRefundsWorker = new Worker<PaymentRefundJobPayload>(
     QUEUE_NAMES.paymentRefunds,
@@ -96,10 +84,6 @@ export function startWorker(): void {
     }
   );
 
-  const paymentRefundsEvents = new QueueEvents(QUEUE_NAMES.paymentRefunds, {
-    connection: createQueueRedisConnection(),
-    prefix: QUEUE_PREFIX,
-  });
 
   const subscriptionExpirationWorker = new Worker<SubscriptionExpirationJobPayload>(
     QUEUE_NAMES.subscriptionExpiration,
@@ -111,10 +95,6 @@ export function startWorker(): void {
     }
   );
 
-  const subscriptionExpirationEvents = new QueueEvents(QUEUE_NAMES.subscriptionExpiration, {
-    connection: createQueueRedisConnection(),
-    prefix: QUEUE_PREFIX,
-  });
 
   const notificationsWorker = new Worker<PushNotificationJobPayload>(
     QUEUE_NAMES.notifications,
@@ -164,9 +144,6 @@ export function startWorker(): void {
     );
   });
 
-  internalJobsEvents.on("failed", ({ jobId, failedReason }) => {
-    log.warn({ jobId, failedReason }, "Internal job moved to failed state");
-  });
 
   paymentWebhooksWorker.on("completed", (job) => {
     log.info(
@@ -191,9 +168,6 @@ export function startWorker(): void {
     );
   });
 
-  paymentWebhooksEvents.on("failed", ({ jobId, failedReason }) => {
-    log.warn({ jobId, failedReason }, "Payment webhook job moved to failed state");
-  });
 
   paymentsWorker.on("completed", (job) => {
     log.info(
@@ -218,9 +192,6 @@ export function startWorker(): void {
     );
   });
 
-  paymentsEvents.on("failed", ({ jobId, failedReason }) => {
-    log.warn({ jobId, failedReason }, "Payment job moved to failed state");
-  });
 
   paymentRefundsWorker.on("completed", (job) => {
     log.info(
@@ -254,9 +225,6 @@ export function startWorker(): void {
     );
   });
 
-  paymentRefundsEvents.on("failed", ({ jobId, failedReason }) => {
-    log.warn({ jobId, failedReason }, "Payment refund job moved to failed state");
-  });
 
   subscriptionExpirationWorker.on("completed", (job) => {
     log.info(
@@ -283,9 +251,23 @@ export function startWorker(): void {
     );
   });
 
-  subscriptionExpirationEvents.on("failed", ({ jobId, failedReason }) => {
-    log.warn({ jobId, failedReason }, "Subscription expiration job moved to failed state");
-  });
+
+  // Sem ouvinte de "error", o BullMQ imprime o erro cru no console (o
+  // `Error: read ECONNRESET` sem contexto visto no Render). Com ele, o log diz
+  // qual fila perdeu a conexão; o ioredis reconecta sozinho.
+  const workers = [
+    internalJobsWorker,
+    paymentWebhooksWorker,
+    paymentsWorker,
+    paymentRefundsWorker,
+    subscriptionExpirationWorker,
+    notificationsWorker,
+  ];
+  for (const worker of workers) {
+    worker.on("error", (err) => {
+      log.warn({ err, queue: worker.name }, "Worker Redis connection error");
+    });
+  }
 
   // Agenda os Job Schedulers que substituem os antigos crons do Render
   // (subscription-cron, subscription-expiry, otp-cleanup). Idempotente —
@@ -327,11 +309,6 @@ export function startWorker(): void {
     await paymentRefundsWorker.close();
     await subscriptionExpirationWorker.close();
     await notificationsWorker.close();
-    await internalJobsEvents.close();
-    await paymentWebhooksEvents.close();
-    await paymentsEvents.close();
-    await paymentRefundsEvents.close();
-    await subscriptionExpirationEvents.close();
     await closeQueueInfra();
     await closeRealtime();
     await disconnectPrisma();
