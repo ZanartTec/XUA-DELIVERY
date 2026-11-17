@@ -29,7 +29,7 @@ import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { ListPanel } from "@/src/components/shared/list-panel";
+import { DataView, type Column } from "@/src/components/shared/data-view";
 
 type Driver = DistributorDriver;
 
@@ -117,22 +117,12 @@ export default function DistributorDriversPage() {
     (form?.mode === "edit" || (/\S+@\S+\.\S+/.test(email) && password.length >= 8)) &&
     (!phone || phone.length >= 10);
 
-  const row = (driver: Driver) => {
+  /** Ligar + menu de ações: mesma peça na linha do celular e na tabela do desktop. */
+  const rowActions = (driver: Driver) => {
     const isActive = driver.is_active !== false;
     const tel = phoneHref(driver.phone);
     return (
-      <li key={driver.id} className={cn("flex items-center gap-3 px-4 py-3", !isActive && "bg-surface-low")}>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
-          <Truck className="size-5 text-primary" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className={cn("truncate font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{driver.name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {driver.email ?? "—"}
-            {driver.phone ? ` · ${formatPhone(driver.phone)}` : ""}
-          </p>
-        </div>
-        {!isActive ? <StatusBadge label="Inativo" tone="neutral" className="h-5 px-2 text-[11px]" /> : null}
+      <>
         {tel && isActive ? (
           <Button asChild variant="ghost" size="icon-touch" aria-label={`Ligar para ${driver.name}`}>
             <a href={tel}>
@@ -161,13 +151,85 @@ export default function DistributorDriversPage() {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
-      </li>
+      </>
     );
   };
 
+  const renderMobile = (driver: Driver) => {
+    const isActive = driver.is_active !== false;
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky/10">
+          <Truck className="size-5 text-primary" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={cn("truncate font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{driver.name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {driver.email ?? "—"}
+            {driver.phone ? ` · ${formatPhone(driver.phone)}` : ""}
+          </p>
+        </div>
+        {!isActive ? <StatusBadge label="Inativo" tone="neutral" className="h-5 px-2 text-[11px]" /> : null}
+        {rowActions(driver)}
+      </div>
+    );
+  };
+
+  const columns: Column<Driver>[] = [
+    {
+      id: "name",
+      header: "Motorista",
+      cell: (driver) => (
+        <span className="flex items-center gap-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky/10">
+            <Truck className="size-4 text-primary" aria-hidden />
+          </span>
+          <span className={cn("font-medium", driver.is_active === false ? "text-muted-foreground" : "text-foreground")}>
+            {driver.name}
+          </span>
+        </span>
+      ),
+    },
+    { id: "email", header: "E-mail", cell: (driver) => driver.email ?? "—", className: "text-muted-foreground" },
+    {
+      id: "phone",
+      header: "Celular",
+      cell: (driver) => (driver.phone ? formatPhone(driver.phone) : "—"),
+      className: "text-muted-foreground tabular-nums",
+    },
+    {
+      id: "status",
+      header: "Situação",
+      cell: (driver) =>
+        driver.is_active === false ? (
+          <StatusBadge label="Inativo" tone="neutral" className="h-5 px-2 text-[11px]" />
+        ) : (
+          <StatusBadge label="Ativo" tone="success" className="h-5 px-2 text-[11px]" />
+        ),
+    },
+    {
+      id: "actions",
+      header: "",
+      srLabel: "Ações",
+      align: "right",
+      className: "w-28",
+      cell: (driver) => <span className="inline-flex items-center justify-end">{rowActions(driver)}</span>,
+    },
+  ];
+
+  const inactiveRowClass = (driver: Driver) => (driver.is_active === false ? "bg-surface-low" : undefined);
+
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <PageHeader title="Motoristas" description="Quem faz as entregas da sua distribuidora." />
+    <div className="mx-auto w-full max-w-3xl md:max-w-6xl">
+      <PageHeader
+        title="Motoristas"
+        description="Quem faz as entregas da sua distribuidora."
+        actions={
+          <Button variant="cta" size="lg" className="hidden md:inline-flex" onClick={() => openForm({ mode: "new" })}>
+            <Plus aria-hidden /> Novo motorista
+          </Button>
+        }
+      />
       <div className="space-y-5 px-4 pb-4">
         {query.isLoading ? (
           <Skeleton className="h-40 rounded-2xl" />
@@ -175,22 +237,33 @@ export default function DistributorDriversPage() {
           <EmptyState icon={Truck} title="Nenhum motorista cadastrado" description="Cadastre quem vai entregar para poder despachar pedidos." />
         ) : (
           <>
-            <ListPanel aria-label="Motoristas ativos">
-              {active.map(row)}
-            </ListPanel>
+            <DataView
+              label="Motoristas ativos"
+              items={active}
+              getKey={(driver) => driver.id}
+              columns={columns}
+              renderMobile={renderMobile}
+            />
             {inactive.length > 0 ? (
               <section aria-labelledby="sec-inativos" className="space-y-2">
                 <h2 id="sec-inativos" className="text-sm font-semibold text-muted-foreground">
                   Desativados
                 </h2>
-                <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline">{inactive.map(row)}</ul>
+                <DataView
+                  label="Motoristas desativados"
+                  items={inactive}
+                  getKey={(driver) => driver.id}
+                  columns={columns}
+                  renderMobile={renderMobile}
+                  rowClassName={inactiveRowClass}
+                />
               </section>
             ) : null}
           </>
         )}
       </div>
 
-      <StickyActionBar>
+      <StickyActionBar mobileOnly>
         <Button variant="cta" size="xl" onClick={() => openForm({ mode: "new" })}>
           <Plus aria-hidden /> Novo motorista
         </Button>
