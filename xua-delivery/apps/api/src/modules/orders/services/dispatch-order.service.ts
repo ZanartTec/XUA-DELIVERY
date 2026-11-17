@@ -10,6 +10,7 @@ import { distributorRepository } from "../../distributor/repository/distributor.
 import { OrderServiceError } from "../errors.js";
 import { assertTransition, ASSIGNABLE_DRIVER_STATUSES } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import { orderNotifications } from "../notifications/order-notifications.js";
 import { receiptService } from "./receipt.service.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -39,7 +40,7 @@ export const dispatchOrderService = {
     await assertDriverBelongsToDistributor(distributorId, driverId);
 
     const prisma = getPrisma();
-    const order = await prisma.$transaction(async (tx: TxClient) => {
+    const { order, previousDriverId } = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findById(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       if (current.distributor_id !== distributorId) {
@@ -62,10 +63,23 @@ export const dispatchOrderService = {
         tx
       );
 
-      return updated;
+      return { order: updated, previousDriverId: current.driver_id };
     });
 
     orderEventsPublisher.distributorOrderStatusChanged(order, order.status as OrderStatus, { driverId });
+    orderEventsPublisher.notifyDriver(driverId, "delivery_assigned", {
+      orderId,
+      status: order.status as OrderStatus,
+    });
+    // Troca de motorista: o anterior tira o pedido da lista dele.
+    if (previousDriverId && previousDriverId !== driverId) {
+      orderEventsPublisher.notifyDriver(previousDriverId, "order_status_changed", {
+        orderId,
+        status: order.status as OrderStatus,
+        driverId,
+        reason: "driver_reassigned",
+      });
+    }
 
     return order;
   },
@@ -101,6 +115,10 @@ export const dispatchOrderService = {
     });
 
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.READY_FOR_DISPATCH);
+    orderEventsPublisher.notifyConsumer(order.consumer_id, "order_status_changed", {
+      orderId,
+      status: OrderStatus.READY_FOR_DISPATCH,
+    });
 
     return order;
   },
@@ -180,9 +198,14 @@ export const dispatchOrderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
+    // Push ao cliente inline até a T5.5 trocar pelo onTransition abaixo.
     notificationService
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
+    void orderNotifications.onTransition(order, null, OrderStatus.OUT_FOR_DELIVERY, {
+      actor: "distributor",
+      driverId,
+    });
 
     return { order, otpCode, receiptNumber };
   },
@@ -291,9 +314,14 @@ export const dispatchOrderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
+    // Push ao cliente inline até a T5.5 trocar pelo onTransition abaixo.
     notificationService
       .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
       .catch(() => {});
+    void orderNotifications.onTransition(order, null, OrderStatus.OUT_FOR_DELIVERY, {
+      actor: "distributor",
+      driverId,
+    });
 
     return { order, otpCode, receiptNumber };
   },

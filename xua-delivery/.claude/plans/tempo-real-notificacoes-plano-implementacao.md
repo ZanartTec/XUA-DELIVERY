@@ -197,7 +197,7 @@ de cada emissão é montado na mão.
 - [x] **T0.2** `apps/api/src/infra/realtime/rooms.ts`: `rooms.consumer(id)`,
   `rooms.driver(id)`, `rooms.distributor(id)`, `rooms.ops()`. O gateway e o
   publicador passam a usar só estas funções.
-- [ ] **T0.3** Exportar a matriz 1.3 como constante documental em
+- [x] **T0.3** Exportar a matriz 1.3 como constante documental em
   `apps/api/src/modules/orders/realtime/order-realtime-matrix.ts`. Os testes da
   Fase 2 usam essa constante como tabela de casos.
 
@@ -256,30 +256,42 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
 
 ### FASE 2 — Cobertura de eventos no backend (xua-pedidos) → fecha os ❌ da matriz 1.3
 
-- [ ] **T2.1** `sendToDistributor` devolve `{ order, transitioned }` e só emite quando
+- [x] **T2.1** `sendToDistributor` devolve `{ order, transitioned }` e só emite quando
   `transitioned === true` (corrige F11). Ajustar os 3 chamadores.
   Payload enriquecido conforme T0.1, buscando os dados no mesmo `findById`
   (com `include` dos itens e do nome do cliente).
-- [ ] **T2.2** `confirmOrder` e `sendToDistributor` → `notifyConsumer` com
+- [x] **T2.2** `confirmOrder` e `sendToDistributor` → `notifyConsumer` com
   `order_status_changed`. Com isso, a tela de confirmação do PIX vira na hora; o
   polling existente continua como reserva.
-- [ ] **T2.3** `cancelOrder`: além do cliente, emitir para a distribuidora quando o
+- [x] **T2.3** `cancelOrder`: além do cliente, emitir para a distribuidora quando o
   status anterior ∈ {`SENT_TO_DISTRIBUTOR`, `ACCEPTED`, `READY_FOR_DISPATCH`,
   `OUT_FOR_DELIVERY`, `DELIVERY_FAILED`, `REDELIVERY_SCHEDULED`} e para o motorista
   quando `driver_id` existir. Requer ler `current.status` e `current.driver_id`
   antes do update, como já é feito.
-- [ ] **T2.4** `completeChecklist` → `notifyConsumer` (`READY_FOR_DISPATCH`).
-- [ ] **T2.5** `assignDriver` → `notifyDriver(driverId, "delivery_assigned")` e, se
+- [x] **T2.4** `completeChecklist` → `notifyConsumer` (`READY_FOR_DISPATCH`).
+- [x] **T2.5** `assignDriver` → `notifyDriver(driverId, "delivery_assigned")` e, se
   havia motorista anterior, `order_status_changed` para ele.
-- [ ] **T2.6** Ganchos de push (só enfileiram; o envio é da Fase 5): aceite, recusa,
+- [x] **T2.6** Ganchos de push (só enfileiram; o envio é da Fase 5): aceite, recusa,
   falha, reentrega, cancelamento → cliente; novo pedido avulso e cancelamento →
   distribuidora; despacho → motorista. Usar um único helper
   `orderNotifications.onTransition(order, from, to, ctx)` chamado pós-commit, para
   não espalhar regras de push pelos serviços.
-- [ ] **T2.7** Assinaturas: ao fim de `subscription-generation`, agrupar por
+- [x] **T2.7** Assinaturas: ao fim de `subscription-generation`, agrupar por
   distribuidora e enfileirar 1 push-resumo (D6).
 
 **Validação:** teste-tabela U5 percorre a matriz 1.3 inteira.
+
+> **Resultado (16/11/2026):** T0.3 e T2.1–T2.7 concluídas. Os ganchos de push
+> (T2.6/T2.7) calculam as notificações em `orders/notifications/order-notifications.ts`
+> e as entregam ao `pushDispatcher`, que **por enquanto só registra em log**: a fila
+> `notifications` e o envio real são da Fase 5 (T5.3–T5.5). Os pushes inline que já
+> existiam (despacho e entrega ao cliente) continuam como estavam até a T5.5.
+> Testes: 795 unitários verdes (U5 com 63 casos sobre 15 linhas da matriz, U5b,
+> resumo D6, regras de texto). Teste de mutação confirmou que U5 acusa divergência.
+> Manual com a API real: aceite → cliente e distribuidora recebem; cancelamento pelo
+> cliente após aceite chega à distribuidora com `cancelledBy` e `previousStatus`;
+> `new_order` enriquecido (nome, itens, total, data); `sendToDistributor` num processo
+> separado sobre pedido já tratado devolve `transitioned=false` e não emite.
 
 ### FASE 3 — Cliente de tempo real no frontend (xua-frontend) → corrige F2, F3, F4
 

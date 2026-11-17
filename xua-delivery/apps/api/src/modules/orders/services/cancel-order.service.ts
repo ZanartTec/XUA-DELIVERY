@@ -12,6 +12,10 @@ import {
 } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
 import {
+  DISTRIBUTOR_AWARE_STATUSES,
+  orderNotifications,
+} from "../notifications/order-notifications.js";
+import {
   applyOrderInventoryMovements,
   inventoryAuditLines,
   resolveOrderInventoryLines,
@@ -74,7 +78,7 @@ export const cancelOrderService = {
 
     const prisma = getPrisma();
     let persistentFailureNotice: PersistentFailureNotice | null = null;
-    const order = await prisma.$transaction(async (tx: TxClient) => {
+    const { order, previousStatus, previousDriverId } = await prisma.$transaction(async (tx: TxClient) => {
       const current = await orderRepository.findByIdWithItemsForUpdate(orderId, tx);
       if (!current) throw new OrderServiceError("ORDER_NOT_FOUND", "Pedido não encontrado");
       assertTransition(current.status, OrderStatus.CANCELLED);
@@ -133,7 +137,11 @@ export const cancelOrderService = {
       // recredita o saldo e re-elegibiliza a entrega, ou marca FAILED no teto.
       persistentFailureNotice = await subscriptionSettlementService.settleFailed(tx, orderId);
 
-      return updated;
+      return {
+        order: updated,
+        previousStatus: current.status as string,
+        previousDriverId: current.driver_id,
+      };
     });
 
     if (persistentFailureNotice) {
@@ -144,6 +152,30 @@ export const cancelOrderService = {
       orderId,
       status: OrderStatus.CANCELLED,
     });
+    // A distribuidora só fica sabendo se o pedido já tinha chegado a ela; antes
+    // disso ele nem aparece na fila.
+    if (DISTRIBUTOR_AWARE_STATUSES.has(previousStatus)) {
+      orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.CANCELLED, {
+        reason,
+        previousStatus,
+        cancelledBy: actorType,
+      });
+    }
+    // Motorista atribuído (em rota ou só escalado) tira o pedido da lista dele.
+    const driverId = previousDriverId ?? order.driver_id;
+    if (driverId) {
+      orderEventsPublisher.notifyDriver(driverId, "order_status_changed", {
+        orderId,
+        status: OrderStatus.CANCELLED,
+        reason,
+      });
+    }
+    void orderNotifications.onTransition(
+      { ...order, driver_id: driverId },
+      previousStatus,
+      OrderStatus.CANCELLED,
+      { actor: actorType }
+    );
 
     return order;
   },

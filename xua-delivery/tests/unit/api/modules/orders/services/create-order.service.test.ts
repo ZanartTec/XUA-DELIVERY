@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     createItems: vi.fn(),
     findById: vi.fn(),
     updateStatus: vi.fn(),
+    findNewOrderSummary: vi.fn(),
   },
   auditRepository: { emit: vi.fn() },
   scheduleService: {
@@ -24,7 +25,8 @@ const mocks = vi.hoisted(() => ({
   },
   depositSettlementService: { resolveBottleGroups: vi.fn() },
   distributorGatewayService: { getPublicMethods: vi.fn() },
-  orderEventsPublisher: { notifyDistributor: vi.fn() },
+  orderEventsPublisher: { notifyDistributor: vi.fn(), notifyConsumer: vi.fn() },
+  pushSink: vi.fn(),
 }));
 
 vi.mock("@api/infra/prisma/client.js", () => ({
@@ -55,6 +57,7 @@ vi.mock("@api/modules/orders/services/order-events.publisher.js", () => ({
 }));
 
 const { createOrderService } = await import("@api/modules/orders/services/create-order.service.js");
+const { pushDispatcher } = await import("@api/modules/notifications/services/push-dispatcher.js");
 
 const waterId = "8a1b2c30-4444-4d00-9000-000000000001";
 const bottleId = "8a1b2c30-4444-4d00-9000-000000000002";
@@ -107,8 +110,19 @@ beforeEach(() => {
   mocks.orderRepository.updateStatus.mockImplementation(async (id, status) => ({
     id,
     status,
+    consumer_id: input("cash").consumerId,
     distributor_id: input("cash").distributorId,
+    driver_id: null,
   }));
+  mocks.orderRepository.findNewOrderSummary.mockResolvedValue({
+    total_cents: 3800,
+    delivery_date: new Date("2026-11-06T00:00:00.000Z"),
+    items: [{ quantity: 2 }, { quantity: 1 }],
+    consumer: { name: "João  da Silva" },
+    subscription_delivery_date: null,
+  });
+  mocks.pushSink.mockResolvedValue(undefined);
+  pushDispatcher.setSink(mocks.pushSink);
 });
 
 describe("createOrderService.createOrder", () => {
@@ -158,5 +172,93 @@ describe("createOrderService.createOrder", () => {
     );
     expect(tx.payment.create).not.toHaveBeenCalled();
     expect(result.status).toBe(OrderStatus.CREATED);
+  });
+});
+
+describe("createOrderService.sendToDistributor", () => {
+  const distributorId = input("cash").distributorId;
+  const consumerId = input("cash").consumerId;
+
+  it("transição real: new_order com payload enriquecido, aviso ao cliente e push à distribuidora", async () => {
+    const result = await createOrderService.sendToDistributor("order-1");
+
+    expect(result.transitioned).toBe(true);
+    expect(mocks.orderEventsPublisher.notifyDistributor).toHaveBeenCalledWith(distributorId, "new_order", {
+      orderId: "order-1",
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+      origin: "avulso",
+      deliveryDate: "2026-11-06",
+      totalCents: 3800,
+      itemsCount: 3,
+      customerFirstName: "João",
+    });
+    expect(mocks.orderEventsPublisher.notifyConsumer).toHaveBeenCalledWith(consumerId, "order_status_changed", {
+      orderId: "order-1",
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+    });
+    expect(mocks.pushSink).toHaveBeenCalledTimes(1);
+    expect(mocks.pushSink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { kind: "distributor", id: distributorId },
+        kind: "new_order",
+        dedupeKey: "new_order:order-1",
+        body: "João · 3 itens · R$ 38,00",
+      })
+    );
+  });
+
+  it("U5b: caminho idempotente (já enviado) não emite nada (F11)", async () => {
+    mocks.orderRepository.findById.mockResolvedValueOnce({
+      id: "order-1",
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+      consumer_id: consumerId,
+      distributor_id: distributorId,
+    });
+
+    const result = await createOrderService.sendToDistributor("order-1");
+
+    expect(result.transitioned).toBe(false);
+    expect(mocks.orderRepository.updateStatus).not.toHaveBeenCalled();
+    expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
+    expect(mocks.orderEventsPublisher.notifyConsumer).not.toHaveBeenCalled();
+    expect(mocks.pushSink).not.toHaveBeenCalled();
+  });
+
+  it("pedido de assinatura: socket sai com origin=assinatura, mas sem push individual (D6)", async () => {
+    mocks.orderRepository.findNewOrderSummary.mockResolvedValueOnce({
+      total_cents: 0,
+      delivery_date: new Date("2026-11-06T00:00:00.000Z"),
+      items: [{ quantity: 2 }],
+      consumer: { name: "Maria" },
+      subscription_delivery_date: { id: "sdd-1" },
+    });
+
+    await createOrderService.sendToDistributor("order-1");
+
+    expect(mocks.orderEventsPublisher.notifyDistributor).toHaveBeenCalledWith(
+      distributorId,
+      "new_order",
+      expect.objectContaining({ origin: "assinatura" })
+    );
+    expect(mocks.pushSink).not.toHaveBeenCalled();
+  });
+
+  it("falha ao enriquecer não impede o aviso (payload mínimo)", async () => {
+    mocks.orderRepository.findNewOrderSummary.mockRejectedValueOnce(new Error("db down"));
+
+    await createOrderService.sendToDistributor("order-1");
+
+    expect(mocks.orderEventsPublisher.notifyDistributor).toHaveBeenCalledWith(distributorId, "new_order", {
+      orderId: "order-1",
+      status: OrderStatus.SENT_TO_DISTRIBUTOR,
+    });
+  });
+
+  it("transação que falha não emite nada", async () => {
+    mocks.orderRepository.updateStatus.mockRejectedValueOnce(new Error("rollback"));
+
+    await expect(createOrderService.sendToDistributor("order-1")).rejects.toThrow("rollback");
+    expect(mocks.orderEventsPublisher.notifyDistributor).not.toHaveBeenCalled();
+    expect(mocks.pushSink).not.toHaveBeenCalled();
   });
 });

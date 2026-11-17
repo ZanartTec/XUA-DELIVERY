@@ -17,6 +17,7 @@ import { notificationService } from "../../notifications/services/notification.s
 import { OrderServiceError } from "../errors.js";
 import { assertTransition } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
+import { orderNotifications } from "../notifications/order-notifications.js";
 import {
   applyOrderInventoryMovements,
   inventoryAuditLines,
@@ -188,10 +189,13 @@ export const deliverOrderService = {
     // só aparecia no painel depois de um refresh manual.
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERED);
 
-    // Push notification
+    // Push notification (inline até a T5.5 trocar pelo onTransition abaixo)
     notificationService
       .send(order.consumer_id, "Pedido entregue!", "Seu pedido foi entregue com sucesso.")
       .catch(() => {});
+    void orderNotifications.onTransition(order, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, {
+      actor: "driver",
+    });
 
     return order;
   },
@@ -284,6 +288,9 @@ export const deliverOrderService = {
       distributorId: order.distributor_id,
       reason,
     });
+    void orderNotifications.onTransition(order, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERY_FAILED, {
+      actor: "driver",
+    });
 
     return order;
   },
@@ -337,6 +344,12 @@ export const deliverOrderService = {
       distributorId: order.distributor_id,
       newDate: newDate.toISOString(),
     });
+    void orderNotifications.onTransition(
+      order,
+      OrderStatus.DELIVERY_FAILED,
+      OrderStatus.REDELIVERY_SCHEDULED,
+      { actor: "ops" }
+    );
 
     return order;
   },
