@@ -55,6 +55,7 @@ import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useIsDesktop } from "@/src/hooks/use-media-query";
 import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
+import { PushOptInBanner } from "@/src/components/shared/push-notifications-card";
 import { playNewOrderSound, setNewOrderSoundEnabled, useNewOrderSoundEnabled } from "@/src/realtime/alert-sound";
 import { ApiError, api } from "@/src/lib/api-client";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort, formatTime } from "@/src/lib/utils";
@@ -542,6 +543,11 @@ function DistributorQueueContent() {
       </PageHeader>
 
       <div className="space-y-4 px-4 pb-6">
+        <PushOptInBanner
+          storageKey="xua:push-banner:distributor-queue"
+          title="Não perca pedidos com o app fechado"
+          description="Ative as notificações para ser avisado de pedidos novos mesmo com a tela desligada."
+        />
         {summary.overdue > 0 && activeTab !== "history" ? (
           <Alert variant="destructive" className="border-destructive/30 bg-danger-surface">
             <AlertTriangle aria-hidden />

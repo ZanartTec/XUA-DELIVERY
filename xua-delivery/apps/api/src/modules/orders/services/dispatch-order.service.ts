@@ -4,7 +4,6 @@ import { ActorType, AuditEventType, OrderStatus, SourceApp } from "@xua/shared/e
 import { getPrisma } from "../../../infra/prisma/client.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
-import { notificationService } from "../../notifications/services/notification.service.js";
 import { otpService } from "../../driver/services/otp.service.js";
 import { distributorRepository } from "../../distributor/repository/distributor.repository.js";
 import { OrderServiceError } from "../errors.js";
@@ -198,10 +197,7 @@ export const dispatchOrderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
-    // Push ao cliente inline até a T5.5 trocar pelo onTransition abaixo.
-    notificationService
-      .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
-      .catch(() => {});
+    // Push ao cliente e ao motorista (fila `notifications`).
     void orderNotifications.onTransition(order, null, OrderStatus.OUT_FOR_DELIVERY, {
       actor: "distributor",
       driverId,
@@ -314,10 +310,7 @@ export const dispatchOrderService = {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
-    // Push ao cliente inline até a T5.5 trocar pelo onTransition abaixo.
-    notificationService
-      .send(order.consumer_id, "Pedido saiu para entrega!", "Acompanhe seu pedido em tempo real.")
-      .catch(() => {});
+    // Push ao cliente e ao motorista (fila `notifications`).
     void orderNotifications.onTransition(order, null, OrderStatus.OUT_FOR_DELIVERY, {
       actor: "distributor",
       driverId,

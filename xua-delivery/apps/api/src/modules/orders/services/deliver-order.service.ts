@@ -13,7 +13,6 @@ import { getPrisma } from "../../../infra/prisma/client.js";
 import { createLogger } from "../../../infra/logger/index.js";
 import { orderRepository } from "../repository/orders.repository.js";
 import { auditRepository } from "../../audit/audit.repository.js";
-import { notificationService } from "../../notifications/services/notification.service.js";
 import { OrderServiceError } from "../errors.js";
 import { assertTransition } from "../state-machine/order-state-machine.js";
 import { orderEventsPublisher } from "./order-events.publisher.js";
@@ -189,10 +188,7 @@ export const deliverOrderService = {
     // só aparecia no painel depois de um refresh manual.
     orderEventsPublisher.distributorOrderStatusChanged(order, OrderStatus.DELIVERED);
 
-    // Push notification (inline até a T5.5 trocar pelo onTransition abaixo)
-    notificationService
-      .send(order.consumer_id, "Pedido entregue!", "Seu pedido foi entregue com sucesso.")
-      .catch(() => {});
+    // Push ao cliente (fila `notifications`).
     void orderNotifications.onTransition(order, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, {
       actor: "driver",
     });

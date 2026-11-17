@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRealtimeEvent } from "@/src/realtime/use-realtime-event";
+import { PushOptInBanner } from "@/src/components/shared/push-notifications-card";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, CheckCircle2, Clock3, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -180,6 +181,13 @@ function ConfirmationContent() {
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
         </Card>
       ) : null}
+
+      <PushOptInBanner
+        storageKey="xua:push-banner:order-confirmation"
+        title="Quer ser avisado quando sair para entrega?"
+        description="Ative as notificações e acompanhe o pedido mesmo com o app fechado."
+        className="mt-4"
+      />
 
       <div className="mt-4 text-center">
         <Button asChild variant="link">

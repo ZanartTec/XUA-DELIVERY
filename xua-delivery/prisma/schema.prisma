@@ -593,15 +593,20 @@ model InventoryReconciliationItem {
 }
 
 model ConsumerPushToken {
-  id          String   @id @default(uuid()) @db.Uuid
-  consumer_id String   @db.Uuid
-  endpoint    String
-  p256dh      String
-  auth_key    String
-  created_at  DateTime @default(now())
+  id              String    @id @default(uuid()) @db.Uuid
+  consumer_id     String    @db.Uuid
+  // Um navegador = um endpoint = um dono. Se outra pessoa logar no mesmo
+  // navegador, o token é reatribuído a ela (o anterior para de receber).
+  endpoint        String    @unique
+  p256dh          String
+  auth_key        String
+  user_agent      String?
+  last_success_at DateTime?
+  created_at      DateTime  @default(now())
 
   consumer Consumer @relation(fields: [consumer_id], references: [id])
 
+  @@index([consumer_id])
   @@map("08_sec_consumer_push_tokens")
 }
 

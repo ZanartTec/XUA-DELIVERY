@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { DeliveryDateStatus, UserSubscriptionStatus } from "@xua/shared/enums";
-import { notificationService } from "../../notifications/services/notification.service.js";
+import { pushDispatcher } from "../../notifications/services/push-dispatcher.js";
 import { createLogger } from "../../../infra/logger/index.js";
 
 type TxClient = Prisma.TransactionClient;
@@ -107,13 +107,16 @@ export const subscriptionSettlementService = {
       "subscription-settlement: entrega marcada como FAILED após 3 tentativas — requer ação da Operação"
     );
 
-    await notificationService
-      .send(
-        notice.consumerId,
-        "Não conseguimos concluir uma entrega da sua assinatura",
-        "Tivemos um problema ao processar uma entrega. Nossa equipe já foi avisada e o saldo segue disponível.",
-        { type: "subscription_delivery_failed", subscription_id: notice.subscriptionId }
-      )
-      .catch(() => undefined);
+    await pushDispatcher.enqueue({
+      target: { kind: "user", id: notice.consumerId },
+      title: "Não conseguimos concluir uma entrega da sua assinatura",
+      body: "Tivemos um problema ao processar uma entrega. Nossa equipe já foi avisada e o saldo segue disponível.",
+      url: "/subscription/manage",
+      tag: `subscription-${notice.subscriptionId}`,
+      urgency: "normal",
+      ttlSeconds: 24 * 60 * 60,
+      dedupeKey: `subscription_delivery_failed:${notice.deliveryDateId}`,
+      kind: "subscription_delivery_failed",
+    });
   },
 };

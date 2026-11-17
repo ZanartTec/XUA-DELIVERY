@@ -11,6 +11,7 @@ import {
   type PaymentExpirationJobPayload,
   type PaymentRefundJobPayload,
   type PaymentWebhookJobPayload,
+  type PushNotificationJobPayload,
   type SubscriptionExpirationJobPayload,
 } from "../infra/queue/contracts";
 import { closeQueueInfra } from "../infra/queue/queues";
@@ -20,6 +21,7 @@ import { processPaymentJob } from "./processors/payment-jobs.processor";
 import { processPaymentExpiration } from "./processors/expire-payment.processor";
 import { processPaymentRefund } from "./processors/process-payment-refund.processor";
 import { processSubscriptionExpiration } from "./processors/expire-subscription.processor";
+import { processPushNotification } from "./processors/notifications.processor";
 import { registerRepeatableJobs } from "./register-repeatable-jobs";
 
 const log = createLogger("worker");
@@ -112,6 +114,31 @@ export function startWorker(): void {
   const subscriptionExpirationEvents = new QueueEvents(QUEUE_NAMES.subscriptionExpiration, {
     connection: createQueueRedisConnection(),
     prefix: QUEUE_PREFIX,
+  });
+
+  const notificationsWorker = new Worker<PushNotificationJobPayload>(
+    QUEUE_NAMES.notifications,
+    processPushNotification,
+    {
+      connection: createQueueRedisConnection(),
+      prefix: QUEUE_PREFIX,
+      concurrency: env.NOTIFICATIONS_WORKER_CONCURRENCY ?? 5,
+    }
+  );
+
+  notificationsWorker.on("failed", (job, err) => {
+    const attempts = job?.opts.attempts ?? 1;
+    const exhausted = job != null && job.attemptsMade >= attempts;
+    log.warn(
+      {
+        err,
+        jobId: job?.id,
+        kind: job?.data.intent.kind,
+        attemptsMade: job?.attemptsMade,
+        exhausted,
+      },
+      exhausted ? "Push job exhausted all retries" : "Push job failed, will retry"
+    );
   });
 
   internalJobsWorker.on("completed", (job) => {
@@ -274,12 +301,14 @@ export function startWorker(): void {
       paymentsQueue: QUEUE_NAMES.payments,
       paymentRefundsQueue: QUEUE_NAMES.paymentRefunds,
       subscriptionExpirationQueue: QUEUE_NAMES.subscriptionExpiration,
+      notificationsQueue: QUEUE_NAMES.notifications,
       prefix: QUEUE_PREFIX,
       internalConcurrency: internalJobsWorker.opts.concurrency,
       paymentWebhookConcurrency: paymentWebhooksWorker.opts.concurrency,
       paymentsConcurrency: paymentsWorker.opts.concurrency,
       paymentRefundsConcurrency: paymentRefundsWorker.opts.concurrency,
       subscriptionExpirationConcurrency: subscriptionExpirationWorker.opts.concurrency,
+      notificationsConcurrency: notificationsWorker.opts.concurrency,
     },
     "XUA worker started"
   );
@@ -297,6 +326,7 @@ export function startWorker(): void {
     await paymentsWorker.close();
     await paymentRefundsWorker.close();
     await subscriptionExpirationWorker.close();
+    await notificationsWorker.close();
     await internalJobsEvents.close();
     await paymentWebhooksEvents.close();
     await paymentsEvents.close();

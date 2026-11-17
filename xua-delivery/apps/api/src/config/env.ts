@@ -117,6 +117,8 @@ const envSchema = z.object({
   PAYMENTS_WORKER_CONCURRENCY: positiveInt.optional(),
   PAYMENT_REFUNDS_WORKER_CONCURRENCY: positiveInt.optional(),
   SUBSCRIPTION_EXPIRATION_WORKER_CONCURRENCY: positiveInt.optional(),
+  // Envio de Web Push é I/O externo curto; paralelismo baixo já basta.
+  NOTIFICATIONS_WORKER_CONCURRENCY: positiveInt.optional(),
 
   // ─── Rollout BullMQ ──────────────────────────────────────────────
   USE_BULLMQ_OTP_CLEANUP: booleanish.optional(),

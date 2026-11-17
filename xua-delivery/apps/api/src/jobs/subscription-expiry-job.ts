@@ -1,6 +1,6 @@
 import { UserSubscriptionStatus } from "@xua/shared/enums";
 import { getPrisma } from "../infra/prisma/client.js";
-import { notificationService } from "../modules/notifications/services/notification.service.js";
+import { enqueuePushNotification } from "../infra/queue/notifications.producer.js";
 import { logger } from "../infra/logger/index.js";
 
 // Notifica quando remaining_quantity <= LOW_BALANCE_THRESHOLD
@@ -32,11 +32,21 @@ export async function runSubscriptionExpiryJob(): Promise<{
   for (const sub of lowBalanceSubs) {
     checked++;
     try {
-      await notificationService.send(
-        sub.consumer_id,
-        "Sua assinatura está acabando",
-        `Restam apenas ${sub.remaining_quantity} entrega(s) na sua assinatura. Renove em breve!`,
-        { type: "subscription_low_balance", subscription_id: sub.id }
+      // Enfileira direto (não via pushDispatcher, que engole erro): se a fila
+      // falhar, a marcação abaixo não acontece e o próximo ciclo tenta de novo.
+      await enqueuePushNotification(
+        {
+          target: { kind: "user", id: sub.consumer_id },
+          title: "Sua assinatura está acabando",
+          body: `Restam apenas ${sub.remaining_quantity} entrega(s) na sua assinatura. Renove em breve!`,
+          url: "/subscription/manage",
+          tag: `subscription-${sub.id}`,
+          urgency: "normal",
+          ttlSeconds: 24 * 60 * 60,
+          dedupeKey: `subscription_low_balance:${sub.id}`,
+          kind: "subscription_low_balance",
+        },
+        "worker"
       );
 
       await prisma.userSubscription.update({

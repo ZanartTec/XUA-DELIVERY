@@ -183,6 +183,8 @@ services:
         value: "2"
       - key: SUBSCRIPTION_EXPIRATION_WORKER_CONCURRENCY
         value: "2"
+      - key: NOTIFICATIONS_WORKER_CONCURRENCY
+        value: "5"
 
       # ─── App (para Socket.IO e notificações) ──────────────────────────────
       - key: APP_ORIGIN

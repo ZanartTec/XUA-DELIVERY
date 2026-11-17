@@ -169,9 +169,13 @@ describe("socket gateway", () => {
   });
 
   it("desconecta quando o JWT expira", async () => {
-    mocks.tokens.set("quase", { sub: "u-exp", role: "consumer", exp: Math.floor(Date.now() / 1000) + 1 });
-    const client = await connect("quase");
+    // 2 s de folga e ouvinte de "disconnect" registrado ANTES do connect:
+    // com a máquina carregada (suíte inteira em paralelo) a desconexão podia
+    // chegar antes de o teste começar a ouvir, e ele esperava para sempre.
+    mocks.tokens.set("quase", { sub: "u-exp", role: "consumer", exp: Math.floor(Date.now() / 1000) + 2 });
+    const client = connectClient(url, { transports: ["websocket"], reconnection: false, auth: { token: "quase" } });
+    clients.push(client);
     const reason = await new Promise<string>((resolve) => client.once("disconnect", resolve));
     expect(reason).toBe("io server disconnect");
-  }, 5000);
+  }, 10_000);
 });

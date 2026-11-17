@@ -62,7 +62,10 @@ export const api = {
     });
   },
 
-  delete<T>(url: string) {
-    return request<T>(url, { method: "DELETE" });
+  delete<T>(url: string, data?: unknown) {
+    return request<T>(url, {
+      method: "DELETE",
+      body: data ? JSON.stringify(data) : undefined,
+    });
   },
 };

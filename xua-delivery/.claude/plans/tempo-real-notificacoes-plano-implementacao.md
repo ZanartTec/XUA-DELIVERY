@@ -382,20 +382,20 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
 ### FASE 5 — Web Push (xua-backend + xua-banco-dados + xua-frontend) → corrige F6, F7, F8
 
 **Backend**
-- [ ] **T5.1** Migration (xua-banco-dados) em `ConsumerPushToken`:
+- [x] **T5.1** Migration (xua-banco-dados) em `ConsumerPushToken`:
   - remover duplicatas por `endpoint` (manter a mais recente);
   - `@@unique([endpoint])`, `@@index([consumer_id])`;
   - colunas `user_agent String?` e `last_success_at DateTime?`.
-- [ ] **T5.2** `subscribe` vira upsert **por endpoint**, reatribuindo o
+- [x] **T5.2** `subscribe` vira upsert **por endpoint**, reatribuindo o
   `consumer_id`. Se outra pessoa logar no mesmo navegador, o push passa a ser dela
   (corrige F8). Nova rota `DELETE /api/notifications/subscribe { endpoint }`, que só
   apaga tokens do próprio usuário.
-- [ ] **T5.3** Fila `notifications` em `infra/queue/contracts.ts` e
+- [x] **T5.3** Fila `notifications` em `infra/queue/contracts.ts` e
   `notifications.producer.ts`. Payload:
   `{ target: { kind: "user" | "distributor", id }, title, body, url, tag, urgency, ttlSeconds, dedupeKey }`.
   `jobId = dedupeKey` (ex.: `new_order:<orderId>`), `attempts: 3`, backoff
   exponencial, `removeOnComplete`.
-- [ ] **T5.4** Processor no worker: resolve os destinatários (`kind: "distributor"` →
+- [x] **T5.4** Processor no worker: resolve os destinatários (`kind: "distributor"` →
   usuários `DISTRIBUTOR_ADMIN` ativos daquela distribuidora) e chama
   `webPush.sendNotification(sub, payload, { TTL, urgency })`.
   - 404/410 → apaga o token (já existe); sucesso → `last_success_at`.
@@ -403,15 +403,15 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
     e `kind`.
   - Sem VAPID configurado → o job conclui com `warn` (feature desligada, sem retry
     infinito).
-- [ ] **T5.5** Trocar as 3 chamadas inline de `notificationService.send` (dispatch e
+- [x] **T5.5** Trocar as 3 chamadas inline de `notificationService.send` (dispatch e
   entrega) e as de assinatura pelo producer. `notificationService.send` passa a ser
   usado só pelo processor.
 
 **Frontend**
-- [ ] **T5.6** Mover `usePushSubscription` para `src/hooks/use-push-subscription.ts`
+- [x] **T5.6** Mover `usePushSubscription` para `src/hooks/use-push-subscription.ts`
   (genérico): converter a chave VAPID de base64url para `Uint8Array`, expor
   `unsubscribe()` e estado `unsupported | denied | default | subscribed`.
-- [ ] **T5.7** Pedidos de permissão em momentos com contexto, nunca no carregamento:
+- [x] **T5.7** Pedidos de permissão em momentos com contexto, nunca no carregamento:
   - Distribuidora: banner na fila ("Ative as notificações para não perder pedidos com
     o app fechado") + card em `distributor/account`.
   - Cliente: na tela de confirmação do pedido ("Quer ser avisado quando sair para
@@ -419,9 +419,9 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
   - Motorista: card em `driver/account`.
   - iOS: Web Push só funciona com o PWA instalado na tela inicial (iOS 16.4+).
     Mostrar instrução específica quando `unsupported` em iOS.
-- [ ] **T5.8** Logout: `DELETE` do endpoint atual + `subscription.unsubscribe()` antes
+- [x] **T5.8** Logout: `DELETE` do endpoint atual + `subscription.unsubscribe()` antes
   de limpar a sessão.
-- [ ] **T5.9** `public/sw.js`:
+- [x] **T5.9** `public/sw.js`:
   - `requireInteraction: true` e `renotify: true` para `kind = new_order`;
   - **(Adiado em 16/11)** se existir aba **visível e focada** do app, mandar
     `postMessage` para ela em vez de mostrar notificação. Nesta entrega o push é
@@ -429,6 +429,20 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
     não aciona a notificação genérica forçada.
 
 **Validação:** U6–U8, I2, M10–M12.
+
+> **Resultado (17/11/2026):** T5.1–T5.9 concluídas (T5.9 só a parte não adiada).
+> Migration `20261116230000_push_token_unique_endpoint` aplicada em `xua_delivery`
+> (0 duplicatas em 1 token) e `xua_test`. Testes: 841 unitários verdes (U6, U7,
+> U8, U13 novos) + I2 2/2 no `xua_test`. `vitest.config.ts` ganhou um setup que
+> substitui o producer da fila: teste unitário nunca grava job real no Redis.
+> Manual: o navegador interno bloqueia notificações (`permission = denied`) e não
+> registra service worker, então M10–M12 (notificação na tela) **não foram
+> testados**; o cartão mostrou "Bloqueadas no navegador". O caminho do servidor
+> foi provado com um serviço de push falso em HTTPS: pedido real → fila
+> `notifications` → worker → web-push entregou payload criptografado (aes128gcm,
+> VAPID, TTL 3600, urgency high); endpoint com 410 teve o token apagado;
+> `last_success_at` gravado; DELETE de outro usuário não apagou o token, o do dono
+> apagou. Retry: falha de rede sem entrega relançou e esgotou as 3 tentativas.
 
 ### FASE 6 — Verificação final, documentação e observabilidade (xua-qualidade + xua-docs)
 
