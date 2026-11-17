@@ -92,6 +92,13 @@ DATABASE_URL="postgresql://xua:xua_secret_change_me@localhost:5432/xua_test" npm
 npm run test:e2e -w @xua/web  # ou: npm run test:e2e
 ```
 
+**Plano de execução da fila do distribuidor** (`EXPLAIN ANALYZE` com ~240 mil
+pedidos semeados): `scripts/explain-distributor-queue.ts`. Semeia, roda a lista,
+o quadro e o resumo do repositório de verdade e imprime o plano de cada SQL que o
+Prisma gerou. Apaga as tabelas antes de semear, então recusa qualquer
+`DATABASE_URL` que não seja localhost. O `.env` do projeto aponta para produção:
+passe sempre a URL do banco local na linha de comando.
+
 **Cuidado ao subir API/Web localmente para testar manualmente ou rodar E2E**:
 `apps/api/.env` tem `DATABASE_URL`/`REDIS_URL` de produção (comentado o par
 local do docker-compose) e `apps/web/.env.production` tem `API_URL`,
