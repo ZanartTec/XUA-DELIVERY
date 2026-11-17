@@ -20,6 +20,8 @@ import {
   SlidersHorizontal,
   Truck,
   X,
+  Bell,
+  BellOff,
 } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -53,6 +55,7 @@ import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useIsDesktop } from "@/src/hooks/use-media-query";
 import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
+import { playNewOrderSound, setNewOrderSoundEnabled, useNewOrderSoundEnabled } from "@/src/realtime/alert-sound";
 import { ApiError, api } from "@/src/lib/api-client";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort, formatTime } from "@/src/lib/utils";
 import { formatScheduledTime, formatShortOrderId, isFromSubscription, matchesStatuses } from "@/src/lib/order-detail-format";
@@ -322,6 +325,7 @@ function DistributorQueueContent() {
   const isDesktop = useIsDesktop();
   // Reserva caso o socket caia (T3.5): 2 min ao vivo, 20 s sem tempo real.
   const fallbackInterval = useFallbackRefetchInterval();
+  const soundEnabled = useNewOrderSoundEnabled();
 
   const stageParam = searchParams.get("stage");
   const activeTab: QueueTabValue = isQueueTab(stageParam) ? stageParam : "all";
@@ -465,6 +469,22 @@ function DistributorQueueContent() {
         sticky
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="icon-touch"
+              aria-label={soundEnabled ? "Som de novos pedidos: ligado" : "Som de novos pedidos: desligado"}
+              aria-pressed={soundEnabled}
+              title={soundEnabled ? "Som de novos pedidos: ligado" : "Som de novos pedidos: desligado"}
+              onClick={() => {
+                const next = !soundEnabled;
+                setNewOrderSoundEnabled(next);
+                // O clique também libera o áudio: tocar aqui confirma que funciona.
+                if (next) playNewOrderSound();
+                toast(next ? "Som de novos pedidos ligado" : "Som de novos pedidos desligado");
+              }}
+            >
+              {soundEnabled ? <Bell /> : <BellOff />}
+            </Button>
             <Button asChild variant="ghost" size="icon-touch" aria-label="Rota do dia">
               <Link href="/distributor/routes/today">
                 <Route />

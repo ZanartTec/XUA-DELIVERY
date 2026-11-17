@@ -345,27 +345,39 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
 
 ### FASE 4 — Alerta de pedido novo na distribuidora (xua-frontend) → corrige F5
 
-- [ ] **T4.1** `DistributorAlerts`, montado no layout `(distributor)`, ativo em
+- [x] **T4.1** `DistributorAlerts`, montado no layout `(distributor)`, ativo em
   **qualquer** tela da distribuidora:
   - Toast persistente de 10 s: "Novo pedido · João · 2 itens · R$ 38,00" com ação
     "Ver" → `/distributor/queue?order=<id>` (abre o painel lateral já existente).
   - **Deduplicação** por `orderId` (um `Set` com teto de 200), para que o resync e o
     push não repitam o alerta.
   - Pedidos `origin = assinatura` não tocam som; só incrementam o badge (D6).
-- [ ] **T4.2** Som gerado por Web Audio API (dois tons curtos, ~400 ms), sem arquivo
+- [x] **T4.2** Som gerado por Web Audio API (dois tons curtos, ~400 ms), sem arquivo
   de áudio e sem questão de licença. O navegador bloqueia som antes de uma interação,
   então o `AudioContext` é desbloqueado no primeiro clique. Botão "Som de novos
   pedidos: ligado/desligado" no cabeçalho da fila, salvo em `localStorage`
   (com try/catch). Vibração `navigator.vibrate([200,100,200])` no celular.
-- [ ] **T4.3** Título da aba: `(3) Fila · Xuá` enquanto a aba está oculta e há
+- [x] **T4.3** Título da aba: `(3) Fila · Xuá` enquanto a aba está oculta e há
   pedidos não vistos; zera ao voltar o foco.
-- [ ] **T4.4** Badge numérico no item "Fila" da navegação com o total de
+- [x] **T4.4** Badge numérico no item "Fila" da navegação com o total de
   `SENT_TO_DISTRIBUTOR` (vem do `summary` que a API da fila já devolve).
-- [ ] **T4.5** Toast de cancelamento ("Pedido #… foi cancelado pelo cliente") quando
+- [x] **T4.5** Toast de cancelamento ("Pedido #… foi cancelado pelo cliente") quando
   `order_status_changed` chega com `CANCELLED` para um pedido que estava aceito ou
   em separação.
 
 **Validação:** U12–U13, M7–M9.
+
+> **Resultado (16/11/2026):** T4.1–T4.5 concluídas. Diferença do plano: o "Ver"
+> do toast abre `/distributor/orders/<id>` (a fila não tem `?order=` e o painel
+> lateral só existe no desktop; a página do pedido funciona em qualquer largura).
+> Testes: 822 unitários verdes (U12 novo; U13 é da Fase 5). Manual: na tela de
+> Estoque o toast "Novo pedido · João · 2 itens · R$ 50,00" apareceu, o som tocou
+> (2 osciladores), o badge "Pedidos" foi de 2 para 3 e "Ver" abriu o pedido;
+> cancelamento pelo cliente de pedido aceito mostrou o toast de cancelamento;
+> som desligado persistiu após F5 e não tocou; com a aba oculta (simulada via
+> `visibilityState`, o pane não oculta abas) o título virou "(2) Xuá Delivery" e
+> voltou ao focar. M8 (rajada de 20 assinaturas) não foi feito na tela: coberto
+> por U10 (coalescência) e U12 (assinatura sem som/toast).
 
 ### FASE 5 — Web Push (xua-backend + xua-banco-dados + xua-frontend) → corrige F6, F7, F8
 

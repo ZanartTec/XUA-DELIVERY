@@ -37,6 +37,7 @@ import { useIsClient } from "@/src/hooks/use-is-client";
 import { OfflineBanner } from "@/src/components/shared/offline-banner";
 import { LogoutButton } from "@/src/components/shared/logout-button";
 import { RealtimeIndicator } from "@/src/realtime/realtime-indicator";
+import { useIncomingOrdersCount } from "@/src/hooks/distributor/use-incoming-orders-count";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import { useSelectedAddress } from "@/src/hooks/consumer/use-addresses";
 import {
@@ -185,7 +186,12 @@ export function RoleAppShell({
 
   const activeHref = resolveActiveHref(pathname, config.navItems);
   const cartCount = useCartCount(isConsumer);
-  const badgeFor = (href: string) => (isConsumer && href === "/cart" ? cartCount : 0);
+  const incomingCount = useIncomingOrdersCount(role === "distributor_admin");
+  const badgeFor = (href: string) => {
+    if (isConsumer && href === "/cart") return cartCount;
+    if (role === "distributor_admin" && href === "/distributor/queue") return incomingCount;
+    return 0;
+  };
 
   const overflow = config.navItems.length > MAX_BOTTOM_ITEMS;
   const bottomItems = overflow ? config.navItems.slice(0, MAX_BOTTOM_ITEMS - 1) : config.navItems;
