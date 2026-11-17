@@ -36,6 +36,7 @@ import { useCartStore } from "@/src/store/cart";
 import { useIsClient } from "@/src/hooks/use-is-client";
 import { OfflineBanner } from "@/src/components/shared/offline-banner";
 import { LogoutButton } from "@/src/components/shared/logout-button";
+import { RealtimeIndicator } from "@/src/realtime/realtime-indicator";
 import { AddressSheet } from "@/src/components/consumer/address-sheet";
 import { useSelectedAddress } from "@/src/hooks/consumer/use-addresses";
 import {
@@ -245,9 +246,12 @@ export function RoleAppShell({
             })}
           </ul>
         </nav>
-        <div className="flex items-center justify-between gap-2 border-t border-hairline px-5 py-3">
-          <span className="truncate text-sm text-muted-foreground">{firstName ? `Olá, ${firstName}` : null}</span>
-          <LogoutButton />
+        <div className="border-t border-hairline px-5 py-3">
+          {!isConsumer ? <RealtimeIndicator className="mb-2" /> : null}
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm text-muted-foreground">{firstName ? `Olá, ${firstName}` : null}</span>
+            <LogoutButton />
+          </div>
         </div>
       </aside>
 
@@ -263,7 +267,10 @@ export function RoleAppShell({
                 {config.badgeLabel}
               </span>
             </div>
-            {firstName ? <span className="max-w-32 truncate text-sm text-muted-foreground">Olá, {firstName}</span> : null}
+            <div className="flex min-w-0 items-center gap-3">
+              <RealtimeIndicator />
+              {firstName ? <span className="max-w-32 truncate text-sm text-muted-foreground">Olá, {firstName}</span> : null}
+            </div>
           </div>
         )}
       </header>

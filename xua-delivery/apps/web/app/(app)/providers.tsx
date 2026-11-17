@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Toaster } from "@/src/components/ui/sonner";
 import { PwaProvider } from "@/src/hooks/use-pwa";
 import { useAuthStore } from "@/src/store/auth";
+import { RealtimeProvider } from "@/src/realtime/realtime-provider";
 
 function AuthHydrator() {
   const didRun = useRef(false);
@@ -87,8 +88,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <PwaProvider>
         <AuthHydrator />
-        {children}
-        <Toaster position="top-center" richColors />
+        <RealtimeProvider>
+          {children}
+          <Toaster position="top-center" richColors />
+        </RealtimeProvider>
       </PwaProvider>
     </QueryClientProvider>
   );

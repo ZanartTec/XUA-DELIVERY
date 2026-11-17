@@ -52,7 +52,7 @@ import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency
 import { useOrderDetail } from "@/src/hooks/distributor/use-order-detail";
 import { useDistributorDrivers } from "@/src/hooks/distributor/use-distributor-drivers";
 import { useIsDesktop } from "@/src/hooks/use-media-query";
-import { useSocket } from "@/src/hooks/use-socket";
+import { useFallbackRefetchInterval } from "@/src/realtime/realtime-provider";
 import { ApiError, api } from "@/src/lib/api-client";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort, formatTime } from "@/src/lib/utils";
 import { formatScheduledTime, formatShortOrderId, isFromSubscription, matchesStatuses } from "@/src/lib/order-detail-format";
@@ -320,7 +320,8 @@ function DistributorQueueContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
-  const { on, off } = useSocket();
+  // Reserva caso o socket caia (T3.5): 2 min ao vivo, 20 s sem tempo real.
+  const fallbackInterval = useFallbackRefetchInterval();
 
   const stageParam = searchParams.get("stage");
   const activeTab: QueueTabValue = isQueueTab(stageParam) ? stageParam : "all";
@@ -389,6 +390,7 @@ function DistributorQueueContent() {
     queryKey: ["distributor-queue", activeTab, page, qParam, origin, deliveryDate, driverId, sort],
     queryFn: () => api.get(`/api/orders?${queueQueryString}`),
     placeholderData: (previousData) => previousData,
+    refetchInterval: fallbackInterval,
   });
 
   const driversQuery = useDistributorDrivers();
@@ -409,19 +411,6 @@ function DistributorQueueContent() {
       }
     },
   });
-
-  useEffect(() => {
-    const handler = () => {
-      void queryClient.invalidateQueries({ queryKey: ["distributor-queue"] });
-      void queryClient.invalidateQueries({ queryKey: ["distributor-order-detail"] });
-    };
-    on("new_order", handler);
-    on("order_status_changed", handler);
-    return () => {
-      off("new_order", handler);
-      off("order_status_changed", handler);
-    };
-  }, [on, off, queryClient]);
 
   useEffect(() => {
     if (!queueQuery.data) return;

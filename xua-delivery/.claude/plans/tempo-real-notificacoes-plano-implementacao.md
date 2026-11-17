@@ -295,7 +295,7 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
 
 ### FASE 3 — Cliente de tempo real no frontend (xua-frontend) → corrige F2, F3, F4
 
-- [ ] **T3.1** `apps/web/src/realtime/realtime-provider.tsx` (montado em
+- [x] **T3.1** `apps/web/src/realtime/realtime-provider.tsx` (montado em
   `app/(app)/providers.tsx`, dentro do `QueryClientProvider`)
   - Cria **um** socket quando `user` existe; desconecta no logout ou na troca de usuário.
   - `reconnection: true`, `reconnectionAttempts: Infinity`, `reconnectionDelay: 1000`,
@@ -306,10 +306,10 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
     contrato), que repassa ao `Set`. Registrar antes ou depois de conectar dá no
     mesmo, o que corrige F2.
   - Estado exposto: `status: "connecting" | "live" | "reconnecting" | "offline"`.
-- [ ] **T3.2** `useRealtimeEvent(event, handler)`: guarda o handler em ref, então não
+- [x] **T3.2** `useRealtimeEvent(event, handler)`: guarda o handler em ref, então não
   re-registra a cada render. Substitui `useSocket` nas 4 telas atuais; o
   `use-socket.ts` antigo é removido.
-- [ ] **T3.3** `apps/web/src/realtime/invalidation-map.ts` (função pura)
+- [x] **T3.3** `apps/web/src/realtime/invalidation-map.ts` (função pura)
   - `keysFor(event, payload) → QueryKey[]`. Exemplos:
     `new_order` → `["distributor-queue"]`, `["kpis"]`;
     `order_status_changed` → `["distributor-queue"]`,
@@ -319,19 +319,29 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
     mais invalidar à mão; só fazem efeitos de UI (toast, OTP).
   - **Coalescência:** as chaves se acumulam num `Set` e são invalidadas juntas após
     300 ms, para que uma rajada de assinaturas não gere dezenas de requisições.
-- [ ] **T3.4** Resync: ao `connect` depois de uma desconexão, no `visibilitychange`
+- [x] **T3.4** Resync: ao `connect` depois de uma desconexão, no `visibilitychange`
   para visível e no evento `online`, invalidar todas as chaves "ao vivo" (lista
   fixa: `distributor-queue`, `driver-deliveries`, `orders`, `order`,
   `distributor-order-detail`).
-- [ ] **T3.5** Polling de reserva na fila do distribuidor e na lista do motorista:
+- [x] **T3.5** Polling de reserva na fila do distribuidor e na lista do motorista:
   `refetchInterval: status === "live" ? 120_000 : 20_000`.
-- [ ] **T3.6** Indicador discreto no `RoleAppShell` (distribuidora, motorista, ops):
+- [x] **T3.6** Indicador discreto no `RoleAppShell` (distribuidora, motorista, ops):
   ponto verde "Ao vivo" ou âmbar "Reconectando…", com `aria-live="polite"`.
-- [ ] **T3.7** Adicionar os ouvintes que faltam (matriz 1.4): cliente (lista,
+- [x] **T3.7** Adicionar os ouvintes que faltam (matriz 1.4): cliente (lista,
   detalhe, confirmação), motorista (detalhe), distribuidora (detalhe do pedido),
   ops (toast global para `otp_locked` e `DELIVERY_FAILED`).
 
 **Validação:** U9–U11, E1–E3, M3–M6.
+
+> **Resultado (16/11/2026):** T3.1–T3.7 concluídas; `use-socket.ts` removido.
+> Testes: 811 unitários verdes (U9–U11 novos). `tests/tsconfig.json` ganhou o
+> alias `@/src` e `lib: ES2021` (o teste web existente já não compilava sem eles).
+> Manual no navegador interno: fila aberta por link direto (caso F2) mostrou
+> "Ao vivo" e o pedido novo apareceu sem recarregar; depois de F5 + reinício da
+> API, "Reconectando…" → "Ao vivo" em 6,7 s e o cancelamento seguinte sumiu da
+> fila sozinho; um evento gera 1 requisição da fila; tela do pedido do cliente
+> mudou para "Aceito" e depois "Cancelado" sem recarregar; console sem erros.
+> E2E Playwright (E1–E3) e M5 (título da aba) ficam para as Fases 4 e 6.
 
 ### FASE 4 — Alerta de pedido novo na distribuidora (xua-frontend) → corrige F5
 
