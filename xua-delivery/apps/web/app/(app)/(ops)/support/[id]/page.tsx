@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Building2, CalendarClock, KeyRound, Loader2, MessageCircle, Phone, Truck } from "lucide-react";
+import { AlertTriangle, Building2, CalendarClock, KeyRound, MessageCircle, Phone, Truck } from "lucide-react";
 import {
   OrderCustomerSection,
   OrderInstructionsSection,
@@ -28,6 +28,7 @@ import { addDaysIso, todayIso } from "@/src/lib/datetime";
 import { formatPhone, phoneHref, whatsappHref } from "@/src/lib/format";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import type { OrderDetail } from "@/src/types/order-detail";
+import { Spinner } from "@/src/components/ui/spinner";
 
 function ContactRow({ icon: Icon, role, name, phone }: { icon: typeof Phone; role: string; name?: string | null; phone?: string | null }) {
   const tel = phoneHref(phone);
@@ -158,14 +159,14 @@ export default function SupportOrderDetailPage() {
         description="A distribuidora recebe o pedido de novo para a data escolhida."
         footer={
           <Button variant="cta" size="xl" disabled={!newDate || saving} onClick={reschedule}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             Confirmar nova data
           </Button>
         }
       >
         <div className="grid gap-1.5">
           <Label htmlFor="new-date">Nova data</Label>
-          <Input id="new-date" type="date" min={todayIso()} value={newDate} onChange={(e) => setNewDate(e.target.value)} className="h-11" />
+          <Input id="new-date" type="date" min={todayIso()} value={newDate} onChange={(e) => setNewDate(e.target.value)} className="h-11 md:h-9" />
         </div>
       </ResponsiveDialog>
     </div>

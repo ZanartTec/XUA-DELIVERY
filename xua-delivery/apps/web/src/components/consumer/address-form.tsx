@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -12,6 +12,7 @@ import { MaskedInput } from "@/src/components/shared/masked-input";
 import { ApiError, api } from "@/src/lib/api-client";
 import { useAddressMutations } from "@/src/hooks/consumer/use-addresses";
 import type { Address } from "@/src/types";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface CepData {
   street: string;
@@ -111,11 +112,11 @@ export function AddressForm({ address, onSaved, onCancel }: AddressFormProps) {
                 value={cep}
                 onValueChange={setCep}
                 placeholder="00000-000"
-                className="h-11"
+                className="h-11 md:h-9"
                 autoFocus
               />
               {cepLoading ? (
-                <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                <Spinner className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
               ) : null}
             </div>
           )}
@@ -145,7 +146,7 @@ export function AddressForm({ address, onSaved, onCancel }: AddressFormProps) {
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
                   inputMode="numeric"
-                  className="h-11"
+                  className="h-11 md:h-9"
                   required
                 />
               )}
@@ -157,7 +158,7 @@ export function AddressForm({ address, onSaved, onCancel }: AddressFormProps) {
                   value={complement}
                   onChange={(e) => setComplement(e.target.value)}
                   placeholder="Apto, bloco, referência"
-                  className="h-11"
+                  className="h-11 md:h-9"
                 />
               )}
             </FormField>
@@ -185,7 +186,7 @@ export function AddressForm({ address, onSaved, onCancel }: AddressFormProps) {
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="Ou digite um nome (ex.: Casa da mãe)"
                   maxLength={40}
-                  className="h-11"
+                  className="h-11 md:h-9"
                 />
               </div>
             )}

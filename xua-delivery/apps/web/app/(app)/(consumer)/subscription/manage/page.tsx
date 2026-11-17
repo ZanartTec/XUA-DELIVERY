@@ -36,6 +36,7 @@ import type {
   UserSubscriptionStatus,
 } from "@xua/shared/enums";
 import { DEFAULT_ONLINE_PAYMENT_METHOD, isOnlinePaymentMethod } from "@xua/shared/mappers/payment";
+import { Card } from "@/src/components/ui/card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -393,7 +394,7 @@ function SubscriptionCard({
   const panelId = `sub-${sub.id}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-hairline bg-card">
+    <Card className="overflow-hidden">
       <button
         type="button"
         onClick={onToggleExpand}
@@ -508,6 +509,6 @@ function SubscriptionCard({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }

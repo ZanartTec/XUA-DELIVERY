@@ -17,6 +17,8 @@ import type { StatusTone } from "@/src/lib/order-status";
 import { routeReceiptsUrl } from "@/src/lib/receipt";
 import { formatDate } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
+import { cardVariants } from "@/src/components/ui/card";
+import { ListPanel } from "@/src/components/shared/list-panel";
 
 type RouteStop = {
   order_id: string;
@@ -75,7 +77,7 @@ export default function RouteDetailPage() {
           <EmptyState icon={Route} title={query.error instanceof Error ? query.error.message : "Erro ao carregar a rota"} />
         ) : (
           <>
-            <dl className="grid grid-cols-3 divide-x divide-hairline rounded-2xl border border-hairline bg-card text-center">
+            <dl className={cardVariants({ className: "grid grid-cols-3 divide-x divide-hairline text-center" })}>
               <div className="px-2 py-2.5">
                 <dt className="text-[11px] text-muted-foreground">Paradas</dt>
                 <dd className="font-heading text-xl font-bold text-ink">{route?.total_stops ?? 0}</dd>
@@ -101,7 +103,7 @@ export default function RouteDetailPage() {
                     </span>
                     <span className="font-normal text-muted-foreground">{group.stops.length} paradas</span>
                   </h2>
-                  <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+                  <ListPanel>
                     {group.stops.map((stop) => (
                       <li key={stop.order_id} className="flex items-center gap-3 px-4 py-3">
                         <Link href={`/distributor/orders/${stop.order_id}`} className="min-w-0 flex-1">
@@ -120,7 +122,7 @@ export default function RouteDetailPage() {
                         </Button>
                       </li>
                     ))}
-                  </ul>
+                  </ListPanel>
                 </section>
               ))
             )}

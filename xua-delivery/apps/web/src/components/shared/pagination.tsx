@@ -1,6 +1,14 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Pagination as PaginationRoot,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/src/components/ui/pagination";
 import { cn } from "@/src/lib/utils";
 
 interface PaginationProps {
@@ -13,34 +21,24 @@ interface PaginationProps {
   className?: string;
 }
 
-/** Gera a lista de "itens" que aparecem na paginação: números ou "..." */
+/** Itens exibidos: primeira, última, a atual e uma vizinha de cada lado; o resto vira reticências. */
 function buildPages(current: number, total: number): (number | "…")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
 
-  const items: (number | "…")[] = [];
-
-  // Sempre mostra a primeira e última página
-  // Mostra current -1, current, current +1
-  const showLeft = current > 3;
-  const showRight = current < total - 2;
-
-  items.push(1);
-
-  if (showLeft) items.push("…");
+  const items: (number | "…")[] = [1];
+  if (current > 3) items.push("…");
 
   const start = Math.max(2, current - 1);
   const end = Math.min(total - 1, current + 1);
   for (let i = start; i <= end; i++) items.push(i);
 
-  if (showRight) items.push("…");
-
+  if (current < total - 2) items.push("…");
   items.push(total);
-
   return items;
 }
 
 /**
- * Componente de paginação genérico e reutilizável.
+ * Paginação por callback (o estado da página vive na tela), montada com o `Pagination` do shadcn.
  *
  * @example
  * <Pagination page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
@@ -48,69 +46,53 @@ function buildPages(current: number, total: number): (number | "…")[] {
 export function Pagination({ page, totalPages, onPageChange, className }: PaginationProps) {
   if (totalPages <= 1) return null;
 
-  const items = buildPages(page, totalPages);
+  const go = (target: number) => (event: React.MouseEvent) => {
+    event.preventDefault();
+    onPageChange(target);
+  };
+  const atStart = page === 1;
+  const atEnd = page === totalPages;
 
   return (
-    <nav
-      aria-label="Navegação por páginas"
-      className={cn("flex items-center justify-center gap-1.5", className)}
-    >
-      {/* Botão Anterior */}
-      <button
-        onClick={() => onPageChange(page - 1)}
-        disabled={page === 1}
-        aria-label="Página anterior"
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
-          page === 1
-            ? "cursor-not-allowed text-[#b0b3c6]"
-            : "text-sky hover:bg-sky/10 active:scale-90"
-        )}
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-
-      {/* Números de página */}
-      {items.map((item, idx) =>
-        item === "…" ? (
-          <span
-            key={`ellipsis-${idx}`}
-            className="flex h-9 w-9 items-center justify-center text-sm text-[#b0b3c6] select-none"
-          >
-            …
-          </span>
-        ) : (
-          <button
-            key={item}
-            onClick={() => onPageChange(item)}
-            aria-label={`Ir para página ${item}`}
-            aria-current={item === page ? "page" : undefined}
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-md text-sm font-semibold transition-all duration-150 active:scale-90",
-              item === page
-                ? "bg-sky text-white shadow-[0_2px_8px_rgba(86,151,233,0.35)]"
-                : "text-muted-foreground hover:bg-muted"
+    <PaginationRoot aria-label="Navegação por páginas" className={className}>
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            text="Anterior"
+            aria-label="Página anterior"
+            aria-disabled={atStart}
+            className={cn(atStart && "pointer-events-none opacity-50")}
+            onClick={atStart ? (event) => event.preventDefault() : go(page - 1)}
+          />
+        </PaginationItem>
+        {buildPages(page, totalPages).map((item, index) => (
+          <PaginationItem key={item === "…" ? `ellipsis-${index}` : item}>
+            {item === "…" ? (
+              <PaginationEllipsis />
+            ) : (
+              <PaginationLink
+                href="#"
+                isActive={item === page}
+                aria-label={`Ir para página ${item}`}
+                onClick={go(item)}
+              >
+                {item}
+              </PaginationLink>
             )}
-          >
-            {item}
-          </button>
-        )
-      )}
-
-      {/* Botão Próximo */}
-      <button
-        onClick={() => onPageChange(page + 1)}
-        disabled={page === totalPages}
-        aria-label="Próxima página"
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150",
-          page === totalPages
-            ? "cursor-not-allowed text-[#b0b3c6]"
-            : "text-sky hover:bg-sky/10 active:scale-90"
-        )}
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
-    </nav>
+          </PaginationItem>
+        ))}
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            text="Próxima"
+            aria-label="Próxima página"
+            aria-disabled={atEnd}
+            className={cn(atEnd && "pointer-events-none opacity-50")}
+            onClick={atEnd ? (event) => event.preventDefault() : go(page + 1)}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </PaginationRoot>
   );
 }

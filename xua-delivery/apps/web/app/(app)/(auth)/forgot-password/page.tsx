@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2, MailCheck } from "lucide-react";
+import { ArrowRight, MailCheck } from "lucide-react";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/src/schemas/auth";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { FormField } from "@/src/components/shared/form-field";
 import { AuthShell } from "@/src/components/auth/auth-shell";
+import { Spinner } from "@/src/components/ui/spinner";
 
 export default function ForgotPasswordPage() {
   const [serverError, setServerError] = useState<string | null>(null);
@@ -89,13 +90,13 @@ export default function ForgotPasswordPage() {
               inputMode="email"
               autoComplete="email"
               placeholder="nome@exemplo.com"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
               {...register("email")}
             />
           )}
         </FormField>
         <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? <Spinner aria-hidden /> : null}
           {isSubmitting ? "Enviando…" : "Enviar link"}
           {!isSubmitting ? <ArrowRight aria-hidden /> : null}
         </Button>

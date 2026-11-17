@@ -1,7 +1,7 @@
 import { DeliveryDateStatus } from "@xua/shared/enums";
-import type { OrderForQueue } from "../repository/orders.repository.js";
+import type { SubscriptionDeliveryContext } from "../repository/orders.repository.js";
 
-type NewSubscriptionDeliveryContext = NonNullable<OrderForQueue["subscription_delivery_date"]>;
+type NewSubscriptionDeliveryContext = SubscriptionDeliveryContext;
 
 export type DistributorOrderOriginContext = {
   order_origin: "cart" | "subscription";

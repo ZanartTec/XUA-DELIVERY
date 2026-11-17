@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MessageCircle, ReceiptText } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/src/components/ui/accordion";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
+import { Card, cardVariants } from "@/src/components/ui/card";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { whatsappHref } from "@/src/lib/format";
 
@@ -63,7 +63,7 @@ export default function HelpPage() {
           <h2 id="faq" className="text-sm font-semibold text-foreground">
             Perguntas frequentes
           </h2>
-          <Accordion type="single" collapsible className="rounded-2xl border border-hairline bg-card px-4">
+          <Accordion type="single" collapsible className={cardVariants({ className: "px-4" })}>
             {FAQ.map((item, i) => (
               <AccordionItem key={item.q} value={`q${i}`} className={i === FAQ.length - 1 ? "border-b-0" : undefined}>
                 <AccordionTrigger className="text-left">{item.q}</AccordionTrigger>

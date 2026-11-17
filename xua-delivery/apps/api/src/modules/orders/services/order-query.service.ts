@@ -4,6 +4,7 @@ import {
   DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES,
 
   DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES,
+  type DistributorBoardQueryInput,
   type DistributorQueueQueryInput,
   type DistributorQueueStageInput,
 } from "@xua/shared/schemas/order";
@@ -23,6 +24,13 @@ const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, Order
   route: [OrderStatus.OUT_FOR_DELIVERY],
   history: [...DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES] as OrderStatus[],
 };
+
+/** Etapas ativas que viram colunas do quadro (a aba "Todos"). */
+const DISTRIBUTOR_BOARD_COLUMNS = {
+  incoming: DISTRIBUTOR_QUEUE_STAGE_STATUSES.incoming,
+  preparation: DISTRIBUTOR_QUEUE_STAGE_STATUSES.preparation,
+  route: DISTRIBUTOR_QUEUE_STAGE_STATUSES.route,
+} as const;
 
 const TERMINAL_STATUS_SET = new Set<OrderStatus>(DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES as readonly OrderStatus[]);
 const HISTORY_DEFAULT_WINDOW_DAYS = 30;
@@ -83,30 +91,63 @@ export function acceptanceDeadline(
   return new Date(enteredAt + slaSeconds * 1000).toISOString();
 }
 
+/**
+ * Item da fila no formato que a tela consome. A fila só precisa saber se o pedido veio de
+ * assinatura (`order_origin`); o contexto completo (plano, sequência, restantes) é do detalhe.
+ */
 function mapDistributorQueueOrder(o: OrderForQueue, driverNameById: Map<string, string>, slaSeconds: number) {
-  const subscriptionContext = buildDistributorOrderOriginContext(o);
-  const totalItemsQty = o.items.reduce((sum, item) => sum + item.quantity, 0);
-  const firstItem = o.items[0];
+  const { consumer, address, items, subscription_delivery_date, ...order } = o;
+  const totalItemsQty = items.reduce((sum, item) => sum + item.quantity, 0);
+  const firstItem = items[0];
   const itemSummary = firstItem
-    ? o.items.length > 1
-      ? `${totalItemsQty} itens em ${o.items.length} produtos`
+    ? items.length > 1
+      ? `${totalItemsQty} itens em ${items.length} produtos`
       : `${firstItem.quantity}x ${firstItem.product_name}`
     : "0 item(ns)";
 
   return {
-    ...o,
-    ...subscriptionContext,
-    consumer_name: o.consumer.name,
-    address_summary: `${o.address.street}, ${o.address.number}${o.address.neighborhood ? ` - ${o.address.neighborhood}` : ""}`,
+    ...order,
+    order_origin: subscription_delivery_date ? ("subscription" as const) : ("cart" as const),
+    consumer_name: consumer.name,
+    address_summary: `${address.street}, ${address.number}${address.neighborhood ? ` - ${address.neighborhood}` : ""}`,
     total_items_qty: totalItemsQty,
     item_summary: itemSummary,
-    driver_name: o.driver_id ? (driverNameById.get(o.driver_id) ?? null) : null,
-    sla_deadline: acceptanceDeadline(o, slaSeconds),
-    consumer: undefined,
-    address: undefined,
-    items: undefined,
-    subscription_delivery_date: undefined,
+    driver_name: order.driver_id ? (driverNameById.get(order.driver_id) ?? null) : null,
+    sla_deadline: acceptanceDeadline(order, slaSeconds),
   };
+}
+
+async function loadAcceptanceSlaSeconds(distributorId: string): Promise<number> {
+  const distributor = await getPrisma().distributor.findUnique({
+    where: { id: distributorId },
+    select: { acceptance_sla_seconds: true },
+  });
+  return distributor?.acceptance_sla_seconds ?? DEFAULT_ACCEPTANCE_SLA_SECONDS;
+}
+
+/** Nome dos motoristas dos pedidos listados, numa consulta só (o pedido guarda apenas o `driver_id`). */
+async function loadDriverNames(orders: ReadonlyArray<{ driver_id: string | null }>): Promise<Map<string, string>> {
+  const driverIds = Array.from(
+    new Set(orders.map((order) => order.driver_id).filter((id): id is string => Boolean(id)))
+  );
+  if (driverIds.length === 0) return new Map();
+  const drivers = await getPrisma().consumer.findMany({
+    where: { id: { in: driverIds } },
+    select: { id: true, name: true },
+  });
+  return new Map(drivers.map((driver) => [driver.id, driver.name]));
+}
+
+/** Só admin de distribuidora acessa a fila; devolve a distribuidora do usuário. */
+async function resolveQueueDistributor(userId: string, role: string): Promise<string> {
+  if (role !== "distributor_admin") {
+    throw new OrderServiceError("FORBIDDEN", "Acesso negado");
+  }
+  const distributorId = await distributorRepository.resolveDistributorId(userId);
+  if (!distributorId) {
+    throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
+  }
+  return distributorId;
 }
 
 /**
@@ -142,14 +183,7 @@ async function describeBottleGroups(
  */
 export const orderQueryService = {
   async listDistributorQueue(userId: string, role: string, query: DistributorQueueQueryInput) {
-    if (role !== "distributor_admin") {
-      throw new OrderServiceError("FORBIDDEN", "Acesso negado");
-    }
-
-    const distributorId = await distributorRepository.resolveDistributorId(userId);
-    if (!distributorId) {
-      throw new OrderServiceError("FORBIDDEN", "Usuário não vinculado a nenhuma distribuidora");
-    }
+    const distributorId = await resolveQueueDistributor(userId, role);
 
     const statuses = query.status
       ? [query.status as OrderStatus]
@@ -161,40 +195,25 @@ export const orderQueryService = {
       end: query.end,
     });
 
-    const { orders, total, statusCounts, overdueActive } = await orderRepository.findByDistributorPaged(distributorId, {
-      statuses,
-      summaryStatuses: activeStatuses,
-      page: query.page,
-      limit: query.limit,
-      q: query.q,
-      origin: query.origin,
-      deliveryDate,
-      start,
-      end,
-      driverId: query.driverId,
-      sort: query.sort,
-    });
+    // O SLA não depende da página: busca junto com os pedidos em vez de depois.
+    const [{ orders, total, statusCounts, overdueActive }, slaSeconds] = await Promise.all([
+      orderRepository.findByDistributorPaged(distributorId, {
+        statuses,
+        summaryStatuses: activeStatuses,
+        page: query.page,
+        limit: query.limit,
+        q: query.q,
+        origin: query.origin,
+        deliveryDate,
+        start,
+        end,
+        driverId: query.driverId,
+        sort: query.sort,
+      }),
+      loadAcceptanceSlaSeconds(distributorId),
+    ]);
 
-    const driverIds = Array.from(
-      new Set(
-        orders
-          .map((order) => order.driver_id)
-          .filter((driverId): driverId is string => Boolean(driverId))
-      )
-    );
-    const distributorSla = await getPrisma().distributor.findUnique({
-      where: { id: distributorId },
-      select: { acceptance_sla_seconds: true },
-    });
-    const slaSeconds = distributorSla?.acceptance_sla_seconds ?? DEFAULT_ACCEPTANCE_SLA_SECONDS;
-
-    const drivers = driverIds.length
-      ? await getPrisma().consumer.findMany({
-          where: { id: { in: driverIds } },
-          select: { id: true, name: true },
-        })
-      : [];
-    const driverNameById = new Map(drivers.map((driver) => [driver.id, driver.name]));
+    const driverNameById = await loadDriverNames(orders);
 
     return {
       orders: orders.map((order) => mapDistributorQueueOrder(order, driverNameById, slaSeconds)),
@@ -215,6 +234,74 @@ export const orderQueryService = {
         sort: query.sort,
       },
     };
+  },
+
+  /**
+   * Quadro da fila (aba "Todos"): as três etapas ativas, cada uma com os primeiros pedidos e o
+   * total real, numa chamada só. Os pedidos de cada etapa já vêm separados do banco.
+   */
+  async listDistributorBoard(userId: string, role: string, query: DistributorBoardQueryInput) {
+    const distributorId = await resolveQueueDistributor(userId, role);
+    const activeStatuses = [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[];
+
+    const [{ columns, statusCounts, overdueActive }, slaSeconds] = await Promise.all([
+      orderRepository.findDistributorBoard(distributorId, {
+        columns: {
+          incoming: [...DISTRIBUTOR_BOARD_COLUMNS.incoming],
+          preparation: [...DISTRIBUTOR_BOARD_COLUMNS.preparation],
+          route: [...DISTRIBUTOR_BOARD_COLUMNS.route],
+        },
+        summaryStatuses: activeStatuses,
+        perColumn: query.perColumn,
+        q: query.q,
+        origin: query.origin,
+        deliveryDate: query.deliveryDate,
+        start: query.start,
+        end: query.end,
+        driverId: query.driverId,
+        sort: query.sort,
+      }),
+      loadAcceptanceSlaSeconds(distributorId),
+    ]);
+
+    const allOrders = Object.values(columns).flatMap((column) => column.orders);
+    const driverNameById = await loadDriverNames(allOrders);
+    const present = (key: keyof typeof columns) => ({
+      orders: columns[key].orders.map((order) => mapDistributorQueueOrder(order, driverNameById, slaSeconds)),
+      total: columns[key].total,
+    });
+
+    return {
+      columns: {
+        incoming: present("incoming"),
+        preparation: present("preparation"),
+        route: present("route"),
+      },
+      perColumn: query.perColumn,
+      summary: buildDistributorQueueSummary(statusCounts, overdueActive),
+      filters: {
+        q: query.q ?? null,
+        origin: query.origin,
+        deliveryDate: query.deliveryDate ?? null,
+        start: query.start ?? null,
+        end: query.end ?? null,
+        driverId: query.driverId ?? null,
+        sort: query.sort,
+      },
+    };
+  },
+
+  /**
+   * Contadores da fila sem filtros e sem pedidos (badge do menu). É a consulta barata:
+   * só agregação, nada de linhas de pedido.
+   */
+  async getDistributorQueueSummary(userId: string, role: string) {
+    const distributorId = await resolveQueueDistributor(userId, role);
+    const { statusCounts, overdueActive } = await orderRepository.countDistributorQueue(
+      distributorId,
+      [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[]
+    );
+    return buildDistributorQueueSummary(statusCounts, overdueActive);
   },
 
   /**

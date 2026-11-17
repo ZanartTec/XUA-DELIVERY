@@ -20,14 +20,6 @@ export function DropIcon(p: P) {
   );
 }
 
-export function DropOutlineIcon(p: P) {
-  return (
-    <svg {...stroke} {...p}>
-      <path d="M12 2.5c3 4.3 7 7.5 7 11.5a7 7 0 0 1-14 0c0-4 4-7.2 7-11.5z" />
-    </svg>
-  );
-}
-
 export function WhatsAppIcon(p: P) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...p}>

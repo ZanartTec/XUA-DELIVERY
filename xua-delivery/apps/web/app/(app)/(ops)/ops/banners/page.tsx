@@ -20,9 +20,11 @@ import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { PromoBannerCarousel, type BannerSlide } from "@/src/components/consumer/promo-banner-carousel";
 import { cn } from "@/src/lib/utils";
-import { Eye, EyeOff, Image, Info, Layers, Loader2, MoreVertical, Palette, Pencil, Plus, Trash2, Type } from "lucide-react";
+import { Eye, EyeOff, Image, Info, Layers, MoreVertical, Palette, Pencil, Plus, Trash2, Type } from "lucide-react";
 import { toast } from "sonner";
 import type { BannerType } from "@xua/shared/enums";
+import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface BannerItem {
   id: string;
@@ -174,7 +176,7 @@ function ColorInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-11 flex-1 rounded-xl"
+        className="h-11 md:h-9 flex-1 rounded-xl"
       />
       {value && /^#[0-9a-fA-F]{3,8}$/.test(value) && (
         <div
@@ -225,7 +227,7 @@ function BannerForm({
               type="number"
               value={draft.sort_order}
               onChange={(e) => onChange({ ...draft, sort_order: Number(e.target.value) || 0 })}
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
         </div>
@@ -244,7 +246,7 @@ function BannerForm({
               value={draft.title}
               onChange={(e) => onChange({ ...draft, title: e.target.value })}
               placeholder="Ex: Primeira compra? R$10 OFF!"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="Subtítulo" hint="Texto secundário abaixo do título">
@@ -252,7 +254,7 @@ function BannerForm({
               value={draft.subtitle}
               onChange={(e) => onChange({ ...draft, subtitle: e.target.value })}
               placeholder="Ex: Use o cupom:"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="Tag" hint="Etiqueta pequena acima do título">
@@ -260,7 +262,7 @@ function BannerForm({
               value={draft.tag}
               onChange={(e) => onChange({ ...draft, tag: e.target.value })}
               placeholder="Ex: OFERTA DE BOAS-VINDAS"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           {isCarousel && (
@@ -269,7 +271,7 @@ function BannerForm({
                 value={draft.highlight}
                 onChange={(e) => onChange({ ...draft, highlight: e.target.value })}
                 placeholder="Ex: XUAFRESH"
-                className="h-11 rounded-xl"
+                className="h-11 md:h-9 rounded-xl"
               />
             </Field>
           )}
@@ -289,7 +291,7 @@ function BannerForm({
               value={draft.cta_text}
               onChange={(e) => onChange({ ...draft, cta_text: e.target.value })}
               placeholder="Ex: Saiba mais"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           <Field label="URL do botão" hint="Link de destino ao clicar">
@@ -297,7 +299,7 @@ function BannerForm({
               value={draft.cta_url}
               onChange={(e) => onChange({ ...draft, cta_url: e.target.value })}
               placeholder="https://..."
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
         </div>
@@ -377,7 +379,7 @@ function BannerForm({
                 )
               }
               placeholder="https://exemplo.com/imagem.png"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
             />
           </Field>
           {(isCarousel ? draft.bg_image_url : draft.image_url) && (
@@ -500,7 +502,7 @@ export default function OpsBannersPage() {
         ) : sorted.length === 0 ? (
           <EmptyState icon={Image} title="Nenhum banner" description="Banners aparecem no topo do catálogo do cliente." />
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+          <ListPanel>
             {sorted.map((banner) => (
               <li key={banner.id} className={cn("flex items-center gap-3 px-4 py-3", !banner.is_active && "bg-surface-low")}>
                 <span
@@ -542,7 +544,7 @@ export default function OpsBannersPage() {
                 </DropdownMenu>
               </li>
             ))}
-          </ul>
+          </ListPanel>
         )}
       </div>
 
@@ -559,7 +561,7 @@ export default function OpsBannersPage() {
         className="sm:max-w-2xl"
         footer={
           <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {form?.mode === "edit" ? "Salvar alterações" : "Criar banner"}
           </Button>
         }

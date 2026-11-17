@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
@@ -13,6 +13,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { cn } from "@/src/lib/utils";
+import { Spinner } from "@/src/components/ui/spinner";
 
 const FAILURE_REASONS = [
   "Cliente ausente",
@@ -119,7 +120,7 @@ function FailureContent() {
 
       <StickyActionBar>
         <Button variant="destructive" size="xl" disabled={loading || !reason || !detailsOk} onClick={handleSubmit}>
-          {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {loading ? <Spinner aria-hidden /> : null}
           {loading ? "Registrando…" : "Registrar ocorrência"}
         </Button>
       </StickyActionBar>

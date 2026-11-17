@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ArrowUp, History, Loader2, PackagePlus, PackageSearch, Scale, Search } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, History, PackagePlus, PackageSearch, Scale, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { InventoryItemType, InventoryMovementType } from "@xua/shared/enums";
 
@@ -28,6 +28,8 @@ import {
   type StockStatusFilter,
 } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
+import { DataView, type Column } from "@/src/components/shared/data-view";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface Pagination {
   limit: number;
@@ -70,6 +72,121 @@ function createBatchId() {
         (Number(char) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(char) / 4)))).toString(16),
       );
 }
+
+const quantityClass = (low: boolean) => (low ? "text-destructive" : "text-ink");
+
+function BalanceMobile({ b }: { b: InventoryBalance }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold text-foreground">{b.item.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {INVENTORY_ITEM_TYPE_LABEL[b.item.type]} · {b.item.code}
+          {b.low_stock_threshold != null ? ` · mínimo ${b.low_stock_threshold}` : ""}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className={cn("font-heading text-xl font-bold tabular-nums", quantityClass(b.is_low_stock))}>
+          {b.quantity_on_hand.toLocaleString("pt-BR")}
+        </p>
+        <p className="text-[11px] text-muted-foreground">{b.item.unit_label}</p>
+      </div>
+      {b.is_low_stock ? <StatusBadge label="Baixo" tone="danger" className="h-5 px-2 text-[11px]" /> : null}
+    </div>
+  );
+}
+
+const BALANCE_COLUMNS: Column<InventoryBalance>[] = [
+  { id: "item", header: "Item", cell: (b) => <span className="font-medium text-foreground">{b.item.name}</span> },
+  { id: "type", header: "Tipo", cell: (b) => INVENTORY_ITEM_TYPE_LABEL[b.item.type], className: "text-muted-foreground" },
+  { id: "code", header: "Código", cell: (b) => <span className="font-mono text-xs">{b.item.code}</span>, className: "text-muted-foreground" },
+  {
+    id: "min",
+    header: "Mínimo",
+    align: "right",
+    cell: (b) => (b.low_stock_threshold != null ? b.low_stock_threshold.toLocaleString("pt-BR") : "—"),
+    className: "text-muted-foreground",
+  },
+  {
+    id: "qty",
+    header: "Saldo",
+    align: "right",
+    cell: (b) => (
+      <span className={cn("font-semibold", quantityClass(b.is_low_stock))}>
+        {b.quantity_on_hand.toLocaleString("pt-BR")} <span className="text-xs font-normal text-muted-foreground">{b.item.unit_label}</span>
+      </span>
+    ),
+  },
+  {
+    id: "status",
+    header: "Situação",
+    cell: (b) =>
+      b.is_low_stock ? (
+        <StatusBadge label="Baixo" tone="danger" className="h-5 px-2 text-[11px]" />
+      ) : (
+        <StatusBadge label="Normal" tone="success" className="h-5 px-2 text-[11px]" />
+      ),
+  },
+];
+
+function MovementIcon({ delta }: { delta: number }) {
+  const positive = delta > 0;
+  const Icon = positive ? ArrowUp : ArrowDown;
+  return (
+    <span
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+        positive ? "bg-success-surface text-success-foreground" : "bg-danger-surface text-destructive",
+      )}
+    >
+      <Icon className="size-4" aria-hidden />
+    </span>
+  );
+}
+
+function MovementQuantity({ delta }: { delta: number }) {
+  const positive = delta > 0;
+  return (
+    <span className={cn("font-semibold tabular-nums", positive ? "text-success-foreground" : "text-destructive")}>
+      {positive ? "+" : ""}
+      {delta.toLocaleString("pt-BR")}
+    </span>
+  );
+}
+
+const movementWhen = (m: InventoryMovement) => `${formatDate(m.occurred_at)} ${formatTime(m.occurred_at)}`;
+const movementLabel = (m: InventoryMovement) => INVENTORY_MOVEMENT_LABEL[m.movement_type] ?? m.movement_type;
+
+function MovementMobile({ m }: { m: InventoryMovement }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <MovementIcon delta={m.quantity_delta} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{m.item.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {movementLabel(m)} · {movementWhen(m)}
+        </p>
+      </div>
+      <MovementQuantity delta={m.quantity_delta} />
+    </div>
+  );
+}
+
+const MOVEMENT_COLUMNS: Column<InventoryMovement>[] = [
+  {
+    id: "item",
+    header: "Item",
+    cell: (m) => (
+      <span className="flex items-center gap-3">
+        <MovementIcon delta={m.quantity_delta} />
+        <span className="font-medium text-foreground">{m.item.name}</span>
+      </span>
+    ),
+  },
+  { id: "type", header: "Movimento", cell: movementLabel, className: "text-muted-foreground" },
+  { id: "when", header: "Data", cell: movementWhen, className: "text-muted-foreground tabular-nums" },
+  { id: "qty", header: "Quantidade", align: "right", cell: (m) => <MovementQuantity delta={m.quantity_delta} /> },
+];
 
 export default function DistributorInventoryPage() {
   const queryClient = useQueryClient();
@@ -149,10 +266,28 @@ export default function DistributorInventoryPage() {
   const total = balancesQuery.data?.pagination.total ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      <PageHeader title="Estoque" description="O que você tem agora, por item." sticky>
-        <div className="space-y-2">
-          <div className="relative">
+    <div className="mx-auto w-full max-w-4xl md:max-w-6xl">
+      <PageHeader
+        title="Estoque"
+        description="O que você tem agora, por item."
+        sticky
+        actions={
+          <div className="hidden items-center gap-2 md:flex">
+            <Button asChild variant={itemsWithoutStock.length ? "outline" : "cta"} size="lg">
+              <Link href="/distributor/inventory/reconciliation">
+                <Scale aria-hidden /> Conferir contagem
+              </Link>
+            </Button>
+            {itemsWithoutStock.length > 0 ? (
+              <Button variant="cta" size="lg" onClick={() => setLoadOpen(true)}>
+                <PackagePlus aria-hidden /> Carga inicial
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        <div className="space-y-2 md:flex md:items-center md:gap-3 md:space-y-0">
+          <div className="relative md:w-80">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               type="search"
@@ -163,7 +298,7 @@ export default function DistributorInventoryPage() {
               }}
               placeholder="Buscar item ou código"
               aria-label="Buscar item"
-              className="h-11 rounded-xl pl-9"
+              className="h-11 md:h-9 rounded-xl pl-9"
             />
           </div>
           <ToggleGroup
@@ -218,26 +353,13 @@ export default function DistributorInventoryPage() {
               description={search || stockStatus !== "ALL" ? undefined : "Registre a carga inicial para começar a controlar os saldos."}
             />
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
-              {balances.map((b) => (
-                <li key={b.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-foreground">{b.item.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {INVENTORY_ITEM_TYPE_LABEL[b.item.type]} · {b.item.code}
-                      {b.low_stock_threshold != null ? ` · mínimo ${b.low_stock_threshold}` : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className={cn("font-heading text-xl font-bold tabular-nums", b.is_low_stock ? "text-destructive" : "text-ink")}>
-                      {b.quantity_on_hand.toLocaleString("pt-BR")}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">{b.item.unit_label}</p>
-                  </div>
-                  {b.is_low_stock ? <StatusBadge label="Baixo" tone="danger" className="h-5 px-2 text-[11px]" /> : null}
-                </li>
-              ))}
-            </ul>
+            <DataView
+              label="Saldos"
+              items={balances}
+              getKey={(b) => b.id}
+              columns={BALANCE_COLUMNS}
+              renderMobile={(b) => <BalanceMobile b={b} />}
+            />
           )}
           {total > PAGE ? (
             <div className="flex items-center justify-between">
@@ -285,34 +407,13 @@ export default function DistributorInventoryPage() {
           ) : movements.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-hairline p-4 text-center text-sm text-muted-foreground">Nenhuma movimentação ainda.</p>
           ) : (
-            <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
-              {movements.map((m) => {
-                const positive = m.quantity_delta > 0;
-                const Icon = positive ? ArrowUp : ArrowDown;
-                return (
-                  <li key={m.id} className="flex items-center gap-3 px-4 py-3">
-                    <span
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                        positive ? "bg-success-surface text-success-foreground" : "bg-danger-surface text-destructive",
-                      )}
-                    >
-                      <Icon className="size-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{m.item.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {INVENTORY_MOVEMENT_LABEL[m.movement_type] ?? m.movement_type} · {formatDate(m.occurred_at)} {formatTime(m.occurred_at)}
-                      </p>
-                    </div>
-                    <span className={cn("font-semibold tabular-nums", positive ? "text-success-foreground" : "text-destructive")}>
-                      {positive ? "+" : ""}
-                      {m.quantity_delta.toLocaleString("pt-BR")}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <DataView
+              label="Movimentações"
+              items={movements}
+              getKey={(m) => m.id}
+              columns={MOVEMENT_COLUMNS}
+              renderMobile={(m) => <MovementMobile m={m} />}
+            />
           )}
           {(movementsQuery.data?.pagination.total ?? 0) > 10 ? (
             <div className="flex justify-between">
@@ -332,7 +433,7 @@ export default function DistributorInventoryPage() {
         </section>
       </div>
 
-      <StickyActionBar>
+      <StickyActionBar mobileOnly>
         <Button asChild variant={itemsWithoutStock.length ? "outline" : "cta"} size="xl">
           <Link href="/distributor/inventory/reconciliation">
             <Scale aria-hidden /> Conferir contagem
@@ -359,7 +460,7 @@ export default function DistributorInventoryPage() {
               loadMutation.mutate({ batch_id: createBatchId(), observation: loadObservation.trim() || undefined, items: loadItems })
             }
           >
-            {loadMutation.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {loadMutation.isPending ? <Spinner aria-hidden /> : null}
             Registrar carga
           </Button>
         }
@@ -380,7 +481,7 @@ export default function DistributorInventoryPage() {
                 value={loadQuantities[item.id] ?? ""}
                 onChange={(e) => setLoadQuantities((c) => ({ ...c, [item.id]: e.target.value }))}
                 placeholder="0"
-                className="h-11 text-right"
+                className="h-11 md:h-9 text-right"
               />
             </div>
           ))}

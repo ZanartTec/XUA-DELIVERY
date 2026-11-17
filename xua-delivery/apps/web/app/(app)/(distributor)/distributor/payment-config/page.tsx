@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Loader2, ShieldCheck, Wallet } from "lucide-react";
+import { KeyRound, ShieldCheck, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +19,9 @@ import type {
   DistributorPaymentSettingsUpdateInput,
   DistributorPaymentSettingsView,
 } from "@xua/shared/schemas/distributor-payment-settings";
+import { cardVariants } from "@/src/components/ui/card";
+import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type Methods = {
   accepts_pix_online: boolean;
@@ -175,9 +178,9 @@ export default function DistributorPaymentConfigPage() {
               <h2 id="sec-entrega" className="text-sm font-semibold text-foreground">
                 Na entrega
               </h2>
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {METHOD_LABELS.filter((m) => !m.online).map(methodRow)}
-              </ul>
+              </ListPanel>
             </section>
 
             <section aria-labelledby="sec-app" className="space-y-2">
@@ -187,16 +190,16 @@ export default function DistributorPaymentConfigPage() {
                 </h2>
                 <StatusBadge label={mpConnected ? "Conectado" : "Não conectado"} tone={mpConnected ? "success" : "neutral"} />
               </div>
-              <ul className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-card">
+              <ListPanel>
                 {METHOD_LABELS.filter((m) => m.online).map(methodRow)}
-              </ul>
+              </ListPanel>
               {!wantsOnline && !mpConnected ? (
                 <p className="text-xs text-muted-foreground">Ative Pix ou cartão no app para conectar sua conta do Mercado Pago.</p>
               ) : null}
             </section>
 
             {wantsOnline ? (
-              <section aria-labelledby="sec-mp" className="space-y-3 rounded-2xl border border-hairline bg-card p-4">
+              <section aria-labelledby="sec-mp" className={cardVariants({ className: "space-y-3 p-4" })}>
                 <h2 id="sec-mp" className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <KeyRound className="size-4 text-primary" aria-hidden /> Credenciais do Mercado Pago
                 </h2>
@@ -218,7 +221,7 @@ export default function DistributorPaymentConfigPage() {
                       value={accessToken}
                       onChange={(e) => setAccessToken(e.target.value)}
                       placeholder={mpConnected ? "Manter o atual" : "APP_USR-..."}
-                      className="h-11"
+                      className="h-11 md:h-9"
                     />
                   )}
                 </FormField>
@@ -230,13 +233,13 @@ export default function DistributorPaymentConfigPage() {
                       value={webhookSecret}
                       onChange={(e) => setWebhookSecret(e.target.value)}
                       placeholder={mpConnected ? "Manter o atual" : "Assinatura secreta do webhook"}
-                      className="h-11"
+                      className="h-11 md:h-9"
                     />
                   )}
                 </FormField>
                 <FormField label="Public key" optional>
                   {(field) => (
-                    <Input {...field} autoComplete="off" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." className="h-11" />
+                    <Input {...field} autoComplete="off" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." className="h-11 md:h-9" />
                   )}
                 </FormField>
               </section>
@@ -253,7 +256,7 @@ export default function DistributorPaymentConfigPage() {
 
       <StickyActionBar>
         <Button variant="cta" size="xl" disabled={!dirty || saving || loading || missingGateway || noneSelected} onClick={save}>
-          {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {saving ? <Spinner aria-hidden /> : null}
           {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
       </StickyActionBar>

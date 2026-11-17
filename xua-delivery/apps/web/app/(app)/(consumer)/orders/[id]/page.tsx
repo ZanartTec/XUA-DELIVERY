@@ -32,7 +32,7 @@ import { EmptyState } from "@/src/components/shared/empty-state";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/src/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
-import { Card } from "@/src/components/ui/card";
+import { Card, cardVariants } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -336,7 +336,7 @@ export default function OrderDetailPage() {
         ) : null}
 
         {/* Meio: detalhes em seções recolhíveis */}
-        <Accordion type="multiple" defaultValue={["itens"]} className="overflow-hidden rounded-2xl border border-hairline bg-card px-4">
+        <Accordion type="multiple" defaultValue={["itens"]} className={cardVariants({ className: "overflow-hidden px-4" })}>
           <AccordionItem value="itens">
             <AccordionTrigger>
               Itens · {formatCurrency(order.total_cents)}

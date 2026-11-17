@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { isoDayToDate } from "@/src/lib/datetime";
 import { cn } from "@/src/lib/utils";
+import { Card } from "@/src/components/ui/card";
 
 interface AvailableDistributor {
   id: string;
@@ -133,5 +134,5 @@ function DistributorInfo({ distributor: d, bare = false }: { distributor: Availa
     </>
   );
   if (bare) return content;
-  return <div className="flex items-center gap-3 rounded-2xl border border-hairline bg-card p-3">{content}</div>;
+  return <Card className="flex items-center gap-3 p-3">{content}</Card>;
 }
