@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes do Xuá Delivery. Gerado automaticamente pelo semantic-release a partir dos Conventional Commits.
 
+## [1.4.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.3.0...v1.4.0) (2026-11-17)
+
+### Funcionalidades
+
+* **api:** cobertura de eventos de pedido e ganchos de push (fase 2) ([71bdb3e](https://github.com/ZanartTec/XUA-DELIVERY/commit/71bdb3ef77822d9eae7dd85f185b91d2e4a7fee5))
+* **api:** tempo real entre processos via Redis (fases 0 e 1) ([d2c5881](https://github.com/ZanartTec/XUA-DELIVERY/commit/d2c588134e1e6c38fcce3d91940c3c8bd03b4064))
+* web push pela fila notifications, opt-in e limpeza no logout (fase 5) ([55b6679](https://github.com/ZanartTec/XUA-DELIVERY/commit/55b66796ff6d841ec22b56bd6cacb031e619f523))
+* **web:** alerta de pedido novo na distribuidora (fase 4) ([627e24a](https://github.com/ZanartTec/XUA-DELIVERY/commit/627e24af63251d3f83dcc08f88043867ea589b36))
+* **web:** cliente de tempo real único com resync e polling de reserva (fase 3) ([2a9d393](https://github.com/ZanartTec/XUA-DELIVERY/commit/2a9d3933b741ab0c301ae56fd143c07eec5c706b))
+* **web:** SEO do site institucional ([3a33d30](https://github.com/ZanartTec/XUA-DELIVERY/commit/3a33d30c076d826d8851caa9b673fd918b33e896))
+
 ## [1.3.0](https://github.com/ZanartTec/XUA-DELIVERY/compare/v1.2.0...v1.3.0) (2026-11-06)
 
 ### Funcionalidades
