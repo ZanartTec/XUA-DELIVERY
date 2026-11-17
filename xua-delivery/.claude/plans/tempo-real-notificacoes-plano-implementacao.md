@@ -446,11 +446,11 @@ recebe e entrega à sala `distributor:<id>` → a fila do distribuidor recarrega
 
 ### FASE 6 — Verificação final, documentação e observabilidade (xua-qualidade + xua-docs)
 
-- [ ] **T6.1** Rodar toda a seção 4 e registrar os resultados neste arquivo.
-- [ ] **T6.2** Atualizar `docs/doc_contexto/02-tech-stack.md`, `03-domain-data.md`
+- [x] **T6.1** Rodar toda a seção 4 e registrar os resultados neste arquivo.
+- [x] **T6.2** Atualizar `docs/doc_contexto/02-tech-stack.md`, `03-domain-data.md`
   (tabela de eventos; remover `sla_warning` e `order_dispatched`, que não existem
   no código) e `04-active-state.md` (item 8: "Socket.io monolítico" resolvido).
-- [ ] **T6.3** Adicionar `worker` em `.claude/launch.json` para o preview local subir
+- [x] **T6.3** Adicionar `worker` em `.claude/launch.json` para o preview local subir
   os 3 processos.
 
 ---
@@ -534,6 +534,22 @@ com adapter. Metas: p95 de entrega do evento < 1 s, 0 eventos entregues a
 distribuidora errada, CPU da API < 50%.
 
 ---
+
+### 4.7 Resultados da verificação final (17/11/2026)
+
+| Bloco | Resultado |
+|---|---|
+| Unitários (U1–U13) | 841/841 verdes; typecheck de API, web e testes limpo |
+| Integração (I1, I2 + existentes) | 18/18 no `xua_test` (Redis local para I1) |
+| E2E (E1–E6) | 6/6 no Chrome instalado (`E2E_BROWSER_CHANNEL=chrome`), contra o stack de dev. E4 cria o pedido PIX pelo serviço interno num processo separado: a distribuidora do seed não aceita PIX no checkout de dev |
+| Manual M1–M9 | feitos nas Fases 1–4 (registro em cada fase); M8 coberto por U10/U12 |
+| Manual M10–M12 | **não testados na tela**: o navegador interno bloqueia notificações e service worker. Caminho do servidor provado com serviço de push falso (Fase 5) |
+| Carga (4.6), cenário do plano | 550/550 sockets em 2 instâncias; 300 pedidos em 303 s; 1200/1200 entregas, 0 em sala errada; latência p50 3 ms · p95 4 ms · p99 6 ms · máx 8 ms; CPU 0,8% e 0,7% de um núcleo; RSS ~109 MB por instância → **aprovado** |
+| Carga, rajada (50 pedidos/s) | 1000 pedidos em 23 s; 4000/4000, 0 em sala errada; p95 5 ms · máx 11 ms; CPU ~9% por instância → **aprovado** |
+
+Ressalva da carga: tudo na mesma máquina e no Redis local (sem latência de
+rede). Em produção a latência real soma a ida e volta até o Redis do Render;
+a margem para a meta de 1 s continua grande.
 
 ## 5. Implantação e reversão
 

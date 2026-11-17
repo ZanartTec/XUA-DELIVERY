@@ -15,14 +15,14 @@
 | Frontend | Next.js 16.2 App Router + React 19 (porta 3001) | Cliente puro da API — sem Server Actions/Route Handlers de negócio |
 | ORM / Banco | Prisma 7.x (`@prisma/adapter-pg`) + PostgreSQL 16 | 36 tabelas, 19 enums; schema em `prisma/schema.prisma` (raiz). Extensão `pg_trgm` (09/08/2026) para busca por substring acento-insensível (índices GIN em zonas/cobertura) |
 | Cache / Filas | Redis 7 (ioredis 5) + BullMQ 5.x | JWT blacklist, filas assíncronas |
-| Real-time | Socket.io 4.x | Acoplado ao servidor HTTP da API (porta 4000) |
+| Real-time | Socket.io 4.8 + `@socket.io/redis-adapter` / `@socket.io/redis-emitter` | Gateway no processo da API; o worker publica pelo emitter. Canal Redis `${REDIS_KEY_PREFIX}:socket.io` (várias instâncias da API funcionam). `REALTIME_REDIS_ADAPTER=off` desliga o Redis sem deploy |
 | Autenticação | JWT (`jose`) + bcryptjs | Cookie httpOnly `xua-token`, TTL 24h |
 | Validação | Zod 4 + React Hook Form | Schemas compartilhados em `packages/shared` |
 | Estado (client) | Zustand 5 (persist) + TanStack Query 5 | Cart, checkout, subscription wizard / cache de API. `/ops/zones` (09/08/2026) foi a primeira tela da área `(ops)` a usar `useMutation` — as demais telas ops seguem com fetch cru |
 | UI | Tailwind CSS 4 + shadcn/ui + Radix UI + Lucide | Mobile-first |
 | Gráficos | Recharts | KPI dashboards |
 | E-mail | Resend 4.8 | Redefinição de senha, notificações transacionais |
-| Push | Web Push API + Service Worker | Fallback quando a página não está aberta |
+| Push | Web Push (VAPID) + Service Worker | App fechado. Envio pela fila BullMQ `notifications` (processor no worker); regras em `orders/notifications/order-notifications.ts` |
 | Offline | PWA (Workbox) + IndexedDB (idb) | Fila offline do motorista com sync automático |
 | Pagamentos | Mercado Pago (adapter concreto) | Pix, cartão e dinheiro (`cash_change_for_cents`); provider `mock` só para dev |
 | Logs | Pino 10 | Structured logging, correlação por `order_id` |
@@ -69,7 +69,7 @@ Padrão por módulo: **`routes → controllers → services → repository`**.
 | Middleware | `authMiddleware` (jwtVerify + blacklist Redis), RBAC, rate limiting por escopo |
 | Services | TODA a lógica de negócio: máquina de estados, OTP HMAC, caução, KPIs, assinaturas, `emitEvent()` |
 | Repositories | Prisma Client, transações interativas |
-| Socket.IO | Auth JWT no handshake; salas `${role}:${userId}` e `distributor:${distributorId}` |
+| Socket.IO | Auth em `io.use` (JWT + blacklist + sessão anterior à troca de senha), desconecta no `exp`; salas `${role}:${userId}`, `distributor:${distributorId}` e `ops:broadcast`. Contrato de eventos em `packages/shared/src/realtime/events.ts`; publicação só via `realtimePublisher` (`infra/realtime`) |
 
 **Módulos da API (16):** `auth, orders, driver, consumers, products, categories, payments, zones, ops, notifications, distributor, distributors (público), banners, subscription-plans, user-subscriptions` + jobs internos.
 
@@ -140,7 +140,7 @@ xua-delivery/
 - **Scheduler externo:** Railway Cron ou Render Cron Job dispara os jobs internos via HTTP. [A DEFINIR: provedor definitivo do cron em produção — a documentação cita ambos]
 - **Banco/Redis:** PostgreSQL 16 e Redis 7 gerenciados (Docker Compose no local).
 - **Segredos:** cofre centralizado (Doppler ou env vars); nunca `.env` no git.
-- **Escala:** Socket.io no mesmo processo da API é suficiente para o MVP; pós-MVP, extrair para serviço dedicado se necessário.
+- **Escala:** Socket.io no processo da API com adapter Redis: escala horizontalmente. Teste de carga (`tests/load/realtime-load.ts`, 550 sockets em 2 instâncias) e decisões em `.claude/plans/tempo-real-notificacoes-plano-implementacao.md`. No front, um socket por aba (`apps/web/src/realtime/`) com resync ao reconectar e polling de reserva.
 - [A DEFINIR: pipeline de CI/CD, ambientes (staging/prod), estratégia de migrations em produção — não documentados]
 
 ---
