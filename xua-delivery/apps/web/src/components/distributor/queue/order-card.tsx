@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Clock3, Loader2, MapPin, PackageCheck, Repeat2, Truck, X } from "lucide-react";
+import { Check, Clock3, MapPin, PackageCheck, Repeat2, Truck, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cardVariants } from "@/src/components/ui/card";
 import { StatusBadge } from "@/src/components/shared/status-badge";
@@ -11,6 +11,8 @@ import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency
 import { formatScheduledTime, formatShortOrderId, isFromSubscription } from "@/src/lib/order-detail-format";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort } from "@/src/lib/utils";
 import { isIncoming, isInPreparation, shortAddress, type QueueOrder } from "./queue-model";
+import { Spinner } from "@/src/components/ui/spinner";
+import { Badge } from "@/src/components/ui/badge";
 
 const URGENCY_STRIPE: Record<string, string> = {
   overdue: "bg-destructive",
@@ -28,23 +30,23 @@ export interface OrderActions {
 /** Prazo de resposta de um pedido novo. */
 export function SlaPill({ order }: { order: QueueOrder }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-warning-surface px-2 py-0.5 text-xs font-semibold text-warning-foreground">
-      <Clock3 className="size-3" aria-hidden />
+    <Badge variant="secondary" className="h-auto bg-warning-surface py-0.5 font-semibold text-warning-foreground">
+      <Clock3 aria-hidden />
       <SlaCountdown
         deadlineIso={order.sla_deadline}
         prefix="Responder em"
         expiredLabel="Prazo de resposta vencido"
         className="font-sans text-xs font-semibold text-inherit"
       />
-    </span>
+    </Badge>
   );
 }
 
 export function SubscriptionChip() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-primary">
-      <Repeat2 className="size-3" aria-hidden /> Assinatura
-    </span>
+    <Badge variant="secondary" className="text-primary">
+      <Repeat2 aria-hidden /> Assinatura
+    </Badge>
   );
 }
 
@@ -64,7 +66,7 @@ export function OrderActionButtons({
           <X aria-hidden /> Recusar
         </Button>
         <Button variant="cta" size={size} disabled={loading} onClick={() => onAccept(order)}>
-          {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />} Aceitar
+          {loading ? <Spinner aria-hidden /> : <Check aria-hidden />} Aceitar
         </Button>
       </div>
     );

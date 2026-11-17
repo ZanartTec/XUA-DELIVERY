@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronRight, Loader2, PackageCheck, X } from "lucide-react";
+import { Check, ChevronRight, PackageCheck, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cardVariants } from "@/src/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
@@ -12,6 +12,7 @@ import { formatScheduledTime, formatShortOrderId, isFromSubscription } from "@/s
 import { cn, formatCurrency, formatDateShort, formatRelativeShort } from "@/src/lib/utils";
 import { SlaPill, SubscriptionChip, type OrderActions } from "./order-card";
 import { isIncoming, isInPreparation, shortAddress, type QueueOrder } from "./queue-model";
+import { Spinner } from "@/src/components/ui/spinner";
 
 function DeliveryCell({ order }: { order: QueueOrder }) {
   const urgency = useDeliveryUrgency(order);
@@ -47,7 +48,7 @@ function RowActions({ order, loading, onAccept, onReject, onOpen }: OrderActions
           <X aria-hidden /> Recusar
         </Button>
         <Button variant="cta" size="sm" disabled={loading} onClick={() => onAccept(order)}>
-          {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />} Aceitar
+          {loading ? <Spinner aria-hidden /> : <Check aria-hidden />} Aceitar
         </Button>
       </div>
     );
@@ -104,14 +105,19 @@ export function QueueTable({ orders, actionLoadingId, onOpen, onAccept, onReject
           {orders.map((order) => {
             const incoming = isIncoming(order);
             return (
-              <TableRow key={order.id} onClick={() => onOpen(order)} className="h-16 cursor-pointer">
+              <TableRow key={order.id} onClick={() => onOpen(order)} className="cursor-pointer">
                 <TableCell>
-                  <button type="button" className="block text-left outline-none focus-visible:underline">
-                    <span className="block font-mono text-[13px] font-semibold text-foreground">
-                      #{formatShortOrderId(order.id)}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">{formatRelativeShort(order.created_at)}</span>
-                  </button>
+                  <Button
+                    variant="link"
+                    className="h-auto flex-col items-start gap-0 p-0 text-foreground no-underline hover:no-underline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpen(order);
+                    }}
+                  >
+                    <span className="font-mono text-[13px] font-semibold">#{formatShortOrderId(order.id)}</span>
+                    <span className="text-xs font-normal text-muted-foreground">{formatRelativeShort(order.created_at)}</span>
+                  </Button>
                   {isFromSubscription(order) ? (
                     <span className="mt-1 inline-block">
                       <SubscriptionChip />

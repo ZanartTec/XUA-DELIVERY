@@ -112,9 +112,9 @@ export function QueueFilterFields(props: QueueFilterFieldsProps) {
           onValueChange={(v) => isQueueOrigin(v) && onChange({ origin: v })}
           className="grid w-full grid-cols-3"
         >
-          <ToggleGroupItem value="all" className="h-11">Todos</ToggleGroupItem>
-          <ToggleGroupItem value="cart" className="h-11">Avulso</ToggleGroupItem>
-          <ToggleGroupItem value="subscription" className="h-11">Assinatura</ToggleGroupItem>
+          <ToggleGroupItem value="all" className="h-11 md:h-9">Todos</ToggleGroupItem>
+          <ToggleGroupItem value="cart" className="h-11 md:h-9">Avulso</ToggleGroupItem>
+          <ToggleGroupItem value="subscription" className="h-11 md:h-9">Assinatura</ToggleGroupItem>
         </ToggleGroup>
       </div>
       <div className="grid gap-1.5">

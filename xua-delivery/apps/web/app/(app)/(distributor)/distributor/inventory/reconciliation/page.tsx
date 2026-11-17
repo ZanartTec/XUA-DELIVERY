@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Loader2, Minus, Plus, RefreshCw, Scale } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Minus, Plus, RefreshCw, Scale } from "lucide-react";
 import { toast } from "sonner";
 import type { InventoryItemType } from "@xua/shared/enums";
 
@@ -20,6 +20,7 @@ import { ApiError, api } from "@/src/lib/api-client";
 import { formatInventoryQuantity, INVENTORY_ITEM_TYPE_LABEL } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
 import { cardVariants } from "@/src/components/ui/card";
+import { Spinner } from "@/src/components/ui/spinner";
 
 const EMPTY_COUNTS: Record<string, string> = {};
 
@@ -287,7 +288,7 @@ export default function DistributorInventoryReconciliationPage() {
                         disabled={session.status !== "OPEN"}
                         value={value}
                         onChange={(e) => setCount(item.inventory_item_id, e.target.value)}
-                        className="h-11 w-24 text-center font-heading text-lg font-bold"
+                        className="h-11 md:h-9 w-24 text-center font-heading text-lg font-bold"
                       />
                       <Button
                         type="button"
@@ -340,7 +341,7 @@ export default function DistributorInventoryReconciliationPage() {
             <ConfirmAction
               trigger={
                 <Button variant="cta" size="xl" disabled={closeMutation.isPending || invalidCounts}>
-                  {closeMutation.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <ClipboardCheck aria-hidden />}
+                  {closeMutation.isPending ? <Spinner aria-hidden /> : <ClipboardCheck aria-hidden />}
                   Finalizar conferência
                 </Button>
               }
@@ -355,7 +356,7 @@ export default function DistributorInventoryReconciliationPage() {
             />
           ) : (
             <Button variant="cta" size="xl" disabled={openMutation.isPending} onClick={() => openMutation.mutate()}>
-              {openMutation.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Scale aria-hidden />}
+              {openMutation.isPending ? <Spinner aria-hidden /> : <Scale aria-hidden />}
               {session ? "Nova conferência" : "Começar conferência"}
             </Button>
           )}

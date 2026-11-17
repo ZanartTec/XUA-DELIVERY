@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2 } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/components/ui/select";
@@ -12,6 +12,7 @@ import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { addDaysIso, todayIso } from "@/src/lib/datetime";
 import { useOpsDistributors } from "@/src/hooks/ops/use-ops-zones";
 import { cardVariants } from "@/src/components/ui/card";
+import { Spinner } from "@/src/components/ui/spinner";
 
 /**
  * Grupos de eventos em linguagem de operação. O CSV continua trazendo o código
@@ -152,11 +153,11 @@ export default function AuditExportPage() {
           <div className="grid grid-cols-2 gap-3">
             <label className="min-w-0 space-y-1.5">
               <span className="text-sm font-medium">De</span>
-              <Input type="date" value={startDate} max={endDate || today} onChange={(e) => setStartDate(e.target.value)} className="h-11 w-full min-w-0 rounded-xl" />
+              <Input type="date" value={startDate} max={endDate || today} onChange={(e) => setStartDate(e.target.value)} className="h-11 md:h-9 w-full min-w-0 rounded-xl" />
             </label>
             <label className="min-w-0 space-y-1.5">
               <span className="text-sm font-medium">Até</span>
-              <Input type="date" value={endDate} min={startDate} max={today} onChange={(e) => setEndDate(e.target.value)} className="h-11 w-full min-w-0 rounded-xl" />
+              <Input type="date" value={endDate} min={startDate} max={today} onChange={(e) => setEndDate(e.target.value)} className="h-11 md:h-9 w-full min-w-0 rounded-xl" />
             </label>
           </div>
           {invalidRange ? <p className="text-sm text-destructive">A data inicial precisa ser antes da final.</p> : null}
@@ -192,7 +193,7 @@ export default function AuditExportPage() {
             <p className="text-sm text-muted-foreground">Ao escolher uma, só entram eventos de pedidos dela.</p>
           </div>
           <Select value={distributorId} onValueChange={setDistributorId}>
-            <SelectTrigger className="h-11 w-full rounded-xl" aria-label="Distribuidora">
+            <SelectTrigger className="h-11 md:h-9 w-full rounded-xl" aria-label="Distribuidora">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -209,7 +210,7 @@ export default function AuditExportPage() {
 
       <StickyActionBar>
         <Button variant="cta" size="xl" disabled={loading || invalidRange} onClick={handleExport}>
-          {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Download aria-hidden />}
+          {loading ? <Spinner aria-hidden /> : <Download aria-hidden />}
           Baixar CSV
         </Button>
       </StickyActionBar>

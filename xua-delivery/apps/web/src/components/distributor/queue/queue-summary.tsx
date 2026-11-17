@@ -37,18 +37,18 @@ function Metric({ label, value, hint, icon: Icon, tone, alert, selected, onClick
       className={cardVariants({
         variant: "interactive",
         className: cn(
-          "flex items-center gap-4 p-4 text-left",
+          "flex items-center gap-3 p-3 text-left",
           alert && TONE[tone].ring,
           selected && "border-primary ring-1 ring-primary/30",
         ),
       })}
     >
-      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", palette.icon)}>
-        <Icon className="size-5" aria-hidden />
+      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", palette.icon)}>
+        <Icon className="size-4" aria-hidden />
       </span>
       <span className="min-w-0">
         <span className="block text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="block font-heading text-3xl leading-tight font-bold text-ink tabular-nums">{value}</span>
+        <span className="block font-heading text-2xl leading-tight font-bold text-ink tabular-nums">{value}</span>
         <span className="block truncate text-xs text-muted-foreground">{hint}</span>
       </span>
     </button>

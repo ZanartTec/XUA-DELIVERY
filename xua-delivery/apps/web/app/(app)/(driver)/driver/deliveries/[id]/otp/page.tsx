@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Banknote, CreditCard, FileText, Loader2, Phone, WifiOff } from "lucide-react";
+import { Banknote, CreditCard, FileText, Phone, WifiOff } from "lucide-react";
 import { OtpInput } from "@/src/components/shared/driver/otp-input";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -19,6 +19,7 @@ import { phoneHref, plural } from "@/src/lib/format";
 import { openReceipt, orderReceiptUrl, readReceiptFormat } from "@/src/lib/receipt";
 import { isCashPaymentMethod, isOfflinePaymentMethod } from "@xua/shared/mappers/payment";
 import { cardVariants } from "@/src/components/ui/card";
+import { Spinner } from "@/src/components/ui/spinner";
 
 const CONDITIONS = [
   { value: "ok", label: "OK" },
@@ -312,7 +313,7 @@ export default function CompleteDeliveryPage() {
                   <ToggleGroupItem
                     key={item.value}
                     value={item.value}
-                    className="h-11 rounded-xl bg-surface-low data-[state=on]:bg-secondary data-[state=on]:font-semibold data-[state=on]:text-primary"
+                    className="h-11 md:h-9 rounded-xl bg-surface-low data-[state=on]:bg-secondary data-[state=on]:font-semibold data-[state=on]:text-primary"
                   >
                     {item.label}
                   </ToggleGroupItem>
@@ -370,10 +371,10 @@ export default function CompleteDeliveryPage() {
                     className="grid w-full grid-cols-2"
                     spacing={2}
                   >
-                    <ToggleGroupItem value="cash" className="h-11 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+                    <ToggleGroupItem value="cash" className="h-11 md:h-9 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
                       Dinheiro
                     </ToggleGroupItem>
-                    <ToggleGroupItem value="card_on_delivery" className="h-11 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
+                    <ToggleGroupItem value="card_on_delivery" className="h-11 md:h-9 rounded-xl bg-card data-[state=on]:bg-cta data-[state=on]:text-cta-foreground">
                       Cartão
                     </ToggleGroupItem>
                   </ToggleGroup>
@@ -415,7 +416,7 @@ export default function CompleteDeliveryPage() {
 
           {loading ? (
             <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-              <Loader2 className="size-4 animate-spin" aria-hidden /> Confirmando…
+              <Spinner className="size-4" aria-hidden /> Confirmando…
             </p>
           ) : null}
           {attempts > 0 && !locked ? (

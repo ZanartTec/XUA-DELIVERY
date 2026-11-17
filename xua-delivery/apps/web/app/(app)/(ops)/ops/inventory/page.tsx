@@ -225,7 +225,7 @@ export default function OpsInventoryPage() {
                 }}
                 placeholder="Buscar item ou código"
                 aria-label="Buscar item"
-                className="h-11 rounded-xl pl-9"
+                className="h-11 md:h-9 rounded-xl pl-9"
               />
             </div>
             <Button variant="outline" className="relative h-11 rounded-xl" onClick={() => setFiltersOpen(true)}>
@@ -316,7 +316,7 @@ export default function OpsInventoryPage() {
                     setStart(event.target.value);
                     setMovementOffset(0);
                   }}
-                  className="h-11 w-full min-w-0 rounded-xl"
+                  className="h-11 md:h-9 w-full min-w-0 rounded-xl"
                 />
               </label>
               <label className="min-w-0 space-y-1.5">
@@ -329,7 +329,7 @@ export default function OpsInventoryPage() {
                     setEnd(event.target.value);
                     setMovementOffset(0);
                   }}
-                  className="h-11 w-full min-w-0 rounded-xl"
+                  className="h-11 md:h-9 w-full min-w-0 rounded-xl"
                 />
               </label>
             </div>
@@ -481,7 +481,7 @@ function FilterSelect({
     <div className="space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-11 w-full rounded-xl" aria-label={label}>
+        <SelectTrigger className="h-11 md:h-9 w-full rounded-xl" aria-label={label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Check, Loader2, PackageCheck } from "lucide-react";
+import { AlertTriangle, Check, PackageCheck } from "lucide-react";
 import {
   OrderCustomerSection,
   OrderInstructionsSection,
@@ -27,6 +27,7 @@ import { EmptyState } from "@/src/components/shared/empty-state";
 import { ApiError, api } from "@/src/lib/api-client";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { OrderStatus } from "@/src/types/enums";
+import { Spinner } from "@/src/components/ui/spinner";
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message;
@@ -121,7 +122,7 @@ export default function DistributorOrderDetailPage() {
                 Recusar
               </Button>
               <Button variant="cta" size="xl" disabled={action.isPending} onClick={() => action.mutate({ name: "accept" })}>
-                {action.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
+                {action.isPending ? <Spinner aria-hidden /> : <Check aria-hidden />}
                 Aceitar pedido
               </Button>
             </>

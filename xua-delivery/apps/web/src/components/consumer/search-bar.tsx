@@ -20,7 +20,7 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
         aria-label="Buscar produtos"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 rounded-xl border-0 bg-muted pr-10 pl-11 text-base md:text-sm [&::-webkit-search-cancel-button]:hidden"
+        className="h-11 md:h-9 rounded-xl border-0 bg-muted pr-10 pl-11 text-base md:text-sm [&::-webkit-search-cancel-button]:hidden"
       />
       {value ? (
         <Button

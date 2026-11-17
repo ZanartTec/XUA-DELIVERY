@@ -48,6 +48,7 @@ import { playNewOrderSound, setNewOrderSoundEnabled, useNewOrderSoundEnabled } f
 import { ApiError, api } from "@/src/lib/api-client";
 import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { cn, formatTime } from "@/src/lib/utils";
+import { Badge } from "@/src/components/ui/badge";
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiError || error instanceof Error) return error.message;
@@ -296,9 +297,7 @@ function DistributorQueueContent() {
               <SlidersHorizontal />
               <span className="hidden sm:inline">Filtros</span>
               {activeFilterCount > 0 ? (
-                <span className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                  {activeFilterCount}
-                </span>
+                <Badge className="absolute -top-1.5 -right-1.5 size-5 rounded-full px-0 font-bold">{activeFilterCount}</Badge>
               ) : null}
             </Button>
           </div>

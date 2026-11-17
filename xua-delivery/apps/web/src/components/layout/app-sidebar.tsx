@@ -13,6 +13,7 @@ import {
 import type { NavItem, RoleNav } from "./nav-config";
 import { NavPrincipal } from "./nav-principal";
 import { UserMenu } from "./user-menu";
+import { Badge } from "@/src/components/ui/badge";
 
 interface AppSidebarProps {
   nav: RoleNav;
@@ -44,9 +45,9 @@ export function AppSidebar({ nav, homeHref, activeHref, badges, userName }: AppS
             className={collapsed ? "size-8 rounded-md" : "h-9 w-auto"}
           />
           {collapsed ? null : (
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+            <Badge variant="secondary" className="bg-primary/10 font-semibold text-primary">
               {nav.badgeLabel}
-            </span>
+            </Badge>
           )}
         </Link>
       </SidebarHeader>

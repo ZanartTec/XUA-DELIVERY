@@ -137,7 +137,7 @@ export default function OpsInventoryReconciliationsPage() {
               setOffset(0);
             }}
           >
-            <SelectTrigger className="h-11 w-full rounded-xl" aria-label="Distribuidora">
+            <SelectTrigger className="h-11 md:h-9 w-full rounded-xl" aria-label="Distribuidora">
               <SelectValue placeholder="Distribuidora" />
             </SelectTrigger>
             <SelectContent>

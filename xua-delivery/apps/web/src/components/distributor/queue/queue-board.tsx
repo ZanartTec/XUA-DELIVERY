@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
 import { OrderCard, type OrderActions } from "./order-card";
 import { STAGES, type QueueBoardColumn, type QueueBoardStage } from "./queue-model";
+import { Badge } from "@/src/components/ui/badge";
 
 const STAGE_DOT: Record<QueueBoardStage, string> = {
   incoming: "bg-warning",
@@ -51,9 +52,9 @@ export function QueueBoard({
             <span aria-hidden className={cn("size-2 rounded-full", STAGE_DOT[stage.key])} />
             <span>{stage.label}</span>
             <span className="hidden font-normal text-muted-foreground xl:inline">· {stage.hint}</span>
-            <span className="ml-auto rounded-md bg-background px-1.5 text-xs text-muted-foreground tabular-nums lg:border lg:border-hairline">
+            <Badge variant="outline" className="ml-auto bg-background text-muted-foreground tabular-nums">
               {stage.total}
-            </span>
+            </Badge>
           </h2>
           {stage.orders.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-hairline px-4 py-6 text-center text-sm text-muted-foreground lg:m-3 lg:mt-3">

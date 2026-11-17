@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Loader2, ShieldCheck, Wallet } from "lucide-react";
+import { KeyRound, ShieldCheck, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -21,6 +21,7 @@ import type {
 } from "@xua/shared/schemas/distributor-payment-settings";
 import { cardVariants } from "@/src/components/ui/card";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type Methods = {
   accepts_pix_online: boolean;
@@ -220,7 +221,7 @@ export default function DistributorPaymentConfigPage() {
                       value={accessToken}
                       onChange={(e) => setAccessToken(e.target.value)}
                       placeholder={mpConnected ? "Manter o atual" : "APP_USR-..."}
-                      className="h-11"
+                      className="h-11 md:h-9"
                     />
                   )}
                 </FormField>
@@ -232,13 +233,13 @@ export default function DistributorPaymentConfigPage() {
                       value={webhookSecret}
                       onChange={(e) => setWebhookSecret(e.target.value)}
                       placeholder={mpConnected ? "Manter o atual" : "Assinatura secreta do webhook"}
-                      className="h-11"
+                      className="h-11 md:h-9"
                     />
                   )}
                 </FormField>
                 <FormField label="Public key" optional>
                   {(field) => (
-                    <Input {...field} autoComplete="off" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." className="h-11" />
+                    <Input {...field} autoComplete="off" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." className="h-11 md:h-9" />
                   )}
                 </FormField>
               </section>
@@ -255,7 +256,7 @@ export default function DistributorPaymentConfigPage() {
 
       <StickyActionBar>
         <Button variant="cta" size="xl" disabled={!dirty || saving || loading || missingGateway || noneSelected} onClick={save}>
-          {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {saving ? <Spinner aria-hidden /> : null}
           {dirty ? "Salvar alterações" : "Tudo salvo"}
         </Button>
       </StickyActionBar>

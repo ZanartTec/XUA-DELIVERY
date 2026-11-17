@@ -70,15 +70,15 @@ function MenuRow({
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
     </>
   );
-  const className = "flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted";
+  const className = "h-auto min-h-16 w-full justify-start gap-3 rounded-none px-4 py-3 text-left font-normal text-foreground";
   return href ? (
-    <Link href={href} className={className}>
-      {content}
-    </Link>
+    <Button asChild variant="ghost" className={className}>
+      <Link href={href}>{content}</Link>
+    </Button>
   ) : (
-    <button type="button" onClick={onClick} className={className}>
+    <Button type="button" variant="ghost" onClick={onClick} className={className}>
       {content}
-    </button>
+    </Button>
   );
 }
 

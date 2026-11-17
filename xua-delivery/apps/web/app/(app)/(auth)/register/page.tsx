@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { registerSchema, type RegisterInput } from "@/src/schemas/auth";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -14,6 +14,7 @@ import { MaskedInput } from "@/src/components/shared/masked-input";
 import { PasswordInput } from "@/src/components/shared/password-input";
 import { AuthShell } from "@/src/components/auth/auth-shell";
 import { formatPhone } from "@/src/lib/format";
+import { Spinner } from "@/src/components/ui/spinner";
 
 /** Força simples só para orientar (a regra real continua sendo mínimo de 8). */
 function passwordHint(pw: string): { label: string; tone: string } | null {
@@ -105,7 +106,7 @@ export default function RegisterPage() {
 
         <FormField label="Nome completo" error={errors.name?.message}>
           {(field) => (
-            <Input {...field} autoComplete="name" placeholder="Como devemos te chamar" className="h-11 rounded-xl" {...register("name")} />
+            <Input {...field} autoComplete="name" placeholder="Como devemos te chamar" className="h-11 md:h-9 rounded-xl" {...register("name")} />
           )}
         </FormField>
 
@@ -117,7 +118,7 @@ export default function RegisterPage() {
               inputMode="email"
               autoComplete="email"
               placeholder="nome@exemplo.com"
-              className="h-11 rounded-xl"
+              className="h-11 md:h-9 rounded-xl"
               {...register("email")}
             />
           )}
@@ -137,7 +138,7 @@ export default function RegisterPage() {
                   onBlur={f.onBlur}
                   name={f.name}
                   placeholder="(00) 00000-0000"
-                  className="h-11 rounded-xl"
+                  className="h-11 md:h-9 rounded-xl"
                 />
               )}
             />
@@ -151,7 +152,7 @@ export default function RegisterPage() {
                 {...field}
                 autoComplete="new-password"
                 placeholder="Mínimo de 8 caracteres"
-                className="h-11 rounded-xl"
+                className="h-11 md:h-9 rounded-xl"
                 {...register("password")}
               />
               {hint && !errors.password ? <p className={`text-xs ${hint.tone}`}>{hint.label}</p> : null}
@@ -160,7 +161,7 @@ export default function RegisterPage() {
         </FormField>
 
         <Button type="submit" variant="cta" size="xl" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" aria-hidden /> : null}
+          {isSubmitting ? <Spinner aria-hidden /> : null}
           {isSubmitting ? "Criando conta…" : "Criar conta"}
           {!isSubmitting ? <ArrowRight aria-hidden /> : null}
         </Button>

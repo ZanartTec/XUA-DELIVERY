@@ -14,6 +14,7 @@ import { ZoneDeactivateDialog } from "./zone-deactivate-dialog";
 import { ZoneForm } from "./zone-form";
 import { ZoneTransferDialog } from "./zone-transfer-dialog";
 import { OPS_ROW_ACTION } from "./styles";
+import { TableCell, TableRow } from "@/src/components/ui/table";
 
 export const ZONE_TABLE_COLUMNS = 7;
 
@@ -32,7 +33,7 @@ interface ZoneRowProps {
   onDeactivateOpenChange: (open: boolean) => void;
 }
 
-const CELL = "px-3 py-2.5 align-middle";
+const CELL = "h-auto px-3 py-2.5 align-middle whitespace-normal";
 
 export function ZoneRow({
   zone,
@@ -80,14 +81,14 @@ export function ZoneRow({
 
   return (
     <>
-      <tr
+      <TableRow
         className={cn(
           "border-b border-hairline transition-colors hover:bg-surface-highest/30",
           !zone.is_active && "opacity-60",
           isExpanded && "bg-cta/5"
         )}
       >
-        <td className={cn(CELL, "w-8")}>
+        <TableCell className={cn(CELL, "w-8")}>
           <button
             type="button"
             onClick={onToggleExpand}
@@ -101,9 +102,9 @@ export function ZoneRow({
               <ChevronRight className="h-4 w-4" />
             )}
           </button>
-        </td>
+        </TableCell>
 
-        <td className={cn(CELL, "font-medium whitespace-nowrap")}>
+        <TableCell className={cn(CELL, "font-medium whitespace-nowrap")}>
           <button
             type="button"
             onClick={onToggleExpand}
@@ -111,23 +112,23 @@ export function ZoneRow({
           >
             {zone.name}
           </button>
-        </td>
+        </TableCell>
 
         {showDistributorColumn && (
-          <td className={cn(CELL, "text-muted-foreground")}>{zone.distributor.name}</td>
+          <TableCell className={cn(CELL, "text-muted-foreground")}>{zone.distributor.name}</TableCell>
         )}
 
-        <td className={cn(CELL, "tabular-nums text-muted-foreground")}>
+        <TableCell className={cn(CELL, "tabular-nums text-muted-foreground")}>
           {zone._count.coverage}
-        </td>
-        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
+        </TableCell>
+        <TableCell className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.addresses}
-        </td>
-        <td className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
+        </TableCell>
+        <TableCell className={cn(CELL, "hidden tabular-nums text-muted-foreground sm:table-cell")}>
           {zone._count.orders}
-        </td>
+        </TableCell>
 
-        <td className={CELL}>
+        <TableCell className={CELL}>
           <span
             className={cn(
               "inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
@@ -136,9 +137,9 @@ export function ZoneRow({
           >
             {zone.is_active ? "Ativa" : "Inativa"}
           </span>
-        </td>
+        </TableCell>
 
-        <td className={cn(CELL, "text-right")}>
+        <TableCell className={cn(CELL, "text-right")}>
           <div className="flex justify-end gap-1.5">
             <Button
               size="sm"
@@ -176,12 +177,12 @@ export function ZoneRow({
               </Button>
             )}
           </div>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
 
       {isEditing && (
-        <tr className="border-b border-hairline bg-white">
-          <td colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
+        <TableRow className="border-b border-hairline bg-white">
+          <TableCell colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
             <div className="max-w-sm">
               <ZoneForm
                 title="Renomear zona"
@@ -192,16 +193,16 @@ export function ZoneRow({
                 onCancel={onStopEdit}
               />
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
 
       {isExpanded && (
-        <tr className="border-b border-hairline bg-cta/5">
-          <td colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
+        <TableRow className="border-b border-hairline bg-cta/5">
+          <TableCell colSpan={showDistributorColumn ? ZONE_TABLE_COLUMNS + 1 : ZONE_TABLE_COLUMNS} className="px-3 py-3">
             <CoverageEditor zone={zone} />
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
 
       <ZoneTransferDialog

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Truck, UserRound } from "lucide-react";
+import { Truck, UserRound } from "lucide-react";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -24,6 +24,7 @@ import { formatReceiptNumber, openReceipt, orderReceiptUrl, readReceiptFormat } 
 import { cn } from "@/src/lib/utils";
 import { OrderStatus } from "@xua/shared/enums";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 
 export default function ChecklistPage() {
@@ -198,7 +199,7 @@ export default function ChecklistPage() {
           }
         >
           <Button variant="cta" size="xl" disabled={!canDispatch || loading} onClick={handleDispatch}>
-            {loading ? <Loader2 className="animate-spin" aria-hidden /> : <Truck aria-hidden />}
+            {loading ? <Spinner aria-hidden /> : <Truck aria-hidden />}
             {loading ? "Despachando…" : "Despachar pedido"}
           </Button>
         </StickyActionBar>

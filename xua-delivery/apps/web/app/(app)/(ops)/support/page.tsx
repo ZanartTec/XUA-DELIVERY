@@ -96,7 +96,7 @@ export default function SupportPage() {
               }}
               placeholder="Nome, e-mail, telefone ou nº do pedido"
               aria-label="Buscar pedido"
-              className="h-11 rounded-xl pl-9"
+              className="h-11 md:h-9 rounded-xl pl-9"
             />
           </div>
           <Button type="submit" variant="cta" size="xl" disabled={input.trim().length < 3}>

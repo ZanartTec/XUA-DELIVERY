@@ -13,6 +13,7 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { groupNavItems, type NavItem } from "./nav-config";
+import { Kbd } from "@/src/components/ui/kbd";
 
 /** ⌘K / Ctrl K: navegação rápida pelas telas do perfil. */
 export function CommandPalette({ items }: { items: NavItem[] }) {
@@ -45,7 +46,7 @@ export function CommandPalette({ items }: { items: NavItem[] }) {
       >
         <Search aria-hidden />
         Ir para…
-        <kbd className="ml-auto font-mono text-[11px] text-muted-foreground">Ctrl K</kbd>
+        <Kbd className="ml-auto">Ctrl K</Kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen} title="Ir para" description="Busque uma tela">
         <CommandInput placeholder="Buscar tela…" />

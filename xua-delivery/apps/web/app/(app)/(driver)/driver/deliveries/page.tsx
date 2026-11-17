@@ -16,6 +16,7 @@ import { cn, formatCurrency } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
 import { cardVariants } from "@/src/components/ui/card";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Badge } from "@/src/components/ui/badge";
 
 interface Delivery {
   order_id: string;
@@ -152,7 +153,7 @@ function StopCard({ delivery: d }: { delivery: Delivery }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate font-semibold text-foreground">{d.consumer_name}</p>
-              <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold text-primary">{windowLabel(d.delivery_window)}</span>
+              <Badge variant="secondary" className="text-primary">{windowLabel(d.delivery_window)}</Badge>
             </div>
             <p className="mt-0.5 flex items-start gap-1 text-sm text-muted-foreground">
               <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />

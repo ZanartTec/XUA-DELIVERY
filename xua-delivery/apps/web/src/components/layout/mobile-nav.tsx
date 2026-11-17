@@ -8,6 +8,7 @@ import { RealtimeIndicator } from "@/src/realtime/realtime-indicator";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/src/components/ui/drawer";
 import { ConsumerAddress } from "./consumer-address";
 import type { NavItem } from "./nav-config";
+import { Badge } from "@/src/components/ui/badge";
 
 /** No celular cabem 5 itens; acima disso, os 4 primeiros + "Mais". */
 const MAX_BOTTOM_ITEMS = 5;
@@ -50,9 +51,9 @@ export function MobileHeader({ isConsumer, roleLabel, firstName }: MobileHeaderP
           <div className="flex min-w-0 items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-transparent.png" alt="Xuá" className="h-8 w-auto" />
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+            <Badge variant="secondary" className="bg-primary/10 font-semibold text-primary">
               {roleLabel}
-            </span>
+            </Badge>
           </div>
           <div className="flex min-w-0 items-center gap-3">
             <RealtimeIndicator />

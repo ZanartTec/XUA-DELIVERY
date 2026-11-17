@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ArrowUp, History, Loader2, PackagePlus, PackageSearch, Scale, Search } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, History, PackagePlus, PackageSearch, Scale, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { InventoryItemType, InventoryMovementType } from "@xua/shared/enums";
 
@@ -29,6 +29,7 @@ import {
 } from "@/src/lib/inventory-ui";
 import { cn, formatDate, formatTime } from "@/src/lib/utils";
 import { DataView, type Column } from "@/src/components/shared/data-view";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface Pagination {
   limit: number;
@@ -297,7 +298,7 @@ export default function DistributorInventoryPage() {
               }}
               placeholder="Buscar item ou código"
               aria-label="Buscar item"
-              className="h-11 rounded-xl pl-9"
+              className="h-11 md:h-9 rounded-xl pl-9"
             />
           </div>
           <ToggleGroup
@@ -459,7 +460,7 @@ export default function DistributorInventoryPage() {
               loadMutation.mutate({ batch_id: createBatchId(), observation: loadObservation.trim() || undefined, items: loadItems })
             }
           >
-            {loadMutation.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {loadMutation.isPending ? <Spinner aria-hidden /> : null}
             Registrar carga
           </Button>
         }
@@ -480,7 +481,7 @@ export default function DistributorInventoryPage() {
                 value={loadQuantities[item.id] ?? ""}
                 onChange={(e) => setLoadQuantities((c) => ({ ...c, [item.id]: e.target.value }))}
                 placeholder="0"
-                className="h-11 text-right"
+                className="h-11 md:h-9 text-right"
               />
             </div>
           ))}

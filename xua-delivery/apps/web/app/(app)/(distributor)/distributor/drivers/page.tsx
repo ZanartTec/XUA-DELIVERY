@@ -7,7 +7,7 @@ import {
   useDistributorDrivers,
   type DistributorDriver,
 } from "@/src/hooks/distributor/use-distributor-drivers";
-import { Loader2, MoreVertical, Pencil, Phone, Plus, Power, Truck } from "lucide-react";
+import { MoreVertical, Pencil, Phone, Plus, Power, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -30,6 +30,7 @@ import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { formatPhone, onlyDigits, phoneHref } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { DataView, type Column } from "@/src/components/shared/data-view";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type Driver = DistributorDriver;
 
@@ -276,26 +277,26 @@ export default function DistributorDriversPage() {
         description={form?.mode === "new" ? "Ele usa o e-mail e a senha para entrar no app do motorista." : undefined}
         footer={
           <Button variant="cta" size="xl" disabled={!canSubmit || saving} onClick={submit}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {form?.mode === "edit" ? "Salvar" : "Cadastrar motorista"}
           </Button>
         }
       >
         <div className="grid gap-4">
           <FormField label="Nome">
-            {(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className="h-11" />}
+            {(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className="h-11 md:h-9" />}
           </FormField>
           {form?.mode === "new" ? (
             <FormField label="E-mail">
-              {(f) => <Input {...f} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" className="h-11" />}
+              {(f) => <Input {...f} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" className="h-11 md:h-9" />}
             </FormField>
           ) : null}
           <FormField label="Celular" optional>
-            {(f) => <MaskedInput {...f} mask="phone" value={phone} onValueChange={setPhone} placeholder="(00) 00000-0000" className="h-11" />}
+            {(f) => <MaskedInput {...f} mask="phone" value={phone} onValueChange={setPhone} placeholder="(00) 00000-0000" className="h-11 md:h-9" />}
           </FormField>
           {form?.mode === "new" ? (
             <FormField label="Senha inicial" hint="Mínimo de 8 caracteres. Ele pode trocar em Conta.">
-              {(f) => <PasswordInput {...f} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="h-11" />}
+              {(f) => <PasswordInput {...f} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="h-11 md:h-9" />}
             </FormField>
           ) : null}
         </div>

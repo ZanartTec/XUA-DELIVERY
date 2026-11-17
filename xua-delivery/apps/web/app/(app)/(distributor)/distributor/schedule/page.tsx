@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarOff, Clock, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarOff, Clock, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -19,6 +19,7 @@ import { isoDayToDate, todayIso } from "@/src/lib/datetime";
 import { cn } from "@/src/lib/utils";
 import type { DeliveryWindow } from "@xua/shared/enums";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 type WeekdayConfig = { weekday: number; is_active: boolean; lead_time_hours: number };
 type BlockedDate = { id: string; blocked_date: string; reason: string | null };
@@ -353,7 +354,7 @@ export default function DistributorSchedulePage() {
       <StickyActionBar>
         {tab === "dias" ? (
           <Button variant="cta" size="xl" disabled={!dirty || saving || loading} onClick={saveWeekdays}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {dirty ? "Salvar dias" : "Dias salvos"}
           </Button>
         ) : tab === "horarios" ? (
@@ -373,7 +374,7 @@ export default function DistributorSchedulePage() {
         title="Novo horário de entrega"
         footer={
           <Button variant="cta" size="xl" disabled={!slotForm.label.trim() || savingSlot} onClick={addTimeSlot}>
-            {savingSlot ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {savingSlot ? <Spinner aria-hidden /> : null}
             Adicionar horário
           </Button>
         }
@@ -381,16 +382,16 @@ export default function DistributorSchedulePage() {
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="slot-label">Nome que o cliente vê</Label>
-            <Input id="slot-label" value={slotForm.label} onChange={(e) => setSlotForm((f) => ({ ...f, label: e.target.value }))} placeholder="Ex.: Início da manhã" className="h-11" />
+            <Input id="slot-label" value={slotForm.label} onChange={(e) => setSlotForm((f) => ({ ...f, label: e.target.value }))} placeholder="Ex.: Início da manhã" className="h-11 md:h-9" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="slot-start">Das</Label>
-              <Input id="slot-start" type="time" step={900} value={slotForm.start} onChange={(e) => setSlotForm((f) => ({ ...f, start: e.target.value }))} className="h-11" />
+              <Input id="slot-start" type="time" step={900} value={slotForm.start} onChange={(e) => setSlotForm((f) => ({ ...f, start: e.target.value }))} className="h-11 md:h-9" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="slot-end">Até</Label>
-              <Input id="slot-end" type="time" step={900} value={slotForm.end} onChange={(e) => setSlotForm((f) => ({ ...f, end: e.target.value }))} className="h-11" />
+              <Input id="slot-end" type="time" step={900} value={slotForm.end} onChange={(e) => setSlotForm((f) => ({ ...f, end: e.target.value }))} className="h-11 md:h-9" />
             </div>
           </div>
           <div className="grid gap-1.5">
@@ -402,8 +403,8 @@ export default function DistributorSchedulePage() {
               onValueChange={(v) => v && setSlotForm((f) => ({ ...f, window: v as DeliveryWindow }))}
               className="grid w-full grid-cols-2"
             >
-              <ToggleGroupItem value="MORNING" className="h-11">Manhã</ToggleGroupItem>
-              <ToggleGroupItem value="AFTERNOON" className="h-11">Tarde</ToggleGroupItem>
+              <ToggleGroupItem value="MORNING" className="h-11 md:h-9">Manhã</ToggleGroupItem>
+              <ToggleGroupItem value="AFTERNOON" className="h-11 md:h-9">Tarde</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -416,7 +417,7 @@ export default function DistributorSchedulePage() {
         description="Nenhuma entrega poderá ser agendada nesse dia."
         footer={
           <Button variant="cta" size="xl" disabled={!newBlockDate || addingBlock} onClick={addBlockedDate}>
-            {addingBlock ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {addingBlock ? <Spinner aria-hidden /> : null}
             Bloquear data
           </Button>
         }
@@ -424,13 +425,13 @@ export default function DistributorSchedulePage() {
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="block-date">Data</Label>
-            <Input id="block-date" type="date" min={todayIso()} value={newBlockDate} onChange={(e) => setNewBlockDate(e.target.value)} className="h-11" />
+            <Input id="block-date" type="date" min={todayIso()} value={newBlockDate} onChange={(e) => setNewBlockDate(e.target.value)} className="h-11 md:h-9" />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="block-reason">
               Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
             </Label>
-            <Input id="block-reason" value={newBlockReason} onChange={(e) => setNewBlockReason(e.target.value)} maxLength={200} placeholder="Ex.: Feriado municipal" className="h-11" />
+            <Input id="block-reason" value={newBlockReason} onChange={(e) => setNewBlockReason(e.target.value)} maxLength={200} placeholder="Ex.: Feriado municipal" className="h-11 md:h-9" />
           </div>
         </div>
       </ResponsiveDialog>

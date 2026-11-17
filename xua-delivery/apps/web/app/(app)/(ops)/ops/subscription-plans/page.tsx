@@ -20,10 +20,11 @@ import { ResponsiveDialog } from "@/src/components/shared/responsive-dialog";
 import { StatusBadge } from "@/src/components/shared/status-badge";
 import { StickyActionBar } from "@/src/components/shared/sticky-action-bar";
 import { todayIso } from "@/src/lib/datetime";
-import { Eye, EyeOff, Loader2, MoreVertical, Pencil, Plus, Repeat } from "lucide-react";
+import { Eye, EyeOff, MoreVertical, Pencil, Plus, Repeat } from "lucide-react";
 import { cn, formatCurrency } from "@/src/lib/utils";
 import { toast } from "sonner";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,11 +165,11 @@ function PlanForm({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Nome do plano">
-        <Input value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Ex.: Galão mensal — 4 entregas" className="h-11" />
+        <Input value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Ex.: Galão mensal — 4 entregas" className="h-11 md:h-9" />
       </Field>
       <Field label="Produto">
         <Select value={draft.product_id} onValueChange={setProduct}>
-          <SelectTrigger className="h-11 w-full">
+          <SelectTrigger className="h-11 md:h-9 w-full">
             <SelectValue placeholder="Escolha o produto" />
           </SelectTrigger>
           <SelectContent>
@@ -182,18 +183,18 @@ function PlanForm({
       </Field>
       <div className="sm:col-span-2">
         <Field label="Descrição (opcional)">
-          <Input value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} placeholder="Aparece para o cliente" className="h-11" />
+          <Input value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} placeholder="Aparece para o cliente" className="h-11 md:h-9" />
         </Field>
       </div>
       <Field label="Quantidade total no plano">
-        <Input type="number" min="1" step="1" inputMode="numeric" value={draft.quantity} onChange={(e) => onChange({ ...draft, quantity: e.target.value })} placeholder="Ex.: 20" className="h-11" />
+        <Input type="number" min="1" step="1" inputMode="numeric" value={draft.quantity} onChange={(e) => onChange({ ...draft, quantity: e.target.value })} placeholder="Ex.: 20" className="h-11 md:h-9" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Desconto (%)">
-          <Input type="number" min="0" max="100" step="0.5" inputMode="decimal" value={draft.discount_percentage} onChange={(e) => setDiscount(e.target.value)} className="h-11" />
+          <Input type="number" min="0" max="100" step="0.5" inputMode="decimal" value={draft.discount_percentage} onChange={(e) => setDiscount(e.target.value)} className="h-11 md:h-9" />
         </Field>
         <Field label="Preço por unidade">
-          <Input type="number" min="0" step="0.01" inputMode="decimal" value={draft.unit_price_with_discount_cents} onChange={(e) => setUnitPrice(e.target.value)} className="h-11" />
+          <Input type="number" min="0" step="0.01" inputMode="decimal" value={draft.unit_price_with_discount_cents} onChange={(e) => setUnitPrice(e.target.value)} className="h-11 md:h-9" />
         </Field>
       </div>
       {product && unitCents > 0 && qty > 0 ? (
@@ -203,10 +204,10 @@ function PlanForm({
         </p>
       ) : null}
       <Field label="Vale a partir de">
-        <Input type="date" value={draft.valid_from} onChange={(e) => onChange({ ...draft, valid_from: e.target.value })} className="h-11" />
+        <Input type="date" value={draft.valid_from} onChange={(e) => onChange({ ...draft, valid_from: e.target.value })} className="h-11 md:h-9" />
       </Field>
       <Field label="Vale até (opcional)">
-        <Input type="date" value={draft.valid_until} onChange={(e) => onChange({ ...draft, valid_until: e.target.value })} className="h-11" />
+        <Input type="date" value={draft.valid_until} onChange={(e) => onChange({ ...draft, valid_until: e.target.value })} className="h-11 md:h-9" />
       </Field>
       <div className="sm:col-span-2">
         <Field
@@ -412,7 +413,7 @@ export default function OpsSubscriptionPlansPage() {
         className="sm:max-w-2xl"
         footer={
           <Button variant="cta" size="xl" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {saving ? <Spinner aria-hidden /> : null}
             {form?.mode === "edit" ? "Salvar alterações" : "Criar plano"}
           </Button>
         }

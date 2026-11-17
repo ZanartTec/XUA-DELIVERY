@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound, Loader2, Search, Truck } from "lucide-react";
+import { KeyRound, Search, Truck } from "lucide-react";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -21,6 +21,7 @@ import { formatShortOrderId } from "@/src/lib/order-detail-format";
 import { cn, formatDate } from "@/src/lib/utils";
 import type { Order } from "@/src/types";
 import { ListPanel } from "@/src/components/shared/list-panel";
+import { Spinner } from "@/src/components/ui/spinner";
 
 interface SearchResult extends Order {
   consumer_name: string;
@@ -98,7 +99,7 @@ function OtpOverrideContent() {
               }}
               placeholder="Cliente, telefone ou nº do pedido"
               aria-label="Buscar entrega em rota"
-              className="h-11 rounded-xl pl-9"
+              className="h-11 md:h-9 rounded-xl pl-9"
             />
           </div>
           <Button type="submit" variant="outline" size="xl">
@@ -162,7 +163,7 @@ function OtpOverrideContent() {
         description="O pedido será marcado como entregue sem o código do cliente."
         footer={
           <Button variant="cta" size="xl" disabled={!ready || saving} onClick={confirm}>
-            {saving ? <Loader2 className="animate-spin" aria-hidden /> : <KeyRound aria-hidden />}
+            {saving ? <Spinner aria-hidden /> : <KeyRound aria-hidden />}
             Confirmar entrega
           </Button>
         }
