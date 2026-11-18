@@ -222,3 +222,79 @@ describe("atrasados usa o dia de Brasília, não o de UTC", () => {
     for (const cut of cuts) expect(cut).toEqual(new Date("2026-06-12T00:00:00.000Z"));
   });
 });
+
+describe("entrega mais próxima em etapa ativa: ordena em memória", () => {
+  const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const created = (n: number) => new Date(`2026-06-0${n}T10:00:00.000Z`);
+  const base = { summaryStatuses: ACTIVE, page: 1, limit: 30, sort: "delivery_asc" as const };
+
+  // Sem ORDER BY/LIMIT as chaves vêm em qualquer ordem; as linhas completas vêm por id.
+  const keys = [
+    { id: "d", delivery_date: day("2026-06-10"), scheduled_time_start_hour: null, created_at: created(1) },
+    { id: "b", delivery_date: day("2026-06-10"), scheduled_time_start_hour: 14, created_at: created(2) },
+    { id: "a", delivery_date: day("2026-06-10"), scheduled_time_start_hour: 9, created_at: created(3) },
+    { id: "c", delivery_date: day("2026-06-10"), scheduled_time_start_hour: 14, created_at: created(1) },
+  ];
+
+  beforeEach(() => {
+    prisma.order.findMany.mockImplementation(async (args: { select: Record<string, unknown>; where: { id?: { in: string[] } } }) =>
+      args.where.id ? [...args.where.id.in].reverse().map((id) => ({ id })) : keys
+    );
+  });
+
+  it("não usa ORDER BY/LIMIT na busca das chaves (o planner varreria o histórico inteiro)", async () => {
+    await orderRepository.findByDistributorPaged(distributorId, { ...base, statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR] });
+
+    const [keysCall, rowsCall] = prisma.order.findMany.mock.calls.map(([args]) => args);
+    expect(keysCall).not.toHaveProperty("orderBy");
+    expect(keysCall).not.toHaveProperty("take");
+    expect(keysCall.select).toEqual({ id: true, delivery_date: true, scheduled_time_start_hour: true, created_at: true });
+    expect(rowsCall.where).toEqual({ id: { in: expect.any(Array) } });
+    expect(rowsCall.select.consumer).toBeDefined();
+  });
+
+  it("ordena por data, hora (sem hora por último), criação e id", async () => {
+    const result = await orderRepository.findByDistributorPaged(distributorId, {
+      ...base,
+      statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR],
+    });
+
+    // Todos em 10/06: 09h (a) → 14h criado antes (c) → 14h criado depois (b) → sem hora (d), que vai por último
+    expect(result.orders.map((o) => o.id)).toEqual(["a", "c", "b", "d"]);
+  });
+
+  it("pagina em memória e só lê as linhas completas da página pedida", async () => {
+    const result = await orderRepository.findByDistributorPaged(distributorId, {
+      ...base,
+      page: 2,
+      limit: 3,
+      statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR],
+    });
+
+    expect(result.orders.map((o) => o.id)).toEqual(["d"]);
+    const rowsCall = prisma.order.findMany.mock.calls[1][0];
+    expect(rowsCall.where.id.in).toEqual(["d"]);
+  });
+
+  it("o quadro também usa o caminho em memória em cada coluna", async () => {
+    const board = await orderRepository.findDistributorBoard(distributorId, {
+      columns: { all: ACTIVE },
+      summaryStatuses: ACTIVE,
+      perColumn: 2,
+      sort: "delivery_asc",
+    });
+
+    expect(board.columns.all.orders.map((o) => o.id)).toEqual(["a", "c"]);
+  });
+
+  it("histórico continua ordenando no banco: o conjunto é grande e o índice ordenado resolve", async () => {
+    prisma.order.findMany.mockResolvedValue([]);
+
+    await orderRepository.findByDistributorPaged(distributorId, { ...base, statuses: [OrderStatus.DELIVERED] });
+
+    const args = prisma.order.findMany.mock.calls[0][0];
+    expect(prisma.order.findMany).toHaveBeenCalledTimes(1);
+    expect(args.take).toBe(30);
+    expect(args.orderBy[0]).toEqual({ delivery_date: "asc" });
+  });
+});

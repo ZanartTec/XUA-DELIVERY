@@ -243,6 +243,60 @@ function groupStatusCounts(rows: Array<{ status: string; _count: { id: number } 
   return counts;
 }
 
+/** Chaves de ordenação de "entrega mais próxima", na mesma ordem do SQL (nulos por último, como o ASC do Postgres). */
+interface DeliverySortKey {
+  id: string;
+  delivery_date: Date;
+  scheduled_time_start_hour: number | null;
+  created_at: Date;
+}
+
+function compareDeliverySortKeys(a: DeliverySortKey, b: DeliverySortKey): number {
+  const byDate = a.delivery_date.getTime() - b.delivery_date.getTime();
+  if (byDate !== 0) return byDate;
+  const hourA = a.scheduled_time_start_hour;
+  const hourB = b.scheduled_time_start_hour;
+  if (hourA !== hourB) {
+    if (hourA === null) return 1;
+    if (hourB === null) return -1;
+    return hourA - hourB;
+  }
+  const byCreated = a.created_at.getTime() - b.created_at.getTime();
+  if (byCreated !== 0) return byCreated;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * Página de pedidos ATIVOS ordenada por entrega mais próxima.
+ *
+ * Um `ORDER BY delivery_date ... LIMIT n` leva o Postgres a andar pelo índice de `delivery_date` do
+ * mais antigo para o mais novo, apostando que acha n linhas logo. Mas os pedidos ativos são os mais
+ * recentes: ele descarta o histórico inteiro antes de chegar neles (~110 ms com 150 mil pedidos, e
+ * cresce com o histórico). O conjunto ativo é pequeno e limitado pela operação, então: busca só as
+ * chaves de ordenação sem ORDER BY/LIMIT (o índice por status resolve), ordena e pagina em memória e
+ * lê as linhas completas só dos ids da página. Não use para status finais, cujo conjunto é grande.
+ */
+async function findActiveOrdersByDelivery(
+  prisma: TxClient,
+  where: Prisma.OrderWhereInput,
+  skip: number,
+  take: number
+): Promise<OrderForQueue[]> {
+  const keys: DeliverySortKey[] = await prisma.order.findMany({
+    where,
+    select: { id: true, delivery_date: true, scheduled_time_start_hour: true, created_at: true },
+  });
+  const pageIds = keys
+    .sort(compareDeliverySortKeys)
+    .slice(skip, skip + take)
+    .map((key) => key.id);
+  if (pageIds.length === 0) return [];
+
+  const rows = await prisma.order.findMany({ where: { id: { in: pageIds } }, select: QUEUE_ORDER_SELECT });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return pageIds.flatMap((id) => byId.get(id) ?? []);
+}
+
 function buildDistributorQueueWhere(
   distributorId: string,
   statuses: OrderStatus[],
@@ -445,14 +499,17 @@ export const orderRepository = {
     const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
     const stageInsideSummary = options.statuses.every((status) => options.summaryStatuses.includes(status));
 
+    const skip = (options.page - 1) * options.limit;
     const [orders, statusGroups, overdueActive, countedTotal] = await Promise.all([
-      prisma.order.findMany({
-        where: whereFilter,
-        orderBy: distributorQueueOrderBy(options.sort),
-        skip: (options.page - 1) * options.limit,
-        take: options.limit,
-        select: QUEUE_ORDER_SELECT,
-      }),
+      stageInsideSummary && options.sort === "delivery_asc"
+        ? findActiveOrdersByDelivery(prisma, whereFilter, skip, options.limit)
+        : prisma.order.findMany({
+            where: whereFilter,
+            orderBy: distributorQueueOrderBy(options.sort),
+            skip,
+            take: options.limit,
+            select: QUEUE_ORDER_SELECT,
+          }),
       prisma.order.groupBy({ by: ["status"], where: summaryWhere, _count: { id: true } }),
       prisma.order.count({ where: overdueWhereFor(summaryWhere) }),
       stageInsideSummary ? Promise.resolve(null) : prisma.order.count({ where: whereFilter }),
@@ -486,18 +543,19 @@ export const orderRepository = {
     };
     const orderBy = distributorQueueOrderBy(options.sort);
     const columnKeys = Object.keys(options.columns);
+    const activeByDelivery =
+      options.sort === "delivery_asc" &&
+      columnKeys.every((key) => options.columns[key].every((status) => options.summaryStatuses.includes(status)));
     const summaryWhere = buildDistributorQueueWhere(distributorId, options.summaryStatuses, filterOptions);
 
     const [columnOrders, statusGroups, overdueActive] = await Promise.all([
       Promise.all(
-        columnKeys.map((key) =>
-          prisma.order.findMany({
-            where: buildDistributorQueueWhere(distributorId, options.columns[key], filterOptions),
-            orderBy,
-            take: options.perColumn,
-            select: QUEUE_ORDER_SELECT,
-          })
-        )
+        columnKeys.map((key) => {
+          const where = buildDistributorQueueWhere(distributorId, options.columns[key], filterOptions);
+          return activeByDelivery
+            ? findActiveOrdersByDelivery(prisma, where, 0, options.perColumn)
+            : prisma.order.findMany({ where, orderBy, take: options.perColumn, select: QUEUE_ORDER_SELECT });
+        })
       ),
       prisma.order.groupBy({ by: ["status"], where: summaryWhere, _count: { id: true } }),
       prisma.order.count({ where: overdueWhereFor(summaryWhere) }),

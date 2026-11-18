@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsumerRole, OrderStatus } from "@xua/shared/enums";
-import { disconnectPrisma } from "@api/infra/prisma/client.js";
+import { disconnectPrisma, getPrisma } from "@api/infra/prisma/client.js";
 import { orderRepository } from "@api/modules/orders/repository/orders.repository.js";
 import { resetDatabase } from "@tests/support/prisma-test-client.js";
 import {
@@ -157,6 +157,56 @@ describe("fila do distribuidor (integração — Postgres real)", () => {
     });
 
     expect(result.orders.map((o) => o.id)).toEqual([soon.id, late.id]);
+  });
+
+  it("entrega mais próxima em etapa ativa: empate de data desempata por hora (sem hora por último), criação e id", async () => {
+    const world = await seedWorld();
+    const prisma = getPrisma();
+    const mk = async (delivery_date: Date, hour: number | null) => {
+      const order = await createOrder(world.params, { status: ACCEPTED_BY_DISTRIBUTOR, delivery_date });
+      await prisma.order.update({ where: { id: order.id }, data: { scheduled_time_start_hour: hour } });
+      return order.id;
+    };
+    const todayNoHour = await mk(TODAY, null);
+    const todayAfternoonFirst = await mk(TODAY, 14);
+    const todayAfternoonSecond = await mk(TODAY, 14);
+    const todayMorning = await mk(TODAY, 9);
+    const yesterday = await mk(YESTERDAY, null);
+    await createOrder(world.params, { status: DELIVERED, delivery_date: YESTERDAY }); // fora da etapa
+
+    const expected = [yesterday, todayMorning, todayAfternoonFirst, todayAfternoonSecond, todayNoHour];
+    const page = (n: number) =>
+      orderRepository
+        .findByDistributorPaged(world.distributor.id, {
+          ...base,
+          page: n,
+          limit: 2,
+          sort: "delivery_asc",
+          statuses: [ACCEPTED_BY_DISTRIBUTOR],
+        })
+        .then((r) => r.orders.map((o) => o.id));
+
+    expect([...(await page(1)), ...(await page(2)), ...(await page(3))]).toEqual(expected);
+    expect(await page(4)).toEqual([]);
+  });
+
+  it("o quadro em entrega mais próxima respeita perColumn e a ordem", async () => {
+    const world = await seedWorld();
+    const far = await createOrder(world.params, { status: SENT_TO_DISTRIBUTOR, delivery_date: TOMORROW });
+    const near = await createOrder(world.params, { status: SENT_TO_DISTRIBUTOR, delivery_date: YESTERDAY });
+    await createOrder(world.params, { status: SENT_TO_DISTRIBUTOR, delivery_date: TOMORROW });
+
+    const board = await orderRepository.findDistributorBoard(world.distributor.id, {
+      columns: { incoming: [SENT_TO_DISTRIBUTOR] },
+      summaryStatuses: ACTIVE,
+      perColumn: 2,
+      sort: "delivery_asc",
+    });
+
+    expect(board.columns.incoming.total).toBe(3);
+    expect(board.columns.incoming.orders).toHaveLength(2);
+    expect(board.columns.incoming.orders[0].id).toBe(near.id);
+    expect([near.id, far.id]).toContain(board.columns.incoming.orders[1].id);
   });
 
   it("o select enxuto devolve só o que a fila usa", async () => {
