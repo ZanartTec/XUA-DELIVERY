@@ -1,10 +1,12 @@
 import { DeliveryWindow, OrderStatus } from "@xua/shared/enums";
 import { distributorRepository } from "../repository/distributor.repository.js";
 import { badRequest } from "../../../errors/index.js";
+import { operationDayIso } from "@xua/shared/utils/operation-day";
 
 function parseRouteId(routeId: string): Date {
   if (routeId === "today") {
-    return new Date();
+    // Dia de Brasília (não UTC): às 21h o UTC já é o dia seguinte e "hoje" mostraria a rota de amanhã.
+    return new Date(`${operationDayIso()}T00:00:00.000Z`);
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(routeId)) {
