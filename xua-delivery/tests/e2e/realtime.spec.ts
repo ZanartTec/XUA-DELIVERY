@@ -82,7 +82,7 @@ async function asDistributor(method: "patch" | "get", url: string, data?: unknow
 
 async function openQueue() {
   await distributorPage.goto("/distributor/queue");
-  await expect(distributorPage.locator('[data-realtime-status="live"]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(distributorPage.locator('[data-realtime-status="live"]:visible')).toBeVisible({ timeout: 10_000 });
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -116,7 +116,7 @@ test("E1 — pedido novo aparece na fila sem recarregar, com toast", async () =>
 test("E2 — depois de F5 a fila continua recebendo (regressão do F2)", async () => {
   await openQueue();
   await distributorPage.reload();
-  await expect(distributorPage.locator('[data-realtime-status="live"]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(distributorPage.locator('[data-realtime-status="live"]:visible')).toBeVisible({ timeout: 10_000 });
 
   const orderId = await createOrder();
   await expect(distributorPage.getByText(shortId(orderId)).first()).toBeVisible({ timeout: REALTIME_TIMEOUT });
@@ -125,7 +125,7 @@ test("E2 — depois de F5 a fila continua recebendo (regressão do F2)", async (
 test("E3 — pedido criado com a distribuidora offline aparece ao reconectar (resync)", async () => {
   await openQueue();
   await distributorContext.setOffline(true);
-  await expect(distributorPage.locator('[data-realtime-status="offline"]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(distributorPage.locator('[data-realtime-status="offline"]:visible')).toBeVisible({ timeout: 10_000 });
 
   const orderId = await createOrder();
   await distributorPage.waitForTimeout(1_000);
