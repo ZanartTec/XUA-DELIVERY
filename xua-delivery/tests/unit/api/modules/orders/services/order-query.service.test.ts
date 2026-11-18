@@ -168,7 +168,30 @@ describe("orderQueryService.listDistributorQueue — aba Histórico", () => {
           OrderStatus.SENT_TO_DISTRIBUTOR,
           OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
           OrderStatus.READY_FOR_DISPATCH,
+          OrderStatus.REDELIVERY_SCHEDULED,
           OrderStatus.OUT_FOR_DELIVERY,
+        ],
+      })
+    );
+  });
+
+  it("a etapa Preparo inclui a reentrega agendada (sem isso o pedido sumia da fila)", async () => {
+    await orderQueryService.listDistributorQueue(userId, "distributor_admin", {
+      scope: "distributor",
+      stage: "preparation",
+      origin: "all",
+      sort: "created_desc",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(mocks.orderRepository.findByDistributorPaged).toHaveBeenCalledWith(
+      distributorId,
+      expect.objectContaining({
+        statuses: [
+          OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+          OrderStatus.READY_FOR_DISPATCH,
+          OrderStatus.REDELIVERY_SCHEDULED,
         ],
       })
     );
@@ -355,7 +378,11 @@ describe("orderQueryService.listDistributorBoard", () => {
         perColumn: 12,
         columns: {
           incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
-          preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
+          preparation: [
+            OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+            OrderStatus.READY_FOR_DISPATCH,
+            OrderStatus.REDELIVERY_SCHEDULED,
+          ],
           route: [OrderStatus.OUT_FOR_DELIVERY],
         },
       })
@@ -402,6 +429,21 @@ describe("orderQueryService.getDistributorQueueSummary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.distributorRepository.resolveDistributorId.mockResolvedValue(distributorId);
+  });
+
+  it("conta a reentrega agendada em Preparo e no total de ativos", async () => {
+    mocks.orderRepository.countDistributorQueue.mockResolvedValue({
+      statusCounts: {
+        [OrderStatus.ACCEPTED_BY_DISTRIBUTOR]: 2,
+        [OrderStatus.READY_FOR_DISPATCH]: 1,
+        [OrderStatus.REDELIVERY_SCHEDULED]: 4,
+      },
+      overdueActive: 0,
+    });
+
+    const summary = await orderQueryService.getDistributorQueueSummary(userId, "distributor_admin");
+
+    expect(summary).toEqual({ active: 7, incoming: 0, preparation: 7, route: 0, overdue: 0 });
   });
 
   it("devolve só os contadores, sem listar pedidos", async () => {

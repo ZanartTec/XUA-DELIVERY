@@ -69,7 +69,12 @@ export const STAGES = [
     key: "preparation",
     label: "Preparo",
     hint: "Separar e despachar",
-    statuses: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.PICKING, OrderStatus.READY_FOR_DISPATCH] as const,
+    statuses: [
+      OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+      OrderStatus.PICKING,
+      OrderStatus.READY_FOR_DISPATCH,
+      OrderStatus.REDELIVERY_SCHEDULED,
+    ] as const,
   },
   {
     key: "route",
@@ -150,6 +155,11 @@ export function countActiveFilters({ origin, deliveryDate, driverId, sort }: Que
 /** Ações que o pedido pede, pela etapa: novo = aceitar/recusar; preparo = separar e despachar. */
 export function isIncoming(order: Pick<QueueOrder, "status">): boolean {
   return order.status === OrderStatus.SENT_TO_DISTRIBUTOR;
+}
+
+/** Reentrega agendada: já foi conferido, só falta despachar de novo (sem checklist). */
+export function isRedelivery(order: Pick<QueueOrder, "status">): boolean {
+  return order.status === OrderStatus.REDELIVERY_SCHEDULED;
 }
 
 export function isInPreparation(order: Pick<QueueOrder, "status">): boolean {

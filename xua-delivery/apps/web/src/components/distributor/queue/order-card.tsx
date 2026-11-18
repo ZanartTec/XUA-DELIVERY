@@ -10,7 +10,7 @@ import { SlaCountdown } from "@/src/components/shared/distributor/sla-countdown"
 import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency";
 import { formatScheduledTime, formatShortOrderId, isFromSubscription } from "@/src/lib/order-detail-format";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort } from "@/src/lib/utils";
-import { isIncoming, isInPreparation, shortAddress, type QueueOrder } from "./queue-model";
+import { isIncoming, isInPreparation, isRedelivery, shortAddress, type QueueOrder } from "./queue-model";
 import { Spinner } from "@/src/components/ui/spinner";
 import { Badge } from "@/src/components/ui/badge";
 
@@ -75,7 +75,7 @@ export function OrderActionButtons({
     return (
       <Button asChild variant="soft" size={size} className="w-full">
         <Link href={`/distributor/orders/${order.id}/checklist`}>
-          <PackageCheck aria-hidden /> Separar e despachar
+          <PackageCheck aria-hidden /> {isRedelivery(order) ? "Despachar reentrega" : "Separar e despachar"}
         </Link>
       </Button>
     );

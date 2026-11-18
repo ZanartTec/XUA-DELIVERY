@@ -11,7 +11,7 @@ import { useDeliveryUrgency } from "@/src/hooks/distributor/use-delivery-urgency
 import { formatScheduledTime, formatShortOrderId, isFromSubscription } from "@/src/lib/order-detail-format";
 import { cn, formatCurrency, formatDateShort, formatRelativeShort } from "@/src/lib/utils";
 import { SlaPill, SubscriptionChip, type OrderActions } from "./order-card";
-import { isIncoming, isInPreparation, shortAddress, type QueueOrder } from "./queue-model";
+import { isIncoming, isInPreparation, isRedelivery, shortAddress, type QueueOrder } from "./queue-model";
 import { Spinner } from "@/src/components/ui/spinner";
 
 function DeliveryCell({ order }: { order: QueueOrder }) {
@@ -58,7 +58,7 @@ function RowActions({ order, loading, onAccept, onReject, onOpen }: OrderActions
       <div className="flex items-center justify-end gap-2" onClick={stop}>
         <Button asChild variant="soft" size="sm">
           <Link href={`/distributor/orders/${order.id}/checklist`}>
-            <PackageCheck aria-hidden /> Separar e despachar
+            <PackageCheck aria-hidden /> {isRedelivery(order) ? "Despachar reentrega" : "Separar e despachar"}
           </Link>
         </Button>
       </div>

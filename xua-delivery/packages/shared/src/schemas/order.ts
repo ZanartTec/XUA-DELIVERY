@@ -68,6 +68,8 @@ export const DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES = [
   OrderStatus.SENT_TO_DISTRIBUTOR,
   OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
   OrderStatus.READY_FOR_DISPATCH,
+  // Reentrega agendada pela ops: o pedido já foi conferido, falta despachar de novo com um motorista.
+  OrderStatus.REDELIVERY_SCHEDULED,
   OrderStatus.OUT_FOR_DELIVERY,
 ] as const;
 /**

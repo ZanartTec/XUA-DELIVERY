@@ -58,7 +58,8 @@ export default function ChecklistPage() {
   const allChecked = checklist.length > 0 && doneCount === checklist.length;
   const selectedDriver = driverChoice ?? order?.driver_id ?? "";
   const canPrepare = order?.status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR || order?.status === OrderStatus.PICKING;
-  const isReady = order?.status === OrderStatus.READY_FOR_DISPATCH;
+  // Reentrega agendada já foi conferida: despacha direto, como um pedido pronto para sair.
+  const isReady = order?.status === OrderStatus.READY_FOR_DISPATCH || order?.status === OrderStatus.REDELIVERY_SCHEDULED;
   const blocked = order != null && !canPrepare && !isReady;
   const canDispatch = (canPrepare ? allChecked : isReady) && selectedDriver !== "";
 

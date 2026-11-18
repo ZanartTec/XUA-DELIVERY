@@ -80,7 +80,8 @@ export default function DistributorOrderDetailPage() {
   const toPrepare =
     order.status === OrderStatus.ACCEPTED_BY_DISTRIBUTOR ||
     order.status === OrderStatus.PICKING ||
-    order.status === OrderStatus.READY_FOR_DISPATCH;
+    order.status === OrderStatus.READY_FOR_DISPATCH ||
+    order.status === OrderStatus.REDELIVERY_SCHEDULED;
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -129,7 +130,8 @@ export default function DistributorOrderDetailPage() {
           ) : (
             <Button asChild variant="cta" size="xl">
               <Link href={`/distributor/orders/${id}/checklist`}>
-                <PackageCheck aria-hidden /> Separar e despachar
+                <PackageCheck aria-hidden />{" "}
+                {order.status === OrderStatus.REDELIVERY_SCHEDULED ? "Despachar reentrega" : "Separar e despachar"}
               </Link>
             </Button>
           )}

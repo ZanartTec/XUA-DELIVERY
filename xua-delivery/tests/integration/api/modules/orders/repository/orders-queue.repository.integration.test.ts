@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsumerRole, OrderStatus } from "@xua/shared/enums";
+import { DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES } from "@xua/shared/schemas/order";
 import { disconnectPrisma, getPrisma } from "@api/infra/prisma/client.js";
 import { orderRepository } from "@api/modules/orders/repository/orders.repository.js";
 import { resetDatabase } from "@tests/support/prisma-test-client.js";
@@ -306,5 +307,50 @@ describe("atrasados no dia de Brasília (integração — Postgres real)", () =>
     const light = await orderRepository.countDistributorQueue(world.distributor.id, ACTIVE);
 
     expect(light.overdueActive).toBe(1);
+  });
+});
+
+describe("reentrega agendada na fila (integração — Postgres real)", () => {
+  const { REDELIVERY_SCHEDULED } = OrderStatus;
+  const preparation = [ACCEPTED_BY_DISTRIBUTOR, READY_FOR_DISPATCH, REDELIVERY_SCHEDULED];
+
+  it("o status ativo compartilhado inclui a reentrega (é o que alimenta resumo, 'todos' e quadro)", () => {
+    expect(DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES).toContain(REDELIVERY_SCHEDULED);
+  });
+
+  it("a reentrega aparece na lista de Preparo, no quadro e nos contadores, e some do histórico", async () => {
+    const world = await seedWorld();
+    const active = [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES];
+    const accepted = await createOrder(world.params, { status: ACCEPTED_BY_DISTRIBUTOR });
+    const redelivery = await createOrder(world.params, { status: REDELIVERY_SCHEDULED, delivery_date: TOMORROW });
+
+    const list = await orderRepository.findByDistributorPaged(world.distributor.id, {
+      summaryStatuses: active,
+      page: 1,
+      limit: 30,
+      sort: "created_desc",
+      statuses: preparation,
+    });
+    const board = await orderRepository.findDistributorBoard(world.distributor.id, {
+      columns: { preparation },
+      summaryStatuses: active,
+      perColumn: 10,
+      sort: "delivery_asc",
+    });
+    const counts = await orderRepository.countDistributorQueue(world.distributor.id, active);
+    const history = await orderRepository.findByDistributorPaged(world.distributor.id, {
+      summaryStatuses: active,
+      page: 1,
+      limit: 30,
+      sort: "created_desc",
+      statuses: [DELIVERED],
+    });
+
+    expect(list.orders.map((o) => o.id).sort()).toEqual([accepted.id, redelivery.id].sort());
+    expect(list.total).toBe(2);
+    expect(board.columns.preparation.total).toBe(2);
+    expect(board.columns.preparation.orders.map((o) => o.id)).toContain(redelivery.id);
+    expect(counts.statusCounts[REDELIVERY_SCHEDULED]).toBe(1);
+    expect(history.orders).toEqual([]);
   });
 });

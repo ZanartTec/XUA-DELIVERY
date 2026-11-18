@@ -33,6 +33,9 @@ function mapStopStatus(status: OrderStatus) {
   if (status === OrderStatus.READY_FOR_DISPATCH) {
     return { label: "Pronto para despacho", tone: "warning" as const };
   }
+  if (status === OrderStatus.REDELIVERY_SCHEDULED) {
+    return { label: "Reentrega agendada", tone: "warning" as const };
+  }
   return { label: "Pendente", tone: "neutral" as const };
 }
 

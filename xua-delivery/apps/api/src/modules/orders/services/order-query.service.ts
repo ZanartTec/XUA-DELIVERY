@@ -21,7 +21,12 @@ import redis from "../../../infra/redis/client.js";
 const DISTRIBUTOR_QUEUE_STAGE_STATUSES: Record<DistributorQueueStageInput, OrderStatus[]> = {
   all: [...DISTRIBUTOR_QUEUE_ACTIVE_STATUS_VALUES] as OrderStatus[],
   incoming: [OrderStatus.SENT_TO_DISTRIBUTOR],
-  preparation: [OrderStatus.ACCEPTED_BY_DISTRIBUTOR, OrderStatus.READY_FOR_DISPATCH],
+  preparation: [
+    OrderStatus.ACCEPTED_BY_DISTRIBUTOR,
+    OrderStatus.READY_FOR_DISPATCH,
+    // Reentrega agendada volta para a distribuidora despachar: sem isto o pedido sumia da fila.
+    OrderStatus.REDELIVERY_SCHEDULED,
+  ],
   route: [OrderStatus.OUT_FOR_DELIVERY],
   history: [...DISTRIBUTOR_QUEUE_TERMINAL_STATUS_VALUES] as OrderStatus[],
 };
@@ -61,9 +66,10 @@ function resolveHistoryDateWindow(
 
 function buildDistributorQueueSummary(statusCounts: Partial<Record<OrderStatus, number>>, overdueActive: number) {
   const incoming = statusCounts[OrderStatus.SENT_TO_DISTRIBUTOR] ?? 0;
-  const preparation =
-    (statusCounts[OrderStatus.ACCEPTED_BY_DISTRIBUTOR] ?? 0) +
-    (statusCounts[OrderStatus.READY_FOR_DISPATCH] ?? 0);
+  const preparation = DISTRIBUTOR_QUEUE_STAGE_STATUSES.preparation.reduce(
+    (sum, status) => sum + (statusCounts[status] ?? 0),
+    0
+  );
   const route = statusCounts[OrderStatus.OUT_FOR_DELIVERY] ?? 0;
 
   return {

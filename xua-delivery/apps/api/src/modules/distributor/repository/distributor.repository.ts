@@ -181,6 +181,7 @@ export const distributorRepository = {
         status: {
           in: [
             OrderStatus.READY_FOR_DISPATCH,
+            OrderStatus.REDELIVERY_SCHEDULED,
             OrderStatus.OUT_FOR_DELIVERY,
             OrderStatus.DELIVERED,
             OrderStatus.DELIVERY_FAILED,
